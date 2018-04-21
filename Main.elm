@@ -7,6 +7,7 @@ import Types exposing (..)
 import View exposing (view)
 import AnimationFrame
 import Physics.Quaternion as Quaternion
+import Physics
 import Physics.World as Physics
 import Physics.Body as Physics
 import Physics.Shape as Physics
@@ -66,8 +67,8 @@ update msg model =
             , Cmd.none
             )
 
-        Tick diff ->
-            ( { model | world = Physics.step diff model.world }
+        Tick dt ->
+            ( { model | world = Physics.step (dt / 1000) model.world }
             , Cmd.none
             )
 

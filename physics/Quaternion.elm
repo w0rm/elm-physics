@@ -70,6 +70,51 @@ mul q1 q2 =
             (-x1 * x2 - y1 * y2 - z1 * z2 + w1 * w2)
 
 
+{-| angularDistance = angularVelocity * dt / 2
+-}
+rotateBy : Vec3 -> Vec4 -> Vec4
+rotateBy angularDistance quaternion =
+    let
+        ( ax, ay, az ) =
+            Vec3.toTuple angularDistance
+
+        ( bx, by, bz, bw ) =
+            Vec4.toTuple quaternion
+    in
+        vec4
+            (bx + (ax * bw + ay * bz - az * by))
+            (by + (ay * bw + az * bx - ax * bz))
+            (bz + (az * bw + ax * by - ay * bx))
+            (bw + (-ax * bx - ay * by - az * bz))
+
+
+rotate : Vec4 -> Vec3 -> Vec3
+rotate q v =
+    let
+        ( x, y, z ) =
+            Vec3.toTuple v
+
+        ( qx, qy, qz, qw ) =
+            Vec4.toTuple q
+
+        ix =
+            qw * x + qy * z - qz * y
+
+        iy =
+            qw * y + qz * x - qx * z
+
+        iz =
+            qw * z + qx * y - qy * x
+
+        iw =
+            -qx * x - qy * y - qz * z
+    in
+        vec3
+            (ix * qw + iw * -qx + iy * -qz - iz * -qy)
+            (iy * qw + iw * -qy + iz * -qx - ix * -qz)
+            (iz * qw + iw * -qz + ix * -qy - iy * -qx)
+
+
 {-| Spherical linear interpolation
 <http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/slerp/index.htm>
 
