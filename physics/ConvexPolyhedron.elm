@@ -126,7 +126,7 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
                 t1
                 hull1
                 separatingNormal
-                (List.map (Quaternion.rotate t1.quaternion >> Vec3.add t1.position) vertices)
+                (List.map (Transform.pointToWorldFrame t1) vertices)
                 minDist
                 maxDist
 
@@ -166,21 +166,16 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB1 minDist maxDist =
         clipFaceAgainstHullHelpAdd closest a b result =
             let
                 worldEdge =
-                    Vec3.sub a b
-                        |> Quaternion.rotate t1.quaternion
-                        |> Vec3.add t1.position
+                    Transform.pointToWorldFrame t1 (Vec3.sub a b)
 
                 planeNormalWS =
                     closest.normal
-                        |> Quaternion.rotate t1.quaternion
-                        |> Vec3.add t1.position
+                        |> Transform.pointToWorldFrame t1
                         |> Vec3.cross worldEdge
                         |> Vec3.negate
 
                 worldA =
-                    a
-                        |> Quaternion.rotate t1.quaternion
-                        |> Vec3.add t1.position
+                    Transform.pointToWorldFrame t1 a
 
                 planeEqWS =
                     -(Vec3.dot worldA planeNormalWS)
@@ -289,9 +284,10 @@ closestFaceAHelp transform separatingNormal normals faces dmin result =
 clipFaceAgainstPlane : Vec3 -> Float -> List Vec3 -> List Vec3
 clipFaceAgainstPlane planeNormal planeConstant vertices =
     case vertices of
-        -- guarantee at least two
+        -- guarantee at least two, keep the first to match with the last
         fst :: snd :: rest ->
             clipFaceAgainstPlaneHelp planeNormal planeConstant fst vertices []
+                |> List.reverse
 
         _ ->
             []

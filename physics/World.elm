@@ -66,7 +66,7 @@ getPairs { bodies } =
                 List.foldl
                     (\id2 ->
                         if id1 > id2 then
-                            Set.insert ( id1, id2 )
+                            Set.insert ( id2, id1 )
                         else
                             identity
                     )

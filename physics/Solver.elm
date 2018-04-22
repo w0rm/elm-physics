@@ -73,7 +73,6 @@ solveStep context =
                     Dict.get equation.bodyId2 acc.bodies
                         |> fromJust
 
-                -- TODO: fixme -1
                 gWlambda =
                     SolverEquation.computeGWlambda bi bj equation
 
@@ -102,8 +101,8 @@ solveStep context =
                     , equations = newEquation :: acc.equations
                     , bodies =
                         acc.bodies
-                            |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda equation.jacobianElementA bi)
-                            |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda equation.jacobianElementB bj)
+                            |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
+                            |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
                 }
         )
         { context | equations = [], deltalambdaTot = 0 }

@@ -1,8 +1,8 @@
 module Physics.AABB exposing (..)
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4)
 import Physics.Quaternion as Quaternion
+import Physics.Transform as Transform exposing (Transform)
 
 
 maxNumber : Float
@@ -27,6 +27,13 @@ maximum : AABB
 maximum =
     { lowerBound = vec3 -maxNumber -maxNumber -maxNumber
     , upperBound = vec3 maxNumber maxNumber maxNumber
+    }
+
+
+impossible : AABB
+impossible =
+    { lowerBound = vec3 maxNumber maxNumber maxNumber
+    , upperBound = vec3 -maxNumber -maxNumber -maxNumber
     }
 
 
@@ -70,19 +77,21 @@ overlaps aabb1 aabb2 =
             && ((l2z <= u1z && u1z <= u2z) || (l1z <= u2z && u2z <= u1z))
 
 
-box : Vec3 -> Vec4 -> Vec3 -> AABB
-box position quaternion halfExtends =
+box : Transform -> Vec3 -> AABB
+box transform halfExtends =
     let
         { x, y, z } =
             Vec3.toRecord halfExtends
     in
         List.foldl
-            (Quaternion.rotate quaternion
-                >> Vec3.add position
-                >> (\v -> AABB v v)
-                >> extend
+            (\point ->
+                let
+                    p =
+                        Transform.pointToWorldFrame transform point
+                in
+                    extend (AABB p p)
             )
-            zero
+            impossible
             [ vec3 -x -y -z
             , vec3 x -y -z
             , vec3 x y -z
@@ -101,8 +110,8 @@ toHalfExtends { lowerBound, upperBound } =
         |> Vec3.scale 0.5
 
 
-plane : Vec3 -> Vec4 -> AABB
-plane position quaternion =
+plane : Transform -> AABB
+plane { position, quaternion } =
     case Vec3.toTuple (Quaternion.rotate quaternion Vec3.k) of
         ( 1, _, _ ) ->
             { maximum | upperBound = vec3 (Vec3.getX position) maxNumber maxNumber }

@@ -115,9 +115,7 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
             (\vertex acc ->
                 let
                     worldVertex =
-                        vertex
-                            |> Quaternion.rotate boxTransform.quaternion
-                            |> Vec3.add boxTransform.position
+                        Transform.pointToWorldFrame boxTransform vertex
 
                     dot =
                         planeTransform.position

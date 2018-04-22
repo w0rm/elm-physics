@@ -148,6 +148,7 @@ tick dt body =
                 , quaternion =
                     body.quaternion
                         |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
+                        |> Vec4.normalize
             }
 
 
@@ -203,7 +204,7 @@ updateMassProperties ({ mass } as body) =
                 | invMass = invMass
                 , inertia = inertia
                 , invInertia = invInertia
-                , quaternion = Vec4.normalize body.quaternion
+                , quaternion = body.quaternion
             }
 
 
@@ -229,15 +230,16 @@ computeAABB body =
     Dict.foldl
         (\shapeId shape ->
             let
-                { quaternion, position } =
+                transform =
                     shapeWorldTransform shapeId body
             in
-                case shape of
-                    Box halfExtends ->
-                        AABB.extend (AABB.box position quaternion halfExtends)
+                AABB.extend <|
+                    case shape of
+                        Box halfExtends ->
+                            AABB.box transform halfExtends
 
-                    Plane ->
-                        AABB.extend (AABB.plane position quaternion)
+                        Plane ->
+                            AABB.plane transform
         )
-        AABB.zero
+        AABB.impossible
         body.shapes
