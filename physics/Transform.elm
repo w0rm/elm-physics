@@ -4,9 +4,10 @@ module Physics.Transform
         , vectorToLocalFrame
         , pointToLocalFrame
         , pointToWorldFrame
+        , identity
         )
 
-import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Physics.Quaternion as Quaternion
 
@@ -14,6 +15,13 @@ import Physics.Quaternion as Quaternion
 type alias Transform =
     { quaternion : Vec4
     , position : Vec3
+    }
+
+
+identity : Transform
+identity =
+    { position = vec3 0 0 0
+    , quaternion = Quaternion.identity
     }
 
 
@@ -33,6 +41,6 @@ vectorToLocalFrame { quaternion } worldVector =
 
 pointToLocalFrame : Transform -> Vec3 -> Vec3
 pointToLocalFrame { position, quaternion } worldPoint =
-    worldPoint
-        |> Vec3.sub position
+    position
+        |> Vec3.sub worldPoint
         |> Quaternion.rotate (Quaternion.conjugate quaternion)

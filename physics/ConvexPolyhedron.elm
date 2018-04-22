@@ -102,7 +102,7 @@ fromBox halfExtents =
 
 normal : Vec3 -> Vec3 -> Vec3 -> Vec3
 normal v0 v1 v2 =
-    Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v1 v0)
+    Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v0 v1)
         |> Vec3.normalize
 
 
@@ -120,7 +120,7 @@ type alias ClipResult =
 
 clipAgainstHull : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Float -> Float -> List ClipResult
 clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
-    case closestFaceBHelp t2 separatingNormal hull2.normals hull2.faces -maxNumber Nothing of
+    case closestFaceHelp (>) t2 separatingNormal hull2.normals hull2.faces -maxNumber Nothing of
         Just { vertices } ->
             clipFaceAgainstHull
                 t1
@@ -132,32 +132,6 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
 
         Nothing ->
             []
-
-
-closestFaceBHelp : Transform -> Vec3 -> List Vec3 -> List (List Vec3) -> Float -> Maybe ClosestFaceResult -> Maybe ClosestFaceResult
-closestFaceBHelp transform separatingNormal normals faces dmax result =
-    case ( normals, faces ) of
-        ( normal :: restNormals, face :: restFaces ) ->
-            let
-                d =
-                    Vec3.dot (Quaternion.rotate transform.quaternion normal) separatingNormal
-            in
-                if d > dmax then
-                    closestFaceBHelp transform
-                        separatingNormal
-                        restNormals
-                        restFaces
-                        d
-                        (Just
-                            { vertices = face
-                            , normal = normal
-                            }
-                        )
-                else
-                    closestFaceBHelp transform separatingNormal restNormals restFaces dmax result
-
-        _ ->
-            result
 
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
@@ -208,11 +182,11 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB1 minDist maxDist =
                 _ ->
                     []
     in
-        case closestFaceAHelp t1 separatingNormal hull1.normals hull1.faces maxNumber Nothing of
+        case closestFaceHelp (<) t1 separatingNormal hull1.normals hull1.faces maxNumber Nothing of
             Just closest ->
                 let
                     localPlaneEq =
-                        -(List.head closest.vertices
+                        -(List.head (closest.vertices)
                             |> Maybe.withDefault zero3
                             |> Vec3.dot closest.normal
                          )
@@ -229,7 +203,7 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB1 minDist maxDist =
                             (\point result ->
                                 let
                                     depth =
-                                        max minDist (Vec3.dot planeNormalWS point)
+                                        max minDist (Vec3.dot planeNormalWS point + planeEqWS)
                                 in
                                     if depth <= maxDist then
                                         if depth <= 0 then
@@ -255,27 +229,38 @@ type alias ClosestFaceResult =
     }
 
 
-closestFaceAHelp : Transform -> Vec3 -> List Vec3 -> List (List Vec3) -> Float -> Maybe ClosestFaceResult -> Maybe ClosestFaceResult
-closestFaceAHelp transform separatingNormal normals faces dmin result =
+closestFaceHelp : (Float -> Float -> Bool) -> Transform -> Vec3 -> List Vec3 -> List (List Vec3) -> Float -> Maybe ClosestFaceResult -> Maybe ClosestFaceResult
+closestFaceHelp compareFunc transform separatingNormal normals faces dCurrent result =
     case ( normals, faces ) of
-        ( normal :: restNormals, face :: restFaces ) ->
+        ( faceNormal :: restNormals, faceVertices :: restFaces ) ->
             let
                 d =
-                    Vec3.dot (Quaternion.rotate transform.quaternion normal) separatingNormal
+                    faceNormal
+                        |> Quaternion.rotate transform.quaternion
+                        |> Vec3.dot separatingNormal
             in
-                if d < dmin then
-                    closestFaceAHelp transform
+                if compareFunc d dCurrent then
+                    closestFaceHelp
+                        compareFunc
+                        transform
                         separatingNormal
                         restNormals
                         restFaces
                         d
                         (Just
-                            { vertices = face
-                            , normal = normal
+                            { vertices = faceVertices
+                            , normal = faceNormal
                             }
                         )
                 else
-                    closestFaceAHelp transform separatingNormal restNormals restFaces dmin result
+                    closestFaceHelp
+                        compareFunc
+                        transform
+                        separatingNormal
+                        restNormals
+                        restFaces
+                        dCurrent
+                        result
 
         _ ->
             result
@@ -287,7 +272,18 @@ clipFaceAgainstPlane planeNormal planeConstant vertices =
         -- guarantee at least two, keep the first to match with the last
         fst :: snd :: rest ->
             clipFaceAgainstPlaneHelp planeNormal planeConstant fst vertices []
-                |> List.reverse
+                |> (\l ->
+                        -- move the last element to be the first element
+                        -- TODO: not sure if this is needed
+                        let
+                            head =
+                                List.take 1 l
+
+                            tail =
+                                List.drop 1 l
+                        in
+                            head ++ List.reverse tail
+                   )
 
         _ ->
             []
@@ -344,8 +340,8 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
                 (lerp (nDotPrev / (nDotPrev - nDotNext)) prev next)
                     :: result
         else if nDotNext < 0 then
-            (lerp (nDotPrev / (nDotPrev - nDotNext)) prev next)
-                :: next
+            next
+                :: (lerp (nDotPrev / (nDotPrev - nDotNext)) prev next)
                 :: result
         else
             result
@@ -445,10 +441,10 @@ testEdges t1 hull1 t2 hull2 context =
 testSepAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Maybe Float
 testSepAxis t1 hull1 t2 hull2 axis =
     let
-        ( min1, max1 ) =
+        ( max1, min1 ) =
             project t1 hull1 axis
 
-        ( min2, max2 ) =
+        ( max2, min2 ) =
             project t2 hull2 axis
     in
         if max1 < min2 || max2 < min1 then
@@ -457,7 +453,7 @@ testSepAxis t1 hull1 t2 hull2 axis =
             Just (min (max1 - min2) (max2 - min1))
 
 
-{-| Get min and max dot product of a convex hull at Transform projected onto an axis.
+{-| Get max and min dot product of a convex hull at Transform projected onto an axis.
 -}
 project : Transform -> ConvexPolyhedron -> Vec3 -> ( Float, Float )
 project transform { vertices } axis =
@@ -471,17 +467,17 @@ project transform { vertices } axis =
                 |> Vec3.dot localAxis
     in
         List.foldl
-            (\vec ( minVal, maxVal ) ->
+            (\vec ( maxVal, minVal ) ->
                 let
                     val =
                         Vec3.dot vec localAxis
                 in
-                    ( min minVal val, max maxVal val )
+                    ( max maxVal val, min minVal val )
             )
-            ( maxNumber, -maxNumber )
+            ( -maxNumber, maxNumber )
             vertices
-            |> (\( minVal, maxVal ) ->
-                    ( minVal - add
-                    , maxVal - add
+            |> (\( maxVal, minVal ) ->
+                    ( maxVal - add
+                    , minVal - add
                     )
                )
