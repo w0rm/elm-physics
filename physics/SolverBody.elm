@@ -22,7 +22,7 @@ type alias SolverBody =
 
 
 fromBody : Body -> SolverBody
-fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque } =
+fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque, invMass, invInertiaWorld } =
     { position = position
     , velocity = velocity
     , angularVelocity = angularVelocity
@@ -33,13 +33,8 @@ fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque 
     -- more attributes for the solver
     , vlambda = Body.zero3
     , wlambda = Body.zero3
-    , invMassSolve =
-        if mass == 0 then
-            0
-        else
-            1 / mass
-    , invInertiaWorldSolve =
-        Mat3.zero
+    , invMassSolve = invMass
+    , invInertiaWorldSolve = invInertiaWorld
     }
 
 

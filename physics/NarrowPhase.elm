@@ -3,12 +3,13 @@ module Physics.NarrowPhase exposing (getContacts, NarrowPhaseResult)
 import Physics.World as World exposing (..)
 import Physics.Body as Body exposing (..)
 import Physics.Shape as Shape exposing (..)
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (..)
+import Physics.ConvexPolyhedron as ConvexPolyhedron
 import Physics.Quaternion as Quaternion
 import Set exposing (Set)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Dict exposing (Dict)
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
+import Physics.Transform as Transform exposing (Transform)
 
 
 type alias NarrowPhaseResult =
@@ -62,7 +63,7 @@ getBodyContacts world bodyId1 body1 bodyId2 body2 narrowPhaseResult =
         body1.shapes
 
 
-getShapeContacts : ShapeTransform -> Shape -> BodyId -> Body -> ShapeTransform -> Shape -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
+getShapeContacts : Transform -> Shape -> BodyId -> Body -> Transform -> Shape -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
 getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bodyId2 body2 =
     case ( shape1, shape2 ) of
         ( Plane, Plane ) ->
@@ -94,12 +95,14 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 shapeTransform1
                 halfExtents1
                 bodyId1
+                body1
                 shapeTransform2
                 halfExtents2
                 bodyId2
+                body2
 
 
-getPlaneBoxContacts : ShapeTransform -> BodyId -> Body -> ShapeTransform -> Vec3 -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
+getPlaneBoxContacts : Transform -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
 getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExtents boxBodyId boxBody narrowPhaseResult =
     let
         worldNormal =
@@ -143,6 +146,46 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
             convexPolyhedron.vertices
 
 
-getBoxBoxContacts : ShapeTransform -> Vec3 -> BodyId -> ShapeTransform -> Vec3 -> BodyId -> NarrowPhaseResult -> NarrowPhaseResult
-getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 shapeTransform2 halfExtents2 bodyId2 =
-    identity
+getBoxBoxContacts : Transform -> Vec3 -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
+getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 halfExtents2 bodyId2 body2 narrowPhaseResult =
+    let
+        convexPolyhedron1 =
+            ConvexPolyhedron.fromBox halfExtents1
+
+        convexPolyhedron2 =
+            ConvexPolyhedron.fromBox halfExtents2
+    in
+        case ConvexPolyhedron.findSeparatingAxis shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 of
+            Just sepAxis ->
+                ConvexPolyhedron.clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
+                    |> List.foldl
+                        (\{ point, normal, depth } acc ->
+                            let
+                                q =
+                                    normal
+                                        |> Vec3.negate
+                                        |> Vec3.scale depth
+
+                                ri =
+                                    Vec3.add point q
+                                        |> Vec3.add (Vec3.negate body1.position)
+
+                                rj =
+                                    point
+                                        |> Vec3.add (Vec3.negate body2.position)
+                            in
+                                { acc
+                                    | contactEquations =
+                                        { bodyId1 = bodyId1
+                                        , bodyId2 = bodyId2
+                                        , ni = Vec3.negate sepAxis
+                                        , ri = ri
+                                        , rj = rj
+                                        }
+                                            :: acc.contactEquations
+                                }
+                        )
+                        narrowPhaseResult
+
+            Nothing ->
+                narrowPhaseResult

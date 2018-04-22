@@ -70,6 +70,15 @@ mul q1 q2 =
             (-x1 * x2 - y1 * y2 - z1 * z2 + w1 * w2)
 
 
+conjugate : Vec4 -> Vec4
+conjugate q =
+    let
+        { x, y, z, w } =
+            Vec4.toRecord q
+    in
+        vec4 -x -y -z w
+
+
 {-| angularDistance = angularVelocity * dt / 2
 -}
 rotateBy : Vec3 -> Vec4 -> Vec4
