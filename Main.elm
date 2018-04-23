@@ -48,8 +48,18 @@ init =
             Physics.world
                 |> Physics.setGravity (vec3 0 0 -10)
                 |> Physics.addBody ground
-                |> Physics.addBody (box (vec3 0 0 2))
-                |> Physics.addBody (box (vec3 1 0 6))
+                |> Physics.addBody
+                    (box (vec3 0 0 2)
+                        |> Physics.setQuaternion (Quaternion.fromAngleAxis (-pi / 5) Vec3.j)
+                    )
+                |> Physics.addBody
+                    (box (vec3 -1.2 0 8)
+                        |> Physics.setQuaternion (Quaternion.fromAngleAxis (-pi / 5) Vec3.j)
+                    )
+                |> Physics.addBody
+                    (box (vec3 1.3 0 6)
+                        |> Physics.setQuaternion (Quaternion.fromAngleAxis (pi / 5) Vec3.j)
+                    )
       , devicePixelRatio = 2
       }
     , Task.perform Resize Window.size
