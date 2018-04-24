@@ -126,7 +126,7 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
                 t1
                 hull1
                 separatingNormal
-                (List.map (Transform.pointToWorldFrame t1) vertices)
+                (List.map (Transform.pointToWorldFrame t2) vertices)
                 minDist
                 maxDist
 

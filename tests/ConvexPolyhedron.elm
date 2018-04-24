@@ -110,8 +110,11 @@ clipAgainstHull =
         [ test "should return 4 results" <|
             \_ ->
                 let
-                    hull =
+                    hull1 =
                         boxHull 0.6
+
+                    hull2 =
+                        boxHull 0.5
 
                     t1 =
                         { position = vec3 -0.5 0 0
@@ -120,17 +123,17 @@ clipAgainstHull =
 
                     t2 =
                         { position = vec3 0.5 0 0
-                        , quaternion = Quaternion.identity
+                        , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
 
                     maybeSeparatingAxis =
-                        ConvexPolyhedron.findSeparatingAxis t1 hull t2 hull
+                        ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2
                 in
                     case maybeSeparatingAxis of
                         Just separatingAxis ->
-                            ConvexPolyhedron.clipAgainstHull t1 hull t2 hull separatingAxis -100 100
+                            ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
                                 |> List.length
-                                |> Expect.equal 4
+                                |> Expect.equal 2
 
                         Nothing ->
                             Expect.fail "Couldn't find separate axis"
