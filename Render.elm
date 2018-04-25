@@ -25,7 +25,9 @@ type alias Uniforms =
 
 
 type alias Attributes =
-    { position : Vec3 }
+    { position : Vec3
+    , color : Vec3
+    }
 
 
 world : Model -> List Entity
@@ -142,42 +144,46 @@ cube =
         lbb =
             vec3 -1 -1 -1
     in
-        [ face rft rfb rbb rbt
-        , face rft rfb lfb lft
-        , face rft lft lbt rbt
-        , face rfb lfb lbb rbb
-        , face lft lfb lbb lbt
-        , face rbt rbb lbb lbt
+        [ face rft rfb rbb rbt (vec3 0.4 0.4 0.4)
+        , face rft rfb lfb lft (vec3 0.5 0.5 0.5)
+        , face rft lft lbt rbt (vec3 0.6 0.6 0.6)
+        , face rfb lfb lbb rbb (vec3 0.7 0.7 0.7)
+        , face lft lfb lbb lbt (vec3 0.8 0.8 0.8)
+        , face rbt rbb lbb lbt (vec3 0.9 0.9 0.9)
         ]
             |> List.concat
             |> WebGL.triangles
 
 
-face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
-face a b c d =
-    [ ( Attributes a, Attributes b, Attributes c )
-    , ( Attributes c, Attributes d, Attributes a )
+face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
+face a b c d color =
+    [ ( Attributes a color, Attributes b color, Attributes c color )
+    , ( Attributes c color, Attributes d color, Attributes a color )
     ]
 
 
-vertex : Shader Attributes Uniforms {}
+vertex : Shader Attributes Uniforms { vcolor : Vec3 }
 vertex =
     [glsl|
         attribute vec3 position;
+        attribute vec3 color;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
+        varying vec3 vcolor;
         void main () {
           gl_Position = perspective * camera * transform * vec4(position, 1.0);
+          vcolor = color;
         }
     |]
 
 
-fragment : Shader {} Uniforms {}
+fragment : Shader {} Uniforms { vcolor : Vec3 }
 fragment =
     [glsl|
         precision mediump float;
+        varying vec3 vcolor;
         void main () {
-          gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+          gl_FragColor = vec4(vcolor, 1.0);
         }
     |]
