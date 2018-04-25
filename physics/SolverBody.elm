@@ -14,10 +14,10 @@ type alias SolverBody =
     , quaternion : Vec4
     , force : Vec3
     , torque : Vec3
+    , invMass : Float
+    , invInertiaWorld : Mat3
     , vlambda : Vec3
     , wlambda : Vec3
-    , invMassSolve : Float
-    , invInertiaWorldSolve : Mat3
     }
 
 
@@ -29,25 +29,23 @@ fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque,
     , quaternion = quaternion
     , force = force
     , torque = torque
-
-    -- more attributes for the solver
+    , invMass = invMass
+    , invInertiaWorld = invInertiaWorld
     , vlambda = Body.zero3
     , wlambda = Body.zero3
-    , invMassSolve = invMass
-    , invInertiaWorldSolve = invInertiaWorld
     }
 
 
 addToWlambda : Float -> JacobianElement -> SolverBody -> SolverBody
-addToWlambda deltalambda { spatial, rotational } body =
-    { body
+addToWlambda deltalambda { spatial, rotational } solverBody =
+    { solverBody
         | vlambda =
             spatial
-                |> Vec3.scale (deltalambda * body.invMassSolve)
-                |> Vec3.add body.vlambda
+                |> Vec3.scale (deltalambda * solverBody.invMass)
+                |> Vec3.add solverBody.vlambda
         , wlambda =
             rotational
-                |> Mat3.mul body.invInertiaWorldSolve
+                |> Mat3.mul solverBody.invInertiaWorld
                 |> Vec3.scale deltalambda
-                |> Vec3.add body.wlambda
+                |> Vec3.add solverBody.wlambda
     }

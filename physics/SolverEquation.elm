@@ -10,13 +10,24 @@ import Time exposing (Time)
 import Dict exposing (Dict)
 
 
+type alias FrictionEquation =
+    { t : Vec3 -- tangent
+    , ri : Vec3
+    , rj : Vec3
+    }
+
+
+type EquationKind
+    = Contact ContactEquation
+    | Friction FrictionEquation
+
+
 type alias SolverEquation =
-    { bodyId1 : BodyId
+    { kind : EquationKind
+    , bodyId1 : BodyId
     , bodyId2 : BodyId
-    , ri : Vec3 -- vector from the center of body1 to the contact point
-    , rj : Vec3 -- vector from body2 position to the contact point
-    , ni : Vec3 -- contact normal, pointing out of body1
-    , restitution : Float -- bounciness
+    , minForce : Float
+    , maxForce : Float
     , solverLambda : Float
     , solverBs : Float
     , solverInvCs : Float
@@ -28,27 +39,9 @@ type alias SolverEquation =
     }
 
 
-fromJust : Maybe a -> a
-fromJust x =
-    case x of
-        Just y ->
-            y
-
-        Nothing ->
-            Debug.crash ""
-
-
-fromContactEquation : Time -> Dict BodyId SolverBody -> ContactEquation -> SolverEquation
-fromContactEquation dt solverBodies contactEquation =
+addContactEquation : Time -> Vec3 -> SolverBody -> SolverBody -> ContactEquation -> List SolverEquation -> List SolverEquation
+addContactEquation dt gravity bi bj contactEquation =
     let
-        bi =
-            Dict.get contactEquation.bodyId1 solverBodies
-                |> fromJust
-
-        bj =
-            Dict.get contactEquation.bodyId2 solverBodies
-                |> fromJust
-
         rixn =
             Vec3.cross contactEquation.ri contactEquation.ni
 
@@ -57,10 +50,9 @@ fromContactEquation dt solverBodies contactEquation =
     in
         { bodyId1 = contactEquation.bodyId1
         , bodyId2 = contactEquation.bodyId2
-        , ri = contactEquation.ri
-        , rj = contactEquation.rj
-        , ni = contactEquation.ni
-        , restitution = 0
+        , kind = Contact contactEquation
+        , minForce = 0
+        , maxForce = 1000000
         , solverLambda = 0
         , solverBs = 0
         , solverInvCs = 0
@@ -78,6 +70,100 @@ fromContactEquation dt solverBodies contactEquation =
         }
             |> setSpookParams 1.0e7 4 dt
             |> initSolverParams dt bi bj
+            |> (::)
+
+
+addFrictionEquations : Time -> Vec3 -> SolverBody -> SolverBody -> ContactEquation -> List SolverEquation -> List SolverEquation
+addFrictionEquations dt gravity bi bj contactEquation =
+    let
+        mug =
+            defaultContactMaterial.friction * Vec3.length gravity
+
+        reducedMass =
+            if (bi.invMass + bj.invMass) > 0 then
+                1 / (bi.invMass + bj.invMass)
+            else
+                0
+
+        ( t1, t2 ) =
+            tangents contactEquation.ni
+
+        frictionEquation1 =
+            { ri = contactEquation.ri
+            , rj = contactEquation.rj
+            , t = t1
+            }
+
+        frictionEquation2 =
+            { ri = contactEquation.ri
+            , rj = contactEquation.rj
+            , t = t2
+            }
+
+        rixt1 =
+            Vec3.cross contactEquation.ri t1
+
+        rjxt1 =
+            Vec3.cross contactEquation.rj t1
+
+        rixt2 =
+            Vec3.cross contactEquation.ri t2
+
+        rjxt2 =
+            Vec3.cross contactEquation.rj t2
+    in
+        (++)
+            [ { bodyId1 = contactEquation.bodyId1
+              , bodyId2 = contactEquation.bodyId2
+              , kind = Friction frictionEquation1
+              , minForce = -mug * reducedMass
+              , maxForce = mug * reducedMass
+              , solverLambda = 0
+              , solverBs = 0
+              , solverInvCs = 0
+              , spookA = 0
+              , spookB = 0
+              , spookEps = 0
+              , jacobianElementA =
+                    { spatial = Vec3.negate t1
+                    , rotational = Vec3.negate rixt1
+                    }
+              , jacobianElementB =
+                    { spatial = t1
+                    , rotational = rjxt1
+                    }
+              }
+                |> setSpookParams
+                    defaultContactMaterial.frictionEquationStiffness
+                    defaultContactMaterial.frictionEquationRelaxation
+                    dt
+                |> initSolverParams dt bi bj
+            , { bodyId1 = contactEquation.bodyId1
+              , bodyId2 = contactEquation.bodyId2
+              , kind = Friction frictionEquation2
+              , minForce = -mug * reducedMass
+              , maxForce = mug * reducedMass
+              , solverLambda = 0
+              , solverBs = 0
+              , solverInvCs = 0
+              , spookA = 0
+              , spookB = 0
+              , spookEps = 0
+              , jacobianElementA =
+                    { spatial = Vec3.negate t2
+                    , rotational = Vec3.negate rixt2
+                    }
+              , jacobianElementB =
+                    { spatial = t2
+                    , rotational = rjxt2
+                    }
+              }
+                |> setSpookParams
+                    defaultContactMaterial.frictionEquationStiffness
+                    defaultContactMaterial.frictionEquationRelaxation
+                    dt
+                |> initSolverParams dt bi bj
+            ]
 
 
 setSpookParams : Float -> Float -> Float -> SolverEquation -> SolverEquation
@@ -98,8 +184,20 @@ initSolverParams dt bi bj solverEquation =
     }
 
 
+{-| Computes the RHS of the SPOOK equation
+-}
 computeB : Time -> SolverBody -> SolverBody -> SolverEquation -> Float
-computeB dt bi bj ({ restitution, ri, rj, ni, spookA, spookB } as solverEquation) =
+computeB dt bi bj solverEquation =
+    case solverEquation.kind of
+        Contact contactEquation ->
+            computeContactB dt bi bj solverEquation contactEquation
+
+        Friction frictionEquation ->
+            computeFrictionB dt bi bj solverEquation frictionEquation
+
+
+computeContactB : Time -> SolverBody -> SolverBody -> SolverEquation -> ContactEquation -> Float
+computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, ri, rj, ni } =
     let
         g =
             bj.position
@@ -120,40 +218,102 @@ computeB dt bi bj ({ restitution, ri, rj, ni, spookA, spookB } as solverEquation
         -g * spookA - gW * spookB - dt * giMf
 
 
+computeFrictionB : Time -> SolverBody -> SolverBody -> SolverEquation -> FrictionEquation -> Float
+computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
+    let
+        gW =
+            computeGW bi bj solverEquation
+
+        giMf =
+            computeGiMf bi bj solverEquation
+    in
+        -gW * spookB - dt * giMf
+
+
+{-| Computes G*inv(M)*f, where
+
+  - M is the mass matrix with diagonal blocks for each body
+  - f are the forces on the bodies
+
+-}
 computeGiMf : SolverBody -> SolverBody -> SolverEquation -> Float
 computeGiMf bi bj { jacobianElementA, jacobianElementB } =
-    let
-        iMfi =
-            Vec3.scale bi.invMassSolve bi.force
-
-        iMfj =
-            Vec3.scale bj.invMassSolve bj.force
-
-        invIi_vmult_taui =
-            Mat3.mul bi.invInertiaWorldSolve bi.torque
-
-        invIj_vmult_tauj =
-            Mat3.mul bj.invInertiaWorldSolve bj.torque
-    in
-        JacobianElement.mulVec iMfi invIi_vmult_taui jacobianElementA
-            + JacobianElement.mulVec iMfj invIj_vmult_tauj jacobianElementB
+    (+)
+        (JacobianElement.mulVec
+            (Vec3.scale bi.invMass bi.force)
+            (Mat3.mul bi.invInertiaWorld bi.torque)
+            jacobianElementA
+        )
+        (JacobianElement.mulVec
+            (Vec3.scale bj.invMass bj.force)
+            (Mat3.mul bj.invInertiaWorld bj.torque)
+            jacobianElementB
+        )
 
 
+{-| Compute G*inv(M)*G' + eps, the denominator part of the SPOOK equation:
+-}
 computeC : SolverBody -> SolverBody -> SolverEquation -> Float
-computeC bi bj solverEquation =
-    computeGiMGt bi bj solverEquation
-        + solverEquation.spookEps
+computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
+    bi.invMass
+        + bj.invMass
+        + (Vec3.dot (Mat3.mul bi.invInertiaWorld jacobianElementA.rotational) jacobianElementA.rotational)
+        + (Vec3.dot (Mat3.mul bj.invInertiaWorld jacobianElementB.rotational) jacobianElementB.rotational)
+        + spookEps
 
 
-computeGiMGt : SolverBody -> SolverBody -> SolverEquation -> Float
-computeGiMGt bi bj { jacobianElementA, jacobianElementB } =
-    bi.invMassSolve
-        + bj.invMassSolve
-        + (Vec3.dot (Mat3.mul bi.invInertiaWorldSolve jacobianElementA.rotational) jacobianElementA.rotational)
-        + (Vec3.dot (Mat3.mul bj.invInertiaWorldSolve jacobianElementB.rotational) jacobianElementB.rotational)
-
-
+{-| Computes G*Wlambda, where W are the body velocities
+-}
 computeGWlambda : SolverBody -> SolverBody -> SolverEquation -> Float
 computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.vlambda bi.wlambda jacobianElementA
         + JacobianElement.mulVec bj.vlambda bj.wlambda jacobianElementB
+
+
+{-| Computes G*W, where W are the body velocities
+-}
+computeGW : SolverBody -> SolverBody -> SolverEquation -> Float
+computeGW bi bj { jacobianElementA, jacobianElementB } =
+    JacobianElement.mulVec bi.velocity bi.angularVelocity jacobianElementA
+        + JacobianElement.mulVec bj.velocity bj.angularVelocity jacobianElementB
+
+
+type alias ContactMaterial =
+    { contactEquationRelaxation : Float
+    , contactEquationStiffness : Float
+    , friction : Float
+    , frictionEquationRelaxation : Float
+    , frictionEquationStiffness : Float
+    , restitution : Float
+
+    -- materials - todo?
+    }
+
+
+defaultContactMaterial : ContactMaterial
+defaultContactMaterial =
+    { contactEquationRelaxation = 5
+    , contactEquationStiffness = 10000000
+    , friction = 0.3
+    , frictionEquationRelaxation = 3
+    , frictionEquationStiffness = 10000000
+    , restitution = 0
+    }
+
+
+tangents : Vec3 -> ( Vec3, Vec3 )
+tangents vec =
+    if Vec3.length vec > 0 then
+        let
+            normalized =
+                Vec3.normalize vec
+
+            v =
+                if abs (Vec3.getX normalized) < 0.9 then
+                    Vec3.cross normalized Vec3.i
+                else
+                    Vec3.cross normalized Vec3.j
+        in
+            ( v, Vec3.cross normalized v )
+    else
+        ( Vec3.i, Vec3.j )

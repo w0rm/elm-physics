@@ -1,4 +1,4 @@
-module Physics.NarrowPhase exposing (getContacts, NarrowPhaseResult)
+module Physics.NarrowPhase exposing (getContacts)
 
 import Physics.World as World exposing (..)
 import Physics.Body as Body exposing (..)
@@ -12,18 +12,7 @@ import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.Transform as Transform exposing (Transform)
 
 
-type alias NarrowPhaseResult =
-    { contactEquations : List ContactEquation
-    }
-
-
-narrowPhaseResult : NarrowPhaseResult
-narrowPhaseResult =
-    { contactEquations = []
-    }
-
-
-getContacts : World -> NarrowPhaseResult
+getContacts : World -> List ContactEquation
 getContacts world =
     Set.foldl
         (\( bodyId1, bodyId2 ) ->
@@ -35,12 +24,12 @@ getContacts world =
                 (Dict.get bodyId2 world.bodies)
                 |> Maybe.withDefault identity
         )
-        narrowPhaseResult
+        []
         (World.getPairs world)
 
 
-getBodyContacts : World -> BodyId -> Body -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
-getBodyContacts world bodyId1 body1 bodyId2 body2 narrowPhaseResult =
+getBodyContacts : World -> BodyId -> Body -> BodyId -> Body -> List ContactEquation -> List ContactEquation
+getBodyContacts world bodyId1 body1 bodyId2 body2 contactEquations =
     Dict.foldl
         (\shapeId1 shape1 acc1 ->
             Dict.foldl
@@ -59,11 +48,11 @@ getBodyContacts world bodyId1 body1 bodyId2 body2 narrowPhaseResult =
                 acc1
                 body2.shapes
         )
-        narrowPhaseResult
+        contactEquations
         body1.shapes
 
 
-getShapeContacts : Transform -> Shape -> BodyId -> Body -> Transform -> Shape -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
+getShapeContacts : Transform -> Shape -> BodyId -> Body -> Transform -> Shape -> BodyId -> Body -> List ContactEquation -> List ContactEquation
 getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bodyId2 body2 =
     case ( shape1, shape2 ) of
         ( Plane, Plane ) ->
@@ -102,8 +91,8 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 body2
 
 
-getPlaneBoxContacts : Transform -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
-getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExtents boxBodyId boxBody narrowPhaseResult =
+getPlaneBoxContacts : Transform -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> List ContactEquation -> List ContactEquation
+getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExtents boxBodyId boxBody contactEquations =
     let
         worldNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
@@ -112,7 +101,7 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
             ConvexPolyhedron.fromBox boxHalfExtents
     in
         List.foldl
-            (\vertex acc ->
+            (\vertex ->
                 let
                     worldVertex =
                         Transform.pointToWorldFrame boxTransform vertex
@@ -123,29 +112,26 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
                             |> Vec3.dot worldNormal
                 in
                     if dot <= 0 then
-                        { acc
-                            | contactEquations =
-                                { bodyId1 = planeBodyId
-                                , bodyId2 = boxBodyId
-                                , ni = worldNormal
-                                , ri =
-                                    worldVertex
-                                        |> Vec3.add (Vec3.negate (Vec3.scale dot worldNormal))
-                                        |> Vec3.add (Vec3.negate planeBody.position)
-                                , rj =
-                                    Vec3.sub worldVertex boxBody.position
-                                }
-                                    :: acc.contactEquations
-                        }
+                        (::)
+                            { bodyId1 = planeBodyId
+                            , bodyId2 = boxBodyId
+                            , ni = worldNormal
+                            , ri =
+                                worldVertex
+                                    |> Vec3.add (Vec3.negate (Vec3.scale dot worldNormal))
+                                    |> Vec3.add (Vec3.negate planeBody.position)
+                            , rj = Vec3.sub worldVertex boxBody.position
+                            , restitution = 0
+                            }
                     else
-                        acc
+                        identity
             )
-            narrowPhaseResult
+            contactEquations
             convexPolyhedron.vertices
 
 
-getBoxBoxContacts : Transform -> Vec3 -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> NarrowPhaseResult -> NarrowPhaseResult
-getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 halfExtents2 bodyId2 body2 narrowPhaseResult =
+getBoxBoxContacts : Transform -> Vec3 -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> List ContactEquation -> List ContactEquation
+getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 halfExtents2 bodyId2 body2 contactEquations =
     let
         convexPolyhedron1 =
             ConvexPolyhedron.fromBox halfExtents1
@@ -157,7 +143,7 @@ getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 hal
             Just sepAxis ->
                 ConvexPolyhedron.clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
                     |> List.foldl
-                        (\{ point, normal, depth } acc ->
+                        (\{ point, normal, depth } ->
                             let
                                 q =
                                     normal
@@ -172,18 +158,16 @@ getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 hal
                                     point
                                         |> Vec3.add (Vec3.negate body2.position)
                             in
-                                { acc
-                                    | contactEquations =
-                                        { bodyId1 = bodyId1
-                                        , bodyId2 = bodyId2
-                                        , ni = Vec3.negate sepAxis
-                                        , ri = ri
-                                        , rj = rj
-                                        }
-                                            :: acc.contactEquations
-                                }
+                                (::)
+                                    { bodyId1 = bodyId1
+                                    , bodyId2 = bodyId2
+                                    , ni = Vec3.negate sepAxis
+                                    , ri = ri
+                                    , rj = rj
+                                    , restitution = 0
+                                    }
                         )
-                        narrowPhaseResult
+                        contactEquations
 
             Nothing ->
-                narrowPhaseResult
+                contactEquations

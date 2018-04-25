@@ -60,7 +60,7 @@ init =
                     (box (vec3 1.3 0 6)
                         |> Physics.setQuaternion (Quaternion.fromAngleAxis (pi / 5) Vec3.j)
                     )
-      , devicePixelRatio = 2
+      , devicePixelRatio = 1
       }
     , Task.perform Resize Window.size
     )

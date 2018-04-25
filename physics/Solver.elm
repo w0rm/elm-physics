@@ -3,7 +3,6 @@ module Physics.Solver exposing (..)
 import Physics.World as World exposing (World)
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.SolverBody as SolverBody exposing (SolverBody)
-import Physics.NarrowPhase as NarrowPhase exposing (NarrowPhaseResult)
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
 import Time exposing (Time)
@@ -11,13 +10,19 @@ import Dict exposing (Dict)
 import Math.Vector3 as Vec3
 
 
-solve : Time -> NarrowPhaseResult -> World -> World
-solve dt { contactEquations } world =
+maxIterations : Int
+maxIterations =
+    20
+
+
+solve : Time -> List ContactEquation -> World -> World
+solve dt contactEquations world =
     if contactEquations == [] then
         world
     else
-        (solveContext dt contactEquations world)
-            |> solveHelp iterations
+        world
+            |> solveContext dt contactEquations
+            |> solveHelp maxIterations
             |> updateVelocities
 
 
@@ -35,16 +40,15 @@ updateVelocities { bodies, world } =
         | bodies =
             Dict.map
                 (\bodyId body ->
-                    { body
-                        | velocity =
-                            Dict.get bodyId bodies
-                                |> Maybe.map (\{ vlambda } -> Vec3.add body.velocity vlambda)
-                                |> Maybe.withDefault body.velocity
-                        , angularVelocity =
-                            Dict.get bodyId bodies
-                                |> Maybe.map (\{ wlambda } -> Vec3.add body.angularVelocity wlambda)
-                                |> Maybe.withDefault body.angularVelocity
-                    }
+                    Dict.get bodyId bodies
+                        |> Maybe.map
+                            (\{ vlambda, wlambda } ->
+                                { body
+                                    | velocity = Vec3.add body.velocity vlambda
+                                    , angularVelocity = Vec3.add body.angularVelocity wlambda
+                                }
+                            )
+                        |> Maybe.withDefault body
                 )
                 world.bodies
     }
@@ -76,20 +80,14 @@ solveStep context =
                 gWlambda =
                     SolverEquation.computeGWlambda bi bj equation
 
-                minForce =
-                    0
-
-                maxForce =
-                    1000000
-
                 deltalambdaPrev =
                     equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equation.solverLambda)
 
                 deltalambda =
-                    if equation.solverLambda + deltalambdaPrev < minForce then
-                        minForce - equation.solverLambda
-                    else if equation.solverLambda + deltalambdaPrev > maxForce then
-                        maxForce - equation.solverLambda
+                    if equation.solverLambda + deltalambdaPrev < equation.minForce then
+                        equation.minForce - equation.solverLambda
+                    else if equation.solverLambda + deltalambdaPrev > equation.maxForce then
+                        equation.maxForce - equation.solverLambda
                     else
                         deltalambdaPrev
 
@@ -110,8 +108,7 @@ solveStep context =
 
 
 type alias SolveContext =
-    { dt : Time
-    , bodies : Dict BodyId SolverBody
+    { bodies : Dict BodyId SolverBody
     , equations : List SolverEquation
     , deltalambdaTot : Float
     , world : World
@@ -124,17 +121,24 @@ solveContext dt contactEquations world =
         solverBodies =
             Dict.map (\_ -> SolverBody.fromBody) world.bodies
     in
-        { dt = dt
-        , bodies = solverBodies
+        { bodies = solverBodies
         , equations =
-            List.map
-                (SolverEquation.fromContactEquation dt solverBodies)
-                (List.reverse contactEquations)
+            List.foldl
+                (\contactEquation ->
+                    let
+                        bi =
+                            Dict.get contactEquation.bodyId1 solverBodies
+                                |> fromJust
+
+                        bj =
+                            Dict.get contactEquation.bodyId2 solverBodies
+                                |> fromJust
+                    in
+                        SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
+                            >> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
+                )
+                []
+                contactEquations
         , deltalambdaTot = 10000000 -- large number initially
         , world = world
         }
-
-
-iterations : Int
-iterations =
-    20
