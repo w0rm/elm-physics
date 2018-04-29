@@ -8,7 +8,7 @@ The API is currently shaping up and will be most likely changed.
 
 # Examples
 
-* [Boxes](https://github.com/w0rm/elm-physics/tree/master/examples/boxes)
+* Boxes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/boxes), [demo](http://unsoundscapes.com/elm-physics/examples/boxes/))
 
 # Prior Work
 
