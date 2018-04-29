@@ -53,8 +53,8 @@ connectedFaces currentFace currentIndices allFaces =
                     (\( testFace, testIndices ) ->
                         testFace
                             /= currentFace
-                            && (Array.filter ((==) index) testIndices /= Array.empty)
                             && not (List.member testFace connectedFaces)
+                            && (Array.filter ((==) index) testIndices /= Array.empty)
                     )
                 |> List.head
                 |> Maybe.map (\( connectedFace, _ ) -> connectedFace :: connectedFaces)
