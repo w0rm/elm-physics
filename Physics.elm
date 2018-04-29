@@ -18,12 +18,7 @@ module Physics
         , plane
         )
 
-{-|
-
-
-# Physics
-
-Higlhy experimental toy physics engine in Elm.
+{-| Highly experimental toy physics engine in Elm.
 
 The API is currently shaping up and will be most likely changed.
 
@@ -35,7 +30,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Body
 
-@docs Body, body, addShapes
+@docs Body, body, setMass, addShape, rotateBy, offsetBy
 
 
 ## Shape
@@ -61,20 +56,24 @@ import Dict
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
-{-| The world is the main state
--}
+{-| -}
 type World
     = World World.World
 
 
-{-| Let be the world
+{-| Let be the new world!
 -}
 world : World
 world =
     World World.world
 
 
-{-| You can change the world's gravity
+{-| Call it to set the world's gravity,
+cause by default it's an open space
+
+    world
+        |> setGravity (vec3 0 0 -10)
+
 -}
 setGravity : Vec3 -> World -> World
 setGravity gravity (World world) =
@@ -88,34 +87,38 @@ addBody (Body body) (World world) =
     World (World.addBody body world)
 
 
-{-| Body is a solid thing that exists in the world
+{-| Body is a solid matter without any moving parts
 -}
 type Body
     = Body Body.Body
 
 
-{-| This gives you an empty body, add shapes to turn it into smth
+{-| This gives you an empty body, add shapes to turn it into smth meaningful
 -}
 body : Body
 body =
     Body Body.body
 
 
-{-| When creating a body, you have to give it a mass. Bodies without mass don't move!
+{-| After creating a body, you have to give it a mass. Bodies without mass don't move!
 -}
 setMass : Float -> Body -> Body
 setMass mass (Body body) =
     Body (Body.setMass mass body)
 
 
-{-| Adds [shapes](#Shape) to the body
+{-| Adds [shapes](#Shape) to the body. For example, call this to add a box:
+
+    body
+        |> addShape (box (vec3 1 1 1))
+
 -}
 addShape : Shape -> Body -> Body
 addShape (Shape shape) (Body body) =
     Body (Body.addShape shape body)
 
 
-{-| Rotate the body around the axis
+{-| Rotate the body around the axis by a specific angle from its current orientation
 -}
 rotateBy : Vec3 -> Float -> Body -> Body
 rotateBy axis angle (Body body) =
@@ -128,14 +131,14 @@ rotateBy axis angle (Body body) =
         }
 
 
-{-| Move the body
+{-| Move the body from its current position
 -}
 offsetBy : Vec3 -> Body -> Body
 offsetBy offset (Body body) =
     Body { body | position = Vec3.add offset body.position }
 
 
-{-| Shape is an integral part of the body. It is positioned in the body's coordinate system.
+{-| Shape is an integral part of a body. It is positioned in the body's coordinate system.
 
 We support two types of shapes, a [box](#box) and a [plane](#plane).
 
@@ -144,7 +147,10 @@ type Shape
     = Shape Shape.Shape
 
 
-{-| A box shape defined by its half extends
+{-| A box shape defined by its half extends. To create a 2x2 box, call this:
+
+    box (vec3 1 1 1)
+
 -}
 box : Vec3 -> Shape
 box halfExtends =
@@ -159,6 +165,9 @@ plane =
 
 
 {-| Simulate the world, given the time delta since the last step.
+
+Call this function on a message from the AnimationFrame subscription!
+
 -}
 step : Time -> World -> World
 step dt (World world) =
@@ -169,7 +178,25 @@ step dt (World world) =
         |> World
 
 
-{-| Fold over each shape in the world. This is useful to convert shapes into WebGL entities.
+{-| Fold over each shape in the world. Use this to convert shapes into visual representation, e.g. WebGL entities.
+
+    entities =
+        foldl
+        ({ transform, bodyId, shapeId } currentEntities ->
+            makeEntity transform bodyId shapeId :: currentEntities
+        )
+        []
+        world
+
+  - `transform` is a transformation matrix that offsets and rotates a shape into the world coorditantes
+
+  - `bodyId` is an id of a body the shape belongs to, each new body in the world gets and id starting from 0
+
+  - `shapeId` is an id of the shape, each new shape in a body gets and id starting from 0
+
+Use `bodyId` and `shapeId` to link additional information from the outside of the engine, e.g. which mesh to render
+or what color should this shape be.
+
 -}
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
 foldl fn acc (World { bodies }) =
