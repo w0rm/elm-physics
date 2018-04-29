@@ -3,6 +3,8 @@ set -euxo pipefail
 
 rm -rf release || exit 0;
 
+elm-package bump
+
 version=$(grep -m1 version elm-package.json | awk -F: '{ print $2 }' | sed 's/[", ]//g')
 
 git commit -a -m "Bump to $version"
