@@ -44,7 +44,11 @@ world { screenWidth, screenHeight, world } =
         entities =
             fold (addShape camera perspective) [] world
     in
-        List.foldl (addContact camera perspective world.bodies) entities contacts
+        entities
+
+
+
+--List.foldl (addContact camera perspective world.bodies) entities contacts
 
 
 addContact : Mat4 -> Mat4 -> Dict BodyId Body -> ContactEquation -> List Entity -> List Entity

@@ -123,7 +123,48 @@ clipFaceAgainstHull =
 clipAgainstHull : Test
 clipAgainstHull =
     describe "ConvexPolyhedron.clipAgainstHull"
-        [ test "should return 2 results" <|
+        [ test "should return 4 results" <|
+            \_ ->
+                let
+                    hull1 =
+                        boxHull 1
+
+                    hull2 =
+                        boxHull 1
+
+                    t1 =
+                        { position = vec3 0 0 2.1 -- going slightly into another box
+                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        }
+
+                    t2 =
+                        { position = vec3 0 0 4
+                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        }
+                in
+                    {-
+                       [ { point: Vec3 { x: 0.9999999999999997, y: 1, z: 3.0000000000000004 },
+                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                           depth: -0.09999999999999964 },
+                         { point: Vec3 { x: 0.9999999999999998, y: -1, z: 3.0000000000000004 },
+                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                           depth: -0.09999999999999964 },
+                         { point: Vec3 { x: -0.9999999999999997, y: -1, z: 3 },
+                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                           depth: -0.10000000000000009 },
+                         { point: Vec3 { x: -0.9999999999999997, y: 1, z: 3 },
+                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                           depth: -0.10000000000000009 } ]
+                    -}
+                    case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
+                        Just separatingAxis ->
+                            ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
+                                |> List.length
+                                |> Expect.equal 4
+
+                        Nothing ->
+                            Expect.fail "Couldn't find separate axis"
+        , test "should return 2 results" <|
             \_ ->
                 let
                     hull1 =

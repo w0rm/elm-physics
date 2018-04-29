@@ -53,8 +53,8 @@ init =
                         |> Physics.setQuaternion (Quaternion.fromAngleAxis (-pi / 5) Vec3.j)
                     )
                 |> Physics.addBody
-                    (box (vec3 -1.2 0 8)
-                        |> Physics.setQuaternion (Quaternion.fromAngleAxis (-pi / 5) Vec3.j)
+                    (box (vec3 -1.2 0 9)
+                        |> Physics.setQuaternion (Quaternion.fromAngleAxis (-pi / 4) Vec3.j)
                     )
                 |> Physics.addBody
                     (box (vec3 1.3 0 6)
@@ -83,7 +83,13 @@ update msg model =
                     model.world
                         |> Physics.addBody
                             (box (vec3 -1.2 0 8)
-                                |> Physics.setQuaternion (Quaternion.fromAngleAxis model.world.time Vec3.j)
+                                |> Physics.setQuaternion
+                                    -- pseudo randomize
+                                    (if round (model.world.time * 10) % 2 == 1 then
+                                        (Quaternion.fromAngleAxis model.world.time Vec3.j)
+                                     else
+                                        (Quaternion.fromAngleAxis model.world.time Vec3.k)
+                                    )
                             )
               }
             , Cmd.none

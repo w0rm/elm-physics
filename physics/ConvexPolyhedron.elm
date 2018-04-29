@@ -222,89 +222,74 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
 
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
-clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB1 minDist maxDist =
-    let
-        clipFaceAgainstHullHelpAdd closest vertexIndex result =
+clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
+    case closestFaceHelp (<) 0 t1 hull1 separatingNormal maxNumber Nothing of
+        Just closest ->
             let
-                otherFaceIndex =
-                    connectedFaces closest.index closest.indices hull1.faces
-                        |> Array.get vertexIndex
-                        -- Sorry:
-                        |> Maybe.withDefault -1
-
-                otherFaceVertex =
-                    Array.get otherFaceIndex hull1.faces
-                        |> Maybe.andThen (Array.get 0)
+                localPlaneEq =
+                    -(Array.get 0 closest.indices
                         |> Maybe.andThen (\i -> Array.get i hull1.vertices)
                         -- Sorry:
                         |> Maybe.withDefault zero3
-
-                otherFaceNormal =
-                    Array.get otherFaceIndex hull1.normals
-                        -- Sorry:
-                        |> Maybe.withDefault zero3
-
-                localPlaneEq =
-                    -(Vec3.dot otherFaceVertex otherFaceNormal)
+                        |> Vec3.dot closest.normal
+                     )
 
                 planeNormalWS =
-                    Quaternion.rotate t1.quaternion otherFaceNormal
+                    Quaternion.rotate t1.quaternion closest.normal
 
                 planeEqWS =
                     localPlaneEq - Vec3.dot planeNormalWS t1.position
             in
-                clipFaceAgainstPlane planeNormalWS planeEqWS result
+                connectedFaces closest.index closest.indices hull1.faces
+                    |> Array.foldl
+                        (\otherFaceIndex ->
+                            let
+                                otherFaceVertex =
+                                    Array.get otherFaceIndex hull1.faces
+                                        |> Maybe.andThen (Array.get 0)
+                                        |> Maybe.andThen (\i -> Array.get i hull1.vertices)
+                                        -- Sorry:
+                                        |> Maybe.withDefault zero3
 
-        clipFaceAgainstHullHelp length current closest result =
-            if current == length then
-                result
-            else
-                clipFaceAgainstHullHelp
-                    length
-                    (current + 1)
-                    closest
-                    (clipFaceAgainstHullHelpAdd closest current result)
-    in
-        case closestFaceHelp (<) 0 t1 hull1 separatingNormal maxNumber Nothing of
-            Just closest ->
-                let
-                    localPlaneEq =
-                        -(Array.get 0 closest.indices
-                            |> Maybe.andThen (\i -> Array.get i hull1.vertices)
-                            -- Sorry:
-                            |> Maybe.withDefault zero3
-                            |> Vec3.dot closest.normal
-                         )
+                                otherFaceNormal =
+                                    Array.get otherFaceIndex hull1.normals
+                                        -- Sorry:
+                                        |> Maybe.withDefault zero3
 
-                    planeNormalWS =
-                        Quaternion.rotate t1.quaternion closest.normal
+                                localPlaneEq =
+                                    -(Vec3.dot otherFaceVertex otherFaceNormal)
 
-                    planeEqWS =
-                        localPlaneEq - Vec3.dot planeNormalWS t1.position
-                in
-                    clipFaceAgainstHullHelp (Array.length closest.indices) 0 closest worldVertsB1
-                        |> List.foldl
-                            (\point result ->
-                                let
-                                    depth =
-                                        max minDist (Vec3.dot planeNormalWS point + planeEqWS)
-                                in
-                                    if depth <= maxDist then
-                                        if depth <= 0 then
-                                            { point = point
-                                            , normal = planeNormalWS
-                                            , depth = depth
-                                            }
-                                                :: result
-                                        else
-                                            result
+                                planeNormalWS =
+                                    Quaternion.rotate t1.quaternion otherFaceNormal
+
+                                planeEqWS =
+                                    localPlaneEq - Vec3.dot planeNormalWS t1.position
+                            in
+                                clipFaceAgainstPlane planeNormalWS planeEqWS
+                        )
+                        worldVertsB
+                    |> List.foldl
+                        (\point result ->
+                            let
+                                depth =
+                                    max minDist (Vec3.dot planeNormalWS point + planeEqWS)
+                            in
+                                if depth <= maxDist then
+                                    if depth <= 0 then
+                                        { point = point
+                                        , normal = planeNormalWS
+                                        , depth = depth
+                                        }
+                                            :: result
                                     else
                                         result
-                            )
-                            []
+                                else
+                                    result
+                        )
+                        []
 
-            Nothing ->
-                []
+        Nothing ->
+            []
 
 
 type alias ClosestFaceResult =
@@ -397,13 +382,7 @@ clipFaceAgainstPlaneHelp planeNormal planeConstant first vertices result =
                 planeConstant
                 first
                 (snd :: remaining)
-                (clipFaceAgainstPlaneAdd
-                    planeNormal
-                    planeConstant
-                    fst
-                    snd
-                    result
-                )
+                (clipFaceAgainstPlaneAdd planeNormal planeConstant fst snd result)
 
         last :: [] ->
             clipFaceAgainstPlaneHelp
@@ -411,13 +390,7 @@ clipFaceAgainstPlaneHelp planeNormal planeConstant first vertices result =
                 planeConstant
                 first
                 []
-                (clipFaceAgainstPlaneAdd
-                    planeNormal
-                    planeConstant
-                    last
-                    first
-                    result
-                )
+                (clipFaceAgainstPlaneAdd planeNormal planeConstant last first result)
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
