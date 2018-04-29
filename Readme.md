@@ -1,6 +1,6 @@
 # Physics
 
-![Boxes](examples/boxes/boxes.gif)
+![Boxes](https://raw.githubusercontent.com/w0rm/elm-physics/master/examples/boxes/boxes.gif)
 
 Highly experimental toy physics engine in [Elm](http://elm-lang.org/).
 
