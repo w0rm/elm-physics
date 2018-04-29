@@ -1,6 +1,7 @@
 module View exposing (view)
 
 import Html.Attributes exposing (width, height, style)
+import Html.Events exposing (onClick)
 import Html exposing (Html)
 import WebGL
 import Types exposing (..)
@@ -22,5 +23,6 @@ view model =
             , ( "width", toString model.screenWidth ++ "px" )
             , ( "height", toString model.screenHeight ++ "px" )
             ]
+        , onClick AddCube
         ]
         (Render.world model)

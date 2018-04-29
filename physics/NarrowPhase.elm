@@ -10,6 +10,7 @@ import Math.Vector3 as Vec3 exposing (Vec3)
 import Dict exposing (Dict)
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.Transform as Transform exposing (Transform)
+import Array.Hamt as Array
 
 
 getContacts : World -> List ContactEquation
@@ -17,9 +18,7 @@ getContacts world =
     Set.foldl
         (\( bodyId1, bodyId2 ) ->
             Maybe.map2
-                (\body1 body2 ->
-                    getBodyContacts world bodyId1 body1 bodyId2 body2
-                )
+                (getBodyContacts world bodyId1 bodyId2)
                 (Dict.get bodyId1 world.bodies)
                 (Dict.get bodyId2 world.bodies)
                 |> Maybe.withDefault identity
@@ -28,8 +27,8 @@ getContacts world =
         (World.getPairs world)
 
 
-getBodyContacts : World -> BodyId -> Body -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-getBodyContacts world bodyId1 body1 bodyId2 body2 contactEquations =
+getBodyContacts : World -> BodyId -> BodyId -> Body -> Body -> List ContactEquation -> List ContactEquation
+getBodyContacts world bodyId1 bodyId2 body1 body2 contactEquations =
     Dict.foldl
         (\shapeId1 shape1 acc1 ->
             Dict.foldl
@@ -100,7 +99,7 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
         convexPolyhedron =
             ConvexPolyhedron.fromBox boxHalfExtents
     in
-        List.foldl
+        Array.foldl
             (\vertex ->
                 let
                     worldVertex =

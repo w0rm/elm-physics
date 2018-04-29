@@ -77,8 +77,20 @@ update msg model =
             , Cmd.none
             )
 
+        AddCube ->
+            ( { model
+                | world =
+                    model.world
+                        |> Physics.addBody
+                            (box (vec3 -1.2 0 8)
+                                |> Physics.setQuaternion (Quaternion.fromAngleAxis model.world.time Vec3.j)
+                            )
+              }
+            , Cmd.none
+            )
+
         Tick dt ->
-            ( { model | world = Physics.step (dt / 1000) model.world }
+            ( { model | world = Physics.step (1 / 60) model.world }
             , Cmd.none
             )
 

@@ -3,8 +3,10 @@ module Render exposing (world)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Physics.Quaternion as Quaternion
+import Physics.NarrowPhase as NarrowPhase
+import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.World as Physics exposing (World)
-import Physics.Body as Physics
+import Physics.Body as Physics exposing (Body, BodyId)
 import Physics.Shape as Physics exposing (Shape(..))
 import Dict exposing (Dict)
 import WebGL exposing (Mesh, Shader, Entity)
@@ -35,12 +37,57 @@ world { screenWidth, screenHeight, world } =
     let
         perspective =
             Mat4.makePerspective 24 (screenWidth / screenHeight) 5 2000
+
+        contacts =
+            NarrowPhase.getContacts world
+
+        entities =
+            fold (addShape camera perspective) [] world
     in
-        fold (shape camera perspective) [] world
+        List.foldl (addContact camera perspective world.bodies) entities contacts
 
 
-shape : Mat4 -> Mat4 -> RenderShape -> List Entity -> List Entity
-shape camera perspective { transform, mesh } =
+addContact : Mat4 -> Mat4 -> Dict BodyId Body -> ContactEquation -> List Entity -> List Entity
+addContact camera perspective bodies { bodyId1, bodyId2, ri, rj } =
+    let
+        b1 =
+            Dict.get bodyId1 bodies
+                |> Maybe.map .position
+                |> Maybe.withDefault (vec3 0 0 0)
+
+        b2 =
+            Dict.get bodyId2 bodies
+                |> Maybe.map .position
+                |> Maybe.withDefault (vec3 0 0 0)
+    in
+        (++)
+            [ WebGL.entity
+                vertex
+                fragment
+                cube
+                { transform =
+                    Mat4.mul
+                        (Mat4.makeTranslate (Vec3.add ri b1))
+                        (Mat4.makeScale (vec3 0.1 0.1 0.1))
+                , perspective = perspective
+                , camera = camera
+                }
+            , WebGL.entity
+                vertex
+                fragment
+                cube
+                { transform =
+                    Mat4.mul
+                        (Mat4.makeTranslate (Vec3.add rj b2))
+                        (Mat4.makeScale (vec3 0.1 0.1 0.1))
+                , perspective = perspective
+                , camera = camera
+                }
+            ]
+
+
+addShape : Mat4 -> Mat4 -> RenderShape -> List Entity -> List Entity
+addShape camera perspective { transform, mesh } =
     (::)
         (WebGL.entity
             vertex
@@ -102,18 +149,18 @@ plane : Mesh Attributes
 plane =
     let
         rf =
-            vec3 1 1 0
+            vec3 10 10 0
 
         lf =
-            vec3 -1 1 0
+            vec3 -10 10 0
 
         lb =
-            vec3 -1 -1 0
+            vec3 -10 -10 0
 
         rb =
-            vec3 1 -1 0
+            vec3 10 -10 0
     in
-        -- WebGL.triangles (face rf lf lb rb)
+        -- WebGL.triangles (face rf lf lb rb (vec3 0.2 0.2 0.2))
         WebGL.triangles []
 
 

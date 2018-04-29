@@ -3,9 +3,11 @@ module ConvexPolyhedron exposing (..)
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Expect exposing (Expectation)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Test exposing (..)
+import Array.Hamt as Array
 
 
 clipFaceAgainstPlane : Test
@@ -70,7 +72,7 @@ clipFaceAgainstHull =
             \_ ->
                 let
                     sepNormal =
-                        vec3 0 1 1
+                        vec3 0 0 1
 
                     -- Move the box 0.45 units up
                     -- only 0.05 units of the box will be below plane z=0
@@ -92,6 +94,20 @@ clipFaceAgainstHull =
                     -- We can expect to get back the 4 corners of the box hullA penetrated 0.05 units
                     -- into the plane worldVertsB we constructed
                 in
+                    {-
+                       [ { point: Vec3 { x: 0.5, y: -0.5, z: 0 },
+                             normal: Vec3 { x: 0, y: 0, z: -1 },
+                             depth: -0.04999999999999999 },
+                         { point: Vec3 { x: -0.5, y: -0.5, z: 0 },
+                             normal: Vec3 { x: 0, y: 0, z: -1 },
+                             depth: -0.04999999999999999 },
+                         { point: Vec3 { x: -0.5, y: 0.5, z: 0 },
+                             normal: Vec3 { x: 0, y: 0, z: -1 },
+                             depth: -0.04999999999999999 },
+                         { point: Vec3 { x: 0.5, y: 0.5, z: 0 },
+                             normal: Vec3 { x: 0, y: 0, z: -1 },
+                             depth: -0.04999999999999999 } ]
+                    -}
                     ConvexPolyhedron.clipFaceAgainstHull
                         transform
                         (boxHull 0.5)
@@ -107,7 +123,7 @@ clipFaceAgainstHull =
 clipAgainstHull : Test
 clipAgainstHull =
     describe "ConvexPolyhedron.clipAgainstHull"
-        [ test "should return 4 results" <|
+        [ test "should return 2 results" <|
             \_ ->
                 let
                     hull1 =
@@ -118,23 +134,60 @@ clipAgainstHull =
 
                     t1 =
                         { position = vec3 -0.5 0 0
-                        , quaternion = Quaternion.identity
+                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 0 1)
                         }
 
                     t2 =
                         { position = vec3 0.5 0 0
                         , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
-
-                    maybeSeparatingAxis =
-                        ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2
                 in
-                    case maybeSeparatingAxis of
+                    {-
+                       [ { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: -0.5 },
+                           normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
+                           depth: -0.30710678118654733 },
+                         { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: 0.5 },
+                           normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
+                           depth: -0.30710678118654733 } ]
+                    -}
+                    case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
                         Just separatingAxis ->
                             ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
                                 |> List.length
                                 |> Expect.equal 2
 
+                        Nothing ->
+                            Expect.fail "Couldn't find separate axis"
+        , test "should work for the case from the debugger" <|
+            \_ ->
+                let
+                    hull =
+                        boxHull 1
+
+                    t1 =
+                        { position = vec3 -2.9496035986031215 -0.059705884468658266 0.05803282809897854
+                        , quaternion = vec4 -0.022809298766761247 0.006783793446053796 0.002763745916207627 0.9997129976872166
+                        }
+
+                    t2 =
+                        { position = vec3 -1.7732501140437167 -0.23893989356833145 1.9746722038817583
+                        , quaternion = vec4 -0.14987379072976215 0.5294480629310288 0.19937553795533458 -0.8108464653532712
+                        }
+
+                    maybeSeparatingAxis =
+                        ConvexPolyhedron.findSeparatingAxis t1 hull t2 hull
+                in
+                    case maybeSeparatingAxis of
+                        Just separatingAxis ->
+                            ConvexPolyhedron.clipAgainstHull t1 hull t2 hull separatingAxis -100 100
+                                |> List.length
+                                |> Expect.equal 1
+
+                        {-
+                           [ { point: Vec3 { x: -1.9395931897893413, y: -0.620034911301545, z: 0.567836561523491 },
+                               normal: Vec3 { x: 0.013437614750654274, y: 0.04564300225339029, z: 0.9988674320724998 },
+                               depth: -0.502776622199867 } ]
+                        -}
                         Nothing ->
                             Expect.fail "Couldn't find separate axis"
         ]
@@ -283,6 +336,43 @@ project =
                     |> Expect.all
                         [ Tuple.first >> Expect.within (Expect.Absolute 0.00001) 1.5
                         , Tuple.second >> Expect.within (Expect.Absolute 0.00001) 0.5
+                        ]
+        ]
+
+
+faceNormals : Test
+faceNormals =
+    describe "ConvexPolyhedron.uniqueEdges"
+        [ test "works for the box" <|
+            \_ ->
+                boxHull 1
+                    |> .normals
+                    |> Array.toList
+                    |> Expect.equal
+                        [ vec3 0 0 -1
+                        , vec3 0 0 1
+                        , vec3 0 -1 0
+                        , vec3 0 1 0
+                        , vec3 -1 0 0
+                        , vec3 1 0 0
+                        ]
+        ]
+
+
+uniqueEdges : Test
+uniqueEdges =
+    describe "ConvexPolyhedron.faceNormals"
+        [ test "works for the box" <|
+            \_ ->
+                boxHull 1
+                    |> .edges
+                    |> Expect.equal
+                        [ vec3 -1 0 0
+                        , vec3 0 -1 0
+                        , vec3 0 0 -1
+                        , vec3 0 0 1
+                        , vec3 0 1 0
+                        , vec3 1 0 0
                         ]
         ]
 

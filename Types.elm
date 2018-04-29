@@ -16,3 +16,4 @@ type alias Model =
 type Msg
     = Tick Time
     | Resize Window.Size
+    | AddCube
