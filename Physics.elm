@@ -25,6 +25,8 @@ module Physics
 
 Higlhy experimental toy physics engine in Elm.
 
+The API is currently shaping up and will be most likely changed.
+
 
 ## World
 
