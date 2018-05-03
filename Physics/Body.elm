@@ -235,8 +235,8 @@ computeAABB body =
             in
                 AABB.extend <|
                     case shape of
-                        Box halfExtends ->
-                            AABB.box transform halfExtends
+                        Convex convexPolyhedron ->
+                            AABB.convexPolyhedron transform convexPolyhedron
 
                         Plane ->
                             AABB.plane transform

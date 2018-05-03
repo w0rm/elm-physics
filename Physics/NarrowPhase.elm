@@ -1,16 +1,16 @@
 module Physics.NarrowPhase exposing (getContacts)
 
-import Physics.World as World exposing (..)
-import Physics.Body as Body exposing (..)
-import Physics.Shape as Shape exposing (..)
-import Physics.ConvexPolyhedron as ConvexPolyhedron
-import Physics.Quaternion as Quaternion
-import Set exposing (Set)
-import Math.Vector3 as Vec3 exposing (Vec3)
-import Dict exposing (Dict)
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.Transform as Transform exposing (Transform)
 import Array.Hamt as Array
+import Dict exposing (Dict)
+import Math.Vector3 as Vec3 exposing (Vec3)
+import Physics.Body as Body exposing (Body, BodyId)
+import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
+import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Physics.Quaternion as Quaternion
+import Physics.Shape as Shape exposing (Shape(..))
+import Physics.Transform as Transform exposing (Transform)
+import Physics.World as World exposing (World)
+import Set exposing (Set)
 
 
 getContacts : World -> List ContactEquation
@@ -58,52 +58,49 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
             -- don't collide two planes
             identity
 
-        ( Plane, Box halfExtents ) ->
-            getPlaneBoxContacts
+        ( Plane, Convex convexPolyhedron ) ->
+            getPlaneConvexContacts
                 shapeTransform1
                 bodyId1
                 body1
                 shapeTransform2
-                halfExtents
+                convexPolyhedron
                 bodyId2
                 body2
 
-        ( Box halfExtents, Plane ) ->
-            getPlaneBoxContacts
+        ( Convex convexPolyhedron, Plane ) ->
+            getPlaneConvexContacts
                 shapeTransform2
                 bodyId2
                 body2
                 shapeTransform1
-                halfExtents
+                convexPolyhedron
                 bodyId1
                 body1
 
-        ( Box halfExtents1, Box halfExtents2 ) ->
-            getBoxBoxContacts
+        ( Convex convexPolyhedron1, Convex convexPolyhedron2 ) ->
+            getConvexConvexContacts
                 shapeTransform1
-                halfExtents1
+                convexPolyhedron1
                 bodyId1
                 body1
                 shapeTransform2
-                halfExtents2
+                convexPolyhedron2
                 bodyId2
                 body2
 
 
-getPlaneBoxContacts : Transform -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExtents boxBodyId boxBody contactEquations =
+getPlaneConvexContacts : Transform -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> List ContactEquation -> List ContactEquation
+getPlaneConvexContacts planeTransform planeBodyId planeBody convexTransform convexPolyhedron convexBodyId convexBody contactEquations =
     let
         worldNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
-
-        convexPolyhedron =
-            ConvexPolyhedron.fromBox boxHalfExtents
     in
         Array.foldl
             (\vertex ->
                 let
                     worldVertex =
-                        Transform.pointToWorldFrame boxTransform vertex
+                        Transform.pointToWorldFrame convexTransform vertex
 
                     dot =
                         planeTransform.position
@@ -113,13 +110,13 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
                     if dot <= 0 then
                         (::)
                             { bodyId1 = planeBodyId
-                            , bodyId2 = boxBodyId
+                            , bodyId2 = convexBodyId
                             , ni = worldNormal
                             , ri =
                                 worldVertex
                                     |> Vec3.add (Vec3.negate (Vec3.scale dot worldNormal))
                                     |> Vec3.add (Vec3.negate planeBody.position)
-                            , rj = Vec3.sub worldVertex boxBody.position
+                            , rj = Vec3.sub worldVertex convexBody.position
                             , restitution = 0
                             }
                     else
@@ -129,44 +126,37 @@ getPlaneBoxContacts planeTransform planeBodyId planeBody boxTransform boxHalfExt
             convexPolyhedron.vertices
 
 
-getBoxBoxContacts : Transform -> Vec3 -> BodyId -> Body -> Transform -> Vec3 -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-getBoxBoxContacts shapeTransform1 halfExtents1 bodyId1 body1 shapeTransform2 halfExtents2 bodyId2 body2 contactEquations =
-    let
-        convexPolyhedron1 =
-            ConvexPolyhedron.fromBox halfExtents1
+getConvexConvexContacts : Transform -> ConvexPolyhedron -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> List ContactEquation -> List ContactEquation
+getConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTransform2 convexPolyhedron2 bodyId2 body2 contactEquations =
+    case ConvexPolyhedron.findSeparatingAxis shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 of
+        Just sepAxis ->
+            ConvexPolyhedron.clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
+                |> List.foldl
+                    (\{ point, normal, depth } ->
+                        let
+                            q =
+                                normal
+                                    |> Vec3.negate
+                                    |> Vec3.scale depth
 
-        convexPolyhedron2 =
-            ConvexPolyhedron.fromBox halfExtents2
-    in
-        case ConvexPolyhedron.findSeparatingAxis shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 of
-            Just sepAxis ->
-                ConvexPolyhedron.clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
-                    |> List.foldl
-                        (\{ point, normal, depth } ->
-                            let
-                                q =
-                                    normal
-                                        |> Vec3.negate
-                                        |> Vec3.scale depth
+                            ri =
+                                Vec3.add point q
+                                    |> Vec3.add (Vec3.negate body1.position)
 
-                                ri =
-                                    Vec3.add point q
-                                        |> Vec3.add (Vec3.negate body1.position)
+                            rj =
+                                point
+                                    |> Vec3.add (Vec3.negate body2.position)
+                        in
+                            (::)
+                                { bodyId1 = bodyId1
+                                , bodyId2 = bodyId2
+                                , ni = Vec3.negate sepAxis
+                                , ri = ri
+                                , rj = rj
+                                , restitution = 0
+                                }
+                    )
+                    contactEquations
 
-                                rj =
-                                    point
-                                        |> Vec3.add (Vec3.negate body2.position)
-                            in
-                                (::)
-                                    { bodyId1 = bodyId1
-                                    , bodyId2 = bodyId2
-                                    , ni = Vec3.negate sepAxis
-                                    , ri = ri
-                                    , rj = rj
-                                    , restitution = 0
-                                    }
-                        )
-                        contactEquations
-
-            Nothing ->
-                contactEquations
+        Nothing ->
+            contactEquations

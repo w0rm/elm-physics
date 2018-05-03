@@ -3,6 +3,8 @@ module Physics.AABB exposing (..)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
+import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Array.Hamt as Array exposing (Array)
 
 
 maxNumber : Float
@@ -77,30 +79,18 @@ overlaps aabb1 aabb2 =
             && ((l2z <= u1z && u1z <= u2z) || (l1z <= u2z && u2z <= u1z))
 
 
-box : Transform -> Vec3 -> AABB
-box transform halfExtends =
-    let
-        { x, y, z } =
-            Vec3.toRecord halfExtends
-    in
-        List.foldl
-            (\point ->
-                let
-                    p =
-                        Transform.pointToWorldFrame transform point
-                in
-                    extend (AABB p p)
-            )
-            impossible
-            [ vec3 -x -y -z
-            , vec3 x -y -z
-            , vec3 x y -z
-            , vec3 -x y -z
-            , vec3 -x -y z
-            , vec3 x -y z
-            , vec3 x y z
-            , vec3 -x y z
-            ]
+convexPolyhedron : Transform -> ConvexPolyhedron -> AABB
+convexPolyhedron transform convexPolyhedron =
+    Array.foldl
+        (\point ->
+            let
+                p =
+                    Transform.pointToWorldFrame transform point
+            in
+                extend (AABB p p)
+        )
+        impossible
+        convexPolyhedron.vertices
 
 
 toHalfExtends : AABB -> Vec3

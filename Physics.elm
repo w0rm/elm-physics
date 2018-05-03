@@ -54,6 +54,7 @@ import Time exposing (Time)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Dict
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.ConvexPolyhedron as ConvexPolyhedron
 
 
 {-| -}
@@ -154,7 +155,7 @@ type Shape
 -}
 box : Vec3 -> Shape
 box halfExtends =
-    Shape (Shape.Box halfExtends)
+    Shape (Shape.Convex (ConvexPolyhedron.fromBox halfExtends))
 
 
 {-| A plane shape, with a normal pointing in the direction of the z axis
@@ -206,7 +207,7 @@ foldl fn acc (World { bodies }) =
                 (\shapeId shape ->
                     fn
                         { transform =
-                            Shape.transform shape
+                            Mat4.identity
                                 |> Mat4.mul (Quaternion.toMat4 (Maybe.withDefault Quaternion.identity (Dict.get shapeId shapeOrientations)))
                                 |> Mat4.mul (Mat4.makeTranslate (Maybe.withDefault Body.zero3 (Dict.get shapeId shapeOffsets)))
                                 |> Mat4.mul (Quaternion.toMat4 quaternion)
