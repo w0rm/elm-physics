@@ -17,21 +17,7 @@ import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Set exposing (Set)
 import Array.Hamt as Array exposing (Array)
-
-
-zero3 : Vec3
-zero3 =
-    vec3 0 0 0
-
-
-maxNumber : Float
-maxNumber =
-    3.40282347e38
-
-
-precision : Float
-precision =
-    1.0e-6
+import Physics.Const as Const
 
 
 almostZero : Vec3 -> Bool
@@ -40,9 +26,9 @@ almostZero vec =
         { x, y, z } =
             Vec3.toRecord vec
     in
-        (abs x <= precision)
-            && (abs y <= precision)
-            && (abs z <= precision)
+        (abs x <= Const.precision)
+            && (abs y <= Const.precision)
+            && (abs z <= Const.precision)
 
 
 type alias ConvexPolyhedron =
@@ -210,7 +196,7 @@ type alias ClipResult =
 
 clipAgainstHull : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Float -> Float -> List ClipResult
 clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
-    case closestFaceHelp (>) 0 t2 hull2 separatingNormal -maxNumber Nothing of
+    case closestFaceHelp (>) 0 t2 hull2 separatingNormal -Const.maxNumber Nothing of
         Just { indices } ->
             clipFaceAgainstHull
                 t1
@@ -221,7 +207,7 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
                         Array.get i hull2.vertices
                             |> Maybe.map (Transform.pointToWorldFrame t2)
                             -- Sorry
-                            |> Maybe.withDefault zero3
+                            |> Maybe.withDefault Const.zero3
                     )
                     (Array.toList indices)
                 )
@@ -234,14 +220,14 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
 clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
-    case closestFaceHelp (<) 0 t1 hull1 separatingNormal maxNumber Nothing of
+    case closestFaceHelp (<) 0 t1 hull1 separatingNormal Const.maxNumber Nothing of
         Just closest ->
             let
                 localPlaneEq =
                     -(Array.get 0 closest.indices
                         |> Maybe.andThen (\i -> Array.get i hull1.vertices)
                         -- Sorry:
-                        |> Maybe.withDefault zero3
+                        |> Maybe.withDefault Const.zero3
                         |> Vec3.dot closest.normal
                      )
 
@@ -260,12 +246,12 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                                         |> Maybe.andThen (Array.get 0)
                                         |> Maybe.andThen (\i -> Array.get i hull1.vertices)
                                         -- Sorry:
-                                        |> Maybe.withDefault zero3
+                                        |> Maybe.withDefault Const.zero3
 
                                 otherFaceNormal =
                                     Array.get otherFaceIndex hull1.normals
                                         -- Sorry:
-                                        |> Maybe.withDefault zero3
+                                        |> Maybe.withDefault Const.zero3
 
                                 localPlaneEq =
                                     -(Vec3.dot otherFaceVertex otherFaceNormal)
@@ -320,7 +306,7 @@ closestFaceHelp compareFunc index transform hull separatingNormal dCurrent resul
                 hull.normals
                     |> Array.get index
                     -- Sorry:
-                    |> Maybe.withDefault zero3
+                    |> Maybe.withDefault Const.zero3
 
             faceIndices =
                 hull.faces
@@ -463,7 +449,7 @@ findSeparatingAxis t1 hull1 t2 hull2 =
                                         restNormals
                                         context
     in
-        { dmin = maxNumber, target = zero3 }
+        { dmin = Const.maxNumber, target = Const.zero3 }
             |> testFaceNormals t1.quaternion (Array.toList hull1.normals)
             |> Maybe.andThen (testFaceNormals t2.quaternion (Array.toList hull2.normals))
             |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
@@ -546,7 +532,7 @@ project transform { vertices } axis =
             Transform.vectorToLocalFrame transform axis
 
         add =
-            zero3
+            Const.zero3
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
     in
@@ -558,7 +544,7 @@ project transform { vertices } axis =
                 in
                     ( max maxVal val, min minVal val )
             )
-            ( -maxNumber, maxNumber )
+            ( -Const.maxNumber, Const.maxNumber )
             vertices
             |> (\( maxVal, minVal ) ->
                     ( maxVal - add

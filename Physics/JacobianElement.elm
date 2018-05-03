@@ -6,6 +6,7 @@ module Physics.JacobianElement
         )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.Const as Const
 
 
 type alias JacobianElement =
@@ -16,8 +17,8 @@ type alias JacobianElement =
 
 jacobianElement : JacobianElement
 jacobianElement =
-    { spatial = vec3 0 0 0
-    , rotational = vec3 0 0 0
+    { spatial = Const.zero3
+    , rotational = Const.zero3
     }
 
 

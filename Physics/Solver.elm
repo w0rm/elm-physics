@@ -8,6 +8,7 @@ import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
 import Time exposing (Time)
 import Dict exposing (Dict)
 import Math.Vector3 as Vec3
+import Physics.Const as Const
 
 
 maxIterations : Int
@@ -28,7 +29,7 @@ solve dt contactEquations world =
 
 solveHelp : Int -> SolveContext -> SolveContext
 solveHelp number context =
-    if number == 0 || context.deltalambdaTot < 1.0e-7 then
+    if number == 0 || context.deltalambdaTot < Const.precision then
         context
     else
         solveHelp (number - 1) (solveStep context)
@@ -139,6 +140,6 @@ solveContext dt contactEquations world =
                 )
                 []
                 contactEquations
-        , deltalambdaTot = 10000000 -- large number initially
+        , deltalambdaTot = Const.maxNumber -- large number initially
         , world = world
         }

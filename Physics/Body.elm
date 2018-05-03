@@ -20,6 +20,7 @@ import Physics.AABB as AABB exposing (AABB)
 import Dict exposing (Dict)
 import Physics.Shape exposing (Shape(..), ShapeId)
 import Time exposing (Time)
+import Physics.Const as Const
 
 
 type alias BodyId =
@@ -49,20 +50,20 @@ type alias Body =
 
 body : Body
 body =
-    { position = zero3
-    , velocity = zero3
-    , angularVelocity = zero3
+    { position = Const.zero3
+    , velocity = Const.zero3
+    , angularVelocity = Const.zero3
     , quaternion = Quaternion.identity
     , mass = 0
     , shapes = Dict.empty
     , shapeOffsets = Dict.empty -- get defaults to zero3
     , shapeOrientations = Dict.empty -- get defaults to Quaternion.identity
     , nextShapeId = 0
-    , force = zero3
-    , torque = zero3
+    , force = Const.zero3
+    , torque = Const.zero3
     , invMass = 0
-    , inertia = zero3
-    , invInertia = zero3
+    , inertia = Const.zero3
+    , invInertia = Const.zero3
     , invInertiaWorld = Mat4.identity
     }
 
@@ -79,7 +80,10 @@ addGravity gravity body =
 
 clearForces : Body -> Body
 clearForces body =
-    { body | force = zero3, torque = zero3 }
+    { body
+        | force = Const.zero3
+        , torque = Const.zero3
+    }
 
 
 setMass : Float -> Body -> Body
@@ -117,15 +121,10 @@ shapeWorldTransform shapeId { position, quaternion, shapeOffsets, shapeOrientati
             |> Quaternion.mul quaternion
     , position =
         Dict.get shapeId shapeOffsets
-            |> Maybe.withDefault zero3
+            |> Maybe.withDefault Const.zero3
             |> Quaternion.rotate quaternion
             |> Vec3.add position
     }
-
-
-zero3 : Vec3
-zero3 =
-    vec3 0 0 0
 
 
 tick : Time -> Body -> Body

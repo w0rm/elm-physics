@@ -10,6 +10,7 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
+import Physics.Const as Const
 
 
 type alias SolverBody =
@@ -36,8 +37,8 @@ fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque,
     , torque = torque
     , invMass = invMass
     , invInertiaWorld = invInertiaWorld
-    , vlambda = zero3
-    , wlambda = zero3
+    , vlambda = Const.zero3
+    , wlambda = Const.zero3
     }
 
 
@@ -54,8 +55,3 @@ addToWlambda deltalambda { spatial, rotational } solverBody =
                 |> Vec3.scale deltalambda
                 |> Vec3.add solverBody.wlambda
     }
-
-
-zero3 : Vec3
-zero3 =
-    vec3 0 0 0
