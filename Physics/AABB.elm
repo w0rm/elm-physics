@@ -13,11 +13,7 @@ import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Array.Hamt as Array exposing (Array)
-
-
-maxNumber : Float
-maxNumber =
-    3.40282347e38
+import Physics.Const as Const
 
 
 type alias AABB =
@@ -28,22 +24,22 @@ type alias AABB =
 
 zero : AABB
 zero =
-    { lowerBound = vec3 0 0 0
-    , upperBound = vec3 0 0 0
+    { lowerBound = Const.zero3
+    , upperBound = Const.zero3
     }
 
 
 maximum : AABB
 maximum =
-    { lowerBound = vec3 -maxNumber -maxNumber -maxNumber
-    , upperBound = vec3 maxNumber maxNumber maxNumber
+    { lowerBound = vec3 -Const.maxNumber -Const.maxNumber -Const.maxNumber
+    , upperBound = vec3 Const.maxNumber Const.maxNumber Const.maxNumber
     }
 
 
 impossible : AABB
 impossible =
-    { lowerBound = vec3 maxNumber maxNumber maxNumber
-    , upperBound = vec3 -maxNumber -maxNumber -maxNumber
+    { lowerBound = vec3 Const.maxNumber Const.maxNumber Const.maxNumber
+    , upperBound = vec3 -Const.maxNumber -Const.maxNumber -Const.maxNumber
     }
 
 
@@ -112,22 +108,22 @@ plane : Transform -> AABB
 plane { position, quaternion } =
     case Vec3.toTuple (Quaternion.rotate quaternion Vec3.k) of
         ( 1, _, _ ) ->
-            { maximum | upperBound = vec3 (Vec3.getX position) maxNumber maxNumber }
+            { maximum | upperBound = vec3 (Vec3.getX position) Const.maxNumber Const.maxNumber }
 
         ( -1, _, _ ) ->
-            { maximum | lowerBound = vec3 (Vec3.getX position) -maxNumber -maxNumber }
+            { maximum | lowerBound = vec3 (Vec3.getX position) -Const.maxNumber -Const.maxNumber }
 
         ( _, 1, _ ) ->
-            { maximum | upperBound = vec3 maxNumber (Vec3.getY position) maxNumber }
+            { maximum | upperBound = vec3 Const.maxNumber (Vec3.getY position) Const.maxNumber }
 
         ( _, -1, _ ) ->
-            { maximum | lowerBound = vec3 -maxNumber (Vec3.getY position) -maxNumber }
+            { maximum | lowerBound = vec3 -Const.maxNumber (Vec3.getY position) -Const.maxNumber }
 
         ( _, _, 1 ) ->
-            { maximum | upperBound = vec3 maxNumber maxNumber (Vec3.getZ position) }
+            { maximum | upperBound = vec3 Const.maxNumber Const.maxNumber (Vec3.getZ position) }
 
         ( _, _, -1 ) ->
-            { maximum | lowerBound = vec3 -maxNumber -maxNumber (Vec3.getZ position) }
+            { maximum | lowerBound = vec3 -Const.maxNumber -Const.maxNumber (Vec3.getZ position) }
 
         ( _, _, _ ) ->
             maximum
