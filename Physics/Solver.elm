@@ -1,4 +1,4 @@
-module Physics.Solver exposing (..)
+module Physics.Solver exposing (solve)
 
 import Physics.World as World exposing (World)
 import Physics.Body as Body exposing (Body, BodyId)

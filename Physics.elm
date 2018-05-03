@@ -209,7 +209,7 @@ foldl fn acc (World { bodies }) =
                         { transform =
                             Mat4.identity
                                 |> Mat4.mul (Quaternion.toMat4 (Maybe.withDefault Quaternion.identity (Dict.get shapeId shapeOrientations)))
-                                |> Mat4.mul (Mat4.makeTranslate (Maybe.withDefault Body.zero3 (Dict.get shapeId shapeOffsets)))
+                                |> Mat4.mul (Mat4.makeTranslate (Maybe.withDefault zero3 (Dict.get shapeId shapeOffsets)))
                                 |> Mat4.mul (Quaternion.toMat4 quaternion)
                                 |> Mat4.mul (Mat4.makeTranslate position)
                         , shapeId = shapeId
@@ -221,6 +221,11 @@ foldl fn acc (World { bodies }) =
         )
         acc
         bodies
+
+
+zero3 : Vec3
+zero3 =
+    vec3 0 0 0
 
 
 {-| Get the contact points in the world for visual debugging

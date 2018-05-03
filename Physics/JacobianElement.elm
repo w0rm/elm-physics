@@ -1,4 +1,9 @@
-module Physics.JacobianElement exposing (..)
+module Physics.JacobianElement
+    exposing
+        ( JacobianElement
+        , jacobianElement
+        , mulVec
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 
@@ -14,12 +19,6 @@ jacobianElement =
     { spatial = vec3 0 0 0
     , rotational = vec3 0 0 0
     }
-
-
-mul : JacobianElement -> JacobianElement -> Float
-mul jacobianElement1 jacobianElement2 =
-    Vec3.dot jacobianElement2.spatial jacobianElement1.spatial
-        + Vec3.dot jacobianElement2.rotational jacobianElement1.rotational
 
 
 mulVec : Vec3 -> Vec3 -> JacobianElement -> Float

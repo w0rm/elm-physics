@@ -1,4 +1,12 @@
-module Physics.AABB exposing (..)
+module Physics.AABB
+    exposing
+        ( AABB
+        , convexPolyhedron
+        , extend
+        , impossible
+        , plane
+        , toHalfExtends
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Quaternion as Quaternion

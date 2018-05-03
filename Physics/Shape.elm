@@ -1,4 +1,4 @@
-module Physics.Shape exposing (..)
+module Physics.Shape exposing (ShapeId, Shape(..))
 
 import Physics.ConvexPolyhedron exposing (ConvexPolyhedron)
 

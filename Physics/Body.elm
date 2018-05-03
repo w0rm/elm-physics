@@ -1,4 +1,15 @@
-module Physics.Body exposing (..)
+module Physics.Body
+    exposing
+        ( Body
+        , BodyId
+        , addGravity
+        , clearForces
+        , shapeWorldTransform
+        , tick
+        , body
+        , setMass
+        , addShape
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)

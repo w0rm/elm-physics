@@ -1,4 +1,13 @@
-module Physics.World exposing (..)
+module Physics.World
+    exposing
+        ( World
+        , world
+        , setGravity
+        , addBody
+        , tick
+        , getPairs
+        , addGravityForces
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)

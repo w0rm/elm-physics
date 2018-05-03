@@ -1,10 +1,16 @@
-module Physics.SolverEquation exposing (..)
+module Physics.SolverEquation
+    exposing
+        ( SolverEquation
+        , computeGWlambda
+        , addFrictionEquations
+        , addContactEquation
+        )
 
 import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.Body exposing (BodyId)
 import Physics.SolverBody as SolverBody exposing (SolverBody)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Time exposing (Time)
 

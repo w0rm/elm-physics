@@ -1,4 +1,13 @@
-module Physics.Quaternion exposing (..)
+module Physics.Quaternion
+    exposing
+        ( identity
+        , fromAngleAxis
+        , toMat4
+        , rotate
+        , rotateBy
+        , conjugate
+        , mul
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
@@ -122,69 +131,3 @@ rotate q v =
             (ix * qw + iw * -qx + iy * -qz - iz * -qy)
             (iy * qw + iw * -qy + iz * -qx - ix * -qz)
             (iz * qw + iw * -qz + ix * -qy - iy * -qx)
-
-
-{-| Spherical linear interpolation
-<http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/slerp/index.htm>
-
-Elm implementation copied from <https://github.com/kfish/quaternion>
-
--}
-slerp : Float -> Vec4 -> Vec4 -> Vec4
-slerp t qa qb =
-    let
-        -- Calculate angle between them.
-        cosHalfTheta =
-            Vec4.dot qa qb
-
-        halfTheta =
-            acos cosHalfTheta
-
-        sinHalfTheta =
-            sqrt (1.0 - cosHalfTheta * cosHalfTheta)
-
-        ( aw, ax, ay, az ) =
-            Vec4.toTuple qa
-
-        ( bw, bx, by, bz ) =
-            Vec4.toTuple qb
-
-        hw =
-            aw * 0.5 + bw * 0.5
-
-        hx =
-            ax * 0.5 + bx * 0.5
-
-        hy =
-            ay * 0.5 + by * 0.5
-
-        hz =
-            az * 0.5 + bz * 0.5
-
-        ratioA =
-            sin ((1 - t) * halfTheta) / sinHalfTheta
-
-        ratioB =
-            sin (t * halfTheta) / sinHalfTheta
-
-        mw =
-            aw * ratioA + bw * ratioB
-
-        mx =
-            ax * ratioA + bx * ratioB
-
-        my =
-            ay * ratioA + by * ratioB
-
-        mz =
-            az * ratioA + bz * ratioB
-    in
-        -- if qa=qb or qa=-qb then theta = 0 and we can return qa
-        if abs cosHalfTheta >= 1.0 then
-            qa
-            -- if theta = 180 degrees then result is not fully defined
-            -- we could rotate around any axis normal to qa or qb
-        else if abs sinHalfTheta < 0.001 then
-            vec4 hw hx hy hz
-        else
-            vec4 mw mx my mz
