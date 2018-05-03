@@ -217,7 +217,6 @@ updateMassProperties ({ mass } as body) =
                 | invMass = invMass
                 , inertia = inertia
                 , invInertia = invInertia
-                , quaternion = body.quaternion
             }
 
 

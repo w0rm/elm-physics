@@ -229,11 +229,6 @@ foldl fn acc (World { bodies }) =
         bodies
 
 
-zero3 : Vec3
-zero3 =
-    vec3 0 0 0
-
-
 {-| Get the contact points in the world for visual debugging
 -}
 contacts : World -> List Vec3
