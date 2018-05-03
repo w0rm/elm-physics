@@ -5,9 +5,8 @@ import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.Body exposing (BodyId)
 import Physics.SolverBody as SolverBody exposing (SolverBody)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Mat3 as Mat3 exposing (Mat3)
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Time exposing (Time)
-import Dict exposing (Dict)
 
 
 type alias FrictionEquation =
@@ -241,12 +240,12 @@ computeGiMf bi bj { jacobianElementA, jacobianElementB } =
     (+)
         (JacobianElement.mulVec
             (Vec3.scale bi.invMass bi.force)
-            (Mat3.mul bi.invInertiaWorld bi.torque)
+            (Mat4.transform bi.invInertiaWorld bi.torque)
             jacobianElementA
         )
         (JacobianElement.mulVec
             (Vec3.scale bj.invMass bj.force)
-            (Mat3.mul bj.invInertiaWorld bj.torque)
+            (Mat4.transform bj.invInertiaWorld bj.torque)
             jacobianElementB
         )
 
@@ -257,8 +256,8 @@ computeC : SolverBody -> SolverBody -> SolverEquation -> Float
 computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
     bi.invMass
         + bj.invMass
-        + (Vec3.dot (Mat3.mul bi.invInertiaWorld jacobianElementA.rotational) jacobianElementA.rotational)
-        + (Vec3.dot (Mat3.mul bj.invInertiaWorld jacobianElementB.rotational) jacobianElementB.rotational)
+        + (Vec3.dot (Mat4.transform bi.invInertiaWorld jacobianElementA.rotational) jacobianElementA.rotational)
+        + (Vec3.dot (Mat4.transform bj.invInertiaWorld jacobianElementB.rotational) jacobianElementB.rotational)
         + spookEps
 
 

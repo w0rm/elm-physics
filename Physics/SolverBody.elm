@@ -3,7 +3,7 @@ module Physics.SolverBody exposing (..)
 import Physics.Body as Body exposing (Body)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
-import Physics.Mat3 as Mat3 exposing (Mat3)
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
 
 
@@ -15,7 +15,7 @@ type alias SolverBody =
     , force : Vec3
     , torque : Vec3
     , invMass : Float
-    , invInertiaWorld : Mat3
+    , invInertiaWorld : Mat4
     , vlambda : Vec3
     , wlambda : Vec3
     }
@@ -45,7 +45,7 @@ addToWlambda deltalambda { spatial, rotational } solverBody =
                 |> Vec3.add solverBody.vlambda
         , wlambda =
             rotational
-                |> Mat3.mul solverBody.invInertiaWorld
+                |> Mat4.transform solverBody.invInertiaWorld
                 |> Vec3.scale deltalambda
                 |> Vec3.add solverBody.wlambda
     }

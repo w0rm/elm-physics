@@ -2,10 +2,10 @@ module Physics.Body exposing (..)
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
-import Physics.Mat3 as Mat3 exposing (Mat3)
 import Dict exposing (Dict)
 import Physics.Shape exposing (Shape(..), ShapeId)
 import Time exposing (Time)
@@ -32,7 +32,7 @@ type alias Body =
     , invMass : Float
     , inertia : Vec3
     , invInertia : Vec3
-    , invInertiaWorld : Mat3
+    , invInertiaWorld : Mat4
     }
 
 
@@ -52,7 +52,7 @@ body =
     , invMass = 0
     , inertia = zero3
     , invInertia = zero3
-    , invInertiaWorld = Mat3.zero
+    , invInertiaWorld = Mat4.identity
     }
 
 
@@ -133,7 +133,7 @@ tick dt body =
 
         newAngularVelocity =
             body.torque
-                |> Mat3.mul body.invInertiaWorld
+                |> Mat4.transform body.invInertiaWorld
                 |> Vec3.scale dt
                 |> Vec3.add body.angularVelocity
     in
@@ -215,13 +215,13 @@ updateInertiaWorld force ({ invInertia, quaternion } as body) =
     else
         let
             m =
-                Mat3.fromQuaternion quaternion
+                Quaternion.toMat4 quaternion
         in
             { body
                 | invInertiaWorld =
-                    Mat3.mult
-                        (Mat3.transpose m)
-                        (Mat3.scale invInertia m)
+                    Mat4.mul
+                        (Mat4.transpose m)
+                        (Mat4.scale invInertia m)
             }
 
 
