@@ -34,8 +34,7 @@ type alias Body =
     , quaternion : Vec4
     , mass : Float
     , shapes : Dict ShapeId Shape
-    , shapeOffsets : Dict ShapeId Vec3
-    , shapeOrientations : Dict ShapeId Vec4
+    , shapeTransforms : Dict ShapeId Transform
     , nextShapeId : ShapeId
     , force : Vec3
     , torque : Vec3
@@ -56,8 +55,7 @@ body =
     , quaternion = Quaternion.identity
     , mass = 0
     , shapes = Dict.empty
-    , shapeOffsets = Dict.empty -- get defaults to zero3
-    , shapeOrientations = Dict.empty -- get defaults to Quaternion.identity
+    , shapeTransforms = Dict.empty -- positions of the shapes inside this body
     , nextShapeId = 0
     , force = Const.zero3
     , torque = Const.zero3
@@ -114,17 +112,22 @@ addShape shape body =
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
-shapeWorldTransform shapeId { position, quaternion, shapeOffsets, shapeOrientations } =
-    { quaternion =
-        Dict.get shapeId shapeOrientations
-            |> Maybe.withDefault Quaternion.identity
-            |> Quaternion.mul quaternion
-    , position =
-        Dict.get shapeId shapeOffsets
-            |> Maybe.withDefault Const.zero3
-            |> Quaternion.rotate quaternion
-            |> Vec3.add position
-    }
+shapeWorldTransform shapeId { position, quaternion, shapeTransforms } =
+    case Dict.get shapeId shapeTransforms of
+        Just transform ->
+            { quaternion =
+                transform.quaternion
+                    |> Quaternion.mul quaternion
+            , position =
+                transform.position
+                    |> Quaternion.rotate quaternion
+                    |> Vec3.add position
+            }
+
+        Nothing ->
+            { quaternion = quaternion
+            , position = position
+            }
 
 
 tick : Time -> Body -> Body

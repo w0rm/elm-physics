@@ -202,16 +202,22 @@ or what color should this shape be.
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
 foldl fn acc (World { bodies }) =
     Dict.foldl
-        (\bodyId { position, quaternion, shapes, shapeOffsets, shapeOrientations } acc1 ->
+        (\bodyId { position, quaternion, shapes, shapeTransforms } acc1 ->
             Dict.foldl
                 (\shapeId shape ->
                     fn
                         { transform =
-                            Mat4.identity
-                                |> Mat4.mul (Quaternion.toMat4 (Maybe.withDefault Quaternion.identity (Dict.get shapeId shapeOrientations)))
-                                |> Mat4.mul (Mat4.makeTranslate (Maybe.withDefault zero3 (Dict.get shapeId shapeOffsets)))
-                                |> Mat4.mul (Quaternion.toMat4 quaternion)
-                                |> Mat4.mul (Mat4.makeTranslate position)
+                            case Dict.get shapeId shapeTransforms of
+                                Just transform ->
+                                    (Quaternion.toMat4 transform.quaternion)
+                                        |> Mat4.mul (Mat4.makeTranslate transform.position)
+                                        |> Mat4.mul (Quaternion.toMat4 quaternion)
+                                        |> Mat4.mul (Mat4.makeTranslate position)
+
+                                Nothing ->
+                                    Mat4.mul
+                                        (Mat4.makeTranslate position)
+                                        (Quaternion.toMat4 quaternion)
                         , shapeId = shapeId
                         , bodyId = bodyId
                         }
