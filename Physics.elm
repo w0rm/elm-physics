@@ -94,7 +94,7 @@ type Body
     = Body Body.Body
 
 
-{-| This gives you an empty body, add shapes to turn it into smth meaningful
+{-| This gives you an empty body, add shapes to turn it into something meaningful
 -}
 body : Body
 body =
