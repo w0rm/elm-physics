@@ -2,11 +2,9 @@ module Boxes exposing (main)
 
 import AnimationFrame
 import Html exposing (Html)
-import Html exposing (Html)
 import Html.Attributes exposing (width, height, style)
 import Html.Events exposing (onClick)
 import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics
 import Task
@@ -20,7 +18,6 @@ type alias Model =
     { screenWidth : Float
     , screenHeight : Float
     , world : Physics.World
-    , devicePixelRatio : Float
     }
 
 
@@ -41,18 +38,20 @@ main =
         }
 
 
-box : Physics.Body
-box =
+{-| A constant cube-shaped body with unit sides and mass
+-}
+unitCube : Physics.Body
+unitCube =
     Physics.body
-        |> Physics.setMass 5
+        |> Physics.setMass 1
         |> Physics.addShape (Physics.box (vec3 1 1 1))
 
 
-randomBox : Random.Generator Physics.Body
-randomBox =
+randomlyRotatedUnitCube : Random.Generator Physics.Body
+randomlyRotatedUnitCube =
     Random.map4
         (\angle x y z ->
-            box
+            unitCube
                 |> Physics.offsetBy (vec3 0 0 10)
                 |> Physics.rotateBy (Vec3.normalize (vec3 x y z)) angle
         )
@@ -60,6 +59,20 @@ randomBox =
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
+
+
+{-| A constant (for now) scaling factor.
+The value of 1 gives a full-screen-height image that gets horizontally extended
+or centered and cropped depending on screen-width.
+Lower values result in this same image size with reduced resolution,
+introducing jaggies or pixelation.
+Higher values initially shrink the image to the upper left of the screen,
+but resizing the screen then has strange effects, probably unintended,
+on the image size (TODO: debug devicePixelRatio > 1).
+-}
+devicePixelRatio : Float
+devicePixelRatio =
+    1
 
 
 init : ( Model, Cmd Msg )
@@ -75,21 +88,20 @@ init =
                         |> Physics.offsetBy (vec3 0 0 -1)
                     )
                 |> Physics.addBody
-                    (box
+                    (unitCube
                         |> Physics.offsetBy (vec3 0 0 2)
                         |> Physics.rotateBy Vec3.j (-pi / 5)
                     )
                 |> Physics.addBody
-                    (box
+                    (unitCube
                         |> Physics.offsetBy (vec3 -1.2 0 9)
                         |> Physics.rotateBy Vec3.j (-pi / 4)
                     )
                 |> Physics.addBody
-                    (box
+                    (unitCube
                         |> Physics.offsetBy (vec3 1.3 0 6)
                         |> Physics.rotateBy Vec3.j (pi / 5)
                     )
-      , devicePixelRatio = 1
       }
     , Task.perform Resize Window.size
     )
@@ -107,7 +119,7 @@ update msg model =
             )
 
         AddRandomBox ->
-            ( model, Random.generate AddBox randomBox )
+            ( model, Random.generate AddBox randomlyRotatedUnitCube )
 
         AddBox generatedBox ->
             ( { model | world = Physics.addBody generatedBox model.world }
@@ -133,7 +145,7 @@ subscriptions model =
 
 
 view : Model -> Html Msg
-view { screenWidth, screenHeight, devicePixelRatio, world } =
+view { screenWidth, screenHeight, world } =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
@@ -150,37 +162,54 @@ view { screenWidth, screenHeight, devicePixelRatio, world } =
         , onClick AddRandomBox
         ]
         (let
-            camera =
-                Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
-
             perspective =
                 Mat4.makePerspective 24 (screenWidth / screenHeight) 5 2000
-
-            entities =
-                Physics.foldl (addShape camera perspective) [] world
-
-            -- Uncomment to see collision points
-            -- |> addContacts camera perspective (Physics.contacts world)
          in
-            entities
+            (Physics.foldl (addShape perspective) [] world)
+                |> (if debugContacts then
+                        (addContacts perspective world)
+                    else
+                        (\unchanged -> unchanged)
+                   )
         )
 
 
-type alias Attributes =
-    { position : Vec3
-    , color : Vec3
-    }
+{-! Set to True to see collision points
+-}
+debugContacts : Bool
+debugContacts = False
+
+{-| The constant point of view used for rendering the world.
+-}
+viewCamera =
+    Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
 
 
-type alias Uniforms =
-    { camera : Mat4
-    , perspective : Mat4
-    , transform : Mat4
-    }
+{-| A light-weight wrapper record to distinguish use of Vec3 for color levels
+from its more common other use for 3-D coordinates.
+-}
+type alias ColorVector =
+    { color : Vec3 }
 
 
-addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape camera perspective { transform, bodyId } =
+{-| a color constructed by combining red, blue, and green levels
+each ranging from 0 to 1
+-}
+colorVector : Float -> Float -> Float -> ColorVector
+colorVector r g b =
+    { color = (vec3 r g b) }
+
+
+{-| a shade of grey specified as a level ranging from 0 (black) to 1 (white)
+-}
+greyLevel : Float -> ColorVector
+greyLevel level =
+    -- Mix equal parts red, blue, and green
+    colorVector level level level
+
+
+addShape : Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape perspective { transform, bodyId } =
     (::)
         (WebGL.entity
             vertex
@@ -192,9 +221,9 @@ addShape camera perspective { transform, bodyId } =
              else
                 cubeMesh
             )
-            { transform = transform
+            { camera = viewCamera
             , perspective = perspective
-            , camera = camera
+            , transform = transform
             }
         )
 
@@ -203,7 +232,19 @@ addShape camera perspective { transform, bodyId } =
 -- Meshes:
 
 
-planeMesh : Mesh Attributes
+{-| A WebGL compliant record.
+-}
+type alias GLAttributes =
+    { position : Vec3
+    , color : Vec3
+    }
+
+
+type alias GLMesh =
+    Mesh GLAttributes
+
+
+planeMesh : GLMesh
 planeMesh =
     WebGL.triangles
         (face
@@ -211,11 +252,11 @@ planeMesh =
             (vec3 -10 10 0)
             (vec3 -10 -10 0)
             (vec3 10 -10 0)
-            (vec3 0.2 0.2 0.2)
+            (greyLevel 0.2)
         )
 
 
-cubeMesh : Mesh Attributes
+cubeMesh : GLMesh
 cubeMesh =
     let
         rft =
@@ -242,21 +283,21 @@ cubeMesh =
         lbb =
             vec3 -1 -1 -1
     in
-        [ face rft rfb rbb rbt (vec3 0.4 0.4 0.4)
-        , face rft rfb lfb lft (vec3 0.5 0.5 0.5)
-        , face rft lft lbt rbt (vec3 0.6 0.6 0.6)
-        , face rfb lfb lbb rbb (vec3 0.7 0.7 0.7)
-        , face lft lfb lbb lbt (vec3 0.8 0.8 0.8)
-        , face rbt rbb lbb lbt (vec3 0.9 0.9 0.9)
+        [ face rft rfb rbb rbt (greyLevel 0.4)
+        , face rft rfb lfb lft (greyLevel 0.5)
+        , face rft lft lbt rbt (greyLevel 0.6)
+        , face rfb lfb lbb rbb (greyLevel 0.7)
+        , face lft lfb lbb lbt (greyLevel 0.8)
+        , face rbt rbb lbb lbt (greyLevel 0.9)
         ]
             |> List.concat
             |> WebGL.triangles
 
 
-face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
-face a b c d color =
-    [ ( Attributes a color, Attributes b color, Attributes c color )
-    , ( Attributes c color, Attributes d color, Attributes a color )
+face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> ColorVector -> List ( GLAttributes, GLAttributes, GLAttributes )
+face a b c d { color } =
+    [ ( GLAttributes a color, GLAttributes b color, GLAttributes c color )
+    , ( GLAttributes c color, GLAttributes d color, GLAttributes a color )
     ]
 
 
@@ -264,7 +305,30 @@ face a b c d color =
 -- Shaders:
 
 
-vertex : Shader Attributes Uniforms { vcolor : Vec3 }
+{-| Another WebGL compliant record.
+-}
+type alias GLUniforms =
+    { camera : Mat4
+    , perspective : Mat4
+    , transform : Mat4
+    }
+
+
+{-| Yet another WebGL compliant record.
+-}
+type alias GLVarying =
+    { vcolor : Vec3 }
+
+
+type alias GLShader =
+    Shader GLAttributes GLUniforms GLVarying
+
+
+type alias GLFragmentShader =
+    Shader {} GLUniforms GLVarying
+
+
+vertex : GLShader
 vertex =
     [glsl|
         attribute vec3 position;
@@ -280,7 +344,7 @@ vertex =
     |]
 
 
-fragment : Shader {} Uniforms { vcolor : Vec3 }
+fragment : GLFragmentShader
 fragment =
     [glsl|
         precision mediump float;
@@ -293,8 +357,8 @@ fragment =
 
 {-| Render collision points for the purpose of debugging
 -}
-addContacts : Mat4 -> Mat4 -> List Vec3 -> List Entity -> List Entity
-addContacts camera perspective contacts entities =
+addContacts : Mat4 -> Physics.World -> List Entity -> List Entity
+addContacts perspective world entities =
     List.foldl
         (\contactPoint ->
             (::)
@@ -302,14 +366,14 @@ addContacts camera perspective contacts entities =
                     vertex
                     fragment
                     cubeMesh
-                    { transform =
+                    { camera = viewCamera
+                    , perspective = perspective
+                    , transform =
                         Mat4.mul
                             (Mat4.makeTranslate contactPoint)
                             (Mat4.makeScale (vec3 0.1 0.1 0.1))
-                    , perspective = perspective
-                    , camera = camera
                     }
                 )
         )
         entities
-        contacts
+        (Physics.contacts world)
