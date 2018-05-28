@@ -2,11 +2,9 @@ module Boxes exposing (main)
 
 import AnimationFrame
 import Html exposing (Html)
-import Html exposing (Html)
 import Html.Attributes exposing (width, height, style)
 import Html.Events exposing (onClick)
 import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics
 import Task
@@ -17,10 +15,9 @@ import Random
 
 
 type alias Model =
-    { screenWidth : Float
-    , screenHeight : Float
+    { screenWidth : Int
+    , screenHeight : Int
     , world : Physics.World
-    , devicePixelRatio : Float
     }
 
 
@@ -41,6 +38,8 @@ main =
         }
 
 
+{-| A constant cube-shaped body with unit sides and mass of 5
+-}
 box : Physics.Body
 box =
     Physics.body
@@ -48,8 +47,10 @@ box =
         |> Physics.addShape (Physics.box (vec3 1 1 1))
 
 
-randomBox : Random.Generator Physics.Body
-randomBox =
+{-| A box raised above the plane and rotated to a random 3d angle
+-}
+randomlyRotatedBox : Random.Generator Physics.Body
+randomlyRotatedBox =
     Random.map4
         (\angle x y z ->
             box
@@ -64,35 +65,35 @@ randomBox =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { screenWidth = 1
-      , screenHeight = 1
-      , world =
+    let
+        initialBodies =
+            [ Physics.body
+                |> Physics.addShape Physics.plane
+                |> Physics.offsetBy (vec3 0 0 -1)
+            , box
+                |> Physics.offsetBy (vec3 0 0 2)
+                |> Physics.rotateBy Vec3.j (-pi / 5)
+            , box
+                |> Physics.offsetBy (vec3 -1.2 0 9)
+                |> Physics.rotateBy Vec3.j (-pi / 4)
+            , box
+                |> Physics.offsetBy (vec3 1.3 0 6)
+                |> Physics.rotateBy Vec3.j (pi / 5)
+            ]
+
+        initialWorld =
             Physics.world
                 |> Physics.setGravity (vec3 0 0 -10)
-                |> Physics.addBody
-                    (Physics.body
-                        |> Physics.addShape Physics.plane
-                        |> Physics.offsetBy (vec3 0 0 -1)
-                    )
-                |> Physics.addBody
-                    (box
-                        |> Physics.offsetBy (vec3 0 0 2)
-                        |> Physics.rotateBy Vec3.j (-pi / 5)
-                    )
-                |> Physics.addBody
-                    (box
-                        |> Physics.offsetBy (vec3 -1.2 0 9)
-                        |> Physics.rotateBy Vec3.j (-pi / 4)
-                    )
-                |> Physics.addBody
-                    (box
-                        |> Physics.offsetBy (vec3 1.3 0 6)
-                        |> Physics.rotateBy Vec3.j (pi / 5)
-                    )
-      , devicePixelRatio = 1
-      }
-    , Task.perform Resize Window.size
-    )
+    in
+        ( { -- replaced by resize, including the initial resize
+            screenWidth = 1
+          , screenHeight = 1
+
+          -- continuously updated by ticks and clicks
+          , world = List.foldl Physics.addBody initialWorld initialBodies
+          }
+        , Task.perform Resize Window.size
+        )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -100,14 +101,14 @@ update msg model =
     case msg of
         Resize { width, height } ->
             ( { model
-                | screenWidth = toFloat width
-                , screenHeight = toFloat height
+                | screenWidth = width
+                , screenHeight = height
               }
             , Cmd.none
             )
 
         AddRandomBox ->
-            ( model, Random.generate AddBox randomBox )
+            ( model, Random.generate AddBox randomlyRotatedBox )
 
         AddBox generatedBox ->
             ( { model | world = Physics.addBody generatedBox model.world }
@@ -133,15 +134,15 @@ subscriptions model =
 
 
 view : Model -> Html Msg
-view { screenWidth, screenHeight, devicePixelRatio, world } =
+view { screenWidth, screenHeight, world } =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
         , WebGL.antialias
         , WebGL.clearColor 0 0 0 1
         ]
-        [ width (round (screenWidth * devicePixelRatio))
-        , height (round (screenHeight * devicePixelRatio))
+        [ width screenWidth
+        , height screenHeight
         , style
             [ ( "display", "block" )
             , ( "width", toString screenWidth ++ "px" )
@@ -153,54 +154,55 @@ view { screenWidth, screenHeight, devicePixelRatio, world } =
             camera =
                 Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
 
+            aspectRatio =
+                (toFloat screenWidth) / (toFloat screenHeight)
+
             perspective =
-                Mat4.makePerspective 24 (screenWidth / screenHeight) 5 2000
-
-            entities =
-                Physics.foldl (addShape camera perspective) [] world
-
-            -- Uncomment to see collision points
-            -- |> addContacts camera perspective (Physics.contacts world)
+                Mat4.makePerspective 24 aspectRatio 5 2000
          in
-            entities
+            Physics.foldl (addShape camera perspective) [] world
+                |> (if debugContacts then
+                        addContacts camera perspective world
+                    else
+                        identity
+                   )
         )
+
+
+{-| Set to True to see collision points
+-}
+debugContacts : Bool
+debugContacts =
+    False
+
+
+addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape camera perspective { transform, bodyId } tail =
+    WebGL.entity
+        vertex
+        fragment
+        (-- This is hardcoded for now, because the plane body is the first added.
+         -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
+         if bodyId == 0 then
+            planeMesh
+         else
+            cubeMesh
+        )
+        { camera = camera
+        , perspective = perspective
+        , transform = transform
+        }
+        :: tail
+
+
+
+-- Meshes:
 
 
 type alias Attributes =
     { position : Vec3
     , color : Vec3
     }
-
-
-type alias Uniforms =
-    { camera : Mat4
-    , perspective : Mat4
-    , transform : Mat4
-    }
-
-
-addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape camera perspective { transform, bodyId } =
-    (::)
-        (WebGL.entity
-            vertex
-            fragment
-            (-- This is hardcoded for now, because the plane body is the first added.
-             -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
-             if bodyId == 0 then
-                planeMesh
-             else
-                cubeMesh
-            )
-            { transform = transform
-            , perspective = perspective
-            , camera = camera
-            }
-        )
-
-
-
--- Meshes:
 
 
 planeMesh : Mesh Attributes
@@ -264,7 +266,18 @@ face a b c d color =
 -- Shaders:
 
 
-vertex : Shader Attributes Uniforms { vcolor : Vec3 }
+type alias Uniforms =
+    { camera : Mat4
+    , perspective : Mat4
+    , transform : Mat4
+    }
+
+
+type alias Varying =
+    { vcolor : Vec3 }
+
+
+vertex : Shader Attributes Uniforms Varying
 vertex =
     [glsl|
         attribute vec3 position;
@@ -280,7 +293,7 @@ vertex =
     |]
 
 
-fragment : Shader {} Uniforms { vcolor : Vec3 }
+fragment : Shader {} Uniforms Varying
 fragment =
     [glsl|
         precision mediump float;
@@ -293,23 +306,25 @@ fragment =
 
 {-| Render collision points for the purpose of debugging
 -}
-addContacts : Mat4 -> Mat4 -> List Vec3 -> List Entity -> List Entity
-addContacts camera perspective contacts entities =
-    List.foldl
-        (\contactPoint ->
-            (::)
-                (WebGL.entity
-                    vertex
-                    fragment
-                    cubeMesh
-                    { transform =
-                        Mat4.mul
-                            (Mat4.makeTranslate contactPoint)
-                            (Mat4.makeScale (vec3 0.1 0.1 0.1))
-                    , perspective = perspective
-                    , camera = camera
-                    }
-                )
-        )
-        entities
-        contacts
+addContacts : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addContacts camera perspective world entities =
+    let
+        addContact : Vec3 -> List Entity -> List Entity
+        addContact contactPoint tail =
+            WebGL.entity
+                vertex
+                fragment
+                cubeMesh
+                { camera = camera
+                , perspective = perspective
+                , transform =
+                    Mat4.mul
+                        (Mat4.makeTranslate contactPoint)
+                        (Mat4.makeScale (vec3 0.1 0.1 0.1))
+                }
+                :: tail
+    in
+        List.foldl
+            addContact
+            entities
+            (Physics.contacts world)
