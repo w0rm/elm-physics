@@ -1,13 +1,14 @@
 module ConvexPolyhedron exposing (..)
 
+import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Expect exposing (Expectation)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform exposing (Transform)
+import Physics.Transform as Transform
 import Test exposing (..)
-import Array.Hamt as Array
+import Array.Hamt as Array exposing (Array)
 
 
 clipFaceAgainstPlane : Test
@@ -383,7 +384,7 @@ project =
 
 faceNormals : Test
 faceNormals =
-    describe "ConvexPolyhedron.uniqueEdges"
+    describe "ConvexPolyhedron.faceNormals"
         [ test "works for the box" <|
             \_ ->
                 boxHull 1
@@ -402,22 +403,380 @@ faceNormals =
 
 uniqueEdges : Test
 uniqueEdges =
-    describe "ConvexPolyhedron.faceNormals"
+    describe "ConvexPolyhedron.uniqueEdges"
+        -- There are several valid representations of the same convex
+        -- polyhedron, differing in the listed order of vertices and/or faces
+        -- or in insignificant rounding errors in vertex values.
+        -- So, the implementation of uniqueEdges should be given some lattitude
+        -- in its resulting list of edges. ConvexPolyhedron.addFaceEdges does
+        -- most of the work of ConvexPolyhedron.uniqueEdges, and it can be
+        -- tested with seed values to get more deterministic results from
+        -- ConvexPolyhedrons even with varying equivalent representations.
+        [ test "gives the correct number of edges for a box" <|
+            \_ ->
+                boxHull 1
+                    |> uniqueEdgesOfConvexPolyhedron
+                    |> List.length
+                    |> Expect.equal 3
+        -- The square pyramid shape has fewer parallel edges than a box.
+        -- The extent of parallel edges in a box was masking a bug discovered
+        -- in code review of addFaceEdges/uniqueEdges that would miss
+        -- some edges.
+        , test "works for a square pyramid" <|
+            \_ ->
+                squarePyramid
+                    |> uniqueEdgesOfConvexPolyhedron
+                    |> List.length
+                    |> Expect.equal 6
+        , test "works for an off-square pyramid" <|
+            \_ ->
+                askewSquarePyramid
+                    |> uniqueEdgesOfConvexPolyhedron
+                    |> List.length
+                    |> Expect.equal 6
+        , test "works for a non-square-quad-based pyramid" <|
+            \_ ->
+                nonSquareQuadPyramid
+                    |> uniqueEdgesOfConvexPolyhedron
+                    |> List.length
+                    -- all edges unique, none parallel
+                    |> Expect.equal 8
+        ]
+
+
+addFaceEdges : Test
+addFaceEdges =
+    describe "ConvexPolyhedron.addFaceEdges"
+        -- Testing addFaceEdges avoids over-testing for exact results from
+        -- ConvexPolyhedron.uniqueEdges.
+        -- There are several valid representations of the same convex
+        -- polyhedron, differing in the listed order of vertices and/or faces
+        -- or in insignificant rounding errors in vertex values.
+        -- So, the implementation of uniqueEdges should be given some lattitude
+        -- in its resulting list of edges. ConvexPolyhedron.addFaceEdges does
+        -- most of the work of ConvexPolyhedron.uniqueEdges, and it can be
+        -- tested with seed values to get more deterministic results from
+        -- ConvexPolyhedrons even with varying equivalent representations.
+        [ test "works for the box with positive seeds" <|
+            \_ ->
+                let
+                    -- Pre-calculated seeds are one way to get an exact
+                    -- normalized result. Members of the seed set are acceptable
+                    -- members of the result set. So long as the result-building
+                    -- process is non-destructive, the seeds should act as magnets
+                    -- for other valid results and should mask them in the final
+                    -- result.
+                    fullSeedSet =
+                        [ vec3 1 0 0
+                        , vec3 0 1 0
+                        , vec3 0 0 1
+                        ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron fullSeedSet
+                        |> Expect.equal fullSeedSet
+        , test "works for the box with negatively directed seeds" <|
+            \_ ->
+                let
+                    fullSeedSet =
+                        [ vec3 -1 0 0
+                        , vec3 0 -1 0
+                        , vec3 0 0 -1
+                        ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron fullSeedSet
+                        |> Expect.equal fullSeedSet
+        , test "works for the box with partial seeds" <|
+            \_ ->
+                let
+                    -- A partial seed set should get filled out by the addition of
+                    -- complementary edges. This tests that the de-duping is not
+                    -- wildly over- or under- aggressive.
+                    partialSeedSet =
+                        [ vec3 -1 0 0
+                        , vec3 0 0 1
+                        ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        |> Expect.equal 3
+        , test "works for the box with different partial seeds" <|
+            \_ ->
+                let
+                    -- A partial seed set should get filled out by the addition of
+                    -- complementary edges. This tests that the de-duping is not
+                    -- wildly over- or under- aggressive.
+                    partialSeedSet =
+                        [ vec3 0 0 1 ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        |> Expect.equal 3
+        , test "works for the box with other different partial seeds" <|
+            \_ ->
+                let
+                    -- A partial seed set should get filled out by the addition of
+                    -- complementary edges. This tests that the de-duping is not
+                    -- wildly over- or under- aggressive.
+                    partialSeedSet =
+                        [ vec3 0 1 0 ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        |> Expect.equal 3
+        , test "works for the box with approximate seeds" <|
+            \_ ->
+                let
+                    -- These approximate seeds should mask as effectively
+                    -- as their exact integer equivalents would, ASSUMING
+                    -- we have avoided the worst case scenario.
+                    -- That would be when the vertices under test are
+                    -- near the specific precision boundaries that would
+                    -- cause insignificant error terms to compound
+                    -- instead of canceling in the edge calculations.
+                    validSeedSet =
+                        [ vec3 (1 - Const.precision / 3.0) 0 0
+                        , vec3 0 (1 + Const.precision / 3.0) 0
+                        , vec3 0 0 ((-1) - Const.precision / 3.0)
+                        ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron validSeedSet
+                        |> Expect.equal validSeedSet
+        , test "works for the box with invalid seeds" <|
+            \_ ->
+                let
+                    -- Each invalid seed should simply linger in the result
+                    -- with no effect on how (many) valid elements are added
+                    -- as complementary edges. This tests that de-duping is not
+                    -- overly aggressive in its matching.
+                    -- Note: Some seeds use (Const.precision * 3.0) offsets to
+                    -- force values that are purposely not quite precise enough
+                    -- to match "exact" vertex values.
+                    -- These tests should work as well with non-exact vertices
+                    -- except in a worst case scenario: we are ASSUMING that
+                    -- any insignificant error terms in the vertex values are
+                    -- not cases that will be compounded by the edge
+                    -- calculations in the same specific dimension as these
+                    -- test offsets.
+                    invalidSeedSet =
+                        [ vec3 1 1 0
+                        , vec3 (1 - Const.precision * 3.0) 0 0
+                        , vec3 0 0 ((-1) - Const.precision * 3.0)
+                        , vec3 0 0 0
+                        ]
+                in
+                    boxHull 1
+                        |> addEdgesOfConvexPolyhedron invalidSeedSet
+                        |> List.length
+                        |> Expect.equal (List.length invalidSeedSet + 3)
+
+        -- The square pyramid shape has fewer parallel edges than a box.
+        -- The extent of parallel edges in a box was masking a bug discovered
+        -- in code review of addFaceEdges/uniqueEdges that would miss
+        -- some edges.
+        , test "works for a square pyramid" <|
+            \_ ->
+                let
+                    partialSeedSet =
+                        [ vec3 1 0 0
+                        , vec3 0 1 0
+                        ]
+                in
+                    squarePyramid
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        |> Expect.equal 6
+        , test "works for an off-square pyramid" <|
+            \_ ->
+                let
+                    partialSeedSet =
+                        [ vec3 1 0 0
+                        , vec3 0 1 0
+                        ]
+                in
+                    askewSquarePyramid
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        |> Expect.equal 6
+        , test "works for a non-square-quad-based pyramid" <|
+            \_ ->
+                let
+                    partialSeedSet =
+                        [ vec3 1 0 0
+                        , vec3 0 1 0
+                        ]
+                in
+                    nonSquareQuadPyramid
+                        |> addEdgesOfConvexPolyhedron partialSeedSet
+                        |> List.length
+                        -- all edges unique, none parallel
+                        |> Expect.equal 8
+        ]
+
+
+boxUniqueEdges : Test
+boxUniqueEdges =
+    describe "ConvexPolyhedron.boxUniqueEdges"
         [ test "works for the box" <|
             \_ ->
                 boxHull 1
                     |> .edges
                     |> Expect.equal
-                        [ vec3 -1 0 0
-                        , vec3 0 -1 0
-                        , vec3 0 0 -1
-                        , vec3 0 0 1
+                        [ vec3 1 0 0
                         , vec3 0 1 0
-                        , vec3 1 0 0
+                        , vec3 0 0 1
                         ]
         ]
 
 
+
+-- Test helper functions
+
+
+{-| Provide convenient test access to uniqueEdges based on the faces and
+vertices of an existing ConvexPolyhedron. There is no need for this in
+production, where uniqueEdges is called once at most per ConvexPolyhedron
+and BEFORE that ConvexPolyhedron is fully initialized. Its result gets
+cached in ConvexPolyhedron.edges.
+-}
+uniqueEdgesOfConvexPolyhedron : ConvexPolyhedron -> List Vec3
+uniqueEdgesOfConvexPolyhedron { vertices, faces } =
+    ConvexPolyhedron.uniqueEdges vertices faces
+
+
+{-| This test helper function is intended as a more flexible variant of
+ConvexPolyhedron.uniqueEdges. Its differences from uniqueEdges are that it can
+be fed an initial list of "seed" edges and it operates on a pre-existing
+ConvexPolyhedron's vertices and faces.
+See the comment on uniqueEdgesOfConvexPolyhedron.
+These differences have no application in production.
+Keep this code in sync with any changes to ConvexPolyhedron.uniqueEdges.
+-}
+addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
+addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
+    faces
+        |> Array.foldl
+            (ConvexPolyhedron.addFaceEdges vertices)
+            seedEdges
+
+
+
+-- Test data generators
+
+
+{-| A ConvexPolyhedron for a cube with the given half-extent, constructed
+using optimized box-specific initializers.
+-}
 boxHull : Float -> ConvexPolyhedron
-boxHull size =
-    ConvexPolyhedron.fromBox (vec3 size size size)
+boxHull halfExtent =
+    ConvexPolyhedron.fromBox (vec3 halfExtent halfExtent halfExtent)
+
+
+{-| A replacement for boxhull/ConvexPolyhedron.fromBox that introduces some
+minor imprecision into one of the box vertices and can NOT be constructed
+using optimized box-specific initializers -- except for the trivial boxFaces.
+-}
+boxyHull : Float -> ConvexPolyhedron
+boxyHull halfExtent =
+    let
+        vertices =
+            Array.fromList
+                [ vec3 -halfExtent -halfExtent -halfExtent
+                , vec3 halfExtent -halfExtent -halfExtent
+                , vec3 halfExtent halfExtent -halfExtent
+                , vec3 -halfExtent halfExtent -halfExtent
+                , vec3 -halfExtent -halfExtent halfExtent
+                , vec3 halfExtent -halfExtent halfExtent
+
+                -- Insignificantly adjust two vertex coordinates to force the 3
+                -- connected edges to be insignificantly off-parallel.
+                -- This should NOT alter the number of uniqueEdges
+                , vec3 halfExtent (halfExtent - Const.precision / 3.0) (halfExtent + Const.precision / 3.0)
+                , vec3 -halfExtent halfExtent halfExtent
+                ]
+
+        faces =
+            ConvexPolyhedron.boxFaces
+    in
+        { faces = faces
+        , facesLength = 6
+        , vertices = vertices
+
+        -- To test the handling of minor imprecision in a general
+        -- ConvexPolyhedron, purposely bypass the box-specific
+        -- optimizations in boxNormals and boxEdges and use instead
+        -- the general purpose calculations.
+        , normals = ConvexPolyhedron.faceNormals vertices faces
+        , edges = ConvexPolyhedron.uniqueEdges vertices faces
+        }
+
+
+squarePyramid : ConvexPolyhedron
+squarePyramid =
+    -- Specify 0 for exact precision
+    squareLikePyramid 0.0
+
+
+askewSquarePyramid : ConvexPolyhedron
+askewSquarePyramid =
+    -- Use an insignificant epsilon for an approximately square base
+    squareLikePyramid (Const.precision / 3.0)
+
+
+nonSquareQuadPyramid : ConvexPolyhedron
+nonSquareQuadPyramid =
+    -- Use a significant epsilon for a not even approximately square base
+    squareLikePyramid (Const.precision * 3.0)
+
+
+squareLikePyramid : Float -> ConvexPolyhedron
+squareLikePyramid epsilon =
+    let
+        x =
+            1
+
+        y =
+            1
+
+        z =
+            1
+
+        -- zOffset is the height of the pyramid's center of gravity above its
+        -- base -- the cube root of 1/2.
+        -- It serves to keep the object vertically centered.
+        zOffset =
+            z * (0.5 ^ (1.0 / 3.0))
+
+        faces =
+            Array.fromList
+                [ Array.fromList [ 3, 2, 1, 0 ]
+                , Array.fromList [ 0, 1, 4 ]
+                , Array.fromList [ 1, 2, 4 ]
+                , Array.fromList [ 2, 3, 4 ]
+                , Array.fromList [ 3, 0, 4 ]
+                ]
+
+        vertices =
+            Array.fromList
+                [ vec3 -x -y -zOffset
+                , vec3 x -y -zOffset
+
+                -- An optional adjustment of one base corner controls
+                -- the number (0 or 2) of edge pairs that are exactly
+                -- parallel OR approximately parallel.
+                , vec3 (x + epsilon) (y + epsilon) -zOffset
+                , vec3 -x y -zOffset
+                , vec3 0 0 (z - zOffset)
+                ]
+    in
+        { faces = faces
+        , facesLength = 5
+        , vertices = vertices
+        , normals = ConvexPolyhedron.faceNormals vertices faces
+        , edges = ConvexPolyhedron.uniqueEdges vertices faces
+        }
