@@ -6,6 +6,7 @@ module Physics.ConvexPolyhedron
         , fromBox
           -- only for tests
         , testSepAxis
+        , testAddingUniqueEdges
         , project
         , clipFaceAgainstHull
         , clipFaceAgainstPlane
@@ -15,7 +16,6 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
-import Set exposing (Set)
 import Array.Hamt as Array exposing (Array)
 import Physics.Const as Const
 
@@ -113,12 +113,9 @@ boxFaceNormals =
 
 boxUniqueEdges : List Vec3
 boxUniqueEdges =
-    [ vec3 -1 0 0
-    , vec3 0 -1 0
-    , vec3 0 0 -1
-    , vec3 0 0 1
-    , vec3 0 1 0
-    , vec3 1 0 0
+    [ Vec3.i
+    , Vec3.j
+    , Vec3.k
     ]
 
 
@@ -141,39 +138,81 @@ faceNormals vertices =
         )
 
 
+testAddingUniqueEdges : List Vec3 -> ConvexPolyhedron -> List Vec3
+testAddingUniqueEdges seedEdges convex =
+    convex.faces
+        |> Array.foldl
+            (addFaceEdges convex.vertices)
+            seedEdges
+
+
 uniqueEdges : Array Vec3 -> Array (Array Int) -> List Vec3
 uniqueEdges vertices faces =
     faces
         |> Array.foldl
-            (\indices ->
-                edgesInFaceHelp 0 (Array.length indices) vertices indices
+            (addFaceEdges vertices)
+            []
+
+
+addFaceEdges : Array Vec3 -> Array Int -> List Vec3 -> List Vec3
+addFaceEdges vertices face edges =
+    let
+        -- The last vertex in each face is needed for bootstrapping the fold,
+        -- as the logical previous-to-the-first vertex.
+        lastVertex =
+            Maybe.andThen
+                (\i -> Array.get i vertices)
+                (Array.get ((Array.length face) - 1) face)
+    in
+        Array.foldl
+            (\index ( acc, prevVertex ) ->
+                let
+                    isAlmostZero : Vec3 -> Bool
+                    isAlmostZero =
+                        Vec3.toRecord
+                            >> (\{ x, y, z } ->
+                                    (abs x <= Const.precision)
+                                        && (abs y <= Const.precision)
+                                        && (abs z <= Const.precision)
+                               )
+
+                    {- Eliminate any near duplicate or near
+                       opposite of any edge already found.
+                    -}
+                    distinctOrNothing : Vec3 -> Vec3 -> Maybe Vec3
+                    distinctOrNothing member candidate =
+                        if
+                            (Vec3.sub member candidate |> isAlmostZero)
+                                || (Vec3.add member candidate |> isAlmostZero)
+                        then
+                            Nothing
+                        else
+                            Just candidate
+
+                    currentVertex =
+                        (Array.get index vertices)
+
+                    edge =
+                        Maybe.map2
+                            Vec3.direction
+                            prevVertex
+                            currentVertex
+                in
+                    case
+                        List.foldl
+                            (\member -> Maybe.andThen (distinctOrNothing member))
+                            edge
+                            edges
+                    of
+                        Nothing ->
+                            ( edges, currentVertex )
+
+                        Just uniqueEdge ->
+                            ( uniqueEdge :: edges, currentVertex )
             )
-            Set.empty
-        |> Set.toList
-        |> List.map Vec3.fromTuple
-
-
-edgesInFaceHelp : Int -> Int -> Array Vec3 -> Array Int -> Set ( Float, Float, Float ) -> Set ( Float, Float, Float )
-edgesInFaceHelp current length vertices indices edges =
-    if current == length then
-        edges
-    else
-        case
-            Maybe.map2
-                edge
-                (Maybe.andThen (\i -> Array.get i vertices) (Array.get current indices))
-                (Maybe.andThen (\i -> Array.get i vertices) (Array.get ((current + 1) % length) indices))
-        of
-            Just vector ->
-                edgesInFaceHelp
-                    (current + 1)
-                    length
-                    vertices
-                    indices
-                    (Set.insert (Vec3.toTuple vector) edges)
-
-            Nothing ->
-                edges
+            ( edges, lastVertex )
+            face
+            |> Tuple.first
 
 
 normal : Vec3 -> Vec3 -> Vec3 -> Vec3
