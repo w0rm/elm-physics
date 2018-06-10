@@ -1,5 +1,6 @@
 module ConvexPolyhedron exposing (..)
 
+import Physics.Const as Const exposing (precision)
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Expect exposing (Expectation)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -383,7 +384,7 @@ project =
 
 faceNormals : Test
 faceNormals =
-    describe "ConvexPolyhedron.uniqueEdges"
+    describe "ConvexPolyhedron.faceNormals"
         [ test "works for the box" <|
             \_ ->
                 boxHull 1
@@ -402,18 +403,111 @@ faceNormals =
 
 uniqueEdges : Test
 uniqueEdges =
-    describe "ConvexPolyhedron.faceNormals"
+    describe "ConvexPolyhedron.uniqueEdges"
+        -- Avoid over-testing for exact results from uniqueEdges.
+        -- There can be several different ways to represent the
+        -- same convex polyhedron, by shifting the order of vertices
+        -- and faces or introducing insignificant rounding errors into
+        -- the calculation of vertices.  So, a valid general
+        -- implementation of uniqueEdges should be given some lattitude
+        -- in its exact result.
+        [ test "gives the correct number of edges for a box" <|
+            \_ ->
+                boxHull 1
+                    |> ConvexPolyhedron.testAddingUniqueEdges []
+                    |> List.length
+                    |> Expect.equal 3
+        , test "works for the box with positive seeds" <|
+            \_ ->
+                let
+                    -- Pre-calculated seeds are one way to get an exact
+                    -- normalized result. Members of the seed set are acceptable
+                    -- members of the result set. So long as the result-building
+                    -- process is non-destructive, the seeds should act as magnets
+                    -- for other valid results and should mask them in the final
+                    -- result.
+                    fullSeedSet =
+                        [ vec3 1 0 0
+                        , vec3 0 1 0
+                        , vec3 0 0 1
+                        ]
+                in
+                    boxHull 1
+                        |> ConvexPolyhedron.testAddingUniqueEdges fullSeedSet
+                        |> Expect.equal fullSeedSet
+        , test "works for the box with negatively directed seeds" <|
+            \_ ->
+                let
+                    fullSeedSet =
+                        [ vec3 -1 0 0
+                        , vec3 0 -1 0
+                        , vec3 0 0 -1
+                        ]
+                in
+                    boxHull 1
+                        |> ConvexPolyhedron.testAddingUniqueEdges fullSeedSet
+                        |> Expect.equal fullSeedSet
+        , test "works for the box with partial seeds" <|
+            \_ ->
+                let
+                    -- A partial seed set should get filled out by the addition of
+                    -- complementary edges. This tests that the de-duping is not
+                    -- wildly over- or under- aggressive.
+                    partialSeedSet =
+                        [ vec3 -1 0 0
+                        , vec3 0 0 1
+                        ]
+                in
+                    boxHull 1
+                        |> ConvexPolyhedron.testAddingUniqueEdges partialSeedSet
+                        |> List.length
+                        |> Expect.equal 3
+        , test "works for the box with approximate seeds" <|
+            \_ ->
+                let
+                    -- Each approximate seed should mask as effectively
+                    -- as its exact integer equivalent would.
+                    validSeedSet =
+                        [ vec3 (1 - Const.precision / 2.0) 0 0
+                        , vec3 0 (1 + Const.precision / 2.0) 0
+                        , vec3 0 0 ((-1) - Const.precision / 2.0)
+                        ]
+                in
+                    boxHull 1
+                        |> ConvexPolyhedron.testAddingUniqueEdges validSeedSet
+                        |> Expect.equal validSeedSet
+        , test "works for the box with invalid seeds" <|
+            \_ ->
+                let
+                    -- Each invalid seed should simply linger in the result
+                    -- with no effect on how (many) valid elements are added
+                    -- as complementary edges. This tests that de-duping is not
+                    -- overly aggressive in its matching.
+                    invalidSeedSet =
+                        [ vec3 1 1 0
+                        , vec3 (1 - Const.precision * 2.0) 0 0
+                        , vec3 0 0 ((-1) - Const.precision * 2.0)
+                        , vec3 0 0 0
+                        ]
+                in
+                    boxHull 1
+                        |> ConvexPolyhedron.testAddingUniqueEdges invalidSeedSet
+                        |> List.length
+                        |> Expect.equal (List.length invalidSeedSet + 3)
+        ]
+
+
+boxUniqueEdges : Test
+boxUniqueEdges =
+    describe "ConvexPolyhedron.boxUniqueEdges"
         [ test "works for the box" <|
             \_ ->
                 boxHull 1
                     |> .edges
                     |> Expect.equal
-                        [ vec3 -1 0 0
-                        , vec3 0 -1 0
-                        , vec3 0 0 -1
-                        , vec3 0 0 1
+                        [ vec3 1 0 0
                         , vec3 0 1 0
-                        , vec3 1 0 0
+                        , vec3 0 0 1
                         ]
         ]
 
