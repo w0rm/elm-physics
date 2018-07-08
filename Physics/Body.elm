@@ -17,6 +17,8 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
+import Physics.Const as Const
+import Array.Hamt as Array
 import Dict exposing (Dict)
 import Physics.Shape exposing (Shape(..), ShapeId)
 import Time exposing (Time)
@@ -38,6 +40,7 @@ type alias Body =
     , nextShapeId : ShapeId
     , force : Vec3
     , torque : Vec3
+    , boundingSphereRadius : Float
 
     -- mass props
     , invMass : Float
@@ -59,6 +62,9 @@ body =
     , nextShapeId = 0
     , force = Const.zero3
     , torque = Const.zero3
+    , boundingSphereRadius = 0
+
+    -- mass props
     , invMass = 0
     , inertia = Const.zero3
     , invInertia = Const.zero3
@@ -104,11 +110,12 @@ setQuaternion quaternion body =
 
 addShape : Shape -> Body -> Body
 addShape shape body =
-    updateMassProperties
-        { body
-            | shapes = Dict.insert body.nextShapeId shape body.shapes
-            , nextShapeId = body.nextShapeId + 1
-        }
+    { body
+        | shapes = Dict.insert body.nextShapeId shape body.shapes
+        , nextShapeId = body.nextShapeId + 1
+    }
+        |> updateMassProperties
+        |> updateBoundingSphereRadius
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
@@ -163,6 +170,15 @@ tick dt body =
                         |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                         |> Vec4.normalize
             }
+
+
+{-| Should be called whenever you add or remove shapes.
+-}
+updateBoundingSphereRadius : Body -> Body
+updateBoundingSphereRadius body =
+    { body
+        | boundingSphereRadius = computeBoundingSphereRadius body
+    }
 
 
 {-| Should be called whenever you change the body shape or mass.
@@ -255,3 +271,32 @@ computeAABB body =
         )
         AABB.impossible
         body.shapes
+
+
+computeBoundingSphereRadius : Body -> Float
+computeBoundingSphereRadius { shapes, shapeTransforms } =
+    Dict.foldl
+        (\shapeId shape radius ->
+            let
+                distance =
+                    shapeTransforms
+                        |> Dict.get shapeId
+                        |> Maybe.map (.position >> Vec3.length)
+                        |> Maybe.withDefault 0
+            in
+                max radius <|
+                    case shape of
+                        Convex { vertices } ->
+                            distance
+                                + sqrt
+                                    (Array.foldl
+                                        (\v -> max (Vec3.lengthSquared v))
+                                        0
+                                        vertices
+                                    )
+
+                        Plane ->
+                            Const.maxNumber
+        )
+        0
+        shapes

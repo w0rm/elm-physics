@@ -66,21 +66,21 @@ addBody body world =
 
 getPairs : World -> Set ( BodyId, BodyId )
 getPairs { bodies } =
-    let
-        bodyIds =
-            Dict.keys bodies
-    in
-        List.foldl
-            (\id1 acc1 ->
-                List.foldl
-                    (\id2 ->
-                        if id1 > id2 then
-                            Set.insert ( id2, id1 )
-                        else
-                            identity
-                    )
-                    acc1
-                    bodyIds
-            )
-            Set.empty
-            bodyIds
+    Dict.foldl
+        (\id1 body1 acc1 ->
+            Dict.foldl
+                (\id2 body2 ->
+                    if
+                        (id1 > id2)
+                            && Vec3.distance body1.position body2.position
+                            < (body1.boundingSphereRadius + body2.boundingSphereRadius)
+                    then
+                        Set.insert ( id2, id1 )
+                    else
+                        identity
+                )
+                acc1
+                bodies
+        )
+        Set.empty
+        bodies
