@@ -4,8 +4,12 @@ module Physics.ConvexPolyhedron
         , findSeparatingAxis
         , clipAgainstHull
         , fromBox
-          -- only for tests
+          -- exposed only for tests
         , testSepAxis
+        , addFaceEdges
+        , boxFaces
+        , faceNormals
+        , uniqueEdges
         , project
         , clipFaceAgainstHull
         , clipFaceAgainstPlane
@@ -15,7 +19,6 @@ import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
-import Set exposing (Set)
 import Array.Hamt as Array exposing (Array)
 import Physics.Const as Const
 
@@ -113,12 +116,9 @@ boxFaceNormals =
 
 boxUniqueEdges : List Vec3
 boxUniqueEdges =
-    [ vec3 -1 0 0
-    , vec3 0 -1 0
-    , vec3 0 0 -1
-    , vec3 0 0 1
-    , vec3 0 1 0
-    , vec3 1 0 0
+    [ Vec3.i
+    , Vec3.j
+    , Vec3.k
     ]
 
 
@@ -145,46 +145,92 @@ uniqueEdges : Array Vec3 -> Array (Array Int) -> List Vec3
 uniqueEdges vertices faces =
     faces
         |> Array.foldl
-            (\indices ->
-                edgesInFaceHelp 0 (Array.length indices) vertices indices
+            (addFaceEdges vertices)
+            []
+
+
+addFaceEdges : Array Vec3 -> Array Int -> List Vec3 -> List Vec3
+addFaceEdges vertices face edges =
+    let
+        -- The last vertex in each face is needed for bootstrapping the fold,
+        -- as the logical previous-to-the-first vertex.
+        lastVertex =
+            Maybe.andThen
+                (\i -> Array.get i vertices)
+                (Array.get ((Array.length face) - 1) face)
+    in
+        Array.foldl
+            (\index ( acc, prevVertex ) ->
+                let
+                    currentVertex =
+                        Array.get index vertices
+                in
+                    ( addEdgeIfDistinct currentVertex prevVertex acc
+                    , currentVertex
+                    )
             )
-            Set.empty
-        |> Set.toList
-        |> List.map Vec3.fromTuple
+            ( edges, lastVertex )
+            face
+            |> Tuple.first
 
 
-edgesInFaceHelp : Int -> Int -> Array Vec3 -> Array Int -> Set ( Float, Float, Float ) -> Set ( Float, Float, Float )
-edgesInFaceHelp current length vertices indices edges =
-    if current == length then
-        edges
-    else
-        case
+{-| Add a candidate edge between two vertices to a set if it is not a
+near duplicate or near opposite of an edge already in the set.
+-}
+addEdgeIfDistinct : Maybe Vec3 -> Maybe Vec3 -> List Vec3 -> List Vec3
+addEdgeIfDistinct currentVertex prevVertex uniques =
+    let
+        candidateEdge =
             Maybe.map2
-                edge
-                (Maybe.andThen (\i -> Array.get i vertices) (Array.get current indices))
-                (Maybe.andThen (\i -> Array.get i vertices) (Array.get ((current + 1) % length) indices))
-        of
-            Just vector ->
-                edgesInFaceHelp
-                    (current + 1)
-                    length
-                    vertices
-                    indices
-                    (Set.insert (Vec3.toTuple vector) edges)
+                Vec3.direction
+                prevVertex
+                currentVertex
+    in
+        List.foldl
+            (\member candidate ->
+                Maybe.andThen (distinctOrNothing member) candidate
+            )
+            candidateEdge
+            uniques
+            |> listMaybeAdd uniques
 
-            Nothing ->
-                edges
+
+{-| A generic List/Maybe-related utility.
+For a "Just x" value add x to the list; for a "Nothing" value, do nothing.
+Example:
+listMaybeAdd [] (Just 1) === [ 1 ]
+listMaybeAdd [] Nothing === []
+listMaybeAdd [ 2, 1 ] (Just 3) === [ 3, 2, 1 ]
+listMaybeAdd [ 2, 1 ] Nothing === [ 2, 1 ]
+-}
+listMaybeAdd : List a -> Maybe a -> List a
+listMaybeAdd list maybe =
+    case maybe of
+        Nothing ->
+            list
+
+        Just head ->
+            head :: list
+
+
+{-| Eliminate a candidate that is a near duplicate or near
+opposite of an edge that is already a member of a set.
+-}
+distinctOrNothing : Vec3 -> Vec3 -> Maybe Vec3
+distinctOrNothing member candidate =
+    if
+        (Vec3.sub member candidate |> almostZero)
+            || (Vec3.add member candidate |> almostZero)
+    then
+        Nothing
+    else
+        Just candidate
 
 
 normal : Vec3 -> Vec3 -> Vec3 -> Vec3
 normal v0 v1 v2 =
     Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v0 v1)
         |> Vec3.normalize
-
-
-edge : Vec3 -> Vec3 -> Vec3
-edge v1 v2 =
-    Vec3.normalize (Vec3.sub v2 v1)
 
 
 type alias ClipResult =
