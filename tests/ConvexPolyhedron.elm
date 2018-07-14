@@ -11,6 +11,14 @@ import Test exposing (..)
 import Array.Hamt as Array exposing (Array)
 
 
+failingTest : Test
+failingTest =
+    describe "failingTest"
+        [ test "should fail" <|
+            \_ -> Expect.equal True False
+        ]
+
+
 clipFaceAgainstPlane : Test
 clipFaceAgainstPlane =
     describe "ConvexPolyhedron.clipFaceAgainstPlane"
@@ -418,6 +426,7 @@ uniqueEdges =
                     |> uniqueEdgesOfConvexPolyhedron
                     |> List.length
                     |> Expect.equal 3
+
         -- The square pyramid shape has fewer parallel edges than a box.
         -- The extent of parallel edges in a box was masking a bug discovered
         -- in code review of addFaceEdges/uniqueEdges that would miss
