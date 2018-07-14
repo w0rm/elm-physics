@@ -139,7 +139,7 @@ view { screenWidth, screenHeight, world } =
         [ WebGL.depth 1
         , WebGL.alpha True
         , WebGL.antialias
-        , WebGL.clearColor 0 0 0 1
+        , WebGL.clearColor 0.3 0.3 0.3 1
         ]
         [ width screenWidth
         , height screenHeight
@@ -152,7 +152,7 @@ view { screenWidth, screenHeight, world } =
         ]
         (let
             lightDirection =
-                Vec3.normalize (vec3 1 1 1)
+                Vec3.normalize (vec3 -1 -1 -1)
 
             camera =
                 Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
@@ -181,27 +181,42 @@ debugContacts =
 
 addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
 addShape lightDirection camera perspective { transform, bodyId } tail =
-    WebGL.entity
-        vertex
-        fragment
-        (-- This is hardcoded for now, because the plane body is the first added.
-         -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
-         if bodyId == 0 then
-            planeMesh
-         else
-            cubeMesh
-        )
-        { camera = camera
-        , color =
-            if bodyId == 0 then
-                vec3 0.5 0.5 0.5
-            else
-                vec3 0.9 0.9 0.9
-        , lightDirection = lightDirection
-        , perspective = perspective
-        , transform = transform
-        }
-        :: tail
+    case bodyId of
+        0 ->
+            -- This is hardcoded for now, because the plane body is the first added.
+            -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
+            tail
+
+        _ ->
+            -- Draw a shadow
+            WebGL.entity
+                vertex
+                shadowFragment
+                cubeMesh
+                { camera = camera
+                , color = vec3 0.25 0.25 0.25
+                , lightDirection = lightDirection
+                , perspective = perspective
+                , transform =
+                    transform
+                        -- move relative to the floor offset
+                        |> Mat4.mul (Mat4.makeTranslate3 0 0 1)
+                        -- project on the floor
+                        |> Mat4.mul (shadow Vec3.k lightDirection)
+                        -- move down by the floor offset
+                        |> Mat4.mul (Mat4.makeTranslate3 0 0 -1)
+                }
+                :: WebGL.entity
+                    vertex
+                    fragment
+                    cubeMesh
+                    { camera = camera
+                    , color = vec3 0.9 0.9 0.9
+                    , lightDirection = lightDirection
+                    , perspective = perspective
+                    , transform = transform
+                    }
+                :: tail
 
 
 
@@ -212,17 +227,6 @@ type alias Attributes =
     { position : Vec3
     , normal : Vec3
     }
-
-
-planeMesh : Mesh Attributes
-planeMesh =
-    WebGL.triangles
-        (face
-            (vec3 10 10 0)
-            (vec3 -10 10 0)
-            (vec3 -10 -10 0)
-            (vec3 10 -10 0)
-        )
 
 
 cubeMesh : Mesh Attributes
@@ -267,7 +271,7 @@ face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes
 face a b c d =
     let
         normal =
-            Vec3.cross (Vec3.sub a b) (Vec3.sub a c)
+            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
     in
         [ ( Attributes a normal
           , Attributes b normal
@@ -330,6 +334,18 @@ fragment =
     |]
 
 
+shadowFragment : Shader {} Uniforms Varying
+shadowFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        varying float vlighting;
+        void main () {
+          gl_FragColor = vec4(color, 1);
+        }
+    |]
+
+
 {-| Render collision points for the purpose of debugging
 -}
 addContacts : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
@@ -356,3 +372,38 @@ addContacts lightDirection camera perspective world entities =
             addContact
             entities
             (Physics.contacts world)
+
+
+{-| A "squash" matrix that smashes things to the ground plane,
+defined by a normal, parallel to a given light vector
+-}
+shadow : Vec3 -> Vec3 -> Mat4
+shadow normal light =
+    let
+        p =
+            Vec3.toRecord normal
+
+        l =
+            Vec3.toRecord light
+
+        d =
+            Vec3.dot normal light
+    in
+        Mat4.fromRecord
+            { m11 = p.x * l.x - d
+            , m21 = p.x * l.y
+            , m31 = p.x * l.z
+            , m41 = 0
+            , m12 = p.y * l.x
+            , m22 = p.y * l.y - d
+            , m32 = p.y * l.z
+            , m42 = 0
+            , m13 = p.z * l.x
+            , m23 = p.z * l.y
+            , m33 = p.z * l.z - d
+            , m43 = 0
+            , m14 = 0
+            , m24 = 0
+            , m34 = 0
+            , m44 = -d
+            }
