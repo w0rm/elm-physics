@@ -124,15 +124,19 @@ faceNormals : Array Vec3 -> Array (List Int) -> Array Vec3
 faceNormals vertices =
     Array.map
         (\indices ->
-            case
-                Maybe.map3
-                    (,,)
-                    (Maybe.andThen (\i -> Array.get i vertices) (List.head indices))
-                    (Maybe.andThen (\i -> Array.get i vertices) (List.head (List.drop 1 indices)))
-                    (Maybe.andThen (\i -> Array.get i vertices) (List.head (List.drop 2 indices)))
-            of
-                Just ( v1, v2, v3 ) ->
-                    normal v1 v2 v3
+            case indices of
+                i1 :: i2 :: i3 :: _ ->
+                    case
+                        Maybe.map3 computeNormal
+                            (Array.get i1 vertices)
+                            (Array.get i2 vertices)
+                            (Array.get i3 vertices)
+                    of
+                        Just normal ->
+                            normal
+
+                        Nothing ->
+                            Debug.crash "Couldn't compute normal"
 
                 _ ->
                     Debug.crash "Couldn't compute normal"
@@ -222,8 +226,8 @@ distinctOrNothing member candidate =
         Just candidate
 
 
-normal : Vec3 -> Vec3 -> Vec3 -> Vec3
-normal v0 v1 v2 =
+computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
+computeNormal v0 v1 v2 =
     Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v0 v1)
         |> Vec3.normalize
 
