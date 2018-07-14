@@ -115,7 +115,8 @@ addShape shape body =
         , nextShapeId = body.nextShapeId + 1
     }
         |> updateMassProperties
-        |> updateBoundingSphereRadius
+        -- TODO: support shape's position and rotation:
+        |> expandBoundingSphereRadius Transform.identity shape
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
@@ -170,15 +171,6 @@ tick dt body =
                         |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                         |> Vec4.normalize
             }
-
-
-{-| Should be called whenever you add or remove shapes.
--}
-updateBoundingSphereRadius : Body -> Body
-updateBoundingSphereRadius body =
-    { body
-        | boundingSphereRadius = computeBoundingSphereRadius body
-    }
 
 
 {-| Should be called whenever you change the body shape or mass.
@@ -273,30 +265,24 @@ computeAABB body =
         body.shapes
 
 
-computeBoundingSphereRadius : Body -> Float
-computeBoundingSphereRadius { shapes, shapeTransforms } =
-    Dict.foldl
-        (\shapeId shape radius ->
-            let
-                distance =
-                    shapeTransforms
-                        |> Dict.get shapeId
-                        |> Maybe.map (.position >> Vec3.length)
-                        |> Maybe.withDefault 0
-            in
-                max radius <|
-                    case shape of
-                        Convex { vertices } ->
-                            distance
-                                + sqrt
-                                    (Array.foldl
-                                        (\v -> max (Vec3.lengthSquared v))
-                                        0
-                                        vertices
-                                    )
+expandBoundingSphereRadius : Transform -> Shape -> Body -> Body
+expandBoundingSphereRadius shapeTransform shape body =
+    { body
+        | boundingSphereRadius =
+            case shape of
+                Convex { vertices } ->
+                    sqrt
+                        (Array.foldl
+                            (\vertex ->
+                                vertex
+                                    |> Transform.pointToWorldFrame shapeTransform
+                                    |> Vec3.lengthSquared
+                                    |> max
+                            )
+                            body.boundingSphereRadius
+                            vertices
+                        )
 
-                        Plane ->
-                            Const.maxNumber
-        )
-        0
-        shapes
+                Plane ->
+                    Const.maxNumber
+    }
