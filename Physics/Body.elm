@@ -110,13 +110,13 @@ setQuaternion quaternion body =
 
 addShape : Shape -> Body -> Body
 addShape shape body =
+    -- TODO: support shape's position and rotation:
     { body
         | shapes = Dict.insert body.nextShapeId shape body.shapes
         , nextShapeId = body.nextShapeId + 1
+        , boundingSphereRadius = expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
     }
         |> updateMassProperties
-        -- TODO: support shape's position and rotation:
-        |> expandBoundingSphereRadius Transform.identity shape
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
@@ -265,24 +265,20 @@ computeAABB body =
         body.shapes
 
 
-expandBoundingSphereRadius : Transform -> Shape -> Body -> Body
-expandBoundingSphereRadius shapeTransform shape body =
-    { body
-        | boundingSphereRadius =
-            case shape of
-                Convex { vertices } ->
-                    sqrt
-                        (Array.foldl
-                            (\vertex ->
-                                vertex
-                                    |> Transform.pointToWorldFrame shapeTransform
-                                    |> Vec3.lengthSquared
-                                    |> max
-                            )
-                            body.boundingSphereRadius
-                            vertices
-                        )
+expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
+expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
+    case shape of
+        Convex { vertices } ->
+            vertices
+                |> Array.foldl
+                    (\vertex ->
+                        vertex
+                            |> Transform.pointToWorldFrame shapeTransform
+                            |> Vec3.lengthSquared
+                            |> max
+                    )
+                    (boundingSphereRadius * boundingSphereRadius)
+                |> sqrt
 
-                Plane ->
-                    Const.maxNumber
-    }
+        Plane ->
+            Const.maxNumber
