@@ -151,6 +151,9 @@ view { screenWidth, screenHeight, world } =
         , onClick AddRandomBox
         ]
         (let
+            lightDirection =
+                Vec3.normalize (vec3 1 1 1)
+
             camera =
                 Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
 
@@ -160,9 +163,9 @@ view { screenWidth, screenHeight, world } =
             perspective =
                 Mat4.makePerspective 24 aspectRatio 5 2000
          in
-            Physics.foldl (addShape camera perspective) [] world
+            Physics.foldl (addShape lightDirection camera perspective) [] world
                 |> (if debugContacts then
-                        addContacts camera perspective world
+                        addContacts lightDirection camera perspective world
                     else
                         identity
                    )
@@ -176,8 +179,8 @@ debugContacts =
     False
 
 
-addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape camera perspective { transform, bodyId } tail =
+addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape lightDirection camera perspective { transform, bodyId } tail =
     WebGL.entity
         vertex
         fragment
@@ -189,6 +192,12 @@ addShape camera perspective { transform, bodyId } tail =
             cubeMesh
         )
         { camera = camera
+        , color =
+            if bodyId == 0 then
+                vec3 0.5 0.5 0.5
+            else
+                vec3 0.9 0.9 0.9
+        , lightDirection = lightDirection
         , perspective = perspective
         , transform = transform
         }
@@ -201,7 +210,7 @@ addShape camera perspective { transform, bodyId } tail =
 
 type alias Attributes =
     { position : Vec3
-    , color : Vec3
+    , normal : Vec3
     }
 
 
@@ -213,53 +222,62 @@ planeMesh =
             (vec3 -10 10 0)
             (vec3 -10 -10 0)
             (vec3 10 -10 0)
-            (vec3 0.2 0.2 0.2)
         )
 
 
 cubeMesh : Mesh Attributes
 cubeMesh =
     let
-        rft =
-            vec3 1 1 1
+        v0 =
+            vec3 -1 -1 -1
 
-        lft =
-            vec3 -1 1 1
-
-        lbt =
-            vec3 -1 -1 1
-
-        rbt =
-            vec3 1 -1 1
-
-        rbb =
+        v1 =
             vec3 1 -1 -1
 
-        rfb =
+        v2 =
             vec3 1 1 -1
 
-        lfb =
+        v3 =
             vec3 -1 1 -1
 
-        lbb =
-            vec3 -1 -1 -1
+        v4 =
+            vec3 -1 -1 1
+
+        v5 =
+            vec3 1 -1 1
+
+        v6 =
+            vec3 1 1 1
+
+        v7 =
+            vec3 -1 1 1
     in
-        [ face rft rfb rbb rbt (vec3 0.4 0.4 0.4)
-        , face rft rfb lfb lft (vec3 0.5 0.5 0.5)
-        , face rft lft lbt rbt (vec3 0.6 0.6 0.6)
-        , face rfb lfb lbb rbb (vec3 0.7 0.7 0.7)
-        , face lft lfb lbb lbt (vec3 0.8 0.8 0.8)
-        , face rbt rbb lbb lbt (vec3 0.9 0.9 0.9)
+        [ face v3 v2 v1 v0
+        , face v4 v5 v6 v7
+        , face v5 v4 v0 v1
+        , face v2 v3 v7 v6
+        , face v0 v4 v7 v3
+        , face v1 v2 v6 v5
         ]
             |> List.concat
             |> WebGL.triangles
 
 
-face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
-face a b c d color =
-    [ ( Attributes a color, Attributes b color, Attributes c color )
-    , ( Attributes c color, Attributes d color, Attributes a color )
-    ]
+face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
+face a b c d =
+    let
+        normal =
+            Vec3.cross (Vec3.sub a b) (Vec3.sub a c)
+    in
+        [ ( Attributes a normal
+          , Attributes b normal
+          , Attributes c normal
+          )
+        , ( Attributes c normal
+          , Attributes d normal
+          , Attributes a normal
+          )
+        ]
 
 
 
@@ -270,25 +288,32 @@ type alias Uniforms =
     { camera : Mat4
     , perspective : Mat4
     , transform : Mat4
+    , color : Vec3
+    , lightDirection : Vec3
     }
 
 
 type alias Varying =
-    { vcolor : Vec3 }
+    { vlighting : Float }
 
 
 vertex : Shader Attributes Uniforms Varying
 vertex =
     [glsl|
         attribute vec3 position;
-        attribute vec3 color;
+        attribute vec3 normal;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
-        varying vec3 vcolor;
+        uniform vec3 lightDirection;
+        varying float vlighting;
         void main () {
+          float ambientLight = 0.4;
+          float directionalLight = 0.6;
           gl_Position = perspective * camera * transform * vec4(position, 1.0);
-          vcolor = color;
+          vec4 transformedNormal = normalize(transform * vec4(normal, 0.0));
+          float directional = max(dot(transformedNormal.xyz, lightDirection), 0.0);
+          vlighting = ambientLight + directional * directionalLight;
         }
     |]
 
@@ -297,17 +322,18 @@ fragment : Shader {} Uniforms Varying
 fragment =
     [glsl|
         precision mediump float;
-        varying vec3 vcolor;
+        uniform vec3 color;
+        varying float vlighting;
         void main () {
-          gl_FragColor = vec4(vcolor, 1.0);
+          gl_FragColor = vec4(vlighting * color, 1.0);
         }
     |]
 
 
 {-| Render collision points for the purpose of debugging
 -}
-addContacts : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addContacts camera perspective world entities =
+addContacts : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addContacts lightDirection camera perspective world entities =
     let
         addContact : Vec3 -> List Entity -> List Entity
         addContact contactPoint tail =
@@ -317,6 +343,8 @@ addContacts camera perspective world entities =
                 cubeMesh
                 { camera = camera
                 , perspective = perspective
+                , color = vec3 1 0 0
+                , lightDirection = lightDirection
                 , transform =
                     Mat4.mul
                         (Mat4.makeTranslate contactPoint)
