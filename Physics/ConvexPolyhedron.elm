@@ -35,7 +35,7 @@ almostZero vec =
 
 
 type alias ConvexPolyhedron =
-    { faces : Array (Array Int)
+    { faces : Array (List Int)
     , facesLength : Int
     , vertices : Array Vec3
     , normals : Array Vec3
@@ -43,27 +43,25 @@ type alias ConvexPolyhedron =
     }
 
 
-connectedFaces : Int -> Array Int -> Array (Array Int) -> Array Int
+connectedFaces : Int -> List Int -> Array (List Int) -> List Int
 connectedFaces currentFace currentIndices allFaces =
-    Array.foldl
-        (\index connectedFaces ->
+    List.foldl
+        (\index faces ->
             allFaces
                 |> Array.toIndexedList
                 |> List.filter
                     (\( testFace, testIndices ) ->
-                        testFace
-                            /= currentFace
-                            && not (List.member testFace connectedFaces)
-                            && (Array.filter ((==) index) testIndices /= Array.empty)
+                        (testFace /= currentFace)
+                            && not (List.member testFace faces)
+                            && (List.member index testIndices)
                     )
                 |> List.head
-                |> Maybe.map (\( connectedFace, _ ) -> connectedFace :: connectedFaces)
-                |> Maybe.withDefault connectedFaces
+                |> Maybe.map (\( connectedFace, _ ) -> connectedFace :: faces)
+                |> Maybe.withDefault faces
         )
         []
         currentIndices
         |> List.reverse
-        |> Array.fromList
 
 
 fromBox : Vec3 -> ConvexPolyhedron
@@ -90,15 +88,15 @@ fromBox halfExtents =
         }
 
 
-boxFaces : Array (Array Int)
+boxFaces : Array (List Int)
 boxFaces =
     Array.fromList
-        [ Array.fromList [ 3, 2, 1, 0 ]
-        , Array.fromList [ 4, 5, 6, 7 ]
-        , Array.fromList [ 5, 4, 0, 1 ]
-        , Array.fromList [ 2, 3, 7, 6 ]
-        , Array.fromList [ 0, 4, 7, 3 ]
-        , Array.fromList [ 1, 2, 6, 5 ]
+        [ [ 3, 2, 1, 0 ]
+        , [ 4, 5, 6, 7 ]
+        , [ 5, 4, 0, 1 ]
+        , [ 2, 3, 7, 6 ]
+        , [ 0, 4, 7, 3 ]
+        , [ 1, 2, 6, 5 ]
         ]
 
 
@@ -122,34 +120,35 @@ boxUniqueEdges =
     ]
 
 
-faceNormals : Array Vec3 -> Array (Array Int) -> Array Vec3
+faceNormals : Array Vec3 -> Array (List Int) -> Array Vec3
 faceNormals vertices =
     Array.map
         (\indices ->
-            case
-                Maybe.map3
-                    (,,)
-                    (Maybe.andThen (\i -> Array.get i vertices) (Array.get 0 indices))
-                    (Maybe.andThen (\i -> Array.get i vertices) (Array.get 1 indices))
-                    (Maybe.andThen (\i -> Array.get i vertices) (Array.get 2 indices))
-            of
-                Just ( v1, v2, v3 ) ->
-                    normal v1 v2 v3
+            case indices of
+                i1 :: i2 :: i3 :: _ ->
+                    case
+                        Maybe.map3 computeNormal
+                            (Array.get i1 vertices)
+                            (Array.get i2 vertices)
+                            (Array.get i3 vertices)
+                    of
+                        Just normal ->
+                            normal
+
+                        Nothing ->
+                            Debug.crash "Couldn't compute normal"
 
                 _ ->
                     Debug.crash "Couldn't compute normal"
         )
 
 
-uniqueEdges : Array Vec3 -> Array (Array Int) -> List Vec3
+uniqueEdges : Array Vec3 -> Array (List Int) -> List Vec3
 uniqueEdges vertices faces =
-    faces
-        |> Array.foldl
-            (addFaceEdges vertices)
-            []
+    Array.foldl (addFaceEdges vertices) [] faces
 
 
-addFaceEdges : Array Vec3 -> Array Int -> List Vec3 -> List Vec3
+addFaceEdges : Array Vec3 -> List Int -> List Vec3 -> List Vec3
 addFaceEdges vertices face edges =
     let
         -- The last vertex in each face is needed for bootstrapping the fold,
@@ -157,9 +156,9 @@ addFaceEdges vertices face edges =
         lastVertex =
             Maybe.andThen
                 (\i -> Array.get i vertices)
-                (Array.get ((Array.length face) - 1) face)
+                (List.head (List.drop ((List.length face) - 1) face))
     in
-        Array.foldl
+        List.foldl
             (\index ( acc, prevVertex ) ->
                 let
                     currentVertex =
@@ -227,8 +226,8 @@ distinctOrNothing member candidate =
         Just candidate
 
 
-normal : Vec3 -> Vec3 -> Vec3 -> Vec3
-normal v0 v1 v2 =
+computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
+computeNormal v0 v1 v2 =
     Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v0 v1)
         |> Vec3.normalize
 
@@ -255,7 +254,7 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
                             -- Sorry
                             |> Maybe.withDefault Const.zero3
                     )
-                    (Array.toList indices)
+                    indices
                 )
                 minDist
                 maxDist
@@ -270,7 +269,7 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
         Just closest ->
             let
                 localPlaneEq =
-                    -(Array.get 0 closest.indices
+                    -(List.head closest.indices
                         |> Maybe.andThen (\i -> Array.get i hull1.vertices)
                         -- Sorry:
                         |> Maybe.withDefault Const.zero3
@@ -284,12 +283,12 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                     localPlaneEq - Vec3.dot planeNormalWS t1.position
             in
                 connectedFaces closest.index closest.indices hull1.faces
-                    |> Array.foldl
+                    |> List.foldl
                         (\otherFaceIndex ->
                             let
                                 otherFaceVertex =
                                     Array.get otherFaceIndex hull1.faces
-                                        |> Maybe.andThen (Array.get 0)
+                                        |> Maybe.andThen List.head
                                         |> Maybe.andThen (\i -> Array.get i hull1.vertices)
                                         -- Sorry:
                                         |> Maybe.withDefault Const.zero3
@@ -336,7 +335,7 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
 
 
 type alias ClosestFaceResult =
-    { indices : Array Int
+    { indices : List Int
     , normal : Vec3
     , index : Int -- index in the faces array (maybe this is enough?)
     }
@@ -358,7 +357,7 @@ closestFaceHelp compareFunc index transform hull separatingNormal dCurrent resul
                 hull.faces
                     |> Array.get index
                     -- Sorry:
-                    |> Maybe.withDefault Array.empty
+                    |> Maybe.withDefault []
 
             d =
                 faceNormal
