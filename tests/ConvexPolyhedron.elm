@@ -11,14 +11,6 @@ import Test exposing (..)
 import Array.Hamt as Array exposing (Array)
 
 
-failingTest : Test
-failingTest =
-    describe "failingTest"
-        [ test "should fail" <|
-            \_ -> Expect.equal True False
-        ]
-
-
 clipFaceAgainstPlane : Test
 clipFaceAgainstPlane =
     describe "ConvexPolyhedron.clipFaceAgainstPlane"
