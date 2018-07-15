@@ -191,21 +191,21 @@ view { screenWidth, screenHeight, world } =
 -}
 debugContacts : Bool
 debugContacts =
-    True
+    False
 
 
 {-| Set to True to see normal spikes
 -}
 debugNormals : Bool
 debugNormals =
-    True
+    False
 
 
 {-| Set to True to see edge markers
 -}
 debugEdges : Bool
 debugEdges =
-    True
+    False
 
 
 addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity

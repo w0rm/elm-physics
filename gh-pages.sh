@@ -3,14 +3,13 @@ set -e
 
 rm -rf gh-pages || exit 0;
 
-mkdir -p gh-pages/examples
-
 # compile JS using Elm
-for i in boxes; do
-  cd examples/$i
-  mkdir -p ../gh-pages/examples/$i
-  elm make Main.elm --yes --output ../../gh-pages/examples/$i/index.html
-  cd ../..
+for example in Boxes; do
+  lower=$(echo "$example" | tr '[:upper:]' '[:lower:]')
+  cd examples/
+  mkdir -p ../gh-pages/examples/$lower
+  elm make $example.elm --yes --output ../gh-pages/examples/$lower/index.html
+  cd ..
 done
 
 # init branch and commit
