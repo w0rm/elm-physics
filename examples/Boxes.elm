@@ -141,6 +141,13 @@ subscriptions model =
 -- View:
 
 
+type alias SceneParams =
+    { lightDirection : Vec3
+    , camera : Mat4
+    , perspective : Mat4
+    }
+
+
 view : Model -> Html Msg
 view { screenWidth, screenHeight, world } =
     WebGL.toHtmlWith
@@ -151,42 +158,33 @@ view { screenWidth, screenHeight, world } =
         ]
         [ width screenWidth
         , height screenHeight
-        , style
-            [ ( "display", "block" )
-            , ( "width", toString screenWidth ++ "px" )
-            , ( "height", toString screenHeight ++ "px" )
-            ]
+        , style [ ( "display", "block" ) ]
         , onClick AddRandomBox
         ]
         (let
-            lightDirection =
-                Vec3.normalize (vec3 -1 -1 -1)
-
-            camera =
-                Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
-
             aspectRatio =
                 (toFloat screenWidth) / (toFloat screenHeight)
 
-            perspective =
-                Mat4.makePerspective 24 aspectRatio 5 2000
+            sceneParams =
+                { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
+                , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
+                , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
+                }
          in
-            Physics.foldl (addShape lightDirection camera perspective) [] world
-                |> (if debugContacts then
-                        addContacts lightDirection camera perspective world
-                    else
-                        identity
-                   )
-                |> (if debugNormals then
-                        addNormals lightDirection camera perspective world
-                    else
-                        identity
-                   )
-                |> (if debugEdges then
-                        addUniqueEdges lightDirection camera perspective world
-                    else
-                        identity
-                   )
+            [ ( True, Physics.foldl (addShape sceneParams) )
+            , ( debugContacts
+              , Physics.foldContacts (addContactIndicator sceneParams)
+              )
+            , ( debugNormals
+              , Physics.foldFaceNormals (addNormalIndicator sceneParams)
+              )
+            , ( debugEdges
+              , Physics.foldUniqueEdges (addEdgeIndicator sceneParams)
+              )
+            ]
+                |> List.filter Tuple.first
+                |> List.map Tuple.second
+                |> List.foldl (\fn entities -> fn entities world) []
         )
 
 
@@ -201,18 +199,18 @@ debugContacts =
 -}
 debugNormals : Bool
 debugNormals =
-    True
+    False
 
 
 {-| Set to True to see edge markers
 -}
 debugEdges : Bool
 debugEdges =
-    True
+    False
 
 
-addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape lightDirection camera perspective { transform, bodyId } tail =
+addShape : SceneParams -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape { lightDirection, camera, perspective } { transform, bodyId } tail =
     case bodyId of
         0 ->
             -- This is hardcoded for now, because the plane body is the first added.
@@ -252,6 +250,70 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
                 :: tail
 
 
+{-| Render collision point for the purpose of debugging
+-}
+addContactIndicator : SceneParams -> Vec3 -> List Entity -> List Entity
+addContactIndicator { lightDirection, camera, perspective } contactPoint tail =
+    WebGL.entity
+        Shaders.vertex
+        Shaders.fragment
+        contactMesh
+        { camera = camera
+        , perspective = perspective
+        , color = vec3 1 0 0
+        , lightDirection = lightDirection
+        , transform =
+            Mat4.makeTranslate contactPoint
+        }
+        :: tail
+
+
+{-| Render shape face normals for the purpose of debugging
+-}
+addNormalIndicator : SceneParams -> Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+addNormalIndicator { lightDirection, camera, perspective } transform normal facePoint tail =
+    WebGL.entity
+        Shaders.vertex
+        Shaders.fragment
+        normalMesh
+        { camera = camera
+        , lightDirection = lightDirection
+        , color = vec3 1 0 1
+        , perspective = perspective
+        , transform =
+            Math.makeRotateKTo normal
+                |> Mat4.mul
+                    (facePoint
+                        |> Mat4.makeTranslate
+                        |> Mat4.mul transform
+                    )
+        }
+        :: tail
+
+
+{-| Render shapes' unique edge for the purpose of debugging
+-}
+addEdgeIndicator : SceneParams -> Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+addEdgeIndicator { lightDirection, camera, perspective } transform edge origin tail =
+    WebGL.entity
+        Shaders.vertex
+        Shaders.fragment
+        edgeMesh
+        { camera = camera
+        , lightDirection = lightDirection
+        , color = vec3 0 1 0
+        , perspective = perspective
+        , transform =
+            Math.makeRotateKTo edge
+                |> Mat4.mul
+                    (origin
+                        |> Mat4.makeTranslate
+                        |> Mat4.mul transform
+                    )
+        }
+        :: tail
+
+
 
 -- Meshes
 
@@ -274,91 +336,3 @@ edgeMesh =
 contactMesh : Mesh Attributes
 contactMesh =
     Meshes.makeBox (vec3 0.1 0.1 0.1)
-
-
-{-| Render collision points for the purpose of debugging
--}
-addContacts : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addContacts lightDirection camera perspective world entities =
-    let
-        addContact : Vec3 -> List Entity -> List Entity
-        addContact contactPoint tail =
-            WebGL.entity
-                Shaders.vertex
-                Shaders.fragment
-                contactMesh
-                { camera = camera
-                , perspective = perspective
-                , color = vec3 1 0 0
-                , lightDirection = lightDirection
-                , transform =
-                    Mat4.makeTranslate contactPoint
-                }
-                :: tail
-    in
-        List.foldl
-            addContact
-            entities
-            (Physics.contacts world)
-
-
-{-| Render shape face normals for the purpose of debugging
--}
-addNormals : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addNormals lightDirection camera perspective world entities =
-    let
-        addNormalIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
-        addNormalIndicator transform normal facePoint tail =
-            WebGL.entity
-                Shaders.vertex
-                Shaders.fragment
-                normalMesh
-                { camera = camera
-                , lightDirection = lightDirection
-                , color = vec3 1 0 1
-                , perspective = perspective
-                , transform =
-                    Math.makeRotateKTo normal
-                        |> Mat4.mul
-                            (facePoint
-                                |> Mat4.makeTranslate
-                                |> Mat4.mul transform
-                            )
-                }
-                :: tail
-    in
-        Physics.foldFaceNormals
-            addNormalIndicator
-            entities
-            world
-
-
-{-| Render shapes' unique edges for the purpose of debugging
--}
-addUniqueEdges : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addUniqueEdges lightDirection camera perspective world entities =
-    let
-        addEdgeIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
-        addEdgeIndicator transform edge origin tail =
-            WebGL.entity
-                Shaders.vertex
-                Shaders.fragment
-                edgeMesh
-                { camera = camera
-                , lightDirection = lightDirection
-                , color = vec3 0 1 0
-                , perspective = perspective
-                , transform =
-                    Math.makeRotateKTo edge
-                        |> Mat4.mul
-                            (origin
-                                |> Mat4.makeTranslate
-                                |> Mat4.mul transform
-                            )
-                }
-                :: tail
-    in
-        Physics.foldUniqueEdges
-            addEdgeIndicator
-            entities
-            world

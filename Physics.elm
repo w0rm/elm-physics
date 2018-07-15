@@ -2,7 +2,7 @@ module Physics
     exposing
         ( step
         , foldl
-        , contacts
+        , foldContacts
         , foldFaceNormals
         , foldUniqueEdges
         , World
@@ -42,7 +42,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Physics
 
-@docs step, foldl, contacts, foldFaceNormals, foldUniqueEdges
+@docs step, foldl, foldContacts, foldFaceNormals, foldUniqueEdges
 
 -}
 
@@ -246,12 +246,12 @@ foldl fn acc (World { bodies }) =
         bodies
 
 
-{-| Get the contact points in the world for visual debugging
+{-| Fold over the contact points in the world for visual debugging
 -}
-contacts : World -> List Vec3
-contacts (World ({ bodies } as world)) =
+foldContacts : (Vec3 -> a -> a) -> a -> World -> a
+foldContacts fn acc (World ({ bodies } as world)) =
     List.foldl
-        (\{ bodyId1, bodyId2, ri, rj } ->
+        (\{ bodyId1, bodyId2, ri, rj } acc1 ->
             [ ( bodyId1, ri )
             , ( bodyId2, rj )
             ]
@@ -259,9 +259,9 @@ contacts (World ({ bodies } as world)) =
                     (\( bodyId, r ) ->
                         Maybe.map (.position >> Vec3.add r) (Dict.get bodyId bodies)
                     )
-                |> (++)
+                |> List.foldl fn acc1
         )
-        []
+        acc
         -- TODO: maybe cache the previous contacts in the world
         (NarrowPhase.getContacts world)
 
