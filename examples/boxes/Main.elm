@@ -63,13 +63,18 @@ randomlyRotatedBox =
         (Random.float -1 1)
 
 
+planeOffset : Vec3
+planeOffset =
+    vec3 0 0 -1
+
+
 init : ( Model, Cmd Msg )
 init =
     let
         initialBodies =
             [ Physics.body
                 |> Physics.addShape Physics.plane
-                |> Physics.offsetBy (vec3 0 0 -1)
+                |> Physics.offsetBy planeOffset
             , box
                 |> Physics.offsetBy (vec3 0 0 2)
                 |> Physics.rotateBy Vec3.j (-pi / 5)
@@ -200,7 +205,7 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
                 , transform =
                     transform
                         -- project on the floor
-                        |> Mat4.mul (shadow (vec3 0 0 -1) Vec3.k lightDirection)
+                        |> Mat4.mul (shadow planeOffset Vec3.k lightDirection)
                 }
                 :: WebGL.entity
                     vertex
