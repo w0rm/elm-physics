@@ -18,9 +18,8 @@ import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
 import Physics.Const as Const
-import Array.Hamt as Array
 import Dict exposing (Dict)
-import Physics.Shape exposing (Shape(..), ShapeId)
+import Physics.Shape as Shape exposing (Shape, ShapeId)
 import Time exposing (Time)
 import Physics.Const as Const
 
@@ -257,46 +256,21 @@ computeAABB : Body -> AABB
 computeAABB body =
     Dict.foldl
         (\shapeId shape ->
-            let
-                transform =
-                    shapeWorldTransform shapeId body
-            in
-                AABB.extend <|
-                    case shape of
-                        Convex convexPolyhedron ->
-                            AABB.convexPolyhedron transform convexPolyhedron
-
-                        Plane ->
-                            AABB.plane transform
+                shapeWorldTransform shapeId body
+                    |> Shape.aabbClosure shape
+                    |> AABB.extend
         )
         AABB.impossible
         body.shapes
 
 
 computeBoundingSphereRadius : Body -> Float
-computeBoundingSphereRadius { shapes, shapeTransforms } =
+computeBoundingSphereRadius body =
     Dict.foldl
         (\shapeId shape radius ->
-            let
-                distance =
-                    shapeTransforms
-                        |> Dict.get shapeId
-                        |> Maybe.map (.position >> Vec3.length)
-                        |> Maybe.withDefault 0
-            in
-                max radius <|
-                    case shape of
-                        Convex { vertices } ->
-                            distance
-                                + sqrt
-                                    (Array.foldl
-                                        (\v -> max (Vec3.lengthSquared v))
-                                        0
-                                        vertices
-                                    )
-
-                        Plane ->
-                            Const.maxNumber
+            shapeWorldTransform shapeId body
+                |> Shape.boundingSphereRadiusClosure shape 
+                |> max radius
         )
         0
-        shapes
+        body.shapes

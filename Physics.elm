@@ -16,6 +16,7 @@ module Physics
         , Shape
         , box
         , plane
+        , sphere
         )
 
 {-| Highly experimental toy physics engine in Elm.
@@ -35,7 +36,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Shape
 
-@docs Shape, box, plane
+@docs Shape, box, plane, sphere
 
 
 ## Physics
@@ -156,6 +157,15 @@ type Shape
 box : Vec3 -> Shape
 box halfExtends =
     Shape (Shape.Convex (ConvexPolyhedron.fromBox halfExtends))
+
+
+{-| A sphere shape defined by its radius.
+-}
+sphere : Float -> Shape
+sphere radius =
+    { radius = radius }
+        |> Shape.Sphere
+        |> Shape
 
 
 {-| A plane shape, with a normal pointing in the direction of the z axis

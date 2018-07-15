@@ -3,6 +3,7 @@ module Physics.ConvexPolyhedron
         ( ConvexPolyhedron
         , findSeparatingAxis
         , clipAgainstHull
+        , convexRadius
         , fromBox
           -- exposed only for tests
         , testSepAxis
@@ -596,3 +597,20 @@ project transform { vertices } axis =
                     , minVal - add
                     )
                )
+
+
+convexRadius : ConvexPolyhedron -> Transform -> Float
+convexRadius { vertices } transform =
+    -- TODO: improve accuracy for non-zero transform position
+    -- by transforming vertices.
+    let
+        distance =
+            transform.position |> Vec3.length
+    in
+        distance
+            + sqrt
+                (Array.foldl
+                    (\v -> max (Vec3.lengthSquared v))
+                    0
+                    vertices
+                )
