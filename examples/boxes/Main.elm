@@ -63,13 +63,18 @@ randomlyRotatedBox =
         (Random.float -1 1)
 
 
+planeOffset : Vec3
+planeOffset =
+    vec3 0 0 -1
+
+
 init : ( Model, Cmd Msg )
 init =
     let
         initialBodies =
             [ Physics.body
                 |> Physics.addShape Physics.plane
-                |> Physics.offsetBy (vec3 0 0 -1)
+                |> Physics.offsetBy planeOffset
             , box
                 |> Physics.offsetBy (vec3 0 0 2)
                 |> Physics.rotateBy Vec3.j (-pi / 5)
@@ -139,7 +144,7 @@ view { screenWidth, screenHeight, world } =
         [ WebGL.depth 1
         , WebGL.alpha True
         , WebGL.antialias
-        , WebGL.clearColor 0 0 0 1
+        , WebGL.clearColor 0.3 0.3 0.3 1
         ]
         [ width screenWidth
         , height screenHeight
@@ -151,6 +156,9 @@ view { screenWidth, screenHeight, world } =
         , onClick AddRandomBox
         ]
         (let
+            lightDirection =
+                Vec3.normalize (vec3 -1 -1 -1)
+
             camera =
                 Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
 
@@ -160,9 +168,9 @@ view { screenWidth, screenHeight, world } =
             perspective =
                 Mat4.makePerspective 24 aspectRatio 5 2000
          in
-            Physics.foldl (addShape camera perspective) [] world
+            Physics.foldl (addShape lightDirection camera perspective) [] world
                 |> (if debugContacts then
-                        addContacts camera perspective world
+                        addContacts lightDirection camera perspective world
                     else
                         identity
                    )
@@ -176,23 +184,40 @@ debugContacts =
     False
 
 
-addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape camera perspective { transform, bodyId } tail =
-    WebGL.entity
-        vertex
-        fragment
-        (-- This is hardcoded for now, because the plane body is the first added.
-         -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
-         if bodyId == 0 then
-            planeMesh
-         else
-            cubeMesh
-        )
-        { camera = camera
-        , perspective = perspective
-        , transform = transform
-        }
-        :: tail
+addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape lightDirection camera perspective { transform, bodyId } tail =
+    case bodyId of
+        0 ->
+            -- This is hardcoded for now, because the plane body is the first added.
+            -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
+            tail
+
+        _ ->
+            -- Draw a shadow
+            WebGL.entity
+                vertex
+                shadowFragment
+                cubeMesh
+                { camera = camera
+                , color = vec3 0.25 0.25 0.25
+                , lightDirection = lightDirection
+                , perspective = perspective
+                , transform =
+                    transform
+                        -- project on the floor
+                        |> Mat4.mul (shadow planeOffset Vec3.k lightDirection)
+                }
+                :: WebGL.entity
+                    vertex
+                    fragment
+                    cubeMesh
+                    { camera = camera
+                    , color = vec3 0.9 0.9 0.9
+                    , lightDirection = lightDirection
+                    , perspective = perspective
+                    , transform = transform
+                    }
+                :: tail
 
 
 
@@ -201,65 +226,63 @@ addShape camera perspective { transform, bodyId } tail =
 
 type alias Attributes =
     { position : Vec3
-    , color : Vec3
+    , normal : Vec3
     }
-
-
-planeMesh : Mesh Attributes
-planeMesh =
-    WebGL.triangles
-        (face
-            (vec3 10 10 0)
-            (vec3 -10 10 0)
-            (vec3 -10 -10 0)
-            (vec3 10 -10 0)
-            (vec3 0.2 0.2 0.2)
-        )
 
 
 cubeMesh : Mesh Attributes
 cubeMesh =
     let
-        rft =
-            vec3 1 1 1
+        v0 =
+            vec3 -1 -1 -1
 
-        lft =
-            vec3 -1 1 1
-
-        lbt =
-            vec3 -1 -1 1
-
-        rbt =
-            vec3 1 -1 1
-
-        rbb =
+        v1 =
             vec3 1 -1 -1
 
-        rfb =
+        v2 =
             vec3 1 1 -1
 
-        lfb =
+        v3 =
             vec3 -1 1 -1
 
-        lbb =
-            vec3 -1 -1 -1
+        v4 =
+            vec3 -1 -1 1
+
+        v5 =
+            vec3 1 -1 1
+
+        v6 =
+            vec3 1 1 1
+
+        v7 =
+            vec3 -1 1 1
     in
-        [ face rft rfb rbb rbt (vec3 0.4 0.4 0.4)
-        , face rft rfb lfb lft (vec3 0.5 0.5 0.5)
-        , face rft lft lbt rbt (vec3 0.6 0.6 0.6)
-        , face rfb lfb lbb rbb (vec3 0.7 0.7 0.7)
-        , face lft lfb lbb lbt (vec3 0.8 0.8 0.8)
-        , face rbt rbb lbb lbt (vec3 0.9 0.9 0.9)
+        [ face v3 v2 v1 v0
+        , face v4 v5 v6 v7
+        , face v5 v4 v0 v1
+        , face v2 v3 v7 v6
+        , face v0 v4 v7 v3
+        , face v1 v2 v6 v5
         ]
             |> List.concat
             |> WebGL.triangles
 
 
-face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
-face a b c d color =
-    [ ( Attributes a color, Attributes b color, Attributes c color )
-    , ( Attributes c color, Attributes d color, Attributes a color )
-    ]
+face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
+face a b c d =
+    let
+        normal =
+            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
+    in
+        [ ( Attributes a normal
+          , Attributes b normal
+          , Attributes c normal
+          )
+        , ( Attributes c normal
+          , Attributes d normal
+          , Attributes a normal
+          )
+        ]
 
 
 
@@ -270,25 +293,32 @@ type alias Uniforms =
     { camera : Mat4
     , perspective : Mat4
     , transform : Mat4
+    , color : Vec3
+    , lightDirection : Vec3
     }
 
 
 type alias Varying =
-    { vcolor : Vec3 }
+    { vlighting : Float }
 
 
 vertex : Shader Attributes Uniforms Varying
 vertex =
     [glsl|
         attribute vec3 position;
-        attribute vec3 color;
+        attribute vec3 normal;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
-        varying vec3 vcolor;
+        uniform vec3 lightDirection;
+        varying float vlighting;
         void main () {
+          float ambientLight = 0.4;
+          float directionalLight = 0.6;
           gl_Position = perspective * camera * transform * vec4(position, 1.0);
-          vcolor = color;
+          vec4 transformedNormal = normalize(transform * vec4(normal, 0.0));
+          float directional = max(dot(transformedNormal.xyz, lightDirection), 0.0);
+          vlighting = ambientLight + directional * directionalLight;
         }
     |]
 
@@ -297,17 +327,30 @@ fragment : Shader {} Uniforms Varying
 fragment =
     [glsl|
         precision mediump float;
-        varying vec3 vcolor;
+        uniform vec3 color;
+        varying float vlighting;
         void main () {
-          gl_FragColor = vec4(vcolor, 1.0);
+          gl_FragColor = vec4(vlighting * color, 1.0);
+        }
+    |]
+
+
+shadowFragment : Shader {} Uniforms Varying
+shadowFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        varying float vlighting;
+        void main () {
+          gl_FragColor = vec4(color, 1);
         }
     |]
 
 
 {-| Render collision points for the purpose of debugging
 -}
-addContacts : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addContacts camera perspective world entities =
+addContacts : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addContacts lightDirection camera perspective world entities =
     let
         addContact : Vec3 -> List Entity -> List Entity
         addContact contactPoint tail =
@@ -317,6 +360,8 @@ addContacts camera perspective world entities =
                 cubeMesh
                 { camera = camera
                 , perspective = perspective
+                , color = vec3 1 0 0
+                , lightDirection = lightDirection
                 , transform =
                     Mat4.mul
                         (Mat4.makeTranslate contactPoint)
@@ -328,3 +373,41 @@ addContacts camera perspective world entities =
             addContact
             entities
             (Physics.contacts world)
+
+
+{-| A "squash" matrix that smashes things to the ground plane,
+defined by position, normal, parallel to a given light vector
+-}
+shadow : Vec3 -> Vec3 -> Vec3 -> Mat4
+shadow position normal light =
+    let
+        n =
+            Vec3.toRecord normal
+
+        nw =
+            -(Vec3.dot position normal)
+
+        l =
+            Vec3.toRecord light
+
+        d =
+            Vec3.dot normal light
+    in
+        Mat4.fromRecord
+            { m11 = l.x * n.x - d
+            , m21 = l.y * n.x
+            , m31 = l.z * n.x
+            , m41 = 0
+            , m12 = l.x * n.y
+            , m22 = l.y * n.y - d
+            , m32 = l.z * n.y
+            , m42 = 0
+            , m13 = l.x * n.z
+            , m23 = l.y * n.z
+            , m33 = l.z * n.z - d
+            , m43 = 0
+            , m14 = l.x * nw
+            , m24 = l.y * nw
+            , m34 = l.z * nw
+            , m44 = -d
+            }
