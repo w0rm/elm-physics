@@ -5,7 +5,6 @@ module Physics
         , contacts
         , foldFaceNormals
         , foldUniqueEdges
-        , makeRotateKTo
         , World
         , world
         , setGravity
@@ -43,7 +42,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Physics
 
-@docs step, foldl, contacts, foldFaceNormals, foldUniqueEdges, makeRotateKTo
+@docs step, foldl, contacts, foldFaceNormals, foldUniqueEdges
 
 -}
 
@@ -57,7 +56,6 @@ import Time exposing (Time)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Dict
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron
 
 
@@ -347,30 +345,3 @@ foldUniqueEdges fn acc world =
         )
         acc
         world
-
-
-{-| A 3D utility function that provides a transform for a rotation that
-reorients the z axis to the given direction (unit vector), choosing any
-convenient rotation for the xy plane.
--}
-makeRotateKTo : Vec3 -> Mat4
-makeRotateKTo direction =
-    let
-        distance =
-            Vec3.distance Vec3.k direction
-    in
-        -- Specially handle the boundary cases that may throw off the general
-        -- case trig formulas used below.
-        -- These occur when the direction is (almost) vertical
-        -- i.e. ~= Vec3.k or ~= (Vec3.negate Vec3.k)
-        -- giving extreme distance values of ~0.0 or ~2.0.
-        if distance <= Const.precision then
-            Mat4.identity
-        else if (abs (distance - 2.0)) <= Const.precision then
-            -- A U-turn around the x=y line in the z=0 plane
-            -- negates all x y and z values
-            Mat4.makeRotate pi (vec3 1.0 1.0 0.0)
-        else
-            Mat4.makeRotate
-                (2.0 * (asin (distance / 2.0)))
-                (Vec3.cross Vec3.k direction)

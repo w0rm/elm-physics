@@ -12,6 +12,9 @@ import Time exposing (Time)
 import WebGL exposing (Entity, Shader, Mesh)
 import Window
 import Random
+import Common.Meshes as Meshes exposing (Attributes)
+import Common.Math as Math
+import Common.Shaders as Shaders
 
 
 type alias Model =
@@ -198,14 +201,14 @@ debugContacts =
 -}
 debugNormals : Bool
 debugNormals =
-    False
+    True
 
 
 {-| Set to True to see edge markers
 -}
 debugEdges : Bool
 debugEdges =
-    False
+    True
 
 
 addShape : Vec3 -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
@@ -219,8 +222,8 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
         _ ->
             -- Draw a shadow
             WebGL.entity
-                vertex
-                shadowFragment
+                Shaders.vertex
+                Shaders.shadowFragment
                 cubeMesh
                 { camera = camera
                 , color = vec3 0.25 0.25 0.25
@@ -229,11 +232,16 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
                 , transform =
                     transform
                         -- project on the floor
-                        |> Mat4.mul (shadow planeOffset Vec3.k lightDirection)
+                        |> Mat4.mul
+                            (Math.makeShadow
+                                planeOffset
+                                Vec3.k
+                                lightDirection
+                            )
                 }
                 :: WebGL.entity
-                    vertex
-                    fragment
+                    Shaders.vertex
+                    Shaders.fragment
                     cubeMesh
                     { camera = camera
                     , color = vec3 0.9 0.9 0.9
@@ -245,173 +253,27 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
 
 
 
--- Meshes:
-
-
-type alias Attributes =
-    { position : Vec3
-    , normal : Vec3
-    }
+-- Meshes
 
 
 cubeMesh : Mesh Attributes
 cubeMesh =
-    let
-        v0 =
-            vec3 -1 -1 -1
-
-        v1 =
-            vec3 1 -1 -1
-
-        v2 =
-            vec3 1 1 -1
-
-        v3 =
-            vec3 -1 1 -1
-
-        v4 =
-            vec3 -1 -1 1
-
-        v5 =
-            vec3 1 -1 1
-
-        v6 =
-            vec3 1 1 1
-
-        v7 =
-            vec3 -1 1 1
-    in
-        [ face v3 v2 v1 v0
-        , face v4 v5 v6 v7
-        , face v5 v4 v0 v1
-        , face v2 v3 v7 v6
-        , face v0 v4 v7 v3
-        , face v1 v2 v6 v5
-        ]
-            |> List.concat
-            |> WebGL.triangles
+    Meshes.makeBox (vec3 1 1 1)
 
 
-face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes )
-face a b c d =
-    let
-        normal =
-            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
-    in
-        [ ( Attributes a normal
-          , Attributes b normal
-          , Attributes c normal
-          )
-        , ( Attributes c normal
-          , Attributes d normal
-          , Attributes a normal
-          )
-        ]
+normalMesh : Mesh Attributes
+normalMesh =
+    Meshes.makePyramid 0.05 0.05
 
 
-facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
-facet a b c =
-    let
-        normal =
-            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
-    in
-        ( Attributes a normal
-        , Attributes b normal
-        , Attributes c normal
-        )
+edgeMesh : Mesh Attributes
+edgeMesh =
+    Meshes.makePyramid 0.1 0.5
 
 
-pyramidMesh : Float -> Float -> Mesh Attributes
-pyramidMesh halfbase baserise =
-    let
-        top =
-            vec3 0 0 1
-
-        rbb =
-            vec3 halfbase -halfbase baserise
-
-        rfb =
-            vec3 halfbase halfbase baserise
-
-        lfb =
-            vec3 -halfbase halfbase baserise
-
-        lbb =
-            vec3 -halfbase -halfbase baserise
-
-        addSideFacet : Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
-        addSideFacet baseVertex2 baseVertex1 acc =
-            (facet top baseVertex2 baseVertex1)
-                :: acc
-    in
-        face rfb lfb lbb rbb
-            |> addSideFacet rfb rbb
-            |> addSideFacet lfb rfb
-            |> addSideFacet lbb lfb
-            |> addSideFacet rbb lbb
-            |> WebGL.triangles
-
-
-
--- Shaders:
-
-
-type alias Uniforms =
-    { camera : Mat4
-    , perspective : Mat4
-    , transform : Mat4
-    , color : Vec3
-    , lightDirection : Vec3
-    }
-
-
-type alias Varying =
-    { vlighting : Float }
-
-
-vertex : Shader Attributes Uniforms Varying
-vertex =
-    [glsl|
-        attribute vec3 position;
-        attribute vec3 normal;
-        uniform mat4 camera;
-        uniform mat4 perspective;
-        uniform mat4 transform;
-        uniform vec3 lightDirection;
-        varying float vlighting;
-        void main () {
-          float ambientLight = 0.4;
-          float directionalLight = 0.6;
-          gl_Position = perspective * camera * transform * vec4(position, 1.0);
-          vec4 transformedNormal = normalize(transform * vec4(normal, 0.0));
-          float directional = max(dot(transformedNormal.xyz, lightDirection), 0.0);
-          vlighting = ambientLight + directional * directionalLight;
-        }
-    |]
-
-
-fragment : Shader {} Uniforms Varying
-fragment =
-    [glsl|
-        precision mediump float;
-        uniform vec3 color;
-        varying float vlighting;
-        void main () {
-          gl_FragColor = vec4(vlighting * color, 1.0);
-        }
-    |]
-
-
-shadowFragment : Shader {} Uniforms Varying
-shadowFragment =
-    [glsl|
-        precision mediump float;
-        uniform vec3 color;
-        varying float vlighting;
-        void main () {
-          gl_FragColor = vec4(color, 1);
-        }
-    |]
+contactMesh : Mesh Attributes
+contactMesh =
+    Meshes.makeBox (vec3 0.1 0.1 0.1)
 
 
 {-| Render collision points for the purpose of debugging
@@ -422,17 +284,15 @@ addContacts lightDirection camera perspective world entities =
         addContact : Vec3 -> List Entity -> List Entity
         addContact contactPoint tail =
             WebGL.entity
-                vertex
-                fragment
-                cubeMesh
+                Shaders.vertex
+                Shaders.fragment
+                contactMesh
                 { camera = camera
                 , perspective = perspective
                 , color = vec3 1 0 0
                 , lightDirection = lightDirection
                 , transform =
-                    Mat4.mul
-                        (Mat4.makeTranslate contactPoint)
-                        (Mat4.makeScale (vec3 0.1 0.1 0.1))
+                    Mat4.makeTranslate contactPoint
                 }
                 :: tail
     in
@@ -440,49 +300,6 @@ addContacts lightDirection camera perspective world entities =
             addContact
             entities
             (Physics.contacts world)
-
-
-{-| A "squash" matrix that smashes things to the ground plane,
-defined by position, normal, parallel to a given light vector
--}
-shadow : Vec3 -> Vec3 -> Vec3 -> Mat4
-shadow position normal light =
-    let
-        n =
-            Vec3.toRecord normal
-
-        nw =
-            -(Vec3.dot position normal)
-
-        l =
-            Vec3.toRecord light
-
-        d =
-            Vec3.dot normal light
-    in
-        Mat4.fromRecord
-            { m11 = l.x * n.x - d
-            , m21 = l.y * n.x
-            , m31 = l.z * n.x
-            , m41 = 0
-            , m12 = l.x * n.y
-            , m22 = l.y * n.y - d
-            , m32 = l.z * n.y
-            , m42 = 0
-            , m13 = l.x * n.z
-            , m23 = l.y * n.z
-            , m33 = l.z * n.z - d
-            , m43 = 0
-            , m14 = l.x * nw
-            , m24 = l.y * nw
-            , m34 = l.z * nw
-            , m44 = -d
-            }
-
-
-normalMesh : Mesh Attributes
-normalMesh =
-    pyramidMesh 0.05 0.05
 
 
 {-| Render shape face normals for the purpose of debugging
@@ -493,15 +310,15 @@ addNormals lightDirection camera perspective world entities =
         addNormalIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
         addNormalIndicator transform normal facePoint tail =
             WebGL.entity
-                vertex
-                fragment
+                Shaders.vertex
+                Shaders.fragment
                 normalMesh
                 { camera = camera
                 , lightDirection = lightDirection
                 , color = vec3 1 0 1
                 , perspective = perspective
                 , transform =
-                    Physics.makeRotateKTo normal
+                    Math.makeRotateKTo normal
                         |> Mat4.mul
                             (facePoint
                                 |> Mat4.makeTranslate
@@ -516,11 +333,6 @@ addNormals lightDirection camera perspective world entities =
             world
 
 
-edgeMesh : Mesh Attributes
-edgeMesh =
-    pyramidMesh 0.1 0.5
-
-
 {-| Render shapes' unique edges for the purpose of debugging
 -}
 addUniqueEdges : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
@@ -529,15 +341,15 @@ addUniqueEdges lightDirection camera perspective world entities =
         addEdgeIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
         addEdgeIndicator transform edge origin tail =
             WebGL.entity
-                vertex
-                fragment
+                Shaders.vertex
+                Shaders.fragment
                 edgeMesh
                 { camera = camera
                 , lightDirection = lightDirection
                 , color = vec3 0 1 0
                 , perspective = perspective
                 , transform =
-                    Physics.makeRotateKTo edge
+                    Math.makeRotateKTo edge
                         |> Mat4.mul
                             (origin
                                 |> Mat4.makeTranslate
