@@ -199,12 +199,8 @@ addShape lightDirection camera perspective { transform, bodyId } tail =
                 , perspective = perspective
                 , transform =
                     transform
-                        -- move relative to the floor offset
-                        |> Mat4.mul (Mat4.makeTranslate3 0 0 1)
                         -- project on the floor
-                        |> Mat4.mul (shadow Vec3.k lightDirection)
-                        -- move down by the floor offset
-                        |> Mat4.mul (Mat4.makeTranslate3 0 0 -1)
+                        |> Mat4.mul (shadow (vec3 0 0 -1) Vec3.k lightDirection)
                 }
                 :: WebGL.entity
                     vertex
@@ -375,13 +371,16 @@ addContacts lightDirection camera perspective world entities =
 
 
 {-| A "squash" matrix that smashes things to the ground plane,
-defined by a normal, parallel to a given light vector
+defined by position, normal, parallel to a given light vector
 -}
-shadow : Vec3 -> Vec3 -> Mat4
-shadow normal light =
+shadow : Vec3 -> Vec3 -> Vec3 -> Mat4
+shadow position normal light =
     let
-        p =
+        n =
             Vec3.toRecord normal
+
+        nw =
+            -(Vec3.dot position normal)
 
         l =
             Vec3.toRecord light
@@ -390,20 +389,20 @@ shadow normal light =
             Vec3.dot normal light
     in
         Mat4.fromRecord
-            { m11 = p.x * l.x - d
-            , m21 = p.x * l.y
-            , m31 = p.x * l.z
+            { m11 = l.x * n.x - d
+            , m21 = l.y * n.x
+            , m31 = l.z * n.x
             , m41 = 0
-            , m12 = p.y * l.x
-            , m22 = p.y * l.y - d
-            , m32 = p.y * l.z
+            , m12 = l.x * n.y
+            , m22 = l.y * n.y - d
+            , m32 = l.z * n.y
             , m42 = 0
-            , m13 = p.z * l.x
-            , m23 = p.z * l.y
-            , m33 = p.z * l.z - d
+            , m13 = l.x * n.z
+            , m23 = l.y * n.z
+            , m33 = l.z * n.z - d
             , m43 = 0
-            , m14 = 0
-            , m24 = 0
-            , m34 = 0
+            , m14 = l.x * nw
+            , m24 = l.y * nw
+            , m34 = l.z * nw
             , m44 = -d
             }
