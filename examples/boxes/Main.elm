@@ -166,6 +166,16 @@ view { screenWidth, screenHeight, world } =
                     else
                         identity
                    )
+                |> (if debugNormals then
+                        addNormals camera perspective world
+                    else
+                        identity
+                   )
+                |> (if debugEdges then
+                        addUniqueEdges camera perspective world
+                    else
+                        identity
+                   )
         )
 
 
@@ -173,7 +183,21 @@ view { screenWidth, screenHeight, world } =
 -}
 debugContacts : Bool
 debugContacts =
-    False
+    True
+
+
+{-| Set to True to see normal spikes
+-}
+debugNormals : Bool
+debugNormals =
+    True
+
+
+{-| Set to True to see edge markers
+-}
+debugEdges : Bool
+debugEdges =
+    True
 
 
 addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
@@ -262,6 +286,42 @@ face a b c d color =
     ]
 
 
+facet : Vec3 -> Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
+facet a b c color =
+    ( Attributes a color, Attributes b color, Attributes c color )
+
+
+pyramidMesh : Float -> Float -> Mesh Attributes
+pyramidMesh halfbase baserise =
+    let
+        top =
+            vec3 0 0 1
+
+        rbb =
+            vec3 halfbase -halfbase baserise
+
+        rfb =
+            vec3 halfbase halfbase baserise
+
+        lfb =
+            vec3 -halfbase halfbase baserise
+
+        lbb =
+            vec3 -halfbase -halfbase baserise
+
+        addSideFacet : Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
+        addSideFacet baseVertex2 baseVertex1 color acc =
+            (facet top baseVertex2 baseVertex1 color)
+                :: acc
+    in
+        face rfb lfb lbb rbb (vec3 0.3 0.3 0.3)
+            |> addSideFacet rfb rbb (vec3 0.4 0.4 0.4)
+            |> addSideFacet lfb rfb (vec3 0.5 0.5 0.5)
+            |> addSideFacet lbb lfb (vec3 0.4 0.4 0.4)
+            |> addSideFacet rbb lbb (vec3 0.5 0.5 0.5)
+            |> WebGL.triangles
+
+
 
 -- Shaders:
 
@@ -328,3 +388,61 @@ addContacts camera perspective world entities =
             addContact
             entities
             (Physics.contacts world)
+
+
+{-| Render shape face normals for the purpose of debugging
+-}
+addNormals : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addNormals camera perspective world entities =
+    let
+        addNormalIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+        addNormalIndicator transform normal facePoint tail =
+            WebGL.entity
+                vertex
+                fragment
+                (pyramidMesh 0.05 0.05)
+                { camera = camera
+                , perspective = perspective
+                , transform =
+                    Physics.makeRotateKTo normal
+                        |> Mat4.mul
+                            (facePoint
+                                |> Mat4.makeTranslate
+                                |> Mat4.mul transform
+                            )
+                }
+                :: tail
+    in
+        Physics.foldFaceNormals
+            addNormalIndicator
+            entities
+            world
+
+
+{-| Render shapes' unique edges for the purpose of debugging
+-}
+addUniqueEdges : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addUniqueEdges camera perspective world entities =
+    let
+        addEdgeIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+        addEdgeIndicator transform edge origin tail =
+            WebGL.entity
+                vertex
+                fragment
+                (pyramidMesh 0.1 0.5)
+                { camera = camera
+                , perspective = perspective
+                , transform =
+                    Physics.makeRotateKTo edge
+                        |> Mat4.mul
+                            (origin
+                                |> Mat4.makeTranslate
+                                |> Mat4.mul transform
+                            )
+                }
+                :: tail
+    in
+        Physics.foldUniqueEdges
+            addEdgeIndicator
+            entities
+            world
