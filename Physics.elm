@@ -3,6 +3,9 @@ module Physics
         ( step
         , foldl
         , contacts
+        , foldFaceNormals
+        , foldUniqueEdges
+        , makeRotateKTo
         , World
         , world
         , setGravity
@@ -40,7 +43,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Physics
 
-@docs step, foldl, contacts
+@docs step, foldl, contacts, foldFaceNormals, foldUniqueEdges, makeRotateKTo
 
 -}
 
@@ -54,6 +57,7 @@ import Time exposing (Time)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Dict
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron
 
 
@@ -198,6 +202,21 @@ step dt (World world) =
 Use `bodyId` and `shapeId` to link additional information from the outside of the engine, e.g. which mesh to render
 or what color should this shape be.
 
+TODO: swap in this foldl definition refactored to leverage foldOverShapes:
+
+foldl fn acc world =
+foldOverShapes
+(\transform bodyId _ shapeId _ tail ->
+fn
+{ transform = transform
+, bodyId = bodyId
+, shapeId = shapeId
+}
+tail
+)
+acc
+world}
+
 -}
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
 foldl fn acc (World { bodies }) =
@@ -247,3 +266,111 @@ contacts (World ({ bodies } as world)) =
         []
         -- TODO: maybe cache the previous contacts in the world
         (NarrowPhase.getContacts world)
+
+
+foldOverShapes : (Mat4 -> BodyId -> Body.Body -> ShapeId -> Shape.Shape -> a -> a) -> a -> World -> a
+foldOverShapes fn acc (World { bodies }) =
+    Dict.foldl
+        (\bodyId ({ position, quaternion, shapes, shapeTransforms } as body) acc1 ->
+            Dict.foldl
+                (\shapeId shape acc2 ->
+                    fn
+                        (case Dict.get shapeId shapeTransforms of
+                            Just transform ->
+                                (Quaternion.toMat4 transform.quaternion)
+                                    |> Mat4.mul (Mat4.makeTranslate transform.position)
+                                    |> Mat4.mul (Quaternion.toMat4 quaternion)
+                                    |> Mat4.mul (Mat4.makeTranslate position)
+
+                            Nothing ->
+                                Mat4.mul
+                                    (Mat4.makeTranslate position)
+                                    (Quaternion.toMat4 quaternion)
+                        )
+                        bodyId
+                        body
+                        shapeId
+                        shape
+                        acc2
+                )
+                acc1
+                shapes
+        )
+        acc
+        bodies
+
+
+{-| Fold over all the face normals in the world,
+where each face normal consists of a normal vector for a face
+and a reference point within the face.
+These are both expressed within the local shape coordinate system.
+The transform to the current world coordinates from the shape coordinates is also provided.
+-}
+foldFaceNormals : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
+foldFaceNormals fn acc world =
+    foldOverShapes
+        (\transform _ _ _ shape acc1 ->
+            case shape of
+                Shape.Plane ->
+                    acc1
+
+                Shape.Convex convex ->
+                    ConvexPolyhedron.foldFaceNormals
+                        (fn transform)
+                        acc1
+                        convex
+        )
+        acc
+        world
+
+
+{-| Fold over all the unique edges in the world, where each unique edge
+consists of a unit direction vector that runs parallel to an edge of a
+face in the shape.
+A vertex point of the shape and a transform to the current world coordinates
+from the shape coordinates is also provided for context. Both the vector and
+the point are expressed within the local shape coordinate system.
+-}
+foldUniqueEdges : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
+foldUniqueEdges fn acc world =
+    foldOverShapes
+        (\transform _ _ _ shape acc1 ->
+            case shape of
+                Shape.Plane ->
+                    acc1
+
+                Shape.Convex convex ->
+                    ConvexPolyhedron.foldUniqueEdges
+                        (fn transform)
+                        acc1
+                        convex
+        )
+        acc
+        world
+
+
+{-| A 3D utility function that provides a transform for a rotation that
+reorients the z axis to the given direction (unit vector), choosing any
+convenient rotation for the xy plane.
+-}
+makeRotateKTo : Vec3 -> Mat4
+makeRotateKTo direction =
+    let
+        distance =
+            Vec3.distance Vec3.k direction
+    in
+        -- Specially handle the boundary cases that may throw off the general
+        -- case trig formulas used below.
+        -- These occur when the direction is (almost) vertical
+        -- i.e. ~= Vec3.k or ~= (Vec3.negate Vec3.k)
+        -- giving extreme distance values of ~0.0 or ~2.0.
+        if distance <= Const.precision then
+            Mat4.identity
+        else if (abs (distance - 2.0)) <= Const.precision then
+            -- A U-turn around the x=y line in the z=0 plane
+            -- negates all x y and z values
+            Mat4.makeRotate pi (vec3 1.0 1.0 0.0)
+        else
+            Mat4.makeRotate
+                (2.0 * (asin (distance / 2.0)))
+                (Vec3.cross Vec3.k direction)
