@@ -110,12 +110,13 @@ setQuaternion quaternion body =
 
 addShape : Shape -> Body -> Body
 addShape shape body =
+    -- TODO: support shape's position and rotation:
     { body
         | shapes = Dict.insert body.nextShapeId shape body.shapes
         , nextShapeId = body.nextShapeId + 1
+        , boundingSphereRadius = expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
     }
         |> updateMassProperties
-        |> updateBoundingSphereRadius
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
@@ -170,15 +171,6 @@ tick dt body =
                         |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                         |> Vec4.normalize
             }
-
-
-{-| Should be called whenever you add or remove shapes.
--}
-updateBoundingSphereRadius : Body -> Body
-updateBoundingSphereRadius body =
-    { body
-        | boundingSphereRadius = computeBoundingSphereRadius body
-    }
 
 
 {-| Should be called whenever you change the body shape or mass.
@@ -273,30 +265,20 @@ computeAABB body =
         body.shapes
 
 
-computeBoundingSphereRadius : Body -> Float
-computeBoundingSphereRadius { shapes, shapeTransforms } =
-    Dict.foldl
-        (\shapeId shape radius ->
-            let
-                distance =
-                    shapeTransforms
-                        |> Dict.get shapeId
-                        |> Maybe.map (.position >> Vec3.length)
-                        |> Maybe.withDefault 0
-            in
-                max radius <|
-                    case shape of
-                        Convex { vertices } ->
-                            distance
-                                + sqrt
-                                    (Array.foldl
-                                        (\v -> max (Vec3.lengthSquared v))
-                                        0
-                                        vertices
-                                    )
+expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
+expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
+    case shape of
+        Convex { vertices } ->
+            vertices
+                |> Array.foldl
+                    (\vertex ->
+                        vertex
+                            |> Transform.pointToWorldFrame shapeTransform
+                            |> Vec3.lengthSquared
+                            |> max
+                    )
+                    (boundingSphereRadius * boundingSphereRadius)
+                |> sqrt
 
-                        Plane ->
-                            Const.maxNumber
-        )
-        0
-        shapes
+        Plane ->
+            Const.maxNumber
