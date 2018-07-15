@@ -175,12 +175,12 @@ view { screenWidth, screenHeight, world } =
                         identity
                    )
                 |> (if debugNormals then
-                        addNormals camera perspective world
+                        addNormals lightDirection camera perspective world
                     else
                         identity
                    )
                 |> (if debugEdges then
-                        addUniqueEdges camera perspective world
+                        addUniqueEdges lightDirection camera perspective world
                     else
                         identity
                    )
@@ -309,9 +309,16 @@ face a b c d =
         ]
 
 
-facet : Vec3 -> Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
-facet a b c color =
-    ( Attributes a color, Attributes b color, Attributes c color )
+facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
+facet a b c =
+    let
+        normal =
+            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
+    in
+        ( Attributes a normal
+        , Attributes b normal
+        , Attributes c normal
+        )
 
 
 pyramidMesh : Float -> Float -> Mesh Attributes
@@ -332,16 +339,16 @@ pyramidMesh halfbase baserise =
         lbb =
             vec3 -halfbase -halfbase baserise
 
-        addSideFacet : Vec3 -> Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
-        addSideFacet baseVertex2 baseVertex1 color acc =
-            (facet top baseVertex2 baseVertex1 color)
+        addSideFacet : Vec3 -> Vec3 -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
+        addSideFacet baseVertex2 baseVertex1 acc =
+            (facet top baseVertex2 baseVertex1)
                 :: acc
     in
-        face rfb lfb lbb rbb (vec3 0.3 0.3 0.3)
-            |> addSideFacet rfb rbb (vec3 0.4 0.4 0.4)
-            |> addSideFacet lfb rfb (vec3 0.5 0.5 0.5)
-            |> addSideFacet lbb lfb (vec3 0.4 0.4 0.4)
-            |> addSideFacet rbb lbb (vec3 0.5 0.5 0.5)
+        face rfb lfb lbb rbb
+            |> addSideFacet rfb rbb
+            |> addSideFacet lfb rfb
+            |> addSideFacet lbb lfb
+            |> addSideFacet rbb lbb
             |> WebGL.triangles
 
 
@@ -473,18 +480,25 @@ shadow position normal light =
             }
 
 
+normalMesh : Mesh Attributes
+normalMesh =
+    pyramidMesh 0.05 0.05
+
+
 {-| Render shape face normals for the purpose of debugging
 -}
-addNormals : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addNormals camera perspective world entities =
+addNormals : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addNormals lightDirection camera perspective world entities =
     let
         addNormalIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
         addNormalIndicator transform normal facePoint tail =
             WebGL.entity
                 vertex
                 fragment
-                (pyramidMesh 0.05 0.05)
+                normalMesh
                 { camera = camera
+                , lightDirection = lightDirection
+                , color = vec3 1 0 1
                 , perspective = perspective
                 , transform =
                     Physics.makeRotateKTo normal
@@ -502,18 +516,25 @@ addNormals camera perspective world entities =
             world
 
 
+edgeMesh : Mesh Attributes
+edgeMesh =
+    pyramidMesh 0.1 0.5
+
+
 {-| Render shapes' unique edges for the purpose of debugging
 -}
-addUniqueEdges : Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
-addUniqueEdges camera perspective world entities =
+addUniqueEdges : Vec3 -> Mat4 -> Mat4 -> Physics.World -> List Entity -> List Entity
+addUniqueEdges lightDirection camera perspective world entities =
     let
         addEdgeIndicator : Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
         addEdgeIndicator transform edge origin tail =
             WebGL.entity
                 vertex
                 fragment
-                (pyramidMesh 0.1 0.5)
+                edgeMesh
                 { camera = camera
+                , lightDirection = lightDirection
+                , color = vec3 0 1 0
                 , perspective = perspective
                 , transform =
                     Physics.makeRotateKTo edge
