@@ -335,4 +335,4 @@ edgeMesh =
 
 contactMesh : Mesh Attributes
 contactMesh =
-    Meshes.makeBox (vec3 0.1 0.1 0.1)
+    Meshes.makeSphere 2 0.1

@@ -1,4 +1,4 @@
-module Common.Meshes exposing (Attributes, makeBox, makePyramid)
+module Common.Meshes exposing (Attributes, makeBox, makePyramid, makeSphere)
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL exposing (Mesh)
@@ -82,6 +82,65 @@ makePyramid halfbase baserise =
         , facet top rbb lbb
         ]
             |> WebGL.triangles
+
+
+makeSphere : Int -> Float -> Mesh Attributes
+makeSphere iterations radius =
+    divideSphere iterations radius (octahedron radius)
+        |> List.map (\( p1, p2, p3 ) -> facet p1 p2 p3)
+        |> WebGL.triangles
+
+
+{-| Recursively divide an octahedron to turn it into a sphere
+-}
+divideSphere : Int -> Float -> List ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 )
+divideSphere step radius triangles =
+    if step == 0 then
+        triangles
+    else
+        divideSphere
+            (step - 1)
+            radius
+            (List.concatMap (divide radius) triangles)
+
+
+{-|
+
+        1
+       / \
+    b /___\ c
+     /\   /\
+    /__\ /__\
+    0   a    2
+-}
+divide : Float -> ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 )
+divide radius ( v0, v1, v2 ) =
+    let
+        a =
+            Vec3.add v0 v2 |> Vec3.normalize |> Vec3.scale radius
+
+        b =
+            Vec3.add v0 v1 |> Vec3.normalize |> Vec3.scale radius
+
+        c =
+            Vec3.add v1 v2 |> Vec3.normalize |> Vec3.scale radius
+    in
+        [ ( v0, b, a ), ( b, v1, c ), ( a, b, c ), ( a, c, v2 ) ]
+
+
+{-| Octahedron
+-}
+octahedron : Float -> List ( Vec3, Vec3, Vec3 )
+octahedron radius =
+    [ ( vec3 radius 0 0, vec3 0 radius 0, vec3 0 0 radius )
+    , ( vec3 0 radius 0, vec3 -radius 0 0, vec3 0 0 radius )
+    , ( vec3 -radius 0 0, vec3 0 -radius 0, vec3 0 0 radius )
+    , ( vec3 0 -radius 0, vec3 radius 0 0, vec3 0 0 radius )
+    , ( vec3 radius 0 0, vec3 0 0 -radius, vec3 0 radius 0 )
+    , ( vec3 0 radius 0, vec3 0 0 -radius, vec3 -radius 0 0 )
+    , ( vec3 -radius 0 0, vec3 0 0 -radius, vec3 0 -radius 0 )
+    , ( vec3 0 -radius 0, vec3 0 0 -radius, vec3 radius 0 0 )
+    ]
 
 
 facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
