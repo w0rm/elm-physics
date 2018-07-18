@@ -1,6 +1,7 @@
 module Boxes exposing (main)
 
 import AnimationFrame
+import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes exposing (width, height, style)
 import Html.Events exposing (onClick)
@@ -18,7 +19,7 @@ type alias Model =
     { screenWidth : Int
     , screenHeight : Int
     , world : Physics.World
-    , sphereCycle : Int
+    , shapes : ShapeDict
     }
 
 
@@ -26,7 +27,7 @@ type Msg
     = Tick Time
     | Resize Window.Size
     | AddRandomShape
-    | AddShape Physics.Body
+    | AddShape ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
 
 
 main : Program Never Model Msg
@@ -39,78 +40,161 @@ main =
         }
 
 
-{-| A constant cube-shaped body with unit sides and mass of 5
+{-| A cube-shaped body with unit sides, default mass 5,
+and custom orientation.
+Orienting the body with a function (chain) prior to addShape makes chaining easier
+here and in the caller which must also track the ShapeId generated here.
 -}
-box : Physics.Body
-box =
-    Physics.body
+box : (Physics.Body -> Physics.Body) -> ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
+box orient =
+    ( cubeMesh
+    , Physics.body
+        |> orient
         |> Physics.setMass 5
         |> Physics.addShape (Physics.box (vec3 1 1 1))
+    )
 
 
 {-| A constant sphere
 -}
-sphere : Physics.Body
-sphere =
-    Physics.body
+sphere : Mesh Attributes -> (Physics.Body -> Physics.Body) -> ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
+sphere mesh orient =
+    ( mesh
+    , Physics.body
+        |> orient
         |> Physics.setMass 5
         |> Physics.addShape (Physics.sphere (sqrt 3))
+    )
 
+
+{-| An immovable plane at a custom orientation.
+-}
+plane : (Physics.Body -> Physics.Body) -> ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
+plane orient =
+    ( planeMesh
+    , Physics.body
+        |> orient
+        |> Physics.addShape Physics.plane
+    )
+
+
+shapeSelector : Int -> (Physics.Body -> Physics.Body) -> ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
+shapeSelector pick =
+    (case pick of
+        0 ->
+            box
+        1 ->
+            sphere sphereMesh
+        2 ->
+            sphere extendedTruncatedOctohedronMesh
+        -- assuming 3
+        _ ->
+            sphere altSphereMesh
+    )
 
 {-| A box raised above the plane and rotated to a random 3d angle
 -}
-randomlyRotatedShape : Physics.Body -> Random.Generator Physics.Body
-randomlyRotatedShape shape =
+randomlyRotatedShape : Random.Generator ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) )
+randomlyRotatedShape =
     Random.map4
-        (\angle x y z ->
-            shape
-                -- Hack a small random value into the x offset for some
-                -- position jitter. This is important to have spheres that
-                -- interact realistically vs. perfectly balancing into stacks.
-                -- Re-using the z-angle value for this is as good as anything.
-                |> Physics.offsetBy (vec3 z 0 10)
-                |> Physics.rotateBy (Vec3.normalize (vec3 x y z)) angle
+        (\shapeOption jitter angle xyz  ->
+            let direction = case xyz of
+                x :: y :: z :: _ ->
+                    vec3 x y z
+                        |> Vec3.normalize
+                -- not expected:
+                _ ->
+                   vec3 0 0 1
+            in    
+                (shapeSelector shapeOption)
+                    -- Hack a small random value into the x offset for some
+                    -- position jitter. This is important to have spheres that
+                    -- interact realistically vs. perfectly balancing into stacks.
+                    (Physics.offsetBy (vec3 jitter 0 10)
+                        >> Physics.rotateBy direction angle
+                    )
         )
+        (Random.int 0 3)
+        (Random.float -0.1 0.1)
         (Random.float (-pi / 2) (pi / 2))
-        (Random.float -1 1)
-        (Random.float -1 1)
-        (Random.float -1 1)
+        (Random.list 3 (Random.float -1 1))
 
 
 init : ( Model, Cmd Msg )
 init =
     let
         initialBodies =
-            [ Physics.body
-                |> Physics.addShape Physics.plane
-                |> Physics.offsetBy (vec3 0 0 -1)
+            [ plane ( Physics.offsetBy (vec3 0 0 -1) )
             , box
-                |> Physics.offsetBy (vec3 0 0 2)
-                |> Physics.rotateBy Vec3.j (-pi / 5)
+                ( Physics.offsetBy (vec3 0 0 2)
+                    >> Physics.rotateBy Vec3.j (-pi / 5)
+                )
             , box
-                |> Physics.offsetBy (vec3 -1.2 0 9)
-                |> Physics.rotateBy Vec3.j (-pi / 4)
+                ( Physics.offsetBy (vec3 -1.2 0 9)
+                    >> Physics.rotateBy Vec3.j (-pi / 4)
+                )
             , box
-                |> Physics.offsetBy (vec3 1.3 0 6)
-                |> Physics.rotateBy Vec3.j (pi / 5)
+                ( Physics.offsetBy (vec3 1.3 0 6)
+                    >> Physics.rotateBy Vec3.j (pi / 5)
+                )
             ]
 
         initialWorld =
             Physics.world
                 |> Physics.setGravity (vec3 0 0 -10)
+
+        ( world, shapes ) =
+            List.foldl
+                addBody
+                ( initialWorld, Dict.empty )
+                initialBodies
     in
         ( { -- replaced by resize, including the initial resize
             screenWidth = 1
           , screenHeight = 1
 
           -- continuously updated by ticks and clicks
-          , world = List.foldl Physics.addBody initialWorld initialBodies
+          , world = world
 
           -- updated by clicks
-          , sphereCycle = 0
+          , shapes = shapes
           }
         , Task.perform Resize Window.size
         )
+
+
+addBody : ( Mesh Attributes, ( Physics.Body, Physics.ShapeId ) ) -> ( Physics.World, ShapeDict ) -> ( Physics.World, ShapeDict )
+addBody ( mesh, ( body, shapeId ) ) ( world, shapes ) =
+    let
+        ( nextWorld, bodyId ) =
+            Physics.addBody body world
+
+        nextShapes =
+            insertShape bodyId shapeId mesh shapes
+    in
+        ( nextWorld, nextShapes )
+
+
+type alias ShapeDict =
+    Dict ( Physics.BodyId, Physics.ShapeId ) (Mesh Attributes)
+
+
+insertShape : Physics.BodyId -> Physics.ShapeId -> Mesh Attributes -> ShapeDict -> ShapeDict
+insertShape bodyId shapeId mesh shapes =
+    Dict.insert ( bodyId, shapeId ) mesh shapes
+
+
+getShape : Physics.BodyId -> Physics.ShapeId -> ShapeDict -> Mesh Attributes
+getShape bodyId shapeId shapes =
+    Dict.get ( bodyId, shapeId ) shapes
+        -- The default value of cubeMesh will never be used as all valid
+        -- bodyid/shapeid pairs map to a mesh in the ShapeDict.
+        -- An alternative to this unused default would be to use Debug.crash.
+        -- Another alternative would be to RELY on the cubeMesh default,
+        -- skipping the ShapeDict update for objects that use cubeMesh.
+        -- That would improve space efficiency for a fraction of
+        -- the objects in this example.
+        |> Maybe.withDefault cubeMesh
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -125,25 +209,19 @@ update msg model =
             )
 
         AddRandomShape ->
-            ( { model | sphereCycle = ((model.sphereCycle + 1) % 4) }
+            ( model
             , (Random.generate
                 AddShape
-                (case model.sphereCycle of
-                    0 ->
-                        randomlyRotatedShape box
-
-                    _ ->
-                        randomlyRotatedShape sphere
-                )
+                    randomlyRotatedShape
               )
             )
 
         AddShape generatedShape ->
             ( let
-                world =
-                    Physics.addBody generatedShape model.world
+                ( world, shapes ) =
+                    addBody generatedShape ( model.world, model.shapes )
               in
-                { model | world = world }
+                { model | world = world, shapes = shapes }
             , Cmd.none
             )
 
@@ -166,7 +244,7 @@ subscriptions model =
 
 
 view : Model -> Html Msg
-view { screenWidth, screenHeight, world } =
+view { screenWidth, screenHeight, world, shapes } =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
@@ -192,7 +270,7 @@ view { screenWidth, screenHeight, world } =
             perspective =
                 Mat4.makePerspective 24 aspectRatio 5 2000
          in
-            Physics.foldl (addShape camera perspective) [] world
+            Physics.foldl (addShape shapes camera perspective) [] world
                 |> (if debugContacts then
                         addContacts camera perspective world
                     else
@@ -208,35 +286,12 @@ debugContacts =
     False
 
 
-addShape : Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape camera perspective { transform, bodyId } tail =
+addShape : ShapeDict -> Mat4 -> Mat4 -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape shapes camera perspective { transform, bodyId, shapeId } tail =
     WebGL.entity
         vertex
         fragment
-        (-- This is hardcoded for now, because the plane body is the first added,
-         -- and shape choices beyond that have a predictable pattern.
-         -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
-         if bodyId == 0 then
-            planeMesh
-         else if bodyId > 4 then
-            (case bodyId % 4 of
-                0 ->
-                    cubeMesh
-
-                -- alternate experimental mesh patterns/colors
-                -- for visualizing spheres
-                1 ->
-                    sphereMesh
-
-                2 ->
-                    extendedTruncatedOctohedronMesh
-
-                _ ->
-                    altSphereMesh
-            )
-         else
-            cubeMesh
-        )
+        (getShape bodyId shapeId shapes)
         { camera = camera
         , perspective = perspective
         , transform = transform

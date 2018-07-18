@@ -4,6 +4,7 @@ module Physics.World
         , world
         , setGravity
         , addBody
+        , getNextBodyId
         , tick
         , getPairs
         , addGravityForces
@@ -55,6 +56,12 @@ tick dt world =
         , time = world.time + dt
     }
 
+
+{-| Predict the body id of the next body to be added
+-}
+getNextBodyId : World -> BodyId
+getNextBodyId world =
+    world.nextBodyId
 
 addBody : Body -> World -> World
 addBody body world =

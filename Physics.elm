@@ -9,11 +9,13 @@ module Physics
         , addBody
         , Body
         , body
+        , BodyId
         , setMass
         , addShape
         , rotateBy
         , offsetBy
         , Shape
+        , ShapeId
         , box
         , plane
         , sphere
@@ -26,12 +28,12 @@ The API is currently shaping up and will be most likely changed.
 
 ## World
 
-@docs World, world, setGravity, addBody
+@docs World, world, setGravity, addBody, BodyId
 
 
 ## Body
 
-@docs Body, body, setMass, addShape, rotateBy, offsetBy
+@docs Body, body, setMass, addShape, rotateBy, offsetBy, ShapeId
 
 
 ## Shape
@@ -84,9 +86,23 @@ setGravity gravity (World world) =
 
 {-| You can also add bodies to the world
 -}
-addBody : Body -> World -> World
+addBody : Body -> World -> ( World, BodyId )
 addBody (Body body) (World world) =
-    World (World.addBody body world)
+    ( World (World.addBody body world)
+    , World.getNextBodyId world
+    )
+
+
+{-| Pass-through definition for convenience of importers
+-}
+type alias BodyId =
+    Body.BodyId
+
+
+{-| Pass-through definition for convenience of importers
+-}
+type alias ShapeId =
+    Shape.ShapeId
 
 
 {-| Body is a solid matter without any moving parts
@@ -115,9 +131,11 @@ setMass mass (Body body) =
         |> addShape (box (vec3 1 1 1))
 
 -}
-addShape : Shape -> Body -> Body
+addShape : Shape -> Body -> ( Body, ShapeId )
 addShape (Shape shape) (Body body) =
-    Body (Body.addShape shape body)
+    ( Body (Body.addShape shape body)
+    , Body.getNextShapeId body
+    )
 
 
 {-| Rotate the body around the axis by a specific angle from its current orientation

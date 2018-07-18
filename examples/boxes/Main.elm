@@ -1,4 +1,4 @@
-module Boxes exposing (main)
+module Main exposing (main)
 
 import AnimationFrame
 import Html exposing (Html)
@@ -44,8 +44,7 @@ box : Physics.Body
 box =
     Physics.body
         |> Physics.setMass 5
-        |> Physics.addShape (Physics.box (vec3 1 1 1))
-        |> Tuple.first
+        |> addPhysicsShape (Physics.box (vec3 1 1 1))
 
 
 {-| A box raised above the plane and rotated to a random 3d angle
@@ -69,8 +68,7 @@ init =
     let
         initialBodies =
             [ Physics.body
-                |> Physics.addShape Physics.plane
-                |> Tuple.first
+                |> addPhysicsShape Physics.plane
                 |> Physics.offsetBy (vec3 0 0 -1)
             , box
                 |> Physics.offsetBy (vec3 0 0 2)
@@ -92,14 +90,7 @@ init =
           , screenHeight = 1
 
           -- continuously updated by ticks and clicks
-          , world =
-            List.foldl 
-                (\body world1 ->
-                    Physics.addBody body world1
-                        |> Tuple.first
-                )
-                initialWorld
-                initialBodies
+          , world = List.foldl addPhysicsBody initialWorld initialBodies
           }
         , Task.perform Resize Window.size
         )
@@ -120,11 +111,7 @@ update msg model =
             ( model, Random.generate AddBox randomlyRotatedBox )
 
         AddBox generatedBox ->
-            ( { model 
-                  | world =
-                      Physics.addBody generatedBox model.world
-                          |> Tuple.first
-              }
+            ( { model | world = addPhysicsBody generatedBox model.world }
             , Cmd.none
             )
 
@@ -132,6 +119,18 @@ update msg model =
             ( { model | world = Physics.step (1 / 60) model.world }
             , Cmd.none
             )
+
+
+addPhysicsBody : Physics.Body -> Physics.World -> Physics.World
+addPhysicsBody body world =
+    -- Strip off unused BodyId for ease of chaining
+    Physics.addBody body world |> Tuple.first
+
+
+addPhysicsShape : Physics.Shape -> Physics.Body -> Physics.Body
+addPhysicsShape shape body =
+    -- Strip off unused ShapeId for ease of chaining
+    Physics.addShape shape body |> Tuple.first
 
 
 subscriptions : Model -> Sub Msg
