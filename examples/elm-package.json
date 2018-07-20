@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
-  "summary": "Physically simulated dice roller",
+  "summary": "",
   "repository": "https://github.com/w0rm/elm-physics.git",
   "license": "BSD3",
   "source-directories": [
       ".",
-      "../.."
+      ".."
   ],
   "exposed-modules": [],
   "dependencies": {

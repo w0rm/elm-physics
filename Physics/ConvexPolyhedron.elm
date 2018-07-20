@@ -13,6 +13,8 @@ module Physics.ConvexPolyhedron
         , project
         , clipFaceAgainstHull
         , clipFaceAgainstPlane
+        , foldFaceNormals
+        , foldUniqueEdges
         )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -596,3 +598,57 @@ project transform { vertices } axis =
                     , minVal - add
                     )
                )
+
+
+foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
+foldFaceNormals fn acc { vertices, faces, normals } =
+    faces
+        |> Array.foldl
+            (\face ( acc1, fcount ) ->
+                let
+                    emptyResult =
+                        Array.get fcount normals
+                            |> Maybe.map
+                                (\normal -> ( normal, Const.zero3, 0 ))
+
+                    maybeResult =
+                        face
+                            |> List.foldl
+                                (\index acc2 ->
+                                    Array.get index vertices
+                                        |> Maybe.map2
+                                            (\( normal2, vsum2, vcount2 ) vertex ->
+                                                ( normal2
+                                                , (Vec3.add vsum2 vertex)
+                                                , vcount2 + 1
+                                                )
+                                            )
+                                            acc2
+                                )
+                                emptyResult
+                in
+                    ( case maybeResult of
+                        Just ( normal, vsum, vcount ) ->
+                            fn normal (Vec3.scale (1.0 / (toFloat vcount)) vsum) acc1
+
+                        -- ignore ill-formed normal or vertex arrays
+                        Nothing ->
+                            acc1
+                    , fcount + 1
+                    )
+            )
+            ( acc, 0 )
+        |> Tuple.first
+
+
+foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
+foldUniqueEdges fn acc { vertices, edges } =
+    case Array.get 0 vertices of
+        Nothing ->
+            acc
+
+        Just vertex0 ->
+            edges
+                |> List.foldl
+                    (\edge -> fn edge vertex0)
+                    acc
