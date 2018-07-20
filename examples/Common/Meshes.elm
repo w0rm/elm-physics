@@ -115,10 +115,9 @@ divideSphere step radius triangles =
     if step == 0 then
         triangles
     else
-        divideSphere
-            (step - 1)
-            radius
-            (List.concatMap (divide radius) triangles)
+        triangles
+            |> List.foldl (divide radius) []
+            |> divideSphere (step - 1) radius
 
 
 {-|
@@ -130,8 +129,8 @@ divideSphere step radius triangles =
     /__\ /__\
     0   a    2
 -}
-divide : Float -> ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 )
-divide radius ( v0, v1, v2 ) =
+divide : Float -> ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 )
+divide radius ( v0, v1, v2 ) result =
     let
         a =
             Vec3.add v0 v2 |> Vec3.normalize |> Vec3.scale radius
@@ -142,7 +141,7 @@ divide radius ( v0, v1, v2 ) =
         c =
             Vec3.add v1 v2 |> Vec3.normalize |> Vec3.scale radius
     in
-        [ ( v0, b, a ), ( b, v1, c ), ( a, b, c ), ( a, c, v2 ) ]
+        ( v0, b, a ) :: ( b, v1, c ) :: ( a, b, c ) :: ( a, c, v2 ) :: result
 
 
 {-| Octahedron
