@@ -1,4 +1,4 @@
-module Common.Meshes exposing (Attributes, makeBox, makePyramid, makeSphere)
+module Common.Meshes exposing (Attributes, makeBox, makeBoxWireframe, makePyramid, makeSphere)
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL exposing (Mesh)
@@ -12,6 +12,24 @@ type alias Attributes =
 
 makeBox : Vec3 -> Mesh Attributes
 makeBox halfExtends =
+    WebGL.triangles (makeBoxTriangles halfExtends)
+
+
+makeBoxWireframe : Vec3 -> Mesh Attributes
+makeBoxWireframe halfExtends =
+    WebGL.lines (trianglesToLines (makeBoxTriangles halfExtends))
+
+
+trianglesToLines : List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes )
+trianglesToLines triangles =
+    List.foldl
+        (\( p1, p2, p3 ) result -> ( p1, p2 ) :: ( p2, p3 ) :: ( p3, p1 ) :: result)
+        []
+        triangles
+
+
+makeBoxTriangles : Vec3 -> List ( Attributes, Attributes, Attributes )
+makeBoxTriangles halfExtends =
     let
         { x, y, z } =
             Vec3.toRecord halfExtends
@@ -53,7 +71,6 @@ makeBox halfExtends =
         , facet v1 v2 v6
         , facet v6 v5 v1
         ]
-            |> WebGL.triangles
 
 
 makePyramid : Float -> Float -> Mesh Attributes
