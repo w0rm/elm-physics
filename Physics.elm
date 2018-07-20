@@ -200,50 +200,20 @@ step dt (World world) =
 Use `bodyId` and `shapeId` to link additional information from the outside of the engine, e.g. which mesh to render
 or what color should this shape be.
 
-TODO: swap in this foldl definition refactored to leverage foldOverShapes:
-
-foldl fn acc world =
-foldOverShapes
-(\transform bodyId _ shapeId _ tail ->
-fn
-{ transform = transform
-, bodyId = bodyId
-, shapeId = shapeId
-}
-tail
-)
-acc
-world}
-
 -}
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
-foldl fn acc (World { bodies }) =
-    Dict.foldl
-        (\bodyId { position, quaternion, shapes, shapeTransforms } acc1 ->
-            Dict.foldl
-                (\shapeId shape ->
-                    fn
-                        { transform =
-                            case Dict.get shapeId shapeTransforms of
-                                Just transform ->
-                                    (Quaternion.toMat4 transform.quaternion)
-                                        |> Mat4.mul (Mat4.makeTranslate transform.position)
-                                        |> Mat4.mul (Quaternion.toMat4 quaternion)
-                                        |> Mat4.mul (Mat4.makeTranslate position)
-
-                                Nothing ->
-                                    Mat4.mul
-                                        (Mat4.makeTranslate position)
-                                        (Quaternion.toMat4 quaternion)
-                        , shapeId = shapeId
-                        , bodyId = bodyId
-                        }
-                )
-                acc1
-                shapes
+foldl fn acc world =
+    foldOverShapes
+        (\transform bodyId _ shapeId _ tail ->
+            fn
+                { transform = transform
+                , bodyId = bodyId
+                , shapeId = shapeId
+                }
+                tail
         )
         acc
-        bodies
+        world
 
 
 {-| Fold over the contact points in the world for visual debugging
