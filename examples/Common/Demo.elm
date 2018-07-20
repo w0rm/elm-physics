@@ -33,6 +33,7 @@ type alias Model =
     , debugNormals : Bool -- Set to True to see normal spikes
     , debugEdges : Bool -- Set to True to see edge markers
     , debugWireframes : Bool -- Set to True to see wireframes
+    , showSettings : Bool
     , screenWidth : Int
     , screenHeight : Int
     , initialWorld : World
@@ -50,6 +51,7 @@ type Msg
     | ToggleNormals Bool
     | ToggleEdges Bool
     | ToggleWireframes Bool
+    | ToggleSettings
     | Resize Window.Size
     | ResetClick
     | SceneClick
@@ -140,6 +142,7 @@ init demo =
       , debugNormals = False
       , debugEdges = False
       , debugWireframes = False
+      , showSettings = False
 
       -- replaced by resize, including the initial resize
       , screenWidth = 1
@@ -154,6 +157,9 @@ init demo =
 update : Maybe (Random.Generator Physics.Body) -> Msg -> Model -> ( Model, Cmd Msg )
 update randomBody msg model =
     case msg of
+        ToggleSettings ->
+            ( { model | showSettings = not model.showSettings }, Cmd.none )
+
         ToggleContacts debugContacts ->
             ( { model | debugContacts = debugContacts }, Cmd.none )
 
@@ -222,7 +228,7 @@ view model =
 
 
 settings : Model -> Html Msg
-settings { debugContacts, debugEdges, debugNormals, debugWireframes } =
+settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframes } =
     Html.div
         [ style
             [ ( "position", "fixed" )
@@ -232,30 +238,46 @@ settings { debugContacts, debugEdges, debugNormals, debugWireframes } =
             , ( "color", "white" )
             ]
         ]
-        [ Html.div
-            [ style
-                [ ( "padding", "6px" )
-                , ( "min-width", "24ch" )
-                , ( "text-align", "center" )
-                , ( "background", "rgb(61, 61, 61)" )
+        (if showSettings then
+            [ button ToggleSettings "Hide Settings"
+            , Html.div
+                [ style
+                    [ ( "padding", "6px" )
+                    , ( "min-width", "24ch" )
+                    , ( "background", "rgb(50, 50, 50)" )
+                    , ( "border-radius", "0 0 4px 4px" )
+                    ]
+                ]
+                [ checkbox ToggleContacts debugContacts "collision points"
+                , checkbox ToggleNormals debugNormals "normals"
+                , checkbox ToggleEdges debugEdges "unique edges"
+                , checkbox ToggleWireframes debugWireframes "wireframes"
+                , Html.button [ onClick ResetClick, style [ ( "margin", "10px 0 5px" ) ] ] [ Html.text "Click to restart the demo" ]
                 ]
             ]
-            [ Html.text "Debug Settings" ]
-        , Html.div
-            [ style
-                [ ( "padding", "6px" )
-                , ( "min-width", "24ch" )
-                , ( "background", "rgb(50, 50, 50)" )
-                , ( "border-radius", "0 0 4px 4px" )
-                ]
+         else
+            [ button ToggleSettings "Show Settings" ]
+        )
+
+
+button : Msg -> String -> Html Msg
+button msg text =
+    Html.button
+        [ style
+            [ ( "padding", "6px" )
+            , ( "box-sizing", "content-box" )
+            , ( "min-width", "24ch" )
+            , ( "color", "inherit" )
+            , ( "border", "none" )
+            , ( "font", "inherit" )
+            , ( "text-align", "center" )
+            , ( "margin", "0" )
+            , ( "display", "block" )
+            , ( "background", "rgb(61, 61, 61)" )
             ]
-            [ checkbox ToggleContacts debugContacts "collision points"
-            , checkbox ToggleNormals debugNormals "normals"
-            , checkbox ToggleEdges debugEdges "unique edges"
-            , checkbox ToggleWireframes debugWireframes "wireframes"
-            , Html.button [ onClick ResetClick, style [ ( "margin", "10px 0 5px" ) ] ] [ Html.text "Click to restart the demo" ]
-            ]
+        , onClick msg
         ]
+        [ Html.text text ]
 
 
 checkbox : (Bool -> Msg) -> Bool -> String -> Html Msg
