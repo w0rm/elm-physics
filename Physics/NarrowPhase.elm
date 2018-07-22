@@ -13,6 +13,7 @@ import Physics.Transform as Transform exposing (Transform)
 import Physics.World as World exposing (World)
 import Set exposing (Set)
 
+
 getContacts : World -> List ContactEquation
 getContacts world =
     Set.foldl
@@ -68,14 +69,14 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 bodyId2
                 body2
 
-        ( Plane, Sphere sphere ) ->
+        ( Plane, Sphere radius ) ->
             foldPlaneSphereContacts
                 addContact
                 shapeTransform1
                 bodyId1
                 body1
                 shapeTransform2
-                sphere.radius
+                radius
                 bodyId2
                 body2
 
@@ -100,11 +101,11 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 bodyId2
                 body2
 
-        ( Convex convexPolyhedron, Sphere sphere ) ->
+        ( Convex convexPolyhedron, Sphere radius ) ->
             foldSphereConvexContacts
                 addContact
                 shapeTransform2
-                sphere.radius
+                radius
                 bodyId2
                 body2
                 shapeTransform1
@@ -112,22 +113,22 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 bodyId1
                 body1
 
-        ( Sphere sphere, Plane ) ->
+        ( Sphere radius, Plane ) ->
             foldPlaneSphereContacts
                 addContact
                 shapeTransform1
                 bodyId1
                 body1
                 shapeTransform2
-                sphere.radius
+                radius
                 bodyId2
                 body2
 
-        ( Sphere sphere, Convex convexPolyhedron ) ->
+        ( Sphere radius, Convex convexPolyhedron ) ->
             foldSphereConvexContacts
                 addContact
                 shapeTransform2
-                sphere.radius
+                radius
                 bodyId2
                 body2
                 shapeTransform1
@@ -135,15 +136,15 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
                 bodyId1
                 body1
 
-        ( Sphere sphere1, Sphere sphere2 ) ->
+        ( Sphere radius1, Sphere radius2 ) ->
             foldSphereSphereContacts
                 addContact
                 shapeTransform1
-                sphere1.radius
+                radius1
                 bodyId1
                 body1
                 shapeTransform2
-                sphere2.radius
+                radius2
                 bodyId2
                 body2
 
@@ -227,7 +228,7 @@ getConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTra
 
 foldPlaneSphereContacts : (ContactEquation -> Body -> Body -> a -> a) -> Transform -> BodyId -> Body -> Transform -> Float -> BodyId -> Body -> a -> a
 foldPlaneSphereContacts fn planeTransform bodyId1 body1 t2 radius bodyId2 body2 seed =
-    let 
+    let
         worldPlaneNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
 
@@ -242,19 +243,19 @@ foldPlaneSphereContacts fn planeTransform bodyId1 body1 t2 radius bodyId2 body2 
                 |> Vec3.dot worldPlaneNormal
     in
         if dot <= 0 then
-            fn 
+            fn
                 { bodyId1 = bodyId1
                 , bodyId2 = bodyId2
                 , ni = worldPlaneNormal
-                , ri = 
+                , ri =
                     Vec3.sub
                         (worldPlaneNormal
-                            |> Vec3.scale dot 
+                            |> Vec3.scale dot
                             |> Vec3.sub worldVertex
                         )
-                        body1.position 
+                        body1.position
                 , rj = Vec3.sub worldVertex body2.position
-                , restitution = 0 
+                , restitution = 0
                 }
                 body1
                 body2
@@ -271,7 +272,6 @@ foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces, normal
             let
                 sphereNormal =
                     Vec3.normalize vectorToContact
-
             in
                 { bodyId1 = bodyId1
                 , bodyId2 = bodyId2
@@ -283,8 +283,7 @@ foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces, normal
 
         center =
             t1.position
-
-    in 
+    in
         -- Check corners
         vertices
             |> arrayFoldWhileNothing
@@ -431,7 +430,6 @@ foldSphereFaceContact contactEqFn center radius t2 face vertices normal =
                 )
 
 
-
 foldSphereEdgeContact : (Vec3 -> Float -> Vec3 -> ContactEquation) -> Vec3 -> Float -> List (Maybe Vec3) -> Maybe ContactEquation
 foldSphereEdgeContact contactEqFn center radius worldVertices =
     worldVertices
@@ -442,14 +440,14 @@ foldSphereEdgeContact contactEqFn center radius worldVertices =
                         oneFound
 
                     ( Just vertex, Just prevVertex, Nothing ) ->
-                        let 
+                        let
                             edge =
                                 Vec3.sub vertex prevVertex
- 
+
                             -- The normalized edge vector
                             edgeUnit =
                                 Vec3.normalize edge
- 
+
                             -- The potential contact is where the sphere center
                             -- projects onto the edge.
                             -- dot is the directed distance between the edge's
@@ -458,7 +456,7 @@ foldSphereEdgeContact contactEqFn center radius worldVertices =
                             -- is invalid.
                             dot =
                                 Vec3.dot (Vec3.sub center prevVertex) edgeUnit
-                        in 
+                        in
                             if
                                 (dot > 0)
                                     && (dot * dot < Vec3.lengthSquared edge)
@@ -467,7 +465,7 @@ foldSphereEdgeContact contactEqFn center radius worldVertices =
                                     worldContact =
                                         Vec3.scale dot edgeUnit
                                             |> Vec3.add prevVertex
- 
+
                                     -- The vector from the center to its
                                     -- projection.
                                     centerToContact =
@@ -501,7 +499,7 @@ listRingFoldStaggeredPairs fn acc list =
         List.drop (List.length list - 1) list
             |> List.head
     of
-        Nothing -> 
+        Nothing ->
             acc
 
         Just last ->

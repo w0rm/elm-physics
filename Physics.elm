@@ -2,7 +2,9 @@ module Physics
     exposing
         ( step
         , foldl
-        , contacts
+        , foldContacts
+        , foldFaceNormals
+        , foldUniqueEdges
         , World
         , world
         , setGravity
@@ -43,7 +45,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Physics
 
-@docs step, foldl, contacts
+@docs step, foldl, foldContacts, foldFaceNormals, foldUniqueEdges
 
 -}
 
@@ -181,9 +183,7 @@ box halfExtends =
 -}
 sphere : Float -> Shape
 sphere radius =
-    { radius = radius }
-        |> Shape.Sphere
-        |> Shape
+    Shape (Shape.Sphere radius)
 
 
 {-| A plane shape, with a normal pointing in the direction of the z axis
@@ -228,27 +228,64 @@ or what color should this shape be.
 
 -}
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
-foldl fn acc (World { bodies }) =
-    Dict.foldl
-        (\bodyId { position, quaternion, shapes, shapeTransforms } acc1 ->
-            Dict.foldl
-                (\shapeId shape ->
-                    fn
-                        { transform =
-                            case Dict.get shapeId shapeTransforms of
-                                Just transform ->
-                                    (Quaternion.toMat4 transform.quaternion)
-                                        |> Mat4.mul (Mat4.makeTranslate transform.position)
-                                        |> Mat4.mul (Quaternion.toMat4 quaternion)
-                                        |> Mat4.mul (Mat4.makeTranslate position)
+foldl fn acc world =
+    foldOverShapes
+        (\transform bodyId _ shapeId _ tail ->
+            fn
+                { transform = transform
+                , bodyId = bodyId
+                , shapeId = shapeId
+                }
+                tail
+        )
+        acc
+        world
 
-                                Nothing ->
-                                    Mat4.mul
-                                        (Mat4.makeTranslate position)
-                                        (Quaternion.toMat4 quaternion)
-                        , shapeId = shapeId
-                        , bodyId = bodyId
-                        }
+
+{-| Fold over the contact points in the world for visual debugging
+-}
+foldContacts : (Vec3 -> a -> a) -> a -> World -> a
+foldContacts fn acc (World ({ bodies } as world)) =
+    List.foldl
+        (\{ bodyId1, bodyId2, ri, rj } acc1 ->
+            [ ( bodyId1, ri )
+            , ( bodyId2, rj )
+            ]
+                |> List.filterMap
+                    (\( bodyId, r ) ->
+                        Maybe.map (.position >> Vec3.add r) (Dict.get bodyId bodies)
+                    )
+                |> List.foldl fn acc1
+        )
+        acc
+        -- TODO: maybe cache the previous contacts in the world
+        (NarrowPhase.getContacts world)
+
+
+foldOverShapes : (Mat4 -> BodyId -> Body.Body -> ShapeId -> Shape.Shape -> a -> a) -> a -> World -> a
+foldOverShapes fn acc (World { bodies }) =
+    Dict.foldl
+        (\bodyId ({ position, quaternion, shapes, shapeTransforms } as body) acc1 ->
+            Dict.foldl
+                (\shapeId shape acc2 ->
+                    fn
+                        (case Dict.get shapeId shapeTransforms of
+                            Just transform ->
+                                (Quaternion.toMat4 transform.quaternion)
+                                    |> Mat4.mul (Mat4.makeTranslate transform.position)
+                                    |> Mat4.mul (Quaternion.toMat4 quaternion)
+                                    |> Mat4.mul (Mat4.makeTranslate position)
+
+                            Nothing ->
+                                Mat4.mul
+                                    (Mat4.makeTranslate position)
+                                    (Quaternion.toMat4 quaternion)
+                        )
+                        bodyId
+                        body
+                        shapeId
+                        shape
+                        acc2
                 )
                 acc1
                 shapes
@@ -257,21 +294,56 @@ foldl fn acc (World { bodies }) =
         bodies
 
 
-{-| Get the contact points in the world for visual debugging
+{-| Fold over all the face normals in the world,
+where each face normal consists of a normal vector for a face
+and a reference point within the face.
+These are both expressed within the local shape coordinate system.
+The transform to the current world coordinates from the shape coordinates is also provided.
 -}
-contacts : World -> List Vec3
-contacts (World ({ bodies } as world)) =
-    List.foldl
-        (\{ bodyId1, bodyId2, ri, rj } ->
-            [ ( bodyId1, ri )
-            , ( bodyId2, rj )
-            ]
-                |> List.filterMap
-                    (\( bodyId, r ) ->
-                        Maybe.map (.position >> Vec3.add r) (Dict.get bodyId bodies)
-                    )
-                |> (++)
+foldFaceNormals : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
+foldFaceNormals fn acc world =
+    foldOverShapes
+        (\transform _ _ _ shape acc1 ->
+            case shape of
+                Shape.Plane ->
+                    acc1
+
+                Shape.Sphere _ ->
+                    acc1
+
+                Shape.Convex convex ->
+                    ConvexPolyhedron.foldFaceNormals
+                        (fn transform)
+                        acc1
+                        convex
         )
-        []
-        -- TODO: maybe cache the previous contacts in the world
-        (NarrowPhase.getContacts world)
+        acc
+        world
+
+
+{-| Fold over all the unique edges in the world, where each unique edge
+consists of a unit direction vector that runs parallel to an edge of a
+face in the shape.
+A vertex point of the shape and a transform to the current world coordinates
+from the shape coordinates is also provided for context. Both the vector and
+the point are expressed within the local shape coordinate system.
+-}
+foldUniqueEdges : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
+foldUniqueEdges fn acc world =
+    foldOverShapes
+        (\transform _ _ _ shape acc1 ->
+            case shape of
+                Shape.Plane ->
+                    acc1
+
+                Shape.Sphere _ ->
+                    acc1
+
+                Shape.Convex convex ->
+                    ConvexPolyhedron.foldUniqueEdges
+                        (fn transform)
+                        acc1
+                        convex
+        )
+        acc
+        world

@@ -12,6 +12,7 @@ module Physics.Body
         , addShape
         )
 
+import Array.Hamt as Array exposing (Array)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -20,7 +21,7 @@ import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
 import Physics.Const as Const
 import Dict exposing (Dict)
-import Physics.Shape as Shape exposing (Shape, ShapeId)
+import Physics.Shape as Shape exposing (Shape(..), ShapeId)
 import Time exposing (Time)
 import Physics.Const as Const
 
@@ -114,14 +115,16 @@ getNextShapeId : Body -> ShapeId
 getNextShapeId body =
     body.nextShapeId
 
+
 addShape : Shape -> Body -> Body
 addShape shape body =
+    -- TODO: support shape's position and rotation:
     { body
         | shapes = Dict.insert body.nextShapeId shape body.shapes
         , nextShapeId = body.nextShapeId + 1
+        , boundingSphereRadius = expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
     }
         |> updateMassProperties
-        |> updateBoundingSphereRadius
 
 
 shapeWorldTransform : ShapeId -> Body -> Transform
@@ -176,15 +179,6 @@ tick dt body =
                         |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                         |> Vec4.normalize
             }
-
-
-{-| Should be called whenever you add or remove shapes.
--}
-updateBoundingSphereRadius : Body -> Body
-updateBoundingSphereRadius body =
-    { body
-        | boundingSphereRadius = computeBoundingSphereRadius body
-    }
 
 
 {-| Should be called whenever you change the body shape or mass.
@@ -263,21 +257,35 @@ computeAABB : Body -> AABB
 computeAABB body =
     Dict.foldl
         (\shapeId shape ->
-                shapeWorldTransform shapeId body
-                    |> Shape.aabbClosure shape
-                    |> AABB.extend
+            shapeWorldTransform shapeId body
+                |> Shape.aabbClosure shape
+                |> AABB.extend
         )
         AABB.impossible
         body.shapes
 
 
-computeBoundingSphereRadius : Body -> Float
-computeBoundingSphereRadius body =
-    Dict.foldl
-        (\shapeId shape radius ->
-            shapeWorldTransform shapeId body
-                |> Shape.boundingSphereRadiusClosure shape 
-                |> max radius
-        )
-        0
-        body.shapes
+expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
+expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
+    case shape of
+        Convex { vertices } ->
+            vertices
+                |> Array.foldl
+                    (\vertex ->
+                        vertex
+                            |> Transform.pointToWorldFrame shapeTransform
+                            |> Vec3.lengthSquared
+                            |> max
+                    )
+                    (boundingSphereRadius * boundingSphereRadius)
+                |> sqrt
+
+        Sphere radius ->
+            Const.zero3
+                |> Transform.pointToWorldFrame shapeTransform
+                |> Vec3.length
+                |> (+) radius
+                |> max boundingSphereRadius
+
+        Plane ->
+            Const.maxNumber
