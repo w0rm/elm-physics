@@ -127,14 +127,14 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
         ( Sphere radius, Convex convexPolyhedron ) ->
             foldSphereConvexContacts
                 addContact
-                shapeTransform2
-                radius
-                bodyId2
-                body2
                 shapeTransform1
-                convexPolyhedron
+                radius
                 bodyId1
                 body1
+                shapeTransform2
+                convexPolyhedron
+                bodyId2
+                body2
 
         ( Sphere radius1, Sphere radius2 ) ->
             foldSphereSphereContacts
