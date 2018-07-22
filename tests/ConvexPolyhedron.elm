@@ -382,23 +382,230 @@ project =
         ]
 
 
-faceNormals : Test
-faceNormals =
-    describe "ConvexPolyhedron.faceNormals"
-        [ test "works for the box" <|
-            \_ ->
-                boxHull 1
-                    |> .normals
-                    |> Array.toList
-                    |> Expect.equal
-                        [ vec3 0 0 -1
-                        , vec3 0 0 1
-                        , vec3 0 -1 0
-                        , vec3 0 1 0
-                        , vec3 -1 0 0
-                        , vec3 1 0 0
-                        ]
-        ]
+faceNormal : Test
+faceNormal =
+    let
+        boxNormals =
+            [ vec3 0 0 -1
+            , vec3 0 0 1
+            , vec3 0 -1 0
+            , vec3 0 1 0
+            , vec3 -1 0 0
+            , vec3 1 0 0
+            ]
+
+        -- The direction of each triangle's first angle.
+        -- These differ by a 45 degree angle, so that
+        -- each entry's normal can be found two entries
+        -- down the list and each entry's complement
+        -- can be found four entries down --
+        -- looping back around as needed.
+        xRotationRingSequence =
+            [ vec3 0 1 0
+            , vec3 0 1 1 |> Vec3.normalize
+            , vec3 0 0 1
+            , vec3 0 -1 1 |> Vec3.normalize
+            , vec3 0 -1 0
+            , vec3 0 -1 -1 |> Vec3.normalize
+            , vec3 0 0 -1
+            , vec3 0 1 -1 |> Vec3.normalize
+            ]
+
+        xNormalRingSequence =
+            listRingRotate 2 xRotationRingSequence
+
+        xAntiNormalRingSequence =
+            listRingRotate 4 xNormalRingSequence
+
+        xyRightTriangle rightAngleTurn =
+            [ vec3 0 0 0
+            , vec3 1 0 0
+            , vec3 1 0 0 |> Vec3.add rightAngleTurn
+            ]
+
+        -- Variations around the y axis.
+        --
+        -- TODO: These y and z variants could be calculated here using
+        -- transforms that represent 120 degree rotations around the axis
+        -- (Vec3.normalize (vec3 1 1 1)).
+        -- For now, they are hard-coded.
+        yRotationRingSequence =
+            [ vec3 0 0 1
+            , vec3 1 0 1 |> Vec3.normalize
+            , vec3 1 0 0
+            , vec3 1 0 -1 |> Vec3.normalize
+            , vec3 0 0 -1
+            , vec3 -1 0 -1 |> Vec3.normalize
+            , vec3 -1 0 0
+            , vec3 -1 0 1 |> Vec3.normalize
+            ]
+
+        yNormalRingSequence =
+            listRingRotate 2 yRotationRingSequence
+
+        yAntiNormalRingSequence =
+            listRingRotate 4 yNormalRingSequence
+
+        yzRightTriangle rightAngleTurn =
+            [ vec3 0 0 0
+            , vec3 0 1 0
+            , vec3 0 1 0 |> Vec3.add rightAngleTurn
+            ]
+
+        -- Variations around the z axis.
+        zRotationRingSequence =
+            [ vec3 1 0 0
+            , vec3 1 1 0 |> Vec3.normalize
+            , vec3 0 1 0
+            , vec3 -1 1 0 |> Vec3.normalize
+            , vec3 -1 0 0
+            , vec3 -1 -1 0 |> Vec3.normalize
+            , vec3 0 -1 0
+            , vec3 1 -1 0 |> Vec3.normalize
+            ]
+
+        zNormalRingSequence =
+            listRingRotate 2 zRotationRingSequence
+
+        zAntiNormalRingSequence =
+            listRingRotate 4 zNormalRingSequence
+
+        zxRightTriangle rightAngleTurn =
+            [ vec3 0 0 0
+            , vec3 0 0 1
+            , vec3 0 0 1 |> Vec3.add rightAngleTurn
+            ]
+
+        faceIndices =
+            [ 0, 1, 2 ]
+
+        backFaceIndices =
+            [ 2, 1, 0 ]
+
+        toRightTriangles rightTriangle =
+            List.map
+                (\rightAngleTurn ->
+                    rightAngleTurn
+                        |> rightTriangle
+                        |> Array.fromList
+                )
+    in
+        describe "ConvexPolyhedron.faceNormal"
+            [ test "works for the box" <|
+                \_ ->
+                    boxHull 1
+                        |> (\{ faces, vertices } ->
+                                faces
+                                    |> Array.toList
+                                    |> List.map
+                                        (\{ vertexIndices } ->
+                                            ConvexPolyhedron.faceNormal vertexIndices vertices
+                                        )
+                           )
+                        |> Expect.equal boxNormals
+            , test "box-specific bypass optimization works identically" <|
+                \_ ->
+                    boxHull 1
+                        |> .faces
+                        |> Array.toList
+                        |> List.map .normal
+                        |> Expect.equal boxNormals
+            , test "works for a right-handed triangle flipped around the x axis" <|
+                \_ ->
+                    xRotationRingSequence
+                        |> toRightTriangles xyRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal faceIndices)
+                        |> expectListVec3WithinPrecision
+                            xNormalRingSequence
+            , test "works for a left-handed triangle flipped around the x axis" <|
+                \_ ->
+                    xRotationRingSequence
+                        |> toRightTriangles xyRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                        |> expectListVec3WithinPrecision
+                            xAntiNormalRingSequence
+            , test "works for a right-handed triangle flipped around the y axis" <|
+                \_ ->
+                    yRotationRingSequence
+                        |> toRightTriangles yzRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal faceIndices)
+                        |> expectListVec3WithinPrecision
+                            yNormalRingSequence
+            , test "works for a left-handed triangle flipped around the y axis" <|
+                \_ ->
+                    yRotationRingSequence
+                        |> toRightTriangles yzRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                        |> expectListVec3WithinPrecision
+                            yAntiNormalRingSequence
+            , test "works for a right-handed triangle flipped around the z axis" <|
+                \_ ->
+                    zRotationRingSequence
+                        |> toRightTriangles zxRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal faceIndices)
+                        |> expectListVec3WithinPrecision
+                            zNormalRingSequence
+            , test "works for a left-handed triangle flipped around the z axis" <|
+                \_ ->
+                    zRotationRingSequence
+                        |> toRightTriangles zxRightTriangle
+                        |> List.map
+                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                        |> expectListVec3WithinPrecision
+                            zAntiNormalRingSequence
+            ]
+
+
+{-| Force point equality for a point within a radius epsilon
+== sqrt (Const.precision) of its expected position.
+-}
+normalizeVec3Towards : Vec3 -> Vec3 -> Vec3
+normalizeVec3Towards approximation canonical =
+    if
+        (approximation == canonical)
+            || ((Vec3.sub approximation canonical
+                    |> Vec3.lengthSquared
+                )
+                    < Const.precision
+               )
+    then
+        canonical
+    else
+        approximation
+
+
+{-|
+
+    Substitute a less precise test for Equals without sacrificing
+    the detailed reporting on failure.
+-}
+expectListVec3WithinPrecision : List Vec3 -> List Vec3 -> Expectation
+expectListVec3WithinPrecision actualList expectedList =
+    List.map2
+        normalizeVec3Towards
+        actualList
+        expectedList
+        |> Expect.equal expectedList
+
+
+listRingRotate : Int -> List a -> List a
+listRingRotate offset ring =
+    -- This brute force implementation doubles the list and uses
+    -- modulus indexing to ensure enough elements to carve out the
+    -- desired slice at any non-negative offset.
+    let
+        resultLength =
+            List.length ring
+    in
+        ring
+            ++ ring
+            |> List.drop (offset % resultLength)
+            |> List.take resultLength
 
 
 uniqueEdges : Test
@@ -642,12 +849,17 @@ boxUniqueEdges =
 {-| Provide convenient test access to uniqueEdges based on the faces and
 vertices of an existing ConvexPolyhedron. There is no need for this in
 production, where uniqueEdges is called once at most per ConvexPolyhedron
-and BEFORE that ConvexPolyhedron is fully initialized. Its result gets
+BEFORE that ConvexPolyhedron is fully initialized, because its result gets
 cached in ConvexPolyhedron.edges.
 -}
 uniqueEdgesOfConvexPolyhedron : ConvexPolyhedron -> List Vec3
 uniqueEdgesOfConvexPolyhedron { vertices, faces } =
-    ConvexPolyhedron.uniqueEdges vertices faces
+    faces
+        |> Array.toList
+        |> List.map .vertexIndices
+        |> (\faceVertexIndices ->
+                ConvexPolyhedron.uniqueEdges faceVertexIndices vertices
+           )
 
 
 {-| This test helper function is intended as a more flexible variant of
@@ -661,7 +873,9 @@ Keep this code in sync with any changes to ConvexPolyhedron.uniqueEdges.
 addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
 addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
     faces
-        |> Array.foldl
+        |> Array.toList
+        |> List.map .vertexIndices
+        |> List.foldl
             (ConvexPolyhedron.addFaceEdges vertices)
             seedEdges
 
@@ -680,7 +894,7 @@ boxHull halfExtent =
 
 {-| A replacement for boxhull/ConvexPolyhedron.fromBox that introduces some
 minor imprecision into one of the box vertices and can NOT be constructed
-using optimized box-specific initializers -- except for the trivial boxFaces.
+using optimized box-specific initializers.
 -}
 boxyHull : Float -> ConvexPolyhedron
 boxyHull halfExtent =
@@ -701,20 +915,20 @@ boxyHull halfExtent =
                 , vec3 -halfExtent halfExtent halfExtent
                 ]
 
-        faces =
-            ConvexPolyhedron.boxFaces
+        boxVertexIndices =
+            [ [ 3, 2, 1, 0 ]
+            , [ 4, 5, 6, 7 ]
+            , [ 5, 4, 0, 1 ]
+            , [ 2, 3, 7, 6 ]
+            , [ 0, 4, 7, 3 ]
+            , [ 1, 2, 6, 5 ]
+            ]
     in
-        { faces = faces
-        , facesLength = 6
-        , vertices = vertices
-
         -- To test the handling of minor imprecision in a general
         -- ConvexPolyhedron, purposely bypass the box-specific
         -- optimizations in boxNormals and boxEdges and use instead
         -- the general purpose calculations.
-        , normals = ConvexPolyhedron.faceNormals vertices faces
-        , edges = ConvexPolyhedron.uniqueEdges vertices faces
-        }
+        ConvexPolyhedron.init boxVertexIndices vertices
 
 
 squarePyramid : ConvexPolyhedron
@@ -754,13 +968,12 @@ squareLikePyramid epsilon =
             z * (0.5 ^ (1.0 / 3.0))
 
         faces =
-            Array.fromList
-                [ [ 3, 2, 1, 0 ]
-                , [ 0, 1, 4 ]
-                , [ 1, 2, 4 ]
-                , [ 2, 3, 4 ]
-                , [ 3, 0, 4 ]
-                ]
+            [ [ 3, 2, 1, 0 ]
+            , [ 0, 1, 4 ]
+            , [ 1, 2, 4 ]
+            , [ 2, 3, 4 ]
+            , [ 3, 0, 4 ]
+            ]
 
         vertices =
             Array.fromList
@@ -775,9 +988,4 @@ squareLikePyramid epsilon =
                 , vec3 0 0 (z - zOffset)
                 ]
     in
-        { faces = faces
-        , facesLength = 5
-        , vertices = vertices
-        , normals = ConvexPolyhedron.faceNormals vertices faces
-        , edges = ConvexPolyhedron.uniqueEdges vertices faces
-        }
+        ConvexPolyhedron.init faces vertices
