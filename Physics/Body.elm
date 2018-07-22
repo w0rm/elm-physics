@@ -12,7 +12,6 @@ module Physics.Body
         , addShape
         )
 
-import Array.Hamt as Array exposing (Array)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)

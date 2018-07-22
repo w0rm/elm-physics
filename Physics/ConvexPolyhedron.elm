@@ -6,10 +6,12 @@ module Physics.ConvexPolyhedron
         , clipAgainstHull
         , fromBox
         , expandBoundingSphereRadius
+        , sphereContact
           -- exposed only for tests
         , testSepAxis
         , addFaceEdges
         , init
+        , faceAdjacency
         , faceNormal
         , uniqueEdges
         , project
@@ -26,6 +28,7 @@ import Math.Vector4 as Vec4 exposing (Vec4)
 import Physics.Const as Const
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
+import Set
 
 
 almostZero : Vec3 -> Bool
@@ -82,41 +85,65 @@ initFaces faceVertexLists vertices =
 faceAdjacency : List (List Int) -> List (List Int)
 faceAdjacency faceVertexLists =
     let
-        faceEdgeLists =
+        {- Like faceVertexLists, but with each vertex
+           annotated with the list's face number.
+        -}
+        faceIndexedLists : List (List ( Int, Int ))
+        faceIndexedLists =
             faceVertexLists
                 |> List.indexedMap
-                    (\index vertexList ->
+                    (\face vertexList ->
                         vertexList
-                            |> listRingFoldStaggeredPairs
-                                (\vertex1 vertex2 acc ->
-                                    ( index, ( vertex1, vertex2 ) ) :: acc
-                                )
-                                []
+                            |> List.map ((,) face)
                     )
 
-        edgeToFaceMap =
-            faceEdgeLists
+        {- Invert the collections of vertices listed by face into
+           a collection of faces indexed by vertex
+        -}
+        vertexToFacesMap : Dict.Dict Int (List Int)
+        vertexToFacesMap =
+            faceIndexedLists
                 |> List.foldl
-                    (\edgeList acc ->
-                        edgeList
+                    (\indexedList acc ->
+                        indexedList
                             |> List.foldl
-                                (\( face, edge ) acc1 ->
-                                    Dict.insert edge face acc1
+                                (\( face, vertex ) acc1 ->
+                                    Dict.insert
+                                        vertex
+                                        (face
+                                            :: (case Dict.get vertex acc1 of
+                                                    Nothing ->
+                                                        []
+
+                                                    Just existingList ->
+                                                        existingList
+                                               )
+                                        )
+                                        acc1
                                 )
                                 acc
                     )
                     Dict.empty
+
+        {- Merge each listed vertex's containing faces into a set,
+           excluding the self-references to the current face.
+        -}
+        addUniqueContainingFaces : ( Int, Int ) -> Set.Set Int -> Set.Set Int
+        addUniqueContainingFaces ( face, vertex ) acc =
+            Dict.get vertex vertexToFacesMap
+                |> Maybe.withDefault []
+                |> List.foldl
+                    Set.insert
+                    acc
+                |> Set.remove face
     in
-        faceEdgeLists
-            |> List.map
-                (List.map
-                    (\( _, ( vertex1, vertex2 ) ) ->
-                        -- adjacent faces will list a complementary
-                        -- (reversed) edge
-                        Dict.get ( vertex2, vertex1 ) edgeToFaceMap
-                            |> Maybe.withDefault -1
-                    )
-                )
+        List.map
+            (List.foldl
+                addUniqueContainingFaces
+                Set.empty
+                >> Set.toList
+            )
+            faceIndexedLists
 
 
 fromBox : Vec3 -> ConvexPolyhedron
@@ -165,8 +192,28 @@ type Lazy
     = Now
 
 
-maybeMapOrCrash : (a -> b) -> String -> Maybe a -> b
-maybeMapOrCrash fn message maybe =
+maybeMapOrCrash : String -> (a -> b) -> Maybe a -> Maybe b
+maybeMapOrCrash message fn maybe =
+    case maybe of
+        Just value ->
+            Just <| fn value
+
+        Nothing ->
+            Debug.crash message
+
+
+maybeMapOrLazyCrash : (Lazy -> String) -> (a -> b) -> Maybe a -> Maybe b
+maybeMapOrLazyCrash messageFn fn maybe =
+    case maybe of
+        Just value ->
+            Just <| fn value
+
+        Nothing ->
+            messageFn Now |> Debug.crash
+
+
+maybeAndThenOrCrash : String -> (a -> Maybe b) -> Maybe a -> Maybe b
+maybeAndThenOrCrash message fn maybe =
     case maybe of
         Just value ->
             fn value
@@ -175,8 +222,8 @@ maybeMapOrCrash fn message maybe =
             Debug.crash message
 
 
-maybeMapOrLazyCrash : (a -> b) -> (Lazy -> String) -> Maybe a -> b
-maybeMapOrLazyCrash fn messageFn maybe =
+maybeAndThenOrLazyCrash : (Lazy -> String) -> (a -> Maybe b) -> Maybe a -> Maybe b
+maybeAndThenOrLazyCrash messageFn fn maybe =
     case maybe of
         Just value ->
             fn value
@@ -185,14 +232,44 @@ maybeMapOrLazyCrash fn messageFn maybe =
             messageFn Now |> Debug.crash
 
 
-maybeCrashOnNothing : String -> Maybe a -> a
-maybeCrashOnNothing =
-    maybeMapOrCrash identity
+maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
+maybeWithDefaultOrCrash message default maybe =
+    case maybe of
+        Just value ->
+            value
+
+        Nothing ->
+            Debug.crash message
 
 
-maybeLazyCrashOnNothing : (Lazy -> String) -> Maybe a -> a
-maybeLazyCrashOnNothing =
-    maybeMapOrLazyCrash identity
+maybeWithDefaultOrLazyCrash : (Lazy -> String) -> a -> Maybe a -> a
+maybeWithDefaultOrLazyCrash messageFn default maybe =
+    case maybe of
+        Just value ->
+            value
+
+        Nothing ->
+            messageFn Now |> Debug.crash
+
+
+maybeCrashOnNothing : String -> Maybe a -> Maybe a
+maybeCrashOnNothing message =
+    maybeAndThenOrCrash message Just
+
+
+maybeLazyCrashOnNothing : (Lazy -> String) -> Maybe a -> Maybe a
+maybeLazyCrashOnNothing messageFn =
+    maybeAndThenOrLazyCrash messageFn Just
+
+
+maybeWithLazyDefault : (Lazy -> a) -> Maybe a -> a
+maybeWithLazyDefault defaultFn maybe =
+    Maybe.withDefault (defaultFn Now) maybe
+
+
+defaultOrCrash : String -> a -> a
+defaultOrCrash string default =
+    Debug.crash string
 
 
 faceNormal : List Int -> Array Vec3 -> Vec3
@@ -203,11 +280,14 @@ faceNormal indices vertices =
                 (Array.get i1 vertices)
                 (Array.get i2 vertices)
                 (Array.get i3 vertices)
-                |> maybeCrashOnNothing
+                |> maybeWithDefaultOrCrash
                     "Couldn't compute normal with invalid vertex index"
+                    Const.zero3
 
         _ ->
-            Debug.crash "Couldn't compute normal with < 3 vertices"
+            defaultOrCrash
+                "Couldn't compute normal with < 3 vertices"
+                Const.zero3
 
 
 uniqueEdges : List (List Int) -> Array Vec3 -> List Vec3
@@ -241,12 +321,13 @@ addEdgeIfDistinct currentVertex prevVertex uniques =
                 prevVertex
                 currentVertex
     in
-        List.foldl
-            (\member candidate ->
-                Maybe.andThen (distinctOrNothing member) candidate
-            )
-            candidateEdge
-            uniques
+        uniques
+            |> List.foldl
+                (\member candidate ->
+                    candidate
+                        |> Maybe.andThen (distinctOrNothing member)
+                )
+                candidateEdge
             |> listMaybeAdd uniques
 
 
@@ -285,20 +366,50 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
                 t1
                 hull1
                 separatingNormal
-                (List.map
-                    (\i ->
-                        Array.get i hull2.vertices
-                            |> Maybe.map (Transform.pointToWorldFrame t2)
-                            -- Sorry
-                            |> Maybe.withDefault Const.zero3
-                    )
-                    vertexIndices
+                (vertexIndices
+                    |> List.map
+                        (getIndexedVertex hull2.vertices
+                            >> Transform.pointToWorldFrame t2
+                        )
                 )
                 minDist
                 maxDist
 
         Nothing ->
             []
+
+
+getIndexedVertex : Array Vec3 -> Int -> Vec3
+getIndexedVertex vertices i =
+    Array.get i vertices
+        |> Maybe.withDefault Const.zero3
+
+
+getIndexedFace : Array Face -> Int -> Face
+getIndexedFace faces i =
+    Array.get i faces
+        -- This default should never get triggered in production.
+        -- It is type-correct but intentionally invalid for most purposes
+        -- in the hopes that it is detected and handled ASAP downstream.
+        |> Maybe.withDefault
+            { vertexIndices = []
+            , normal = Const.zero3
+            , adjacentFaces = []
+            }
+
+
+arrayGetOrCrash : String -> Array a -> Int -> Maybe a
+arrayGetOrCrash debugTag array i =
+    Array.get i array
+        |> maybeLazyCrashOnNothing
+            (\lazy ->
+                "invalid index "
+                    ++ (toString i)
+                    ++ " into the "
+                    ++ (toString (Array.length array))
+                    ++ debugTag
+                    ++ " array"
+            )
 
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
@@ -308,9 +419,10 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
             let
                 localPlaneEq =
                     -(List.head vertexIndices
-                        |> Maybe.andThen (\i -> Array.get i hull1.vertices)
-                        -- Sorry:
-                        |> Maybe.withDefault Const.zero3
+                        |> maybeWithDefaultOrCrash
+                            "empty face vertexIndices"
+                            -1
+                        |> getIndexedVertex hull1.vertices
                         |> Vec3.dot normal
                      )
 
@@ -322,39 +434,15 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
 
                 otherFaceDetails : Int -> ( Vec3, Vec3 )
                 otherFaceDetails otherFaceIndex =
-                    Array.get otherFaceIndex hull1.faces
-                        {- Sorry: opting out of early strict check
-                           |> maybeCrashOnNothing
-                               "face index is invalid"
-                        -}
-                        |> Maybe.andThen
-                            (\otherFace ->
-                                otherFace.vertexIndices
-                                    |> List.head
-                                    {- Sorry: opting out of early strict check
-                                       |> maybeMapOrCrash
-                                           (\i -> Array.get i hull1.vertices)
-                                           "vertexIndices is empty for face"
-                                       |>  maybeMapOrLazyCrash
-                                               (\lazy ->
-                                                   " vertexIndices contains an invalid index into the "
-                                                       ++ ( toString (Array.length hull1.vertices))
-                                                       ++ " shape vertices "
-                                               )
-                                               ((,) otherFace.normal)
-                                    -}
-                                    |> Maybe.andThen (\i -> Array.get i hull1.vertices)
-                                    |> Maybe.map ((,) otherFace.normal)
-                             -- ... Sorry.
-                            )
-                        {- Sorry: opting out of early strict check
-                           |> maybeCrashOnNothing
-                               "face index is invalid"
-                        -}
-                        |> Maybe.withDefault
-                            ( Const.zero3, Const.zero3 )
-
-                -- ... Sorry.
+                    getIndexedFace hull1.faces otherFaceIndex
+                        |> (\otherFace ->
+                                List.head otherFace.vertexIndices
+                                    |> maybeWithDefaultOrCrash
+                                        "vertexIndices is empty for face"
+                                        -1
+                                    |> getIndexedVertex hull1.vertices
+                                    |> (,) otherFace.normal
+                           )
             in
                 adjacentFaces
                     |> List.foldl
@@ -666,31 +754,261 @@ project transform { vertices } axis =
                )
 
 
+sphereContact : Vec3 -> Float -> Transform -> ConvexPolyhedron -> ( Maybe Vec3, Float )
+sphereContact center radius t2 { vertices, faces } =
+    -- Check corners
+    -- TODO: This check could be deferred. A vertex contact check might be
+    -- more efficiently applied to specific vertices discovered in the most
+    -- likely faces and edges as discovered in the later pass.
+    sphereVertexContact center radius t2 vertices
+        -- else check faces and face edges
+        |> sphereAllFacesContact center radius t2 vertices faces
+
+
+sphereVertexContact : Vec3 -> Float -> Transform -> Array Vec3 -> ( Maybe Vec3, Float )
+sphereVertexContact center radius t2 vertices =
+    vertices
+        |> Array.foldl
+            (\vertex (( _, maxPenetration ) as statusQuo) ->
+                let
+                    -- World position of corner
+                    worldCorner =
+                        Transform.pointToWorldFrame t2 vertex
+
+                    penetration =
+                        radius - Vec3.distance worldCorner center
+                in
+                    if penetration > maxPenetration then
+                        ( Just worldCorner, penetration )
+                    else
+                        statusQuo
+            )
+            -- Initial state for (maybeContact, maxPenetration)
+            ( Nothing, 0.0 )
+
+
+sphereAllFacesContact : Vec3 -> Float -> Transform -> Array Vec3 -> Array Face -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
+sphereAllFacesContact center radius t2 vertices faces result =
+    faces
+        |> Array.foldl
+            (sphereFaceContact
+                center
+                radius
+                t2
+                vertices
+            )
+            result
+
+
+sphereFaceContact : Vec3 -> Float -> Transform -> Array Vec3 -> Face -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
+sphereFaceContact center radius t2 vertices { vertexIndices, normal } (( _, maxPenetration ) as statusQuo) =
+    let
+        -- Get world-transformed normal of the face
+        worldFacePlaneNormal =
+            Quaternion.rotate t2.quaternion normal
+
+        -- Get an arbitrary world vertex from the face
+        worldPoint =
+            List.head vertexIndices
+                |> Maybe.andThen (\i -> Array.get i vertices)
+                |> Maybe.map
+                    (Transform.pointToWorldFrame t2)
+
+        penetration =
+            worldPoint
+                |> Maybe.map
+                    (\point ->
+                        worldFacePlaneNormal
+                            |> Vec3.scale radius
+                            |> Vec3.sub center
+                            |> Vec3.sub point
+                            |> Vec3.dot worldFacePlaneNormal
+                    )
+                |> Maybe.withDefault -1
+
+        dot =
+            worldPoint
+                |> Maybe.map
+                    (\point ->
+                        Vec3.dot
+                            (Vec3.sub center point)
+                            worldFacePlaneNormal
+                    )
+                |> Maybe.withDefault -1
+
+        worldVertices =
+            if penetration >= maxPenetration && dot > 0 then
+                -- Sphere intersects the face plane.
+                vertexIndices
+                    |> List.map
+                        (\index ->
+                            Array.get index vertices
+                                |> Maybe.map
+                                    (\vertex ->
+                                        ( (Transform.pointToWorldFrame t2 vertex)
+                                        , True
+                                        )
+                                    )
+                                |> Maybe.withDefault ( Const.zero3, False )
+                        )
+                    |> (\tuples ->
+                            -- Check that all the world vertices are valid.
+                            if
+                                tuples
+                                    |> List.foldl
+                                        (\tuple valid ->
+                                            if valid then
+                                                (Tuple.second tuple)
+                                            else
+                                                False
+                                        )
+                                        True
+                            then
+                                -- Extract the world vertices
+                                tuples
+                                    |> List.map Tuple.first
+                            else
+                                []
+                       )
+            else
+                []
+    in
+        -- If vertices are valid, Check if the sphere center is inside the
+        -- normal projection of the face polygon.
+        if pointInPolygon worldVertices worldFacePlaneNormal center then
+            let
+                worldContact =
+                    worldFacePlaneNormal
+                        |> Vec3.scale (penetration - radius)
+                        |> Vec3.add center
+            in
+                ( Just worldContact, penetration )
+        else
+            -- Try the face's edges
+            sphereFaceEdgesContact
+                center
+                radius
+                (vertexIndices
+                    |> List.filterMap
+                        (\index ->
+                            Array.get index vertices
+                                |> Maybe.map
+                                    (Transform.pointToWorldFrame t2)
+                        )
+                )
+                statusQuo
+
+
+sphereFaceEdgesContact : Vec3 -> Float -> List Vec3 -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
+sphereFaceEdgesContact center radius worldVertices (( _, maxPenetration ) as statusQuo) =
+    worldVertices
+        |> listRingFoldStaggeredPairs
+            (\vertex prevVertex (( _, maxPenetration1 ) as statusQuo1) ->
+                let
+                    edge =
+                        Vec3.sub vertex prevVertex
+
+                    -- The normalized edge vector
+                    edgeUnit =
+                        Vec3.normalize edge
+
+                    -- The potential contact is where the sphere center
+                    -- projects onto the edge.
+                    -- dot is the directed distance between the edge's
+                    -- starting vertex and that projection. If it is not
+                    -- between 0 and the edge's length, the projection
+                    -- is invalid.
+                    dot =
+                        Vec3.dot (Vec3.sub center prevVertex) edgeUnit
+                in
+                    if
+                        (dot > 0)
+                            && (dot * dot < Vec3.lengthSquared edge)
+                    then
+                        let
+                            worldContact =
+                                Vec3.scale dot edgeUnit
+                                    |> Vec3.add prevVertex
+
+                            penetration =
+                                radius - Vec3.distance worldContact center
+                        in
+                            -- Edge collision only occurs if the
+                            -- projection is within the sphere.
+                            if penetration > maxPenetration1 then
+                                ( Just worldContact, penetration )
+                            else
+                                statusQuo1
+                    else
+                        -- TODO: A vertex contact check might be more efficient
+                        -- here than in a prior pass
+                        statusQuo1
+            )
+            statusQuo
+
+
+pointInPolygon : List Vec3 -> Vec3 -> Vec3 -> Bool
+pointInPolygon vertices normal position =
+    if List.length vertices < 3 then
+        False
+    else
+        vertices
+            |> listRingFoldStaggeredPairs
+                (\vertex prevVertex ( acc, precedent ) ->
+                    if acc then
+                        let
+                            edge =
+                                Vec3.sub vertex prevVertex
+
+                            edge_x_normal =
+                                Vec3.cross edge normal
+
+                            vertex_to_p =
+                                Vec3.sub position prevVertex
+
+                            -- This dot product determines which side
+                            -- of the edge the point is.
+                            -- It must be consistent for all edges for the
+                            -- point to be within the face.
+                            side =
+                                (Vec3.dot edge_x_normal vertex_to_p) > 0
+                        in
+                            case precedent of
+                                Nothing ->
+                                    ( True
+                                    , side |> Just
+                                    )
+
+                                Just determinedPrecedent ->
+                                    ( side == determinedPrecedent
+                                    , precedent
+                                    )
+                    else
+                        ( False, Nothing )
+                )
+                ( True, Nothing )
+            |> Tuple.first
+
+
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
 foldFaceNormals fn acc { vertices, faces } =
     faces
         |> Array.foldl
             (\{ vertexIndices, normal } acc1 ->
                 let
-                    maybeResult =
+                    vsum =
                         vertexIndices
                             |> List.foldl
                                 (\index acc2 ->
-                                    Array.get index vertices
-                                        |> Maybe.map2 Vec3.add acc2
+                                    getIndexedVertex vertices index
+                                        |> Vec3.add acc2
                                 )
-                                (Just Const.zero3)
+                                Const.zero3
 
                     vcount =
                         List.length vertexIndices
                 in
-                    case maybeResult of
-                        Just vsum ->
-                            fn normal (Vec3.scale (1.0 / (toFloat vcount)) vsum) acc1
-
-                        -- ignore ill-formed normal or vertex arrays
-                        Nothing ->
-                            acc1
+                    fn normal (Vec3.scale (1.0 / (toFloat vcount)) vsum) acc1
             )
             acc
 
@@ -779,3 +1097,37 @@ listFoldStaggeredPairs fn resultSeed seed list =
             )
             ( resultSeed, seed :: list )
         |> Tuple.first
+
+
+arrayFoldWhileNothing : (a -> Maybe b) -> Maybe b -> Array a -> Maybe b
+arrayFoldWhileNothing fn seed array =
+    array
+        |> Array.foldl
+            (\element acc ->
+                case acc of
+                    Nothing ->
+                        fn element
+
+                    _ ->
+                        acc
+            )
+            seed
+
+
+arrayRecurseWhileNothing : (a -> Maybe b) -> Maybe b -> Array a -> Maybe b
+arrayRecurseWhileNothing fn seed array =
+    let
+        recurse index =
+            case Array.get index array of
+                Nothing ->
+                    Nothing
+
+                Just element ->
+                    case fn element of
+                        Nothing ->
+                            recurse (index + 1)
+
+                        Just result ->
+                            Just result
+    in
+        recurse 0

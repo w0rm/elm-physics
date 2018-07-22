@@ -842,6 +842,41 @@ boxUniqueEdges =
         ]
 
 
+faceAdjacency : Test
+faceAdjacency =
+    describe "ConvexPolyhedron.faceAdjacency"
+        [ test "works for the box" <|
+            \_ ->
+                boxVertexIndices
+                    |> ConvexPolyhedron.faceAdjacency
+                    |> List.map List.sort
+                    |> Expect.equal
+                        [ [ 2, 3, 4, 5 ]
+                        , [ 2, 3, 4, 5 ]
+                        , [ 0, 1, 4, 5 ]
+                        , [ 0, 1, 4, 5 ]
+                        , [ 0, 1, 2, 3 ]
+                        , [ 0, 1, 2, 3 ]
+                        ]
+        , test "works for the octohedron" <|
+            \_ ->
+                octoVertexIndices
+                    |> ConvexPolyhedron.faceAdjacency
+                    |> List.map List.sort
+                    |> Expect.equal
+                        [ [ 1, 2, 3, 4, 5, 6 ]
+                        , [ 0, 2, 3, 4, 6, 7 ]
+                        , [ 0, 1, 3, 4, 5, 7 ]
+                        , [ 0, 1, 2, 5, 6, 7 ]
+                        , [ 0, 1, 2, 5, 6, 7 ]
+                        , [ 0, 2, 3, 4, 6, 7 ]
+                        , [ 0, 1, 3, 4, 5, 7 ]
+                        , [ 1, 2, 3, 4, 5, 6 ]
+                        ]
+        ]
+
+
+
 
 -- Test helper functions
 
@@ -914,21 +949,37 @@ boxyHull halfExtent =
                 , vec3 halfExtent (halfExtent - Const.precision / 3.0) (halfExtent + Const.precision / 3.0)
                 , vec3 -halfExtent halfExtent halfExtent
                 ]
-
-        boxVertexIndices =
-            [ [ 3, 2, 1, 0 ]
-            , [ 4, 5, 6, 7 ]
-            , [ 5, 4, 0, 1 ]
-            , [ 2, 3, 7, 6 ]
-            , [ 0, 4, 7, 3 ]
-            , [ 1, 2, 6, 5 ]
-            ]
     in
         -- To test the handling of minor imprecision in a general
         -- ConvexPolyhedron, purposely bypass the box-specific
         -- optimizations in boxNormals and boxEdges and use instead
         -- the general purpose calculations.
         ConvexPolyhedron.init boxVertexIndices vertices
+
+
+boxVertexIndices : List (List Int)
+boxVertexIndices =
+    [ [ 3, 2, 1, 0 ]
+    , [ 4, 5, 6, 7 ]
+    , [ 5, 4, 0, 1 ]
+    , [ 2, 3, 7, 6 ]
+    , [ 0, 4, 7, 3 ]
+    , [ 1, 2, 6, 5 ]
+    ]
+
+
+octoVertexIndices : List (List Int)
+octoVertexIndices =
+    [ [ 2, 1, 0 ]
+    , [ 0, 5, 2 ]
+    , [ 1, 2, 4 ]
+    , [ 3, 0, 1 ]
+
+    , [ 2, 5, 4 ]
+    , [ 4, 3, 1 ]
+    , [ 5, 0, 3 ]
+    , [ 3, 4, 5 ]
+    ]
 
 
 squarePyramid : ConvexPolyhedron
