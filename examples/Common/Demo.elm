@@ -24,6 +24,7 @@ import Task
 import Time exposing (Time)
 import WebGL exposing (Entity, Shader, Mesh)
 import Window
+import Common.Bodies as Bodies exposing (DemoBody)
 
 
 -- Model
@@ -33,12 +34,13 @@ type alias Model =
     { debugContacts : Bool -- Set to True to see collision points
     , debugNormals : Bool -- Set to True to see normal spikes
     , debugEdges : Bool -- Set to True to see edge markers
+    , debugWireframes : Bool -- Set to True to see wireframes
     , showSettings : Bool
     , screenWidth : Int
     , screenHeight : Int
     , initialWorld : World
     , world : World
-    , meshes : Dict Int (Mesh Attributes)
+    , bodies : Dict Int DemoBody
     }
 
 
@@ -51,11 +53,12 @@ type Msg
     | ToggleContacts Bool
     | ToggleNormals Bool
     | ToggleEdges Bool
+    | ToggleWireframes Bool
     | ToggleSettings
     | Resize Window.Size
     | ResetClick
     | SceneClick
-    | AddBody ( Mesh Attributes, Physics.Body )
+    | AddBody ( DemoBody, Physics.Body )
 
 
 
@@ -70,8 +73,8 @@ type Demo
 
 type alias DemoConfig =
     { world : World
-    , randomBody : Maybe (Random.Generator ( Mesh Attributes, Physics.Body ))
-    , meshes : Dict Int (Mesh Attributes)
+    , randomBody : Maybe (Random.Generator ( DemoBody, Physics.Body ))
+    , bodies : Dict Int DemoBody
     }
 
 
@@ -85,7 +88,7 @@ demo =
                 |> Physics.setGravity (vec3 0 0 -10)
                 |> Physics.addBody plane
                 |> Tuple.first
-        , meshes = Dict.empty
+        , bodies = Dict.empty
         , randomBody = Nothing
         }
 
@@ -105,20 +108,20 @@ plane =
 
 {-| Allow to drop random bodies on click
 -}
-dropOnClick : Random.Generator ( Mesh Attributes, Physics.Body ) -> Demo -> Demo
+dropOnClick : Random.Generator ( DemoBody, Physics.Body ) -> Demo -> Demo
 dropOnClick randomBody (Demo demo) =
     Demo { demo | randomBody = Just randomBody }
 
 
 {-| Add initial bodies for the scene
 -}
-addBodies : List ( Mesh Attributes, Physics.Body ) -> Demo -> Demo
+addBodies : List ( DemoBody, Physics.Body ) -> Demo -> Demo
 addBodies bodiesWithMeshes (Demo demo) =
     Demo
         (List.foldl addBodyWithMesh demo bodiesWithMeshes)
 
 
-addBodyWithMesh : ( Mesh Attributes, Physics.Body ) -> { a | world : World, meshes : Dict Int (Mesh Attributes) } -> { a | world : World, meshes : Dict Int (Mesh Attributes) }
+addBodyWithMesh : ( DemoBody, Physics.Body ) -> { a | world : World, bodies : Dict Int DemoBody } -> { a | world : World, bodies : Dict Int DemoBody }
 addBodyWithMesh ( mesh, body ) demo =
     let
         ( world, bodyId ) =
@@ -126,7 +129,7 @@ addBodyWithMesh ( mesh, body ) demo =
     in
         { demo
             | world = world
-            , meshes = Dict.insert bodyId mesh demo.meshes
+            , bodies = Dict.insert bodyId mesh demo.bodies
         }
 
 
@@ -151,6 +154,7 @@ init demo =
     ( { debugContacts = False
       , debugNormals = False
       , debugEdges = False
+      , debugWireframes = False
       , showSettings = False
 
       -- replaced by resize, including the initial resize
@@ -158,13 +162,13 @@ init demo =
       , screenHeight = 1
       , initialWorld = demo.world
       , world = demo.world
-      , meshes = demo.meshes
+      , bodies = demo.bodies
       }
     , Task.perform Resize Window.size
     )
 
 
-update : Maybe (Random.Generator ( Mesh Attributes, Physics.Body )) -> Msg -> Model -> ( Model, Cmd Msg )
+update : Maybe (Random.Generator ( DemoBody, Physics.Body )) -> Msg -> Model -> ( Model, Cmd Msg )
 update randomBody msg model =
     case msg of
         ToggleSettings ->
@@ -178,6 +182,9 @@ update randomBody msg model =
 
         ToggleEdges debugEdges ->
             ( { model | debugEdges = debugEdges }, Cmd.none )
+
+        ToggleWireframes debugWireframes ->
+            ( { model | debugWireframes = debugWireframes }, Cmd.none )
 
         Resize { width, height } ->
             ( { model
@@ -221,7 +228,8 @@ type alias SceneParams =
     { lightDirection : Vec3
     , camera : Mat4
     , perspective : Mat4
-    , meshes : Dict Int (Mesh Attributes)
+    , bodies : Dict Int DemoBody
+    , debugWireframes : Bool
     }
 
 
@@ -235,7 +243,7 @@ view model =
 
 
 settings : Model -> Html Msg
-settings { showSettings, debugContacts, debugEdges, debugNormals } =
+settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframes } =
     Html.div
         [ style
             [ ( "position", "fixed" )
@@ -258,6 +266,7 @@ settings { showSettings, debugContacts, debugEdges, debugNormals } =
                 [ checkbox ToggleContacts debugContacts "collision points"
                 , checkbox ToggleNormals debugNormals "normals"
                 , checkbox ToggleEdges debugEdges "unique edges"
+                , checkbox ToggleWireframes debugWireframes "wireframes"
                 , Html.button [ onClick ResetClick, style [ ( "margin", "10px 0 5px" ) ] ] [ Html.text "Click to restart the demo" ]
                 ]
             ]
@@ -301,7 +310,7 @@ checkbox msg value label =
 
 
 webGL : Model -> Html Msg
-webGL { screenWidth, screenHeight, world, meshes, debugContacts, debugNormals, debugEdges } =
+webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, debugEdges, debugWireframes } =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
@@ -321,7 +330,8 @@ webGL { screenWidth, screenHeight, world, meshes, debugContacts, debugNormals, d
                 { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
                 , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
                 , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
-                , meshes = meshes
+                , bodies = bodies
+                , debugWireframes = debugWireframes
                 }
          in
             [ ( True, Physics.foldl (addShape sceneParams) )
@@ -342,17 +352,30 @@ webGL { screenWidth, screenHeight, world, meshes, debugContacts, debugNormals, d
 
 
 addShape : SceneParams -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape { lightDirection, meshes, camera, perspective } { transform, bodyId } tail =
-    case (Dict.get bodyId meshes) of
-        Nothing ->
+addShape { lightDirection, bodies, camera, perspective, debugWireframes } { transform, bodyId } tail =
+    case ( Dict.get bodyId bodies, debugWireframes ) of
+        ( Nothing, _ ) ->
             tail
 
-        Just mesh ->
+        ( Just demoBody, True ) ->
+            WebGL.entity
+                Shaders.vertex
+                Shaders.fragment
+                (Bodies.getWireframe demoBody)
+                { camera = camera
+                , color = vec3 0.9 0.9 0.9
+                , lightDirection = lightDirection
+                , perspective = perspective
+                , transform = transform
+                }
+                :: tail
+
+        ( Just demoBody, False ) ->
             -- Draw a shadow
             WebGL.entity
                 Shaders.vertex
                 Shaders.shadowFragment
-                mesh
+                (Bodies.getMesh demoBody)
                 { camera = camera
                 , color = vec3 0.25 0.25 0.25
                 , lightDirection = lightDirection
@@ -371,7 +394,7 @@ addShape { lightDirection, meshes, camera, perspective } { transform, bodyId } t
                 :: WebGL.entity
                     Shaders.vertex
                     Shaders.fragment
-                    mesh
+                    (Bodies.getMesh demoBody)
                     { camera = camera
                     , color = vec3 0.9 0.9 0.9
                     , lightDirection = lightDirection
