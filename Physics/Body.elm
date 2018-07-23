@@ -122,7 +122,7 @@ addShape shape body =
     { body
         | shapes = Dict.insert body.nextShapeId shape body.shapes
         , nextShapeId = body.nextShapeId + 1
-        , boundingSphereRadius = expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
+        , boundingSphereRadius = Shape.expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
     }
         |> updateMassProperties
 
@@ -263,29 +263,3 @@ computeAABB body =
         )
         AABB.impossible
         body.shapes
-
-
-expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
-expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
-    case shape of
-        Convex { vertices } ->
-            vertices
-                |> Array.foldl
-                    (\vertex ->
-                        vertex
-                            |> Transform.pointToWorldFrame shapeTransform
-                            |> Vec3.lengthSquared
-                            |> max
-                    )
-                    (boundingSphereRadius * boundingSphereRadius)
-                |> sqrt
-
-        Sphere radius ->
-            Const.zero3
-                |> Transform.pointToWorldFrame shapeTransform
-                |> Vec3.length
-                |> (+) radius
-                |> max boundingSphereRadius
-
-        Plane ->
-            Const.maxNumber

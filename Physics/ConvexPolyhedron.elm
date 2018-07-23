@@ -4,6 +4,7 @@ module Physics.ConvexPolyhedron
         , findSeparatingAxis
         , clipAgainstHull
         , fromBox
+        , expandBoundingSphereRadius
           -- exposed only for tests
         , testSepAxis
         , addFaceEdges
@@ -652,3 +653,17 @@ foldUniqueEdges fn acc { vertices, edges } =
                 |> List.foldl
                     (\edge -> fn edge vertex0)
                     acc
+
+
+expandBoundingSphereRadius : Transform -> ConvexPolyhedron -> Float -> Float
+expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
+    vertices
+        |> Array.foldl
+            (\vertex ->
+                vertex
+                    |> Transform.pointToWorldFrame shapeTransform
+                    |> Vec3.lengthSquared
+                    |> max
+            )
+            (boundingSphereRadius * boundingSphereRadius)
+        |> sqrt
