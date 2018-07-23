@@ -11,13 +11,16 @@ module Physics
         , addBody
         , Body
         , body
+        , BodyId
         , setMass
         , addShape
         , rotateBy
         , offsetBy
         , Shape
+        , ShapeId
         , box
         , plane
+        , sphere
         )
 
 {-| Highly experimental toy physics engine in Elm.
@@ -27,17 +30,17 @@ The API is currently shaping up and will be most likely changed.
 
 ## World
 
-@docs World, world, setGravity, addBody
+@docs World, world, setGravity, addBody, BodyId
 
 
 ## Body
 
-@docs Body, body, setMass, addShape, rotateBy, offsetBy
+@docs Body, body, setMass, addShape, rotateBy, offsetBy, ShapeId
 
 
 ## Shape
 
-@docs Shape, box, plane
+@docs Shape, box, plane, sphere
 
 
 ## Physics
@@ -85,9 +88,23 @@ setGravity gravity (World world) =
 
 {-| You can also add bodies to the world
 -}
-addBody : Body -> World -> World
+addBody : Body -> World -> ( World, BodyId )
 addBody (Body body) (World world) =
-    World (World.addBody body world)
+    ( World (World.addBody body world)
+    , World.getNextBodyId world
+    )
+
+
+{-| Pass-through definition for convenience of importers
+-}
+type alias BodyId =
+    Body.BodyId
+
+
+{-| Pass-through definition for convenience of importers
+-}
+type alias ShapeId =
+    Shape.ShapeId
 
 
 {-| Body is a solid matter without any moving parts
@@ -116,9 +133,11 @@ setMass mass (Body body) =
         |> addShape (box (vec3 1 1 1))
 
 -}
-addShape : Shape -> Body -> Body
+addShape : Shape -> Body -> ( Body, ShapeId )
 addShape (Shape shape) (Body body) =
-    Body (Body.addShape shape body)
+    ( Body (Body.addShape shape body)
+    , Body.getNextShapeId body
+    )
 
 
 {-| Rotate the body around the axis by a specific angle from its current orientation
@@ -158,6 +177,13 @@ type Shape
 box : Vec3 -> Shape
 box halfExtends =
     Shape (Shape.Convex (ConvexPolyhedron.fromBox halfExtends))
+
+
+{-| A sphere shape defined by its radius.
+-}
+sphere : Float -> Shape
+sphere radius =
+    Shape (Shape.Sphere radius)
 
 
 {-| A plane shape, with a normal pointing in the direction of the z axis
@@ -282,6 +308,9 @@ foldFaceNormals fn acc world =
                 Shape.Plane ->
                     acc1
 
+                Shape.Sphere _ ->
+                    acc1
+
                 Shape.Convex convex ->
                     ConvexPolyhedron.foldFaceNormals
                         (fn transform)
@@ -305,6 +334,9 @@ foldUniqueEdges fn acc world =
         (\transform _ _ _ shape acc1 ->
             case shape of
                 Shape.Plane ->
+                    acc1
+
+                Shape.Sphere _ ->
                     acc1
 
                 Shape.Convex convex ->

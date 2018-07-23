@@ -19,10 +19,12 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics exposing (World)
 import Random
+import Dict exposing (Dict)
 import Task
 import Time exposing (Time)
 import WebGL exposing (Entity, Shader, Mesh)
 import Window
+import Common.Bodies as Bodies exposing (DemoBody)
 
 
 -- Model
@@ -38,6 +40,7 @@ type alias Model =
     , screenHeight : Int
     , initialWorld : World
     , world : World
+    , bodies : Dict Int DemoBody
     }
 
 
@@ -55,7 +58,7 @@ type Msg
     | Resize Window.Size
     | ResetClick
     | SceneClick
-    | AddBody Physics.Body
+    | AddBody ( DemoBody, Physics.Body )
 
 
 
@@ -70,7 +73,8 @@ type Demo
 
 type alias DemoConfig =
     { world : World
-    , randomBody : Maybe (Random.Generator Physics.Body)
+    , randomBody : Maybe (Random.Generator ( DemoBody, Physics.Body ))
+    , bodies : Dict Int DemoBody
     }
 
 
@@ -83,6 +87,8 @@ demo =
             Physics.world
                 |> Physics.setGravity (vec3 0 0 -10)
                 |> Physics.addBody plane
+                |> Tuple.first
+        , bodies = Dict.empty
         , randomBody = Nothing
         }
 
@@ -96,27 +102,34 @@ plane : Physics.Body
 plane =
     Physics.body
         |> Physics.addShape Physics.plane
+        |> Tuple.first
         |> Physics.offsetBy planeOffset
 
 
 {-| Allow to drop random bodies on click
 -}
-dropOnClick : Random.Generator Physics.Body -> Demo -> Demo
+dropOnClick : Random.Generator ( DemoBody, Physics.Body ) -> Demo -> Demo
 dropOnClick randomBody (Demo demo) =
     Demo { demo | randomBody = Just randomBody }
 
 
 {-| Add initial bodies for the scene
 -}
-addBodies : List Physics.Body -> Demo -> Demo
-addBodies bodies (Demo demo) =
+addBodies : List ( DemoBody, Physics.Body ) -> Demo -> Demo
+addBodies bodiesWithMeshes (Demo demo) =
     Demo
+        (List.foldl addBodyWithMesh demo bodiesWithMeshes)
+
+
+addBodyWithMesh : ( DemoBody, Physics.Body ) -> { a | world : World, bodies : Dict Int DemoBody } -> { a | world : World, bodies : Dict Int DemoBody }
+addBodyWithMesh ( mesh, body ) demo =
+    let
+        ( world, bodyId ) =
+            Physics.addBody body demo.world
+    in
         { demo
-            | world =
-                List.foldl
-                    Physics.addBody
-                    demo.world
-                    bodies
+            | world = world
+            , bodies = Dict.insert bodyId mesh demo.bodies
         }
 
 
@@ -149,12 +162,13 @@ init demo =
       , screenHeight = 1
       , initialWorld = demo.world
       , world = demo.world
+      , bodies = demo.bodies
       }
     , Task.perform Resize Window.size
     )
 
 
-update : Maybe (Random.Generator Physics.Body) -> Msg -> Model -> ( Model, Cmd Msg )
+update : Maybe (Random.Generator ( DemoBody, Physics.Body )) -> Msg -> Model -> ( Model, Cmd Msg )
 update randomBody msg model =
     case msg of
         ToggleSettings ->
@@ -196,8 +210,8 @@ update randomBody msg model =
         ResetClick ->
             ( { model | world = model.initialWorld }, Cmd.none )
 
-        AddBody body ->
-            ( { model | world = Physics.addBody body model.world }
+        AddBody bodyAndMesh ->
+            ( addBodyWithMesh bodyAndMesh model
             , Cmd.none
             )
 
@@ -214,6 +228,7 @@ type alias SceneParams =
     { lightDirection : Vec3
     , camera : Mat4
     , perspective : Mat4
+    , bodies : Dict Int DemoBody
     , debugWireframes : Bool
     }
 
@@ -295,7 +310,7 @@ checkbox msg value label =
 
 
 webGL : Model -> Html Msg
-webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdges, debugWireframes } =
+webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, debugEdges, debugWireframes } =
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
@@ -315,6 +330,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
                 { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
                 , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
                 , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
+                , bodies = bodies
                 , debugWireframes = debugWireframes
                 }
          in
@@ -336,58 +352,56 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
 
 
 addShape : SceneParams -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape { lightDirection, camera, perspective, debugWireframes } { transform, bodyId } tail =
-    case bodyId of
-        0 ->
-            -- This is hardcoded for now, because the plane body is the first added.
-            -- TODO: pull the mesh info from somewhere else, using the bodyId and shapeId
+addShape { lightDirection, bodies, camera, perspective, debugWireframes } { transform, bodyId } tail =
+    case ( Dict.get bodyId bodies, debugWireframes ) of
+        ( Nothing, _ ) ->
             tail
 
-        _ ->
-            if debugWireframes then
-                WebGL.entity
+        ( Just demoBody, True ) ->
+            WebGL.entity
+                Shaders.vertex
+                Shaders.fragment
+                (Bodies.getWireframe demoBody)
+                { camera = camera
+                , color = vec3 0.9 0.9 0.9
+                , lightDirection = lightDirection
+                , perspective = perspective
+                , transform = transform
+                }
+                :: tail
+
+        ( Just demoBody, False ) ->
+            -- Draw a shadow
+            WebGL.entity
+                Shaders.vertex
+                Shaders.shadowFragment
+                (Bodies.getMesh demoBody)
+                { camera = camera
+                , color = vec3 0.25 0.25 0.25
+                , lightDirection = lightDirection
+                , perspective = perspective
+                , transform =
+                    transform
+                        -- project on the floor
+                        |> Mat4.mul
+                            (Math.makeShadow
+                                planeOffset
+                                Vec3.k
+                                lightDirection
+                            )
+                }
+                -- Draw a mesh
+                :: WebGL.entity
                     Shaders.vertex
                     Shaders.fragment
-                    cubeWireframe
+                    (Bodies.getMesh demoBody)
                     { camera = camera
                     , color = vec3 0.9 0.9 0.9
                     , lightDirection = lightDirection
                     , perspective = perspective
                     , transform = transform
                     }
-                    :: tail
-            else
-                -- Draw a shadow
-                WebGL.entity
-                    Shaders.vertex
-                    Shaders.shadowFragment
-                    cubeMesh
-                    { camera = camera
-                    , color = vec3 0.25 0.25 0.25
-                    , lightDirection = lightDirection
-                    , perspective = perspective
-                    , transform =
-                        transform
-                            -- project on the floor
-                            |> Mat4.mul
-                                (Math.makeShadow
-                                    planeOffset
-                                    Vec3.k
-                                    lightDirection
-                                )
-                    }
-                    -- Draw a mesh
-                    :: WebGL.entity
-                        Shaders.vertex
-                        Shaders.fragment
-                        cubeMesh
-                        { camera = camera
-                        , color = vec3 0.9 0.9 0.9
-                        , lightDirection = lightDirection
-                        , perspective = perspective
-                        , transform = transform
-                        }
-                    :: tail
+                :: tail
 
 
 {-| Render collision point for the purpose of debugging
@@ -456,16 +470,6 @@ addEdgeIndicator { lightDirection, camera, perspective } transform edge origin t
 
 
 -- Meshes
-
-
-cubeMesh : Mesh Attributes
-cubeMesh =
-    Meshes.makeBox (vec3 1 1 1)
-
-
-cubeWireframe : Mesh Attributes
-cubeWireframe =
-    Meshes.makeBoxWireframe (vec3 1 1 1)
 
 
 normalMesh : Mesh Attributes

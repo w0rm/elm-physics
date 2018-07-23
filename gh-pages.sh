@@ -4,7 +4,7 @@ set -e
 rm -rf gh-pages || exit 0;
 
 # compile JS using Elm
-for example in Boxes; do
+for example in Boxes Spheres; do
   lower=$(echo "$example" | tr '[:upper:]' '[:lower:]')
   cd examples/
   mkdir -p ../gh-pages/examples/$lower

@@ -8,9 +8,11 @@ module Physics.Body
         , tick
         , body
         , setMass
+        , getNextShapeId
         , addShape
         )
 
+import Array.Hamt as Array exposing (Array)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -18,9 +20,8 @@ import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
 import Physics.Const as Const
-import Array.Hamt as Array
 import Dict exposing (Dict)
-import Physics.Shape exposing (Shape(..), ShapeId)
+import Physics.Shape as Shape exposing (Shape(..), ShapeId)
 import Time exposing (Time)
 import Physics.Const as Const
 
@@ -108,13 +109,20 @@ setQuaternion quaternion body =
         { body | quaternion = quaternion }
 
 
+{-| Predict the shape id of the next shape to be added
+-}
+getNextShapeId : Body -> ShapeId
+getNextShapeId body =
+    body.nextShapeId
+
+
 addShape : Shape -> Body -> Body
 addShape shape body =
     -- TODO: support shape's position and rotation:
     { body
         | shapes = Dict.insert body.nextShapeId shape body.shapes
         , nextShapeId = body.nextShapeId + 1
-        , boundingSphereRadius = expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
+        , boundingSphereRadius = Shape.expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
     }
         |> updateMassProperties
 
@@ -249,36 +257,9 @@ computeAABB : Body -> AABB
 computeAABB body =
     Dict.foldl
         (\shapeId shape ->
-            let
-                transform =
-                    shapeWorldTransform shapeId body
-            in
-                AABB.extend <|
-                    case shape of
-                        Convex convexPolyhedron ->
-                            AABB.convexPolyhedron transform convexPolyhedron
-
-                        Plane ->
-                            AABB.plane transform
+            shapeWorldTransform shapeId body
+                |> Shape.aabbClosure shape
+                |> AABB.extend
         )
         AABB.impossible
         body.shapes
-
-
-expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
-expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
-    case shape of
-        Convex { vertices } ->
-            vertices
-                |> Array.foldl
-                    (\vertex ->
-                        vertex
-                            |> Transform.pointToWorldFrame shapeTransform
-                            |> Vec3.lengthSquared
-                            |> max
-                    )
-                    (boundingSphereRadius * boundingSphereRadius)
-                |> sqrt
-
-        Plane ->
-            Const.maxNumber

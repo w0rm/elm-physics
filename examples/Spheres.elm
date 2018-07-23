@@ -1,4 +1,4 @@
-module Boxes exposing (main)
+module Spheres exposing (main)
 
 import Common.Demo as Demo exposing (Demo, DemoProgram)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -11,7 +11,7 @@ main : DemoProgram
 main =
     Demo.demo
         |> Demo.addBodies initialBoxes
-        |> Demo.dropOnClick randomlyRotatedBox
+        |> Demo.dropOnClick randomShape
         |> Demo.run
 
 
@@ -34,18 +34,27 @@ initialBoxes =
     ]
 
 
-{-| A box raised above the plane and rotated to a random 3d angle
+{-| A shape raised above the plane, shifted or rotated to a random 3d angle
 -}
-randomlyRotatedBox : Random.Generator ( DemoBody, Physics.Body )
-randomlyRotatedBox =
-    Random.map4
-        (\angle x y z ->
-            Bodies.getBody DemoBox
-                (Physics.offsetBy (vec3 0 0 10)
-                    >> Physics.rotateBy (vec3 x y z) angle
-                )
+randomShape : Random.Generator ( DemoBody, Physics.Body )
+randomShape =
+    Random.map5
+        (\angle x y z isSphere ->
+            case isSphere of
+                True ->
+                    Bodies.getBody DemoSphere
+                        (Physics.offsetBy (vec3 0 0 10)
+                            >> Physics.offsetBy (vec3 x y z)
+                        )
+
+                False ->
+                    Bodies.getBody DemoBox
+                        (Physics.offsetBy (vec3 0 0 10)
+                            >> Physics.rotateBy (vec3 x y z) angle
+                        )
         )
         (Random.float (-pi / 2) (pi / 2))
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
+        (Random.bool)

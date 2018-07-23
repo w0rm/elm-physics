@@ -1,4 +1,12 @@
-module Common.Meshes exposing (Attributes, makeBox, makeBoxWireframe, makePyramid, makeSphere)
+module Common.Meshes
+    exposing
+        ( Attributes
+        , makeBox
+        , makeBoxWireframe
+        , makePyramid
+        , makeSphere
+        , makeSphereWireframe
+        )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL exposing (Mesh)
@@ -99,6 +107,14 @@ makePyramid halfbase baserise =
         , facet top rbb lbb
         ]
             |> WebGL.triangles
+
+
+makeSphereWireframe : Int -> Float -> Mesh Attributes
+makeSphereWireframe iterations radius =
+    divideSphere iterations radius (octahedron radius)
+        |> List.map (\( p1, p2, p3 ) -> facet p1 p2 p3)
+        |> trianglesToLines
+        |> WebGL.lines
 
 
 makeSphere : Int -> Float -> Mesh Attributes

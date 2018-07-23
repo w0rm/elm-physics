@@ -5,6 +5,7 @@ module Physics.AABB
         , extend
         , impossible
         , plane
+        , sphere
         , toHalfExtends
         )
 
@@ -83,8 +84,8 @@ overlaps aabb1 aabb2 =
             && ((l2z <= u1z && u1z <= u2z) || (l1z <= u2z && u2z <= u1z))
 
 
-convexPolyhedron : Transform -> ConvexPolyhedron -> AABB
-convexPolyhedron transform convexPolyhedron =
+convexPolyhedron : ConvexPolyhedron -> Transform -> AABB
+convexPolyhedron convexPolyhedron transform =
     Array.foldl
         (\point ->
             let
@@ -127,3 +128,14 @@ plane { position, quaternion } =
 
         ( _, _, _ ) ->
             maximum
+
+
+sphere : Float -> Transform -> AABB
+sphere radius { position } =
+    let
+        ( xc, yc, zc ) =
+            Vec3.toTuple position
+    in
+        { lowerBound = vec3 (xc - radius) (yc - radius) (zc - radius)
+        , upperBound = vec3 (xc + radius) (yc + radius) (zc + radius)
+        }
