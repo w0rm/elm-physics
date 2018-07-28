@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "summary": "elm-physics benchmarking",
-    "repository": "https://github.com/w0rm/elm-physics",
+    "repository": "https://github.com/w0rm/elm-physics.git",
     "license": "BSD3",
     "source-directories": [
         "..",
