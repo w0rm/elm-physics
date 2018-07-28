@@ -6,7 +6,7 @@ import Math.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.Const as Const
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron, Face)
 import Physics.Quaternion as Quaternion
 import Physics.Shape as Shape exposing (Shape(..))
 import Physics.Transform as Transform exposing (Transform)
@@ -265,7 +265,7 @@ foldPlaneSphereContacts fn planeTransform bodyId1 body1 t2 radius bodyId2 body2 
 
 
 foldSphereConvexContacts : (ContactEquation -> Body -> Body -> a -> a) -> Transform -> Float -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> a -> a
-foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces, normals } bodyId2 body2 seed =
+foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces } bodyId2 body2 seed =
     let
         contactEq : Vec3 -> Float -> Vec3 -> ContactEquation
         contactEq vectorToContact radius worldContact2 =
@@ -309,16 +309,10 @@ foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces, normal
                             oneFound
 
                         Nothing ->
-                            faces
-                                |> arrayIndexedFoldWhileNothing
-                                    (\face index ->
-                                        Array.get index normals
-                                            |> Maybe.andThen
-                                                (\normal ->
-                                                    foldSphereFaceContact contactEq center radius t2 face vertices normal
-                                                )
-                                    )
-                                    Nothing
+                            arrayFoldWhileNothing
+                                (foldSphereFaceContact contactEq center radius t2 vertices)
+                                Nothing
+                                faces
                )
             |> (\oneFound ->
                     case oneFound of
@@ -330,8 +324,8 @@ foldSphereConvexContacts fn t1 radius bodyId1 body1 t2 { vertices, faces, normal
                )
 
 
-foldSphereFaceContact : (Vec3 -> Float -> Vec3 -> ContactEquation) -> Vec3 -> Float -> Transform -> List Int -> Array Vec3 -> Vec3 -> Maybe ContactEquation
-foldSphereFaceContact contactEqFn center radius t2 face vertices normal =
+foldSphereFaceContact : (Vec3 -> Float -> Vec3 -> ContactEquation) -> Vec3 -> Float -> Transform -> Array Vec3 -> Face -> Maybe ContactEquation
+foldSphereFaceContact contactEqFn center radius t2 vertices { vertexIndices, normal } =
     let
         -- Get world-transformed normal of the face
         worldFacePlaneNormal =
@@ -339,7 +333,7 @@ foldSphereFaceContact contactEqFn center radius t2 face vertices normal =
 
         -- Get an arbitrary world vertex from the face
         worldPoint =
-            List.head face
+            List.head vertexIndices
                 |> Maybe.andThen (\i -> Array.get i vertices)
                 |> Maybe.map
                     (Transform.pointToWorldFrame t2)
@@ -370,7 +364,7 @@ foldSphereFaceContact contactEqFn center radius t2 face vertices normal =
         worldVertices =
             if penetration < 0 && dot > 0 then
                 -- Sphere intersects the face plane.
-                face
+                vertexIndices
                     |> List.map
                         (\index ->
                             Array.get index vertices
@@ -420,7 +414,7 @@ foldSphereFaceContact contactEqFn center radius t2 face vertices normal =
                 contactEqFn
                 center
                 radius
-                (face
+                (vertexIndices
                     |> List.map
                         (\index ->
                             Array.get index vertices
@@ -619,21 +613,3 @@ arrayFoldWhileNothing fn seed array =
                         acc
             )
             seed
-
-
-arrayIndexedFoldWhileNothing : (a -> Int -> Maybe b) -> Maybe b -> Array a -> Maybe b
-arrayIndexedFoldWhileNothing fn seed array =
-    array
-        |> Array.foldl
-            (\element ( acc, index ) ->
-                ( case acc of
-                    Nothing ->
-                        fn element index
-
-                    _ ->
-                        acc
-                , index + 1
-                )
-            )
-            ( seed, 0 )
-        |> Tuple.first

@@ -1,6 +1,7 @@
 module Physics.ConvexPolyhedron
     exposing
         ( ConvexPolyhedron
+        , Face
         , findSeparatingAxis
         , clipAgainstHull
         , fromBox
@@ -720,7 +721,7 @@ expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
             (boundingSphereRadius * boundingSphereRadius)
         |> sqrt
 
-        
+
 listLast : List a -> Maybe a
 listLast list =
     list
