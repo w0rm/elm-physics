@@ -25,7 +25,7 @@ import Physics.Quaternion as Quaternion
     they are needed again in another round of performance work.
 -}
 
-import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron
+import Physics.ConvexPolyhedron as OriginalConvexPolyhedron
 
 
 main : BenchmarkProgram

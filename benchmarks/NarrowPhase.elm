@@ -29,8 +29,8 @@ import Physics.Transform as Transform
     they are needed again in another round of performance work.
 -}
 
-import Physics.OriginalNarrowPhase as OriginalNarrowPhase
-import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron
+import Physics.NarrowPhase as OriginalNarrowPhase
+import Physics.ConvexPolyhedron as OriginalConvexPolyhedron
 
 
 main : BenchmarkProgram
@@ -47,8 +47,11 @@ suite =
         boxHalfExtent =
             1
 
+        delta =
+            3 * Const.precision
+
         nearEdgeOffset =
-            boxHalfExtent - 3 * Const.precision
+            boxHalfExtent - delta
 
         -- Reposition the box so that it contacts the sphere at each:
         -- vertex
@@ -66,8 +69,9 @@ suite =
             boxHalfExtent + radius
 
         positions =
-            -- 8 vertex contacts
             [ (vec3 0 0 0)
+
+            -- 8 vertex contacts
             , (vec3 vertexDistance vertexDistance vertexDistance)
             , (vec3 (-vertexDistance) vertexDistance vertexDistance)
             , (vec3 vertexDistance (-vertexDistance) vertexDistance)
@@ -99,31 +103,29 @@ suite =
             , (vec3 0 (-faceDistance) 0)
             , (vec3 0 0 (-faceDistance))
 
-            -- 6 face (near vertex) contacts
-            , (vec3 faceDistance nearEdgeOffset nearEdgeOffset)
+            -- 3 face contacts near vertex
             , (vec3 nearEdgeOffset faceDistance nearEdgeOffset)
-            , (vec3 nearEdgeOffset nearEdgeOffset faceDistance)
             , (vec3 (-faceDistance) nearEdgeOffset nearEdgeOffset)
-            , (vec3 nearEdgeOffset (-faceDistance) nearEdgeOffset)
             , (vec3 nearEdgeOffset nearEdgeOffset (-faceDistance))
 
-            -- 6 face (near edge) contacts
+            -- 3 face contacts near edge
             , (vec3 faceDistance nearEdgeOffset 0)
-            , (vec3 0 faceDistance nearEdgeOffset)
             , (vec3 nearEdgeOffset 0 faceDistance)
-            , (vec3 (-faceDistance) nearEdgeOffset 0)
             , (vec3 0 (-faceDistance) nearEdgeOffset)
-            , (vec3 nearEdgeOffset 0 (-faceDistance))
             ]
 
+        vec3HalfExtent =
+            (vec3 boxHalfExtent boxHalfExtent boxHalfExtent)
+
         boxHull =
-            ConvexPolyhedron.fromBox (vec3 1 1 1)
+            ConvexPolyhedron.fromBox vec3HalfExtent
 
         originalBoxHull =
-            OriginalConvexPolyhedron.fromBox (vec3 1 1 1)
+            OriginalConvexPolyhedron.fromBox vec3HalfExtent
+
     in
         describe "NarrowPhase"
-            [ Benchmark.compare "foldSphereConvexContact"
+            [ Benchmark.compare "addSphereConvexContacts"
                 "baseline"
                 (\_ ->
                     positions
@@ -133,13 +135,11 @@ suite =
                                     Transform.identity
                                     radius
                                     0
-                                    Body.body
                                     { position = position
                                     , quaternion = Quaternion.identity
                                     }
                                     originalBoxHull
                                     1
-                                    Body.body
                                     []
                             )
                 )

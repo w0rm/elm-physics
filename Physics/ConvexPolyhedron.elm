@@ -188,90 +188,6 @@ boxUniqueEdges =
     ]
 
 
-type Lazy
-    = Now
-
-
-maybeMapOrCrash : String -> (a -> b) -> Maybe a -> Maybe b
-maybeMapOrCrash message fn maybe =
-    case maybe of
-        Just value ->
-            Just <| fn value
-
-        Nothing ->
-            Debug.crash message
-
-
-maybeMapOrLazyCrash : (Lazy -> String) -> (a -> b) -> Maybe a -> Maybe b
-maybeMapOrLazyCrash messageFn fn maybe =
-    case maybe of
-        Just value ->
-            Just <| fn value
-
-        Nothing ->
-            messageFn Now |> Debug.crash
-
-
-maybeAndThenOrCrash : String -> (a -> Maybe b) -> Maybe a -> Maybe b
-maybeAndThenOrCrash message fn maybe =
-    case maybe of
-        Just value ->
-            fn value
-
-        Nothing ->
-            Debug.crash message
-
-
-maybeAndThenOrLazyCrash : (Lazy -> String) -> (a -> Maybe b) -> Maybe a -> Maybe b
-maybeAndThenOrLazyCrash messageFn fn maybe =
-    case maybe of
-        Just value ->
-            fn value
-
-        Nothing ->
-            messageFn Now |> Debug.crash
-
-
-maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
-maybeWithDefaultOrCrash message default maybe =
-    case maybe of
-        Just value ->
-            value
-
-        Nothing ->
-            Debug.crash message
-
-
-maybeWithDefaultOrLazyCrash : (Lazy -> String) -> a -> Maybe a -> a
-maybeWithDefaultOrLazyCrash messageFn default maybe =
-    case maybe of
-        Just value ->
-            value
-
-        Nothing ->
-            messageFn Now |> Debug.crash
-
-
-maybeCrashOnNothing : String -> Maybe a -> Maybe a
-maybeCrashOnNothing message =
-    maybeAndThenOrCrash message Just
-
-
-maybeLazyCrashOnNothing : (Lazy -> String) -> Maybe a -> Maybe a
-maybeLazyCrashOnNothing messageFn =
-    maybeAndThenOrLazyCrash messageFn Just
-
-
-maybeWithLazyDefault : (Lazy -> a) -> Maybe a -> a
-maybeWithLazyDefault defaultFn maybe =
-    Maybe.withDefault (defaultFn Now) maybe
-
-
-defaultOrCrash : String -> a -> a
-defaultOrCrash string default =
-    Debug.crash string
-
-
 faceNormal : List Int -> Array Vec3 -> Vec3
 faceNormal indices vertices =
     case indices of
@@ -396,20 +312,6 @@ getIndexedFace faces i =
             , normal = Const.zero3
             , adjacentFaces = []
             }
-
-
-arrayGetOrCrash : String -> Array a -> Int -> Maybe a
-arrayGetOrCrash debugTag array i =
-    Array.get i array
-        |> maybeLazyCrashOnNothing
-            (\lazy ->
-                "invalid index "
-                    ++ (toString i)
-                    ++ " into the "
-                    ++ (toString (Array.length array))
-                    ++ debugTag
-                    ++ " array"
-            )
 
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
@@ -1131,3 +1033,85 @@ arrayRecurseWhileNothing fn seed array =
                             Just result
     in
         recurse 0
+
+
+type Lazy
+    = Now
+
+
+arrayGetOrCrash : String -> Array a -> Int -> Maybe a
+arrayGetOrCrash debugTag array i =
+    Array.get i array
+        |> maybeAndThenOrLazyCrash
+            (\lazy ->
+                "invalid index "
+                    ++ (toString i)
+                    ++ " into the "
+                    ++ (toString (Array.length array))
+                    ++ debugTag
+                    ++ " array"
+            )
+            Just
+
+
+defaultOrCrash : String -> a -> a
+defaultOrCrash message default =
+    -- enabled: Debug.crash message
+    -- disabled:
+    default
+
+
+maybeAndThenOrLazyCrash : (Lazy -> String) -> (a -> Maybe b) -> Maybe a -> Maybe b
+maybeAndThenOrLazyCrash messageFn fn maybe =
+    {--enabled:
+    case maybe of
+        Just value ->
+            fn value
+
+        Nothing ->
+            messageFn Now |> --Debug.crash
+    --}
+    -- disabled:
+    Maybe.andThen fn maybe
+
+
+maybeAndThenOrCrash : String -> (a -> Maybe b) -> Maybe a -> Maybe b
+maybeAndThenOrCrash message fn maybe =
+    {--enabled:
+    case maybe of
+        Just value ->
+            fn value
+
+        Nothing ->
+            --Debug.crash message
+    --}
+    -- disabled:
+    Maybe.andThen fn maybe
+
+
+maybeMapOrCrash : String -> (a -> b) -> Maybe a -> Maybe b
+maybeMapOrCrash message fn maybe =
+    {--enabled:
+    case maybe of
+        Just value ->
+            Just <| fn value
+
+        Nothing ->
+            --Debug.crash message
+    --}
+    -- disabled:
+    Maybe.map fn maybe
+
+
+maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
+maybeWithDefaultOrCrash message default maybe =
+    {--enabled:
+    case maybe of
+        Just value ->
+            value
+
+        Nothing ->
+            --Debug.crash message
+    --}
+    -- disabled:
+    Maybe.withDefault default maybe

@@ -271,14 +271,18 @@ addSphereConvexContacts { position } radius bodyId1 t2 hull2 bodyId2 contactEqua
     in
         case maybeWorldContact of
             Just worldContact2 ->
-                { bodyId1 = bodyId1
-                , bodyId2 = bodyId2
-                , ni = Vec3.direction worldContact2 position
-                , ri = Vec3.sub worldContact2 position
-                , rj = Vec3.sub worldContact2 t2.position
-                , restitution = 0
-                }
-                    :: contactEquations
+                let
+                    worldNormal =
+                        Vec3.direction worldContact2 position
+                in
+                    { bodyId1 = bodyId1
+                    , bodyId2 = bodyId2
+                    , ni = worldNormal
+                    , ri = Vec3.scale radius worldNormal
+                    , rj = Vec3.sub worldContact2 t2.position
+                    , restitution = 0
+                    }
+                        :: contactEquations
 
             Nothing ->
                 contactEquations
