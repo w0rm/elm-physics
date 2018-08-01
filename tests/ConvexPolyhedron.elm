@@ -1,14 +1,15 @@
 module ConvexPolyhedron exposing (..)
 
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Array.Hamt as Array exposing (Array)
 import Expect exposing (Expectation)
+import Fixtures.ConvexPolyhedron
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4, vec4)
+import Physics.Const as Const
+import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform
 import Test exposing (..)
-import Array.Hamt as Array exposing (Array)
 
 
 clipFaceAgainstPlane : Test
@@ -632,19 +633,19 @@ uniqueEdges =
         -- some edges.
         , test "works for a square pyramid" <|
             \_ ->
-                squarePyramid
+                Fixtures.ConvexPolyhedron.squarePyramid
                     |> uniqueEdgesOfConvexPolyhedron
                     |> List.length
                     |> Expect.equal 6
         , test "works for an off-square pyramid" <|
             \_ ->
-                askewSquarePyramid
+                Fixtures.ConvexPolyhedron.askewSquarePyramid
                     |> uniqueEdgesOfConvexPolyhedron
                     |> List.length
                     |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->
-                nonSquareQuadPyramid
+                Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
                     |> uniqueEdgesOfConvexPolyhedron
                     |> List.length
                     -- all edges unique, none parallel
@@ -707,8 +708,7 @@ addFaceEdges =
                         ]
                 in
                     boxHull 1
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         |> Expect.equal 3
         , test "works for the box with different partial seeds" <|
             \_ ->
@@ -720,8 +720,7 @@ addFaceEdges =
                         [ vec3 0 0 1 ]
                 in
                     boxHull 1
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         |> Expect.equal 3
         , test "works for the box with other different partial seeds" <|
             \_ ->
@@ -733,8 +732,7 @@ addFaceEdges =
                         [ vec3 0 1 0 ]
                 in
                     boxHull 1
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         |> Expect.equal 3
         , test "works for the box with approximate seeds" <|
             \_ ->
@@ -779,8 +777,7 @@ addFaceEdges =
                         ]
                 in
                     boxHull 1
-                        |> addEdgesOfConvexPolyhedron invalidSeedSet
-                        |> List.length
+                        |> countEdgesOfConvexPolyhedron invalidSeedSet
                         |> Expect.equal (List.length invalidSeedSet + 3)
 
         -- The square pyramid shape has fewer parallel edges than a box.
@@ -795,9 +792,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    squarePyramid
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                    Fixtures.ConvexPolyhedron.squarePyramid
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         |> Expect.equal 6
         , test "works for an off-square pyramid" <|
             \_ ->
@@ -807,9 +803,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    askewSquarePyramid
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                    Fixtures.ConvexPolyhedron.askewSquarePyramid
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->
@@ -819,9 +814,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    nonSquareQuadPyramid
-                        |> addEdgesOfConvexPolyhedron partialSeedSet
-                        |> List.length
+                    Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
+                        |> countEdgesOfConvexPolyhedron partialSeedSet
                         -- all edges unique, none parallel
                         |> Expect.equal 8
         ]
@@ -847,7 +841,7 @@ faceAdjacency =
     describe "ConvexPolyhedron.faceAdjacency"
         [ test "works for the box" <|
             \_ ->
-                boxVertexIndices
+                Fixtures.ConvexPolyhedron.boxVertexIndices
                     |> ConvexPolyhedron.faceAdjacency
                     |> List.map List.sort
                     |> Expect.equal
@@ -860,7 +854,7 @@ faceAdjacency =
                         ]
         , test "works for the octohedron" <|
             \_ ->
-                octoVertexIndices
+                Fixtures.ConvexPolyhedron.octoVertexIndices
                     |> ConvexPolyhedron.faceAdjacency
                     |> List.map List.sort
                     |> Expect.equal
@@ -874,7 +868,6 @@ faceAdjacency =
                         , [ 1, 2, 3, 4, 5, 6 ]
                         ]
         ]
-
 
 
 
@@ -914,6 +907,12 @@ addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
             (ConvexPolyhedron.addFaceEdges vertices)
             seedEdges
 
+{-| Useful variant of addEdgesOfConvexPolyhedron that abstracts out the count
+for a less-detailed result.
+-}
+countEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> Int
+countEdgesOfConvexPolyhedron seedEdges hull =
+    List.length <| addEdgesOfConvexPolyhedron seedEdges hull
 
 
 -- Test data generators
@@ -924,119 +923,4 @@ using optimized box-specific initializers.
 -}
 boxHull : Float -> ConvexPolyhedron
 boxHull halfExtent =
-    ConvexPolyhedron.fromBox (vec3 halfExtent halfExtent halfExtent)
-
-
-{-| A replacement for boxhull/ConvexPolyhedron.fromBox that introduces some
-minor imprecision into one of the box vertices and can NOT be constructed
-using optimized box-specific initializers.
--}
-boxyHull : Float -> ConvexPolyhedron
-boxyHull halfExtent =
-    let
-        vertices =
-            Array.fromList
-                [ vec3 -halfExtent -halfExtent -halfExtent
-                , vec3 halfExtent -halfExtent -halfExtent
-                , vec3 halfExtent halfExtent -halfExtent
-                , vec3 -halfExtent halfExtent -halfExtent
-                , vec3 -halfExtent -halfExtent halfExtent
-                , vec3 halfExtent -halfExtent halfExtent
-
-                -- Insignificantly adjust two vertex coordinates to force the 3
-                -- connected edges to be insignificantly off-parallel.
-                -- This should NOT alter the number of uniqueEdges
-                , vec3 halfExtent (halfExtent - Const.precision / 3.0) (halfExtent + Const.precision / 3.0)
-                , vec3 -halfExtent halfExtent halfExtent
-                ]
-    in
-        -- To test the handling of minor imprecision in a general
-        -- ConvexPolyhedron, purposely bypass the box-specific
-        -- optimizations in boxNormals and boxEdges and use instead
-        -- the general purpose calculations.
-        ConvexPolyhedron.init boxVertexIndices vertices
-
-
-boxVertexIndices : List (List Int)
-boxVertexIndices =
-    [ [ 3, 2, 1, 0 ]
-    , [ 4, 5, 6, 7 ]
-    , [ 5, 4, 0, 1 ]
-    , [ 2, 3, 7, 6 ]
-    , [ 0, 4, 7, 3 ]
-    , [ 1, 2, 6, 5 ]
-    ]
-
-
-octoVertexIndices : List (List Int)
-octoVertexIndices =
-    [ [ 2, 1, 0 ]
-    , [ 0, 5, 2 ]
-    , [ 1, 2, 4 ]
-    , [ 3, 0, 1 ]
-
-    , [ 2, 5, 4 ]
-    , [ 4, 3, 1 ]
-    , [ 5, 0, 3 ]
-    , [ 3, 4, 5 ]
-    ]
-
-
-squarePyramid : ConvexPolyhedron
-squarePyramid =
-    -- Specify 0 for exact precision
-    squareLikePyramid 0.0
-
-
-askewSquarePyramid : ConvexPolyhedron
-askewSquarePyramid =
-    -- Use an insignificant epsilon for an approximately square base
-    squareLikePyramid (Const.precision / 3.0)
-
-
-nonSquareQuadPyramid : ConvexPolyhedron
-nonSquareQuadPyramid =
-    -- Use a significant epsilon for a not even approximately square base
-    squareLikePyramid (Const.precision * 3.0)
-
-
-squareLikePyramid : Float -> ConvexPolyhedron
-squareLikePyramid epsilon =
-    let
-        x =
-            1
-
-        y =
-            1
-
-        z =
-            1
-
-        -- zOffset is the height of the pyramid's center of gravity above its
-        -- base -- the cube root of 1/2.
-        -- It serves to keep the object vertically centered.
-        zOffset =
-            z * (0.5 ^ (1.0 / 3.0))
-
-        faces =
-            [ [ 3, 2, 1, 0 ]
-            , [ 0, 1, 4 ]
-            , [ 1, 2, 4 ]
-            , [ 2, 3, 4 ]
-            , [ 3, 0, 4 ]
-            ]
-
-        vertices =
-            Array.fromList
-                [ vec3 -x -y -zOffset
-                , vec3 x -y -zOffset
-
-                -- An optional adjustment of one base corner controls
-                -- the number (0 or 2) of edge pairs that are exactly
-                -- parallel OR approximately parallel.
-                , vec3 (x + epsilon) (y + epsilon) -zOffset
-                , vec3 -x y -zOffset
-                , vec3 0 0 (z - zOffset)
-                ]
-    in
-        ConvexPolyhedron.init faces vertices
+    Fixtures.ConvexPolyhedron.boxHull halfExtent

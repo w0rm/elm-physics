@@ -2,10 +2,8 @@ module NarrowPhase exposing (main)
 
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Body as Body exposing (Body)
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron
+import Fixtures.ConvexPolyhedron as HullFixtures
+import Fixtures.NarrowPhase
 import Physics.NarrowPhase as NarrowPhase
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform
@@ -30,7 +28,6 @@ import Physics.Transform as Transform
 -}
 
 import Physics.NarrowPhase as OriginalNarrowPhase
-import Physics.ConvexPolyhedron as OriginalConvexPolyhedron
 
 
 main : BenchmarkProgram
@@ -47,82 +44,14 @@ suite =
         boxHalfExtent =
             1
 
-        delta =
-            3 * Const.precision
-
-        nearEdgeOffset =
-            boxHalfExtent - delta
-
-        -- Reposition the box so that it contacts the sphere at each:
-        -- vertex
-        -- edge (midpoint)
-        -- face (center)
-        -- face (at a point near a vertex)
-        -- face (at a point near an edge midpoint)
-        vertexDistance =
-            (sqrt 3) * boxHalfExtent + radius
-
-        edgeDistance =
-            (sqrt 2) * boxHalfExtent + radius
-
-        faceDistance =
-            boxHalfExtent + radius
-
-        positions =
-            [ (vec3 0 0 0)
-
-            -- 8 vertex contacts
-            , (vec3 vertexDistance vertexDistance vertexDistance)
-            , (vec3 (-vertexDistance) vertexDistance vertexDistance)
-            , (vec3 vertexDistance (-vertexDistance) vertexDistance)
-            , (vec3 (-vertexDistance) (-vertexDistance) vertexDistance)
-            , (vec3 vertexDistance vertexDistance (-vertexDistance))
-            , (vec3 (-vertexDistance) vertexDistance (-vertexDistance))
-            , (vec3 vertexDistance (-vertexDistance) (-vertexDistance))
-            , (vec3 (-vertexDistance) (-vertexDistance) (-vertexDistance))
-
-            -- 12 edge (midpoint) contacts
-            , (vec3 faceDistance faceDistance 0)
-            , (vec3 0 faceDistance faceDistance)
-            , (vec3 faceDistance 0 faceDistance)
-            , (vec3 (-faceDistance) faceDistance 0)
-            , (vec3 0 (-faceDistance) faceDistance)
-            , (vec3 faceDistance 0 (-faceDistance))
-            , (vec3 faceDistance (-faceDistance) 0)
-            , (vec3 0 faceDistance (-faceDistance))
-            , (vec3 (-faceDistance) 0 faceDistance)
-            , (vec3 (-faceDistance) (-faceDistance) 0)
-            , (vec3 0 (-faceDistance) (-faceDistance))
-            , (vec3 (-faceDistance) 0 (-faceDistance))
-
-            -- 6 face (center) contacts
-            , (vec3 faceDistance 0 0)
-            , (vec3 0 faceDistance 0)
-            , (vec3 0 0 faceDistance)
-            , (vec3 (-faceDistance) 0 0)
-            , (vec3 0 (-faceDistance) 0)
-            , (vec3 0 0 (-faceDistance))
-
-            -- 3 face contacts near vertex
-            , (vec3 nearEdgeOffset faceDistance nearEdgeOffset)
-            , (vec3 (-faceDistance) nearEdgeOffset nearEdgeOffset)
-            , (vec3 nearEdgeOffset nearEdgeOffset (-faceDistance))
-
-            -- 3 face contacts near edge
-            , (vec3 faceDistance nearEdgeOffset 0)
-            , (vec3 nearEdgeOffset 0 faceDistance)
-            , (vec3 0 (-faceDistance) nearEdgeOffset)
-            ]
-
-        vec3HalfExtent =
-            (vec3 boxHalfExtent boxHalfExtent boxHalfExtent)
-
         boxHull =
-            ConvexPolyhedron.fromBox vec3HalfExtent
+            HullFixtures.boxHull boxHalfExtent
 
         originalBoxHull =
-            OriginalConvexPolyhedron.fromBox vec3HalfExtent
+            HullFixtures.originalBoxHull boxHalfExtent
 
+        positions =
+            Fixtures.NarrowPhase.sphereContactBoxPositions radius boxHalfExtent
     in
         describe "NarrowPhase"
             [ Benchmark.compare "addSphereConvexContacts"
