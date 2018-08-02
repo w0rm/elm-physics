@@ -18,55 +18,57 @@ sphereContactBoxPositions radius boxHalfExtent =
         -- edge (midpoint)
         -- face (center)
         -- face (at a point near a vertex)
-        -- face (at a point near an edge midpoint)
-        vertexDistance =
-            (sqrt 3) * boxHalfExtent + radius
+        -- face (at a point near an edge midpoint).
+        -- The adjustment of -Const.precision represents a minimum
+        -- penetration value.
+        vertexDimension =
+            boxHalfExtent + radius / (sqrt 3) - Const.precision
 
-        edgeDistance =
-            (sqrt 2) * boxHalfExtent + radius
+        edgeDimension =
+            boxHalfExtent + radius / (sqrt 2) - Const.precision
 
-        faceDistance =
-            boxHalfExtent + radius
+        faceDimension =
+            boxHalfExtent + radius - Const.precision
     in
         -- the 8 vertex contacts
-        [ (vec3 vertexDistance vertexDistance vertexDistance)
-        , (vec3 (-vertexDistance) vertexDistance vertexDistance)
-        , (vec3 vertexDistance (-vertexDistance) vertexDistance)
-        , (vec3 (-vertexDistance) (-vertexDistance) vertexDistance)
-        , (vec3 vertexDistance vertexDistance (-vertexDistance))
-        , (vec3 (-vertexDistance) vertexDistance (-vertexDistance))
-        , (vec3 vertexDistance (-vertexDistance) (-vertexDistance))
-        , (vec3 (-vertexDistance) (-vertexDistance) (-vertexDistance))
-
+        [ (vec3 vertexDimension vertexDimension vertexDimension)
+        , (vec3 (-vertexDimension) vertexDimension vertexDimension)
+        , (vec3 vertexDimension (-vertexDimension) vertexDimension)
+        , (vec3 (-vertexDimension) (-vertexDimension) vertexDimension)
+        , (vec3 vertexDimension vertexDimension (-vertexDimension))
+        , (vec3 (-vertexDimension) vertexDimension (-vertexDimension))
+        , (vec3 vertexDimension (-vertexDimension) (-vertexDimension))
+        , (vec3 (-vertexDimension) (-vertexDimension) (-vertexDimension))
+        
         -- the 12 edge (midpoint) contacts
-        , (vec3 faceDistance faceDistance 0)
-        , (vec3 0 faceDistance faceDistance)
-        , (vec3 faceDistance 0 faceDistance)
-        , (vec3 (-faceDistance) faceDistance 0)
-        , (vec3 0 (-faceDistance) faceDistance)
-        , (vec3 faceDistance 0 (-faceDistance))
-        , (vec3 faceDistance (-faceDistance) 0)
-        , (vec3 0 faceDistance (-faceDistance))
-        , (vec3 (-faceDistance) 0 faceDistance)
-        , (vec3 (-faceDistance) (-faceDistance) 0)
-        , (vec3 0 (-faceDistance) (-faceDistance))
-        , (vec3 (-faceDistance) 0 (-faceDistance))
+        , (vec3 edgeDimension edgeDimension 0)
+        , (vec3 0 edgeDimension edgeDimension)
+        , (vec3 edgeDimension 0 edgeDimension)
+        , (vec3 (-edgeDimension) edgeDimension 0)
+        , (vec3 0 (-edgeDimension) edgeDimension)
+        , (vec3 edgeDimension 0 (-edgeDimension))
+        , (vec3 edgeDimension (-edgeDimension) 0)
+        , (vec3 0 edgeDimension (-edgeDimension))
+        , (vec3 (-edgeDimension) 0 edgeDimension)
+        , (vec3 (-edgeDimension) (-edgeDimension) 0)
+        , (vec3 0 (-edgeDimension) (-edgeDimension))
+        , (vec3 (-edgeDimension) 0 (-edgeDimension))
 
         -- the 6 face (center) contacts
-        , (vec3 faceDistance 0 0)
-        , (vec3 0 faceDistance 0)
-        , (vec3 0 0 faceDistance)
-        , (vec3 (-faceDistance) 0 0)
-        , (vec3 0 (-faceDistance) 0)
-        , (vec3 0 0 (-faceDistance))
+        , (vec3 faceDimension 0 0)
+        , (vec3 0 faceDimension 0)
+        , (vec3 0 0 faceDimension)
+        , (vec3 (-faceDimension) 0 0)
+        , (vec3 0 (-faceDimension) 0)
+        , (vec3 0 0 (-faceDimension))
 
         -- 3 sample face contacts very near a vertex
-        , (vec3 nearEdgeOffset faceDistance nearEdgeOffset)
-        , (vec3 (-faceDistance) nearEdgeOffset nearEdgeOffset)
-        , (vec3 nearEdgeOffset nearEdgeOffset (-faceDistance))
+        , (vec3 nearEdgeOffset faceDimension nearEdgeOffset)
+        , (vec3 (-faceDimension) nearEdgeOffset nearEdgeOffset)
+        , (vec3 nearEdgeOffset nearEdgeOffset (-faceDimension))
 
         -- 3 sample face contacts very near an edge (midpoint)
-        , (vec3 faceDistance nearEdgeOffset 0)
-        , (vec3 nearEdgeOffset 0 faceDistance)
-        , (vec3 0 (-faceDistance) nearEdgeOffset)
+        , (vec3 faceDimension nearEdgeOffset 0)
+        , (vec3 nearEdgeOffset 0 faceDimension)
+        , (vec3 0 (-faceDimension) nearEdgeOffset)
         ]

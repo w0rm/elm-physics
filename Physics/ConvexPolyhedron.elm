@@ -739,7 +739,7 @@ sphereFaceContact center radius t2 vertices { vertexIndices, normal } (( _, maxP
                 |> Maybe.withDefault -1
 
         worldVertices =
-            if penetration >= maxPenetration && dot > 0 then
+            if penetration > maxPenetration && dot > 0 then
                 -- Sphere intersects the face plane.
                 vertexIndices
                     |> List.map
@@ -802,10 +802,10 @@ sphereFaceContact center radius t2 vertices { vertexIndices, normal } (( _, maxP
 
 
 sphereFaceEdgesContact : Vec3 -> Float -> List Vec3 -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
-sphereFaceEdgesContact center radius worldVertices (( _, maxPenetration ) as statusQuo) =
+sphereFaceEdgesContact center radius worldVertices statusQuo =
     worldVertices
         |> listRingFoldStaggeredPairs
-            (\vertex prevVertex (( _, maxPenetration1 ) as statusQuo1) ->
+            (\vertex prevVertex (( _, maxPenetration ) as statusQuo1) ->
                 let
                     edge =
                         Vec3.sub vertex prevVertex
@@ -837,7 +837,7 @@ sphereFaceEdgesContact center radius worldVertices (( _, maxPenetration ) as sta
                         in
                             -- Edge collision only occurs if the
                             -- projection is within the sphere.
-                            if penetration > maxPenetration1 then
+                            if penetration > maxPenetration then
                                 ( Just worldContact, penetration )
                             else
                                 statusQuo1
