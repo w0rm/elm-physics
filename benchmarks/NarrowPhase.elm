@@ -39,7 +39,7 @@ suite : Benchmark
 suite =
     let
         radius =
-            1
+            5
 
         boxHalfExtent =
             1
@@ -50,14 +50,28 @@ suite =
         originalBoxHull =
             HullFixtures.originalBoxHull boxHalfExtent
 
-        positions =
+        boxPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions radius boxHalfExtent
+                |> List.map Tuple.first
+
+        octoHalfExtent =
+            3
+
+        octoHull =
+            HullFixtures.octoHull octoHalfExtent
+
+        originalOctoHull =
+            HullFixtures.originalOctoHull octoHalfExtent
+
+        octoPositions =
+            Fixtures.NarrowPhase.sphereContactOctohedronPositions radius octoHalfExtent
+                |> List.map Tuple.first
     in
         describe "NarrowPhase"
             [ Benchmark.compare "addSphereConvexContacts"
                 "baseline"
                 (\_ ->
-                    positions
+                    boxPositions
                         |> List.map
                             (\position ->
                                 OriginalNarrowPhase.addSphereConvexContacts
@@ -74,7 +88,7 @@ suite =
                 )
                 "latest code"
                 (\_ ->
-                    positions
+                    boxPositions
                         |> List.map
                             (\position ->
                                 NarrowPhase.addSphereConvexContacts
@@ -85,6 +99,41 @@ suite =
                                     , quaternion = Quaternion.identity
                                     }
                                     boxHull
+                                    1
+                                    []
+                            )
+                )
+            , Benchmark.compare "addSphereConvexContacts octohedron"
+                "baseline"
+                (\_ ->
+                    octoPositions
+                        |> List.map
+                            (\position ->
+                                OriginalNarrowPhase.addSphereConvexContacts
+                                    Transform.identity
+                                    radius
+                                    0
+                                    { position = position
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    originalOctoHull
+                                    1
+                                    []
+                            )
+                )
+                "latest code"
+                (\_ ->
+                    octoPositions
+                        |> List.map
+                            (\position ->
+                                NarrowPhase.addSphereConvexContacts
+                                    Transform.identity
+                                    radius
+                                    0
+                                    { position = position
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    octoHull
                                     1
                                     []
                             )
