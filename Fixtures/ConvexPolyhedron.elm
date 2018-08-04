@@ -69,6 +69,30 @@ boxVertexIndices =
     ]
 
 
+octoVertices : Float -> Array Vec3
+octoVertices halfExtent =
+        [ (vec3 0 0 halfExtent)
+        , (vec3 0 halfExtent 0)
+        , (vec3 halfExtent 0 0)
+        , (vec3 -halfExtent 0 0)
+        , (vec3 0 0 -halfExtent)
+        , (vec3 0 -halfExtent 0)
+        ]
+            |> Array.fromList
+
+
+octoHull : Float -> ConvexPolyhedron.ConvexPolyhedron
+octoHull halfExtent =
+    octoVertices halfExtent
+        |> ConvexPolyhedron.init octoVertexIndices
+
+
+originalOctoHull : Float -> OriginalConvexPolyhedron.ConvexPolyhedron
+originalOctoHull halfExtent =
+    octoVertices halfExtent
+        |> OriginalConvexPolyhedron.init octoVertexIndices
+
+
 octoVertexIndices : List (List Int)
 octoVertexIndices =
     [ [ 2, 1, 0 ]
