@@ -11,7 +11,7 @@ import Math.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.Const as Const
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron, Face)
+import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Physics.Quaternion as Quaternion
 import Physics.Shape as Shape exposing (Shape(..))
 import Physics.Transform as Transform exposing (Transform)

@@ -8,13 +8,14 @@ import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.Const as Const
 import Physics.NarrowPhase as NarrowPhase
 import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform
 import Test exposing (..)
 
 
 addSphereConvexContacts : Test
 addSphereConvexContacts =
     let
+        center =
+            vec3 0 0 7
 
         radius =
             5
@@ -25,9 +26,19 @@ addSphereConvexContacts =
         boxHull =
             HullFixtures.boxHull boxHalfExtent
 
-        (boxPositions, boxExpectedResults) =
-            Fixtures.NarrowPhase.sphereContactBoxPositions radius boxHalfExtent
+        ( boxPositions, boxExpectedResults ) =
+            Fixtures.NarrowPhase.sphereContactBoxPositions
+                center
+                radius
+                boxHalfExtent
                 |> listOfPairsToPairOfLists
+
+        boxFarPositions =
+            Fixtures.NarrowPhase.sphereContactBoxPositions
+                center
+                (radius * 2)
+                boxHalfExtent
+                |> List.map Tuple.first
 
         octoHalfExtent =
             1
@@ -35,10 +46,19 @@ addSphereConvexContacts =
         octoHull =
             HullFixtures.octoHull octoHalfExtent
 
-        (octoPositions, octoExpectedResults) =
-            Fixtures.NarrowPhase.sphereContactOctohedronPositions radius octoHalfExtent
+        ( octoPositions, octoExpectedResults ) =
+            Fixtures.NarrowPhase.sphereContactOctohedronPositions
+                center
+                radius
+                octoHalfExtent
                 |> listOfPairsToPairOfLists
-                
+
+        octoFarPositions =
+            Fixtures.NarrowPhase.sphereContactOctohedronPositions
+                center
+                (radius * 2)
+                octoHalfExtent
+                |> List.map Tuple.first
     in
         describe "NarrowPhase.addSphereConvexContacts"
             [ test "for a box" <|
@@ -47,7 +67,9 @@ addSphereConvexContacts =
                         |> List.map
                             (\position ->
                                 NarrowPhase.addSphereConvexContacts
-                                    Transform.identity
+                                    { position = center
+                                    , quaternion = Quaternion.identity
+                                    }
                                     radius
                                     0
                                     { position = position
@@ -58,15 +80,39 @@ addSphereConvexContacts =
                                     []
                             )
                         |> expectNormalizedEqual
-                            (normalizeListTowards <| normalizeListTowards <| normalizeContactTowards)
+                            (normalizeListTowards <|
+                                normalizeListTowards <|
+                                    normalizeContactTowards
+                            )
                             boxExpectedResults
+            , test "fail for a far box" <|
+                \_ ->
+                    boxFarPositions
+                        |> List.concatMap
+                            (\position ->
+                                NarrowPhase.addSphereConvexContacts
+                                    { position = center
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    radius
+                                    0
+                                    { position = position
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    boxHull
+                                    1
+                                    []
+                            )
+                        |> Expect.equal []
             , test "for an octohedron" <|
                 \_ ->
                     octoPositions
                         |> List.map
                             (\position ->
                                 NarrowPhase.addSphereConvexContacts
-                                    Transform.identity
+                                    { position = center
+                                    , quaternion = Quaternion.identity
+                                    }
                                     radius
                                     0
                                     { position = position
@@ -77,19 +123,43 @@ addSphereConvexContacts =
                                     []
                             )
                         |> expectNormalizedEqual
-                            (normalizeListTowards <| normalizeListTowards <| normalizeContactTowards)
+                            (normalizeListTowards <|
+                                normalizeListTowards <|
+                                    normalizeContactTowards
+                            )
                             octoExpectedResults
+            , test "fail for a far octohedron" <|
+                \_ ->
+                    octoFarPositions
+                        |> List.concatMap
+                            (\position ->
+                                NarrowPhase.addSphereConvexContacts
+                                    { position = center
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    radius
+                                    0
+                                    { position = position
+                                    , quaternion = Quaternion.identity
+                                    }
+                                    octoHull
+                                    1
+                                    []
+                            )
+                        |> Expect.equal []
             ]
 
 
 
 -- Test helpers
 
-listOfPairsToPairOfLists : List (a, b) -> (List a, List b)
+
+listOfPairsToPairOfLists : List ( a, b ) -> ( List a, List b )
 listOfPairsToPairOfLists list =
     ( List.map Tuple.first list
     , List.map Tuple.second list
     )
+
 
 expectNormalizedEqual : (a -> a -> a) -> a -> a -> Expectation
 expectNormalizedEqual normalizeTowards expected actual =

@@ -383,8 +383,8 @@ project =
         ]
 
 
-faceNormal : Test
-faceNormal =
+initFaceNormal : Test
+initFaceNormal =
     let
         boxNormals =
             [ vec3 0 0 -1
@@ -491,7 +491,7 @@ faceNormal =
                         |> Array.fromList
                 )
     in
-        describe "ConvexPolyhedron.faceNormal"
+        describe "ConvexPolyhedron.initFaceNormal"
             [ test "works for the box" <|
                 \_ ->
                     boxHull 1
@@ -500,7 +500,7 @@ faceNormal =
                                     |> Array.toList
                                     |> List.map
                                         (\{ vertexIndices } ->
-                                            ConvexPolyhedron.faceNormal vertexIndices vertices
+                                            ConvexPolyhedron.initFaceNormal vertexIndices vertices
                                         )
                            )
                         |> Expect.equal boxNormals
@@ -516,7 +516,7 @@ faceNormal =
                     xRotationRingSequence
                         |> toRightTriangles xyRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal faceIndices)
+                            (ConvexPolyhedron.initFaceNormal faceIndices)
                         |> expectListVec3WithinPrecision
                             xNormalRingSequence
             , test "works for a left-handed triangle flipped around the x axis" <|
@@ -524,7 +524,7 @@ faceNormal =
                     xRotationRingSequence
                         |> toRightTriangles xyRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
                         |> expectListVec3WithinPrecision
                             xAntiNormalRingSequence
             , test "works for a right-handed triangle flipped around the y axis" <|
@@ -532,7 +532,7 @@ faceNormal =
                     yRotationRingSequence
                         |> toRightTriangles yzRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal faceIndices)
+                            (ConvexPolyhedron.initFaceNormal faceIndices)
                         |> expectListVec3WithinPrecision
                             yNormalRingSequence
             , test "works for a left-handed triangle flipped around the y axis" <|
@@ -540,7 +540,7 @@ faceNormal =
                     yRotationRingSequence
                         |> toRightTriangles yzRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
                         |> expectListVec3WithinPrecision
                             yAntiNormalRingSequence
             , test "works for a right-handed triangle flipped around the z axis" <|
@@ -548,7 +548,7 @@ faceNormal =
                     zRotationRingSequence
                         |> toRightTriangles zxRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal faceIndices)
+                            (ConvexPolyhedron.initFaceNormal faceIndices)
                         |> expectListVec3WithinPrecision
                             zNormalRingSequence
             , test "works for a left-handed triangle flipped around the z axis" <|
@@ -556,7 +556,7 @@ faceNormal =
                     zRotationRingSequence
                         |> toRightTriangles zxRightTriangle
                         |> List.map
-                            (ConvexPolyhedron.faceNormal backFaceIndices)
+                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
                         |> expectListVec3WithinPrecision
                             zAntiNormalRingSequence
             ]
@@ -609,17 +609,18 @@ listRingRotate offset ring =
             |> List.take resultLength
 
 
-uniqueEdges : Test
-uniqueEdges =
-    describe "ConvexPolyhedron.uniqueEdges"
+initUniqueEdges : Test
+initUniqueEdges =
+    describe "ConvexPolyhedron.initUniqueEdges"
         -- There are several valid representations of the same convex
         -- polyhedron, differing in the listed order of vertices and/or faces
         -- or in insignificant rounding errors in vertex values.
-        -- So, the implementation of uniqueEdges should be given some lattitude
-        -- in its resulting list of edges. ConvexPolyhedron.addFaceEdges does
-        -- most of the work of ConvexPolyhedron.uniqueEdges, and it can be
-        -- tested with seed values to get more deterministic results from
-        -- ConvexPolyhedrons even with varying equivalent representations.
+        -- So, the implementation of initUniqueEdges should be given some
+        -- lattitude in its resulting list of edges.
+        -- ConvexPolyhedron.addFaceEdges does most of the work of
+        -- ConvexPolyhedron.initUniqueEdges, and it can be tested with seed
+        -- values to get more deterministic results from ConvexPolyhedrons
+        -- even with varying equivalent representations.
         [ test "gives the correct number of edges for a box" <|
             \_ ->
                 boxHull 1
@@ -629,7 +630,7 @@ uniqueEdges =
 
         -- The square pyramid shape has fewer parallel edges than a box.
         -- The extent of parallel edges in a box was masking a bug discovered
-        -- in code review of addFaceEdges/uniqueEdges that would miss
+        -- in code review of addFaceEdges/initUniqueEdges that would miss
         -- some edges.
         , test "works for a square pyramid" <|
             \_ ->
@@ -657,23 +658,25 @@ addFaceEdges : Test
 addFaceEdges =
     describe "ConvexPolyhedron.addFaceEdges"
         -- Testing addFaceEdges avoids over-testing for exact results from
-        -- ConvexPolyhedron.uniqueEdges.
+        -- ConvexPolyhedron.initUniqueEdges.
         -- There are several valid representations of the same convex
         -- polyhedron, differing in the listed order of vertices and/or faces
         -- or in insignificant rounding errors in vertex values.
-        -- So, the implementation of uniqueEdges should be given some lattitude
-        -- in its resulting list of edges. ConvexPolyhedron.addFaceEdges does
-        -- most of the work of ConvexPolyhedron.uniqueEdges, and it can be
-        -- tested with seed values to get more deterministic results from
-        -- ConvexPolyhedrons even with varying equivalent representations.
+        -- So, the implementation of initUniqueEdges should be given some
+        -- lattitude in its resulting list of edges.
+        -- ConvexPolyhedron.addFaceEdges does most of the work of
+        -- ConvexPolyhedron.initUniqueEdges, and it can be tested with seed
+        -- values to get more deterministic results from ConvexPolyhedrons
+        -- even with varying equivalent representations.
         [ test "works for the box with positive seeds" <|
             \_ ->
                 let
                     -- Pre-calculated seeds are one way to get an exact
-                    -- normalized result. Members of the seed set are acceptable
-                    -- members of the result set. So long as the result-building
-                    -- process is non-destructive, the seeds should act as magnets
-                    -- for other valid results and should mask them in the final
+                    -- normalized result. Members of the seed set are
+                    -- acceptable members of the result set.
+                    -- So long as the result-building process is
+                    -- non-destructive, the seeds should act as magnets for
+                    -- other valid results and should mask them in the final
                     -- result.
                     fullSeedSet =
                         [ vec3 1 0 0
@@ -699,9 +702,9 @@ addFaceEdges =
         , test "works for the box with partial seeds" <|
             \_ ->
                 let
-                    -- A partial seed set should get filled out by the addition of
-                    -- complementary edges. This tests that the de-duping is not
-                    -- wildly over- or under- aggressive.
+                    -- A partial seed set should get filled out by the
+                    -- addition of complementary edges. This tests that the
+                    -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
                         [ vec3 -1 0 0
                         , vec3 0 0 1
@@ -713,9 +716,9 @@ addFaceEdges =
         , test "works for the box with different partial seeds" <|
             \_ ->
                 let
-                    -- A partial seed set should get filled out by the addition of
-                    -- complementary edges. This tests that the de-duping is not
-                    -- wildly over- or under- aggressive.
+                    -- A partial seed set should get filled out by the
+                    -- addition of complementary edges. This tests that the
+                    -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
                         [ vec3 0 0 1 ]
                 in
@@ -725,9 +728,9 @@ addFaceEdges =
         , test "works for the box with other different partial seeds" <|
             \_ ->
                 let
-                    -- A partial seed set should get filled out by the addition of
-                    -- complementary edges. This tests that the de-duping is not
-                    -- wildly over- or under- aggressive.
+                    -- A partial seed set should get filled out by the
+                    -- addition of complementary edges. This tests that the
+                    -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
                         [ vec3 0 1 0 ]
                 in
@@ -758,11 +761,11 @@ addFaceEdges =
                 let
                     -- Each invalid seed should simply linger in the result
                     -- with no effect on how (many) valid elements are added
-                    -- as complementary edges. This tests that de-duping is not
-                    -- overly aggressive in its matching.
+                    -- as complementary edges. This tests that de-duping is
+                    -- not overly aggressive in its matching.
                     -- Note: Some seeds use (Const.precision * 3.0) offsets to
-                    -- force values that are purposely not quite precise enough
-                    -- to match "exact" vertex values.
+                    -- force values that are purposely not quite precise
+                    -- enough to match "exact" vertex values.
                     -- These tests should work as well with non-exact vertices
                     -- except in a worst case scenario: we are ASSUMING that
                     -- any insignificant error terms in the vertex values are
@@ -782,7 +785,7 @@ addFaceEdges =
 
         -- The square pyramid shape has fewer parallel edges than a box.
         -- The extent of parallel edges in a box was masking a bug discovered
-        -- in code review of addFaceEdges/uniqueEdges that would miss
+        -- in code review of addFaceEdges/initUniqueEdges that would miss
         -- some edges.
         , test "works for a square pyramid" <|
             \_ ->
@@ -874,9 +877,9 @@ faceAdjacency =
 -- Test helper functions
 
 
-{-| Provide convenient test access to uniqueEdges based on the faces and
+{-| Provide convenient test access to initUniqueEdges based on the faces and
 vertices of an existing ConvexPolyhedron. There is no need for this in
-production, where uniqueEdges is called once at most per ConvexPolyhedron
+production, where initUniqueEdges is called once at most per ConvexPolyhedron
 BEFORE that ConvexPolyhedron is fully initialized, because its result gets
 cached in ConvexPolyhedron.edges.
 -}
@@ -886,17 +889,17 @@ uniqueEdgesOfConvexPolyhedron { vertices, faces } =
         |> Array.toList
         |> List.map .vertexIndices
         |> (\faceVertexIndices ->
-                ConvexPolyhedron.uniqueEdges faceVertexIndices vertices
+                ConvexPolyhedron.initUniqueEdges faceVertexIndices vertices
            )
 
 
 {-| This test helper function is intended as a more flexible variant of
-ConvexPolyhedron.uniqueEdges. Its differences from uniqueEdges are that it can
-be fed an initial list of "seed" edges and it operates on a pre-existing
-ConvexPolyhedron's vertices and faces.
+ConvexPolyhedron.initUniqueEdges. Its differences from initUniqueEdges are
+that it can be fed an initial list of "seed" edges and it operates on a
+pre-existing ConvexPolyhedron's vertices and faces.
 See the comment on uniqueEdgesOfConvexPolyhedron.
 These differences have no application in production.
-Keep this code in sync with any changes to ConvexPolyhedron.uniqueEdges.
+Keep this code in sync with any changes to ConvexPolyhedron.initUniqueEdges.
 -}
 addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
 addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
@@ -907,12 +910,14 @@ addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
             (ConvexPolyhedron.addFaceEdges vertices)
             seedEdges
 
+
 {-| Useful variant of addEdgesOfConvexPolyhedron that abstracts out the count
 for a less-detailed result.
 -}
 countEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> Int
 countEdgesOfConvexPolyhedron seedEdges hull =
     List.length <| addEdgesOfConvexPolyhedron seedEdges hull
+
 
 
 -- Test data generators
