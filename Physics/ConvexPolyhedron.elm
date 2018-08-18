@@ -1,7 +1,6 @@
 module Physics.ConvexPolyhedron
     exposing
         ( ConvexPolyhedron
-        , Face
         , findSeparatingAxis
         , clipAgainstHull
         , fromBox
@@ -10,10 +9,10 @@ module Physics.ConvexPolyhedron
           -- exposed only for tests
         , testSepAxis
         , addFaceEdges
-        , init
         , faceAdjacency
-        , faceNormal
-        , uniqueEdges
+        , init
+        , initFaceNormal
+        , initUniqueEdges
         , project
         , clipFaceAgainstHull
         , clipFaceAgainstPlane
@@ -60,7 +59,7 @@ init : List (List Int) -> Array Vec3 -> ConvexPolyhedron
 init faceVertexLists vertices =
     { faces = initFaces faceVertexLists vertices
     , vertices = vertices
-    , edges = uniqueEdges faceVertexLists vertices
+    , edges = initUniqueEdges faceVertexLists vertices
     }
 
 
@@ -73,7 +72,7 @@ initFaces faceVertexLists vertices =
         List.map2
             (\vertexIndices adjacentFaces ->
                 { vertexIndices = vertexIndices
-                , normal = faceNormal vertexIndices vertices
+                , normal = initFaceNormal vertexIndices vertices
                 , adjacentFaces = adjacentFaces
                 }
             )
@@ -188,8 +187,8 @@ boxUniqueEdges =
     ]
 
 
-faceNormal : List Int -> Array Vec3 -> Vec3
-faceNormal indices vertices =
+initFaceNormal : List Int -> Array Vec3 -> Vec3
+initFaceNormal indices vertices =
     case indices of
         i1 :: i2 :: i3 :: _ ->
             Maybe.map3 computeNormal
@@ -201,13 +200,13 @@ faceNormal indices vertices =
                     Const.zero3
 
         _ ->
-            defaultOrCrash
+            identityOrCrash
                 "Couldn't compute normal with < 3 vertices"
                 Const.zero3
 
 
-uniqueEdges : List (List Int) -> Array Vec3 -> List Vec3
-uniqueEdges faceVertexLists vertices =
+initUniqueEdges : List (List Int) -> Array Vec3 -> List Vec3
+initUniqueEdges faceVertexLists vertices =
     faceVertexLists
         |> List.foldl (addFaceEdges vertices) []
 
@@ -218,8 +217,8 @@ addFaceEdges vertices vertexIndices edges =
         |> listRingFoldStaggeredPairs
             (\prev current acc ->
                 addEdgeIfDistinct
-                    (Array.get current vertices)
                     (Array.get prev vertices)
+                    (Array.get current vertices)
                     acc
             )
             edges
@@ -229,7 +228,7 @@ addFaceEdges vertices vertexIndices edges =
 near duplicate or near opposite of an edge already in the set.
 -}
 addEdgeIfDistinct : Maybe Vec3 -> Maybe Vec3 -> List Vec3 -> List Vec3
-addEdgeIfDistinct currentVertex prevVertex uniques =
+addEdgeIfDistinct prevVertex currentVertex uniques =
     let
         candidateEdge =
             Maybe.map2
@@ -396,7 +395,7 @@ according to that operator such that for any DistanceCriterion dc:
 DistanceCriterion prevents accidental combination of comparators with
 inappropriate worst case values such as when starting an iterative run-off.
 It should be easier and less error prone to write and use generic run-off
-folds dependent on a DistanceCriteria.
+folds dependent on DistanceCriterion.
 -}
 type DistanceCriterion
     = Nearest
@@ -656,240 +655,291 @@ project transform { vertices } axis =
                )
 
 
+{-| Encapsulated result of sphereTestFace
+-}
+type TestFaceResult
+    = QualifiedEdges (List (List ( Vec3, Vec3 )))
+    | FaceContact Vec3 Float
+
+
+isAFaceContact : TestFaceResult -> Bool
+isAFaceContact testFaceResult =
+    case testFaceResult of
+        FaceContact _ _ ->
+            True
+
+        _ ->
+            False
+
+
+type TestBoundaryResult
+    = PossibleVertexContact ( Maybe Vec3, Float )
+    | EdgeContact ( Vec3, Float )
+
+
+isAnEdgeContact : TestBoundaryResult -> Bool
+isAnEdgeContact testEdgeResult =
+    case testEdgeResult of
+        EdgeContact _ ->
+            True
+
+        _ ->
+            False
+
+
+{-| The contact point, if any, of a ConvexPolyhedron with a sphere, and
+the sphere's penetration into the ConvexPolyhedron beyond that contact.
+-}
 sphereContact : Vec3 -> Float -> Transform -> ConvexPolyhedron -> ( Maybe Vec3, Float )
 sphereContact center radius t2 { vertices, faces } =
-    -- Check corners
-    -- TODO: This check could be deferred. A vertex contact check might be
-    -- more efficiently applied to specific vertices discovered in the most
-    -- likely faces and edges as discovered in the later pass.
-    sphereVertexContact center radius t2 vertices
-        -- else check faces and face edges
-        |> sphereAllFacesContact center radius t2 vertices faces
-
-
-sphereVertexContact : Vec3 -> Float -> Transform -> Array Vec3 -> ( Maybe Vec3, Float )
-sphereVertexContact center radius t2 vertices =
-    vertices
-        |> Array.foldl
-            (\vertex (( _, maxPenetration ) as statusQuo) ->
-                let
-                    -- World position of corner
-                    worldCorner =
-                        Transform.pointToWorldFrame t2 vertex
-
-                    penetration =
-                        radius - Vec3.distance worldCorner center
-                in
-                    if penetration > maxPenetration then
-                        ( Just worldCorner, penetration )
-                    else
-                        statusQuo
-            )
-            -- Initial state for (maybeContact, maxPenetration)
-            ( Nothing, 0.0 )
-
-
-sphereAllFacesContact : Vec3 -> Float -> Transform -> Array Vec3 -> Array Face -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
-sphereAllFacesContact center radius t2 vertices faces result =
-    faces
-        |> Array.foldl
-            (sphereFaceContact
-                center
-                radius
-                t2
-                vertices
-            )
-            result
-
-
-sphereFaceContact : Vec3 -> Float -> Transform -> Array Vec3 -> Face -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
-sphereFaceContact center radius t2 vertices { vertexIndices, normal } (( _, maxPenetration ) as statusQuo) =
     let
-        -- Get world-transformed normal of the face
-        worldFacePlaneNormal =
-            Quaternion.rotate t2.quaternion normal
+        sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
+        sphereFaceContact normal distance =
+            -- The world frame contact is located distance away from
+            -- the world frame sphere center in the OPPOSITE direction of
+            -- the normal.
+            ( Just <|
+                Vec3.sub center <|
+                    Vec3.scale distance normal
+            , radius - distance
+            )
 
-        -- Get an arbitrary world vertex from the face
-        worldPoint =
+        sphereBoundaryContact : Vec3 -> Float -> ( Maybe Vec3, Float )
+        sphereBoundaryContact localContact distanceSq =
+            ( Just <| Vec3.add localContact center
+            , radius - sqrt distanceSq
+            )
+
+        spherePossibleBoundaryContact : List (List ( Vec3, Vec3 )) -> ( Maybe Vec3, Float )
+        spherePossibleBoundaryContact faceEdgeList =
+            case sphereTestBoundaries radius faceEdgeList of
+                PossibleVertexContact ( Just localContact, distanceSq ) ->
+                    sphereBoundaryContact localContact distanceSq
+
+                PossibleVertexContact noContact ->
+                    noContact
+
+                EdgeContact ( localContact, distanceSq ) ->
+                    sphereBoundaryContact localContact distanceSq
+
+        reframedVertices =
+            vertices
+                |> Array.map
+                    (\vertex ->
+                        Vec3.sub
+                            (Transform.pointToWorldFrame t2 vertex)
+                            center
+                    )
+
+        -- Find the details of the closest faces.
+        testFaceResult =
+            faces
+                |> arrayRecurseUntil
+                    isAFaceContact
+                    (\{ vertexIndices, normal } statusQuo ->
+                        case statusQuo of
+                            QualifiedEdges acc ->
+                                sphereTestFace
+                                    radius
+                                    (Quaternion.rotate t2.quaternion normal)
+                                    reframedVertices
+                                    vertexIndices
+                                    acc
+
+                            FaceContact _ _ ->
+                                -- Since a FaceContact short circuits the
+                                -- recursion, this case is not expected.
+                                statusQuo
+                    )
+                    (QualifiedEdges [])
+    in
+        case testFaceResult of
+            QualifiedEdges faceEdgeList ->
+                -- Check the candidate faces' edges and vertices.
+                spherePossibleBoundaryContact faceEdgeList
+
+            FaceContact faceNormal faceDistance ->
+                sphereFaceContact faceNormal faceDistance
+
+
+{-| The contact point and distance, if any, of a ConvexPolyhedron's face
+with a sphere, or otherwise a list of the face's edges that may contain an
+edge or vertex contact.
+-}
+sphereTestFace : Float -> Vec3 -> Array Vec3 -> List Int -> List (List ( Vec3, Vec3 )) -> TestFaceResult
+sphereTestFace radius normal vertices vertexIndices acc =
+    let
+        -- Use an arbitrary vertex from the face to measure the distance to
+        -- the origin (sphere center) along the face normal.
+        faceDistance =
             List.head vertexIndices
                 |> Maybe.andThen (\i -> Array.get i vertices)
                 |> Maybe.map
-                    (Transform.pointToWorldFrame t2)
-
-        penetration =
-            worldPoint
-                |> Maybe.map
                     (\point ->
-                        worldFacePlaneNormal
-                            |> Vec3.scale radius
-                            |> Vec3.sub center
-                            |> Vec3.sub point
-                            |> Vec3.dot worldFacePlaneNormal
+                        -(Vec3.dot normal point)
                     )
+                -- a negative value prevents a face or edge contact match
                 |> Maybe.withDefault -1
 
-        dot =
-            worldPoint
-                |> Maybe.map
-                    (\point ->
-                        Vec3.dot
-                            (Vec3.sub center point)
-                            worldFacePlaneNormal
-                    )
-                |> Maybe.withDefault -1
-
-        worldVertices =
-            if penetration > maxPenetration && dot > 0 then
+        faceVertices =
+            if faceDistance < radius && faceDistance > 0.0 then
                 -- Sphere intersects the face plane.
+                -- Check that all the vertices are valid.
                 vertexIndices
-                    |> List.map
-                        (\index ->
-                            Array.get index vertices
-                                |> Maybe.map
-                                    (\vertex ->
-                                        ( (Transform.pointToWorldFrame t2 vertex)
-                                        , True
-                                        )
-                                    )
-                                |> Maybe.withDefault ( Const.zero3, False )
+                    |> List.foldl
+                        (\index acc ->
+                            Maybe.map2
+                                (::)
+                                (Array.get index vertices)
+                                acc
                         )
-                    |> (\tuples ->
-                            -- Check that all the world vertices are valid.
-                            if
-                                tuples
-                                    |> List.foldl
-                                        (\tuple valid ->
-                                            if valid then
-                                                (Tuple.second tuple)
-                                            else
-                                                False
-                                        )
-                                        True
-                            then
-                                -- Extract the world vertices
-                                tuples
-                                    |> List.map Tuple.first
-                            else
-                                []
-                       )
+                        (Just [])
             else
-                []
+                Nothing
     in
-        -- If vertices are valid, Check if the sphere center is inside the
-        -- normal projection of the face polygon.
-        if pointInPolygon worldVertices worldFacePlaneNormal center then
-            let
-                worldContact =
-                    worldFacePlaneNormal
-                        |> Vec3.scale (penetration - radius)
-                        |> Vec3.add center
-            in
-                ( Just worldContact, penetration )
-        else
-            -- Try the face's edges
-            sphereFaceEdgesContact
-                center
-                radius
-                (vertexIndices
-                    |> List.filterMap
-                        (\index ->
-                            Array.get index vertices
-                                |> Maybe.map
-                                    (Transform.pointToWorldFrame t2)
-                        )
-                )
-                statusQuo
+        case faceVertices of
+            -- Require 3 or more valid vertices to proceed
+            Just ((_ :: _ :: _ :: _) as validVertices) ->
+                -- If vertices are valid, check if the sphere center
+                -- projects onto the face plane INSIDE the face polygon.
+                case originProjection validVertices normal of
+                    [] ->
+                        -- The projection falls within all the face's edges.
+                        FaceContact normal faceDistance
+
+                    separatingEdges ->
+                        -- These origin-excluding edges are candidates for
+                        -- having an edge or vertex contact.
+                        QualifiedEdges <| separatingEdges :: acc
+
+            _ ->
+                QualifiedEdges acc
 
 
-sphereFaceEdgesContact : Vec3 -> Float -> List Vec3 -> ( Maybe Vec3, Float ) -> ( Maybe Vec3, Float )
-sphereFaceEdgesContact center radius worldVertices statusQuo =
-    worldVertices
-        |> listRingFoldStaggeredPairs
-            (\vertex prevVertex (( _, maxPenetration ) as statusQuo1) ->
-                let
-                    edge =
-                        Vec3.sub vertex prevVertex
+{-| The edge or vertex contact point and its distance (squared), if any,
+of a ConvexPolyhedron's edges with a sphere, limited to a pre-qualified
+list of edges per face.
+-}
+sphereTestBoundaries : Float -> List (List ( Vec3, Vec3 )) -> TestBoundaryResult
+sphereTestBoundaries radius faceEdgeList =
+    faceEdgeList
+        |> List.foldl
+            sphereTestBoundary
+            (PossibleVertexContact ( Nothing, radius ^ 2 ))
 
-                    -- The normalized edge vector
-                    edgeUnit =
-                        Vec3.normalize edge
 
-                    -- The potential contact is where the sphere center
-                    -- projects onto the edge.
-                    -- dot is the directed distance between the edge's
-                    -- starting vertex and that projection. If it is not
-                    -- between 0 and the edge's length, the projection
-                    -- is invalid.
-                    dot =
-                        Vec3.dot (Vec3.sub center prevVertex) edgeUnit
-                in
-                    if
-                        (dot > 0)
-                            && (dot * dot < Vec3.lengthSquared edge)
-                    then
-                        let
-                            worldContact =
-                                Vec3.scale dot edgeUnit
-                                    |> Vec3.add prevVertex
+{-| The edge or possible vertex contact point and its distance (squared),
+if any, of a ConvexPolyhedron face's pre-qualified edges with a sphere.
+-}
+sphereTestBoundary : List ( Vec3, Vec3 ) -> TestBoundaryResult -> TestBoundaryResult
+sphereTestBoundary faceEdges statusQuo =
+    faceEdges
+        |> listRecurseUntil
+            isAnEdgeContact
+            (\( prevVertex, vertex ) statusQuo1 ->
+                case statusQuo1 of
+                    PossibleVertexContact soFar ->
+                        sphereTestEdge prevVertex vertex soFar
 
-                            penetration =
-                                radius - Vec3.distance worldContact center
-                        in
-                            -- Edge collision only occurs if the
-                            -- projection is within the sphere.
-                            if penetration > maxPenetration then
-                                ( Just worldContact, penetration )
-                            else
-                                statusQuo1
-                    else
-                        -- TODO: A vertex contact check might be more efficient
-                        -- here than in a prior pass
+                    EdgeContact _ ->
+                        -- Since an EdgeContact stops the recursion,
+                        -- this case is not expected.
                         statusQuo1
             )
             statusQuo
 
 
-pointInPolygon : List Vec3 -> Vec3 -> Vec3 -> Bool
-pointInPolygon vertices normal position =
-    if List.length vertices < 3 then
-        False
-    else
-        vertices
-            |> listRingFoldStaggeredPairs
-                (\vertex prevVertex ( acc, precedent ) ->
-                    if acc then
-                        let
-                            edge =
-                                Vec3.sub vertex prevVertex
+{-| The edge or possible vertex contact point and its distance (squared),
+if any, of a ConvexPolyhedron face's pre-qualified edge with a sphere.
+-}
+sphereTestEdge : Vec3 -> Vec3 -> ( Maybe Vec3, Float ) -> TestBoundaryResult
+sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
+    let
+        betterVertexContact : Vec3 -> ( Maybe Vec3, Float )
+        betterVertexContact candidate =
+            let
+                -- Note: the vector length of a sphere-framed vertex
+                -- is its distance from the sphere center
+                vertexLengthSq =
+                    Vec3.lengthSquared candidate
+            in
+                if vertexLengthSq < minDistanceSq then
+                    ( Just candidate, vertexLengthSq )
+                else
+                    statusQuo
 
-                            edge_x_normal =
-                                Vec3.cross edge normal
+        edge =
+            Vec3.sub vertex prevVertex
 
-                            vertex_to_p =
-                                Vec3.sub position prevVertex
+        edgeUnit =
+            Vec3.normalize edge
 
-                            -- This dot product determines which side
-                            -- of the edge the point is.
-                            -- It must be consistent for all edges for the
-                            -- point to be within the face.
-                            side =
-                                (Vec3.dot edge_x_normal vertex_to_p) > 0
-                        in
-                            case precedent of
-                                Nothing ->
-                                    ( True
-                                    , side |> Just
-                                    )
+        -- The potential contact is where the sphere center
+        -- projects onto the edge.
+        -- offset is the directed distance between the edge's
+        -- starting vertex and that projection. If it is not
+        -- between 0 and the edge's length, there is no edge contact.
+        -- Yet there may be a contact with whichever vertex is closest
+        -- to the projection.
+        offset =
+            -(Vec3.dot prevVertex edgeUnit)
+    in
+        if offset < 0 then
+            -- prevVertex is closest in this edge,
+            -- but there may be a closer edge or
+            -- no contact.
+            PossibleVertexContact <| betterVertexContact prevVertex
+        else if offset ^ 2 > Vec3.lengthSquared edge then
+            -- vertex is closest in this edge,
+            -- but there may be a closer edge or
+            -- no contact.
+            PossibleVertexContact <| betterVertexContact vertex
+        else
+            let
+                edgeContact =
+                    Vec3.add prevVertex <|
+                        Vec3.scale offset edgeUnit
 
-                                Just determinedPrecedent ->
-                                    ( side == determinedPrecedent
-                                    , precedent
-                                    )
+                edgeDistanceSq =
+                    Vec3.lengthSquared edgeContact
+            in
+                if edgeDistanceSq < minDistanceSq then
+                    EdgeContact ( edgeContact, edgeDistanceSq )
+                else
+                    PossibleVertexContact statusQuo
+
+
+{-| A 2D point-in-polygon check for the projection of the origin
+(e.g. the center of a sphere within its own frame of reference) within a
+polygon (e.g. a ConvexPolyhedron face). To simplify post-processing,
+return a relatively short but complete list of qualified edges (adjacent
+vertex pairs) whose lines separate the projection from the polygon.
+If the list is empty, the projection is within the polygon.
+-}
+originProjection : List Vec3 -> Vec3 -> List ( Vec3, Vec3 )
+originProjection vertices normal =
+    vertices
+        |> listRingFoldStaggeredPairs
+            (\prevVertex vertex acc ->
+                let
+                    edge_x_normal =
+                        Vec3.sub vertex prevVertex
+                            |> Vec3.cross normal
+                in
+                    -- The sign of this dot product determines on which
+                    -- side of the directed edge the projected point lies,
+                    -- left or right, within the face plane.
+                    -- For the projection to be within the face, the sign
+                    -- must always be non-negative when circling from vertex
+                    -- to vertex in the listed (counter-clockwise) direction.
+                    -- Retain any edge that tests negative as a candidate
+                    -- for an edge or vertex contact.
+                    if (Vec3.dot edge_x_normal prevVertex < 0) then
+                        ( prevVertex, vertex ) :: acc
                     else
-                        ( False, Nothing )
-                )
-                ( True, Nothing )
-            |> Tuple.first
+                        acc
+            )
+            []
 
 
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
@@ -942,6 +992,67 @@ expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
         |> sqrt
 
 
+
+-- Generic utilities, listed alphabetically.
+-- TODO: Consider migrating these to one or more utility modules
+-- if they are found useful elsewhere.
+
+
+arrayRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> Array a -> b
+arrayRecurseUntil test fn seed array =
+    let
+        recurse index acc =
+            case Array.get index array of
+                Just element ->
+                    if test acc then
+                        acc
+                    else
+                        fn element acc
+                            |> recurse (index + 1)
+
+                Nothing ->
+                    acc
+    in
+        recurse 0 seed
+
+
+{-| Easily disabled wrapper for Debug.crash.
+KEEP DISABLED in published production code.
+-}
+identityOrCrash : String -> a -> a
+identityOrCrash message value =
+    -- enabled: Debug.crash message value
+    -- disabled: KEEP DISABLED in published production code.
+    value
+
+
+{-| Fold the function over pairs of consecutive elements in the list,
+starting with the pair (seed, first), then (first, second), and so on.
+-}
+listFoldStaggeredPairs : (a -> a -> b -> b) -> b -> a -> List a -> b
+listFoldStaggeredPairs fn resultSeed seed list =
+    list
+        |> List.foldl
+            (\current ( acc, staggered ) ->
+                case staggered of
+                    prev :: tail ->
+                        ( fn prev current acc
+                        , tail
+                        )
+
+                    _ ->
+                        -- Since the original list should run out of elements
+                        -- one iteration before the staggered list does,
+                        -- this case is not expected.
+                        ( acc, [] )
+            )
+            ( resultSeed, seed :: list )
+        |> Tuple.first
+
+
+{-| Just the last element of a list, or Nothing for an empty list.
+Equivalent to elm-community/list-extra/7.1.0/List-Extra last.
+-}
 listLast : List a -> Maybe a
 listLast list =
     list
@@ -950,8 +1061,8 @@ listLast list =
 
 
 {-| A generic List/Maybe-related utility.
-For a "Just x" value add x to the list; for a "Nothing" value, do nothing.
-Example:
+For "Just x", add x to the list; for "Nothing", do nothing.
+Examples:
 listMaybeAdd [] (Just 1) === [ 1 ]
 listMaybeAdd [] Nothing === []
 listMaybeAdd [ 2, 1 ] (Just 3) === [ 3, 2, 1 ]
@@ -967,114 +1078,48 @@ listMaybeAdd list maybe =
             head :: list
 
 
+{-| Recursively "foldl" the function over the elements of the list,
+until the result passes a test. Using recursion in the place of a true
+fold allows a short-circuit return as soon as the test passes.
+Note: If the short-circuit condition is unlikely, especially towards
+the beginning of the list, it MAY be more efficient to use foldl,
+integrating the short-circuit test into the folding function as an up-front
+pass-through condition.
+-}
+listRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> List a -> b
+listRecurseUntil test fn resultSoFar list =
+    if test resultSoFar then
+        resultSoFar
+    else
+        case list of
+            head :: tail ->
+                let
+                    acc =
+                        fn head resultSoFar
+                in
+                    listRecurseUntil test fn acc tail
+
+            _ ->
+                resultSoFar
+
+
 {-| Map the function to pairs of consecutive elements in the ring list,
-starting with the pair (first, last), then (second, first), and so on.
+starting with the pair (last, first), then (first, second), and so on.
 -}
 listRingFoldStaggeredPairs : (a -> a -> b -> b) -> b -> List a -> b
 listRingFoldStaggeredPairs fn resultSeed list =
     case listLast list of
         Nothing ->
+            -- The ring is empty.
             resultSeed
 
         Just last ->
             listFoldStaggeredPairs fn resultSeed last list
 
 
-{-| Map the function to pairs of consecutive elements in the list,
-starting with the pair (first, seed), then (second, first), and so on.
+{-| Crash-on-Nothing equivalent of Maybe.andThen for use in debugging.
+KEEP DISABLED in published production code.
 -}
-listFoldStaggeredPairs : (a -> a -> b -> b) -> b -> a -> List a -> b
-listFoldStaggeredPairs fn resultSeed seed list =
-    list
-        |> List.foldl
-            (\current ( acc1, staggered1 ) ->
-                case staggered1 of
-                    prev :: tail ->
-                        ( fn prev current acc1
-                        , tail
-                        )
-
-                    _ ->
-                        ( acc1, [] )
-            )
-            ( resultSeed, seed :: list )
-        |> Tuple.first
-
-
-arrayFoldWhileNothing : (a -> Maybe b) -> Maybe b -> Array a -> Maybe b
-arrayFoldWhileNothing fn seed array =
-    array
-        |> Array.foldl
-            (\element acc ->
-                case acc of
-                    Nothing ->
-                        fn element
-
-                    _ ->
-                        acc
-            )
-            seed
-
-
-arrayRecurseWhileNothing : (a -> Maybe b) -> Maybe b -> Array a -> Maybe b
-arrayRecurseWhileNothing fn seed array =
-    let
-        recurse index =
-            case Array.get index array of
-                Nothing ->
-                    Nothing
-
-                Just element ->
-                    case fn element of
-                        Nothing ->
-                            recurse (index + 1)
-
-                        Just result ->
-                            Just result
-    in
-        recurse 0
-
-
-type Lazy
-    = Now
-
-
-arrayGetOrCrash : String -> Array a -> Int -> Maybe a
-arrayGetOrCrash debugTag array i =
-    Array.get i array
-        |> maybeAndThenOrLazyCrash
-            (\lazy ->
-                "invalid index "
-                    ++ (toString i)
-                    ++ " into the "
-                    ++ (toString (Array.length array))
-                    ++ debugTag
-                    ++ " array"
-            )
-            Just
-
-
-defaultOrCrash : String -> a -> a
-defaultOrCrash message default =
-    -- enabled: Debug.crash message
-    -- disabled:
-    default
-
-
-maybeAndThenOrLazyCrash : (Lazy -> String) -> (a -> Maybe b) -> Maybe a -> Maybe b
-maybeAndThenOrLazyCrash messageFn fn maybe =
-    {--enabled:
-    case maybe of
-        Just value ->
-            fn value
-
-        Nothing ->
-            messageFn Now |> --Debug.crash
-    --}
-    -- disabled:
-    Maybe.andThen fn maybe
-
-
 maybeAndThenOrCrash : String -> (a -> Maybe b) -> Maybe a -> Maybe b
 maybeAndThenOrCrash message fn maybe =
     {--enabled:
@@ -1085,10 +1130,13 @@ maybeAndThenOrCrash message fn maybe =
         Nothing ->
             --Debug.crash message
     --}
-    -- disabled:
+    -- disabled: KEEP DISABLED in published production code.
     Maybe.andThen fn maybe
 
 
+{-| Crash-on-Nothing equivalent of Maybe.map for use in debugging.
+KEEP DISABLED in published production code.
+-}
 maybeMapOrCrash : String -> (a -> b) -> Maybe a -> Maybe b
 maybeMapOrCrash message fn maybe =
     {--enabled:
@@ -1099,10 +1147,13 @@ maybeMapOrCrash message fn maybe =
         Nothing ->
             --Debug.crash message
     --}
-    -- disabled:
+    -- disabled: KEEP DISABLED in published production code.
     Maybe.map fn maybe
 
 
+{-| Crash-on-Nothing equivalent of Maybe.withDefault for use in debugging.
+KEEP DISABLED in published production code.
+-}
 maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
 maybeWithDefaultOrCrash message default maybe =
     {--enabled:
@@ -1113,5 +1164,5 @@ maybeWithDefaultOrCrash message default maybe =
         Nothing ->
             --Debug.crash message
     --}
-    -- disabled:
+    -- disabled: KEEP DISABLED in published production code.
     Maybe.withDefault default maybe
