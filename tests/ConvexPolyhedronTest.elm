@@ -1,4 +1,4 @@
-module ConvexPolyhedron exposing (addEdgesOfConvexPolyhedron, addFaceEdges, boxHull, boxUniqueEdges, clipAgainstHull, clipFaceAgainstHull, clipFaceAgainstPlane, countEdgesOfConvexPolyhedron, expectListVec3WithinPrecision, faceAdjacency, findSeparatingAxis, initFaceNormal, initUniqueEdges, listRingRotate, normalizeVec3Towards, project, testSepAxis, uniqueEdgesOfConvexPolyhedron)
+module ConvexPolyhedronTest exposing (addEdgesOfConvexPolyhedron, addFaceEdges, boxHull, boxUniqueEdges, clipAgainstHull, clipFaceAgainstHull, clipFaceAgainstPlane, countEdgesOfConvexPolyhedron, expectListVec3WithinPrecision, faceAdjacency, findSeparatingAxis, initFaceNormal, initUniqueEdges, listRingRotate, normalizeVec3Towards, project, testSepAxis, uniqueEdgesOfConvexPolyhedron)
 
 import Array exposing (Array)
 import Expect exposing (Expectation)

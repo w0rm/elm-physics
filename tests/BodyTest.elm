@@ -1,4 +1,4 @@
-module Body exposing (boundingSphereRadius, box)
+module BodyTest exposing (boundingSphereRadius, box)
 
 import Expect exposing (Expectation)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)

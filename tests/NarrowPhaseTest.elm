@@ -1,4 +1,4 @@
-module NarrowPhase exposing (addSphereConvexContacts, expectNormalizedEqual, listOfPairsToPairOfLists, normalizeContactTowards, normalizeListTowards, normalizeVec3Towards)
+module NarrowPhaseTest exposing (addSphereConvexContacts, expectNormalizedEqual, listOfPairsToPairOfLists, normalizeContactTowards, normalizeListTowards, normalizeVec3Towards)
 
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
