@@ -1,27 +1,25 @@
-module Physics.World
-    exposing
-        ( World
-        , world
-        , setGravity
-        , addBody
-        , getNextBodyId
-        , tick
-        , getPairs
-        , addGravityForces
-        )
+module Physics.World exposing
+    ( World
+    , addBody
+    , addGravityForces
+    , getNextBodyId
+    , getPairs
+    , setGravity
+    , tick
+    , world
+    )
 
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)
+import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.Body as Body exposing (Body, BodyId)
 import Set exposing (Set)
-import Time exposing (Time)
-import Physics.Body as Body exposing (BodyId, Body)
 
 
 type alias World =
     { bodies : Dict BodyId Body
     , nextBodyId : BodyId
     , gravity : Vec3
-    , time : Time
+    , time : Float
     }
 
 
@@ -35,39 +33,40 @@ world =
 
 
 setGravity : Vec3 -> World -> World
-setGravity gravity world =
-    { world | gravity = gravity }
+setGravity gravity world_ =
+    { world_ | gravity = gravity }
 
 
 addGravityForces : World -> World
-addGravityForces world =
-    { world
-        | bodies = Dict.map (\_ -> Body.addGravity world.gravity) world.bodies
+addGravityForces world_ =
+    { world_
+        | bodies = Dict.map (\_ -> Body.addGravity world_.gravity) world_.bodies
     }
 
 
-tick : Time -> World -> World
-tick dt world =
-    { world
+tick : Float -> World -> World
+tick dt world_ =
+    { world_
         | bodies =
             Dict.map
                 (\_ -> Body.tick dt >> Body.clearForces)
-                world.bodies
-        , time = world.time + dt
+                world_.bodies
+        , time = world_.time + dt
     }
 
 
 {-| Predict the body id of the next body to be added
 -}
 getNextBodyId : World -> BodyId
-getNextBodyId world =
-    world.nextBodyId
+getNextBodyId =
+    .nextBodyId
+
 
 addBody : Body -> World -> World
-addBody body world =
-    { world
-        | bodies = Dict.insert world.nextBodyId body world.bodies
-        , nextBodyId = world.nextBodyId + 1
+addBody body world_ =
+    { world_
+        | bodies = Dict.insert world_.nextBodyId body world_.bodies
+        , nextBodyId = world_.nextBodyId + 1
     }
 
 
@@ -83,6 +82,7 @@ getPairs { bodies } =
                             < (body1.boundingSphereRadius + body2.boundingSphereRadius)
                     then
                         Set.insert ( id2, id1 )
+
                     else
                         identity
                 )

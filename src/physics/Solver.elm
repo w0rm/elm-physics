@@ -1,14 +1,13 @@
 module Physics.Solver exposing (solve)
 
-import Physics.World as World exposing (World)
-import Physics.Body as Body exposing (Body, BodyId)
-import Physics.SolverBody as SolverBody exposing (SolverBody)
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
-import Time exposing (Time)
 import Dict exposing (Dict)
 import Math.Vector3 as Vec3
+import Physics.Body as Body exposing (Body, BodyId)
 import Physics.Const as Const
+import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
+import Physics.SolverBody as SolverBody exposing (SolverBody)
+import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
+import Physics.World as World exposing (World)
 
 
 maxIterations : Int
@@ -16,10 +15,11 @@ maxIterations =
     20
 
 
-solve : Time -> List ContactEquation -> World -> World
+solve : Float -> List ContactEquation -> World -> World
 solve dt contactEquations world =
     if contactEquations == [] then
         world
+
     else
         world
             |> solveContext dt contactEquations
@@ -31,6 +31,7 @@ solveHelp : Int -> SolveContext -> SolveContext
 solveHelp number context =
     if number == 0 || context.deltalambdaTot < Const.precision then
         context
+
     else
         solveHelp (number - 1) (solveStep context)
 
@@ -62,7 +63,7 @@ fromJust x =
             y
 
         Nothing ->
-            Debug.crash ""
+            Debug.todo ""
 
 
 solveStep : SolveContext -> SolveContext
@@ -87,22 +88,24 @@ solveStep context =
                 deltalambda =
                     if equation.solverLambda + deltalambdaPrev < equation.minForce then
                         equation.minForce - equation.solverLambda
+
                     else if equation.solverLambda + deltalambdaPrev > equation.maxForce then
                         equation.maxForce - equation.solverLambda
+
                     else
                         deltalambdaPrev
 
                 newEquation =
                     { equation | solverLambda = equation.solverLambda + deltalambda }
             in
-                { acc
-                    | deltalambdaTot = acc.deltalambdaTot + abs deltalambda
-                    , equations = newEquation :: acc.equations
-                    , bodies =
-                        acc.bodies
-                            |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
-                            |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
-                }
+            { acc
+                | deltalambdaTot = acc.deltalambdaTot + abs deltalambda
+                , equations = newEquation :: acc.equations
+                , bodies =
+                    acc.bodies
+                        |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
+                        |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
+            }
         )
         { context | equations = [], deltalambdaTot = 0 }
         context.equations
@@ -116,30 +119,30 @@ type alias SolveContext =
     }
 
 
-solveContext : Time -> List ContactEquation -> World -> SolveContext
+solveContext : Float -> List ContactEquation -> World -> SolveContext
 solveContext dt contactEquations world =
     let
         solverBodies =
             Dict.map (\_ -> SolverBody.fromBody) world.bodies
     in
-        { bodies = solverBodies
-        , equations =
-            List.foldl
-                (\contactEquation ->
-                    let
-                        bi =
-                            Dict.get contactEquation.bodyId1 solverBodies
-                                |> fromJust
+    { bodies = solverBodies
+    , equations =
+        List.foldl
+            (\contactEquation ->
+                let
+                    bi =
+                        Dict.get contactEquation.bodyId1 solverBodies
+                            |> fromJust
 
-                        bj =
-                            Dict.get contactEquation.bodyId2 solverBodies
-                                |> fromJust
-                    in
-                        SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
-                            >> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
-                )
-                []
-                contactEquations
-        , deltalambdaTot = Const.maxNumber -- large number initially
-        , world = world
-        }
+                    bj =
+                        Dict.get contactEquation.bodyId2 solverBodies
+                            |> fromJust
+                in
+                SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
+                    >> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
+            )
+            []
+            contactEquations
+    , deltalambdaTot = Const.maxNumber -- large number initially
+    , world = world
+    }

@@ -1,10 +1,10 @@
 module Spheres exposing (main)
 
+import Common.Bodies as Bodies exposing (DemoBody(..))
 import Common.Demo as Demo exposing (Demo, DemoProgram)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics
 import Random
-import Common.Bodies as Bodies exposing (DemoBody(..))
 
 
 main : DemoProgram
@@ -41,20 +41,20 @@ randomShape =
     Random.map5
         (\angle x y z isSphere ->
             case isSphere of
-                True ->
-                    Bodies.getBody DemoSphere
-                        (Physics.offsetBy (vec3 0 0 10)
-                            >> Physics.offsetBy (vec3 x y z)
-                        )
-
-                False ->
+                0 ->
                     Bodies.getBody DemoBox
                         (Physics.offsetBy (vec3 0 0 10)
                             >> Physics.rotateBy (vec3 x y z) angle
+                        )
+
+                _ ->
+                    Bodies.getBody DemoSphere
+                        (Physics.offsetBy (vec3 0 0 10)
+                            >> Physics.offsetBy (vec3 x y z)
                         )
         )
         (Random.float (-pi / 2) (pi / 2))
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
-        (Random.bool)
+        (Random.int 0 1)

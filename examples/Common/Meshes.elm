@@ -1,12 +1,11 @@
-module Common.Meshes
-    exposing
-        ( Attributes
-        , makeBox
-        , makeBoxWireframe
-        , makePyramid
-        , makeSphere
-        , makeSphereWireframe
-        )
+module Common.Meshes exposing
+    ( Attributes
+    , makeBox
+    , makeBoxWireframe
+    , makePyramid
+    , makeSphere
+    , makeSphereWireframe
+    )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL exposing (Mesh)
@@ -66,19 +65,19 @@ makeBoxTriangles halfExtends =
         v7 =
             vec3 -x y z
     in
-        [ facet v3 v2 v1
-        , facet v1 v0 v3
-        , facet v4 v5 v6
-        , facet v6 v7 v4
-        , facet v5 v4 v0
-        , facet v0 v1 v5
-        , facet v2 v3 v7
-        , facet v7 v6 v2
-        , facet v0 v4 v7
-        , facet v7 v3 v0
-        , facet v1 v2 v6
-        , facet v6 v5 v1
-        ]
+    [ facet v3 v2 v1
+    , facet v1 v0 v3
+    , facet v4 v5 v6
+    , facet v6 v7 v4
+    , facet v5 v4 v0
+    , facet v0 v1 v5
+    , facet v2 v3 v7
+    , facet v7 v6 v2
+    , facet v0 v4 v7
+    , facet v7 v3 v0
+    , facet v1 v2 v6
+    , facet v6 v5 v1
+    ]
 
 
 makePyramid : Float -> Float -> Mesh Attributes
@@ -99,14 +98,14 @@ makePyramid halfbase baserise =
         lbb =
             vec3 -halfbase -halfbase baserise
     in
-        [ facet rfb lfb lbb
-        , facet lbb rbb rfb
-        , facet top rfb rbb
-        , facet top lfb rfb
-        , facet top lbb lfb
-        , facet top rbb lbb
-        ]
-            |> WebGL.triangles
+    [ facet rfb lfb lbb
+    , facet lbb rbb rfb
+    , facet top rfb rbb
+    , facet top lfb rfb
+    , facet top lbb lfb
+    , facet top rbb lbb
+    ]
+        |> WebGL.triangles
 
 
 makeSphereWireframe : Int -> Float -> Mesh Attributes
@@ -130,6 +129,7 @@ divideSphere : Int -> Float -> List ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, V
 divideSphere step radius triangles =
     if step == 0 then
         triangles
+
     else
         triangles
             |> List.foldl (divide radius) []
@@ -144,6 +144,7 @@ divideSphere step radius triangles =
      /\   /\
     /__\ /__\
     0   a    2
+
 -}
 divide : Float -> ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 ) -> List ( Vec3, Vec3, Vec3 )
 divide radius ( v0, v1, v2 ) result =
@@ -157,7 +158,7 @@ divide radius ( v0, v1, v2 ) result =
         c =
             Vec3.add v1 v2 |> Vec3.normalize |> Vec3.scale radius
     in
-        ( v0, b, a ) :: ( b, v1, c ) :: ( a, b, c ) :: ( a, c, v2 ) :: result
+    ( v0, b, a ) :: ( b, v1, c ) :: ( a, b, c ) :: ( a, c, v2 ) :: result
 
 
 {-| Octahedron
@@ -181,7 +182,7 @@ facet a b c =
         normal =
             Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
     in
-        ( Attributes a normal
-        , Attributes b normal
-        , Attributes c normal
-        )
+    ( Attributes a normal
+    , Attributes b normal
+    , Attributes c normal
+    )

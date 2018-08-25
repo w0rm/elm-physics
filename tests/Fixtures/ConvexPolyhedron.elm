@@ -1,10 +1,10 @@
-module Fixtures.ConvexPolyhedron exposing (..)
+module Fixtures.ConvexPolyhedron exposing (askewSquarePyramid, boxHull, boxVertexIndices, boxyHull, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
 
+import Array exposing (Array)
+import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Array.Hamt as Array exposing (Array)
-import Physics.ConvexPolyhedron as OriginalConvexPolyhedron
+
 
 
 -- Test data generators
@@ -12,7 +12,7 @@ import Physics.ConvexPolyhedron as OriginalConvexPolyhedron
 
 vec3HalfExtent : Float -> Vec3
 vec3HalfExtent halfExtent =
-    (vec3 halfExtent halfExtent halfExtent)
+    vec3 halfExtent halfExtent halfExtent
 
 
 {-| A ConvexPolyhedron for a cube with the given half-extent, constructed
@@ -23,9 +23,9 @@ boxHull halfExtent =
     ConvexPolyhedron.fromBox <| vec3HalfExtent halfExtent
 
 
-originalBoxHull : Float -> OriginalConvexPolyhedron.ConvexPolyhedron
+originalBoxHull : Float -> ConvexPolyhedron
 originalBoxHull halfExtent =
-    OriginalConvexPolyhedron.fromBox <| vec3HalfExtent halfExtent
+    ConvexPolyhedron.fromBox <| vec3HalfExtent halfExtent
 
 
 {-| A replacement for boxhull/ConvexPolyhedron.fromBox that introduces some
@@ -51,11 +51,11 @@ boxyHull halfExtent =
                 , vec3 -halfExtent halfExtent halfExtent
                 ]
     in
-        -- To test the handling of minor imprecision in a general
-        -- ConvexPolyhedron, purposely bypass the box-specific
-        -- optimizations in boxNormals and boxEdges and use instead
-        -- the general purpose calculations.
-        ConvexPolyhedron.init boxVertexIndices vertices
+    -- To test the handling of minor imprecision in a general
+    -- ConvexPolyhedron, purposely bypass the box-specific
+    -- optimizations in boxNormals and boxEdges and use instead
+    -- the general purpose calculations.
+    ConvexPolyhedron.init boxVertexIndices vertices
 
 
 boxVertexIndices : List (List Int)
@@ -71,12 +71,12 @@ boxVertexIndices =
 
 octoVertices : Float -> Array Vec3
 octoVertices halfExtent =
-    [ (vec3 0 0 halfExtent)
-    , (vec3 0 halfExtent 0)
-    , (vec3 halfExtent 0 0)
-    , (vec3 -halfExtent 0 0)
-    , (vec3 0 0 -halfExtent)
-    , (vec3 0 -halfExtent 0)
+    [ vec3 0 0 halfExtent
+    , vec3 0 halfExtent 0
+    , vec3 halfExtent 0 0
+    , vec3 -halfExtent 0 0
+    , vec3 0 0 -halfExtent
+    , vec3 0 -halfExtent 0
     ]
         |> Array.fromList
 
@@ -87,10 +87,10 @@ octoHull halfExtent =
         |> ConvexPolyhedron.init octoVertexIndices
 
 
-originalOctoHull : Float -> OriginalConvexPolyhedron.ConvexPolyhedron
+originalOctoHull : Float -> ConvexPolyhedron.ConvexPolyhedron
 originalOctoHull halfExtent =
     octoVertices halfExtent
-        |> OriginalConvexPolyhedron.init octoVertexIndices
+        |> ConvexPolyhedron.init octoVertexIndices
 
 
 octoVertexIndices : List (List Int)
@@ -163,4 +163,4 @@ squareLikePyramid epsilon =
                 , vec3 0 0 (z - zOffset)
                 ]
     in
-        ConvexPolyhedron.init faces vertices
+    ConvexPolyhedron.init faces vertices

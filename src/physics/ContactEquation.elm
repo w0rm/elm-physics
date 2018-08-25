@@ -1,7 +1,7 @@
 module Physics.ContactEquation exposing (ContactEquation)
 
-import Physics.Body as Body exposing (BodyId)
 import Math.Vector3 as Vec3 exposing (Vec3)
+import Physics.Body as Body exposing (BodyId)
 
 
 type alias ContactEquation =
