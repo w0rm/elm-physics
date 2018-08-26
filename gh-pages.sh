@@ -12,7 +12,7 @@ for example in *.elm; do
          | tr '[:upper:]' '[:lower:]' \
          )
   mkdir -p ../gh-pages/examples/$lower
-  elm make $example --output ../gh-pages/examples/$lower/index.html
+  elm make $example --optimize --output ../gh-pages/examples/$lower/index.html
 done
 
 # Deploy to GH Pages

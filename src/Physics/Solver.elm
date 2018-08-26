@@ -56,56 +56,44 @@ updateVelocities { bodies, world } =
     }
 
 
-fromJust : Maybe a -> a
-fromJust x =
-    case x of
-        Just y ->
-            y
-
-        Nothing ->
-            Debug.todo ""
-
-
 solveStep : SolveContext -> SolveContext
 solveStep context =
     List.foldl
-        (\equation acc ->
-            let
-                bi =
-                    Dict.get equation.bodyId1 acc.bodies
-                        |> fromJust
+        (\equation newContext ->
+            Maybe.withDefault newContext <|
+                Maybe.map2
+                    (\bi bj ->
+                        let
+                            gWlambda =
+                                SolverEquation.computeGWlambda bi bj equation
 
-                bj =
-                    Dict.get equation.bodyId2 acc.bodies
-                        |> fromJust
+                            deltalambdaPrev =
+                                equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equation.solverLambda)
 
-                gWlambda =
-                    SolverEquation.computeGWlambda bi bj equation
+                            deltalambda =
+                                if equation.solverLambda + deltalambdaPrev < equation.minForce then
+                                    equation.minForce - equation.solverLambda
 
-                deltalambdaPrev =
-                    equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equation.solverLambda)
+                                else if equation.solverLambda + deltalambdaPrev > equation.maxForce then
+                                    equation.maxForce - equation.solverLambda
 
-                deltalambda =
-                    if equation.solverLambda + deltalambdaPrev < equation.minForce then
-                        equation.minForce - equation.solverLambda
+                                else
+                                    deltalambdaPrev
 
-                    else if equation.solverLambda + deltalambdaPrev > equation.maxForce then
-                        equation.maxForce - equation.solverLambda
-
-                    else
-                        deltalambdaPrev
-
-                newEquation =
-                    { equation | solverLambda = equation.solverLambda + deltalambda }
-            in
-            { acc
-                | deltalambdaTot = acc.deltalambdaTot + abs deltalambda
-                , equations = newEquation :: acc.equations
-                , bodies =
-                    acc.bodies
-                        |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
-                        |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
-            }
+                            newEquation =
+                                { equation | solverLambda = equation.solverLambda + deltalambda }
+                        in
+                        { newContext
+                            | deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
+                            , equations = newEquation :: newContext.equations
+                            , bodies =
+                                newContext.bodies
+                                    |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
+                                    |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
+                        }
+                    )
+                    (Dict.get equation.bodyId1 newContext.bodies)
+                    (Dict.get equation.bodyId2 newContext.bodies)
         )
         { context | equations = [], deltalambdaTot = 0 }
         context.equations
@@ -128,18 +116,16 @@ solveContext dt contactEquations world =
     { bodies = solverBodies
     , equations =
         List.foldl
-            (\contactEquation ->
-                let
-                    bi =
-                        Dict.get contactEquation.bodyId1 solverBodies
-                            |> fromJust
-
-                    bj =
-                        Dict.get contactEquation.bodyId2 solverBodies
-                            |> fromJust
-                in
-                SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
-                    >> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
+            (\contactEquation solverEquations ->
+                Maybe.withDefault solverEquations <|
+                    Maybe.map2
+                        (\bi bj ->
+                            solverEquations
+                                |> SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
+                                |> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
+                        )
+                        (Dict.get contactEquation.bodyId1 solverBodies)
+                        (Dict.get contactEquation.bodyId2 solverBodies)
             )
             []
             contactEquations
