@@ -1,26 +1,26 @@
-module Physics.ConvexPolyhedron
-    exposing
-        ( ConvexPolyhedron
-        , findSeparatingAxis
-        , clipAgainstHull
-        , fromBox
-        , expandBoundingSphereRadius
-        , sphereContact
-          -- exposed only for tests
-        , testSepAxis
-        , addFaceEdges
-        , faceAdjacency
-        , init
-        , initFaceNormal
-        , initUniqueEdges
-        , project
-        , clipFaceAgainstHull
-        , clipFaceAgainstPlane
-        , foldFaceNormals
-        , foldUniqueEdges
-        )
+module Physics.ConvexPolyhedron exposing
+    ( ConvexPolyhedron
+    , addFaceEdges
+    , clipAgainstHull
+    , clipFaceAgainstHull
+    , clipFaceAgainstPlane
+    , expandBoundingSphereRadius
+    , faceAdjacency
+    , findSeparatingAxis
+    , foldFaceNormals
+    , foldUniqueEdges
+    , fromBox
+    , init
+    , initFaceNormal
+    , initUniqueEdges
+    , project
+    ,  sphereContact
+       -- exposed only for tests
 
-import Array.Hamt as Array exposing (Array)
+    , testSepAxis
+    )
+
+import Array exposing (Array)
 import Dict
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
@@ -36,9 +36,9 @@ almostZero vec =
         { x, y, z } =
             Vec3.toRecord vec
     in
-        (abs x <= Const.precision)
-            && (abs y <= Const.precision)
-            && (abs z <= Const.precision)
+    (abs x <= Const.precision)
+        && (abs y <= Const.precision)
+        && (abs z <= Const.precision)
 
 
 type alias Face =
@@ -69,16 +69,16 @@ initFaces faceVertexLists vertices =
         adjacents =
             faceAdjacency faceVertexLists
     in
-        List.map2
-            (\vertexIndices adjacentFaces ->
-                { vertexIndices = vertexIndices
-                , normal = initFaceNormal vertexIndices vertices
-                , adjacentFaces = adjacentFaces
-                }
-            )
-            faceVertexLists
-            adjacents
-            |> Array.fromList
+    List.map2
+        (\vertexIndices adjacentFaces ->
+            { vertexIndices = vertexIndices
+            , normal = initFaceNormal vertexIndices vertices
+            , adjacentFaces = adjacentFaces
+            }
+        )
+        faceVertexLists
+        adjacents
+        |> Array.fromList
 
 
 faceAdjacency : List (List Int) -> List (List Int)
@@ -93,7 +93,7 @@ faceAdjacency faceVertexLists =
                 |> List.indexedMap
                     (\face vertexList ->
                         vertexList
-                            |> List.map ((,) face)
+                            |> List.map (\b -> ( face, b ))
                     )
 
         {- Invert the collections of vertices listed by face into
@@ -136,13 +136,13 @@ faceAdjacency faceVertexLists =
                     acc
                 |> Set.remove face
     in
-        List.map
-            (List.foldl
-                addUniqueContainingFaces
-                Set.empty
-                >> Set.toList
-            )
-            faceIndexedLists
+    List.map
+        (List.foldl
+            addUniqueContainingFaces
+            Set.empty
+            >> Set.toList
+        )
+        faceIndexedLists
 
 
 fromBox : Vec3 -> ConvexPolyhedron
@@ -151,20 +151,20 @@ fromBox halfExtents =
         { x, y, z } =
             Vec3.toRecord halfExtents
     in
-        { faces = boxFaces
-        , vertices =
-            Array.fromList
-                [ vec3 -x -y -z
-                , vec3 x -y -z
-                , vec3 x y -z
-                , vec3 -x y -z
-                , vec3 -x -y z
-                , vec3 x -y z
-                , vec3 x y z
-                , vec3 -x y z
-                ]
-        , edges = boxUniqueEdges
-        }
+    { faces = boxFaces
+    , vertices =
+        Array.fromList
+            [ vec3 -x -y -z
+            , vec3 x -y -z
+            , vec3 x y -z
+            , vec3 -x y -z
+            , vec3 -x -y z
+            , vec3 x -y z
+            , vec3 x y z
+            , vec3 -x y z
+            ]
+    , edges = boxUniqueEdges
+    }
 
 
 boxFaces : Array Face
@@ -236,14 +236,14 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
                 prevVertex
                 currentVertex
     in
-        uniques
-            |> List.foldl
-                (\member candidate ->
-                    candidate
-                        |> Maybe.andThen (distinctOrNothing member)
-                )
-                candidateEdge
-            |> listMaybeAdd uniques
+    uniques
+        |> List.foldl
+            (\member candidate ->
+                candidate
+                    |> Maybe.andThen (distinctOrNothing member)
+            )
+            candidateEdge
+        |> listMaybeAdd uniques
 
 
 {-| Eliminate a candidate that is a near duplicate or near
@@ -256,6 +256,7 @@ distinctOrNothing member candidate =
             || (Vec3.add member candidate |> almostZero)
     then
         Nothing
+
     else
         Just candidate
 
@@ -342,47 +343,49 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                                         "vertexIndices is empty for face"
                                         -1
                                     |> getIndexedVertex hull1.vertices
-                                    |> (,) otherFace.normal
+                                    |> (\b -> ( otherFace.normal, b ))
                            )
             in
-                adjacentFaces
-                    |> List.foldl
-                        (\otherFaceIndex ->
-                            let
-                                ( otherFaceNormal, otherFaceVertex ) =
-                                    otherFaceDetails otherFaceIndex
+            adjacentFaces
+                |> List.foldl
+                    (\otherFaceIndex ->
+                        let
+                            ( otherFaceNormal, otherFaceVertex ) =
+                                otherFaceDetails otherFaceIndex
 
-                                localPlaneEq =
-                                    -(Vec3.dot otherFaceVertex otherFaceNormal)
+                            localPlaneEq_ =
+                                -(Vec3.dot otherFaceVertex otherFaceNormal)
 
-                                planeNormalWS =
-                                    Quaternion.rotate t1.quaternion otherFaceNormal
+                            planeNormalWS_ =
+                                Quaternion.rotate t1.quaternion otherFaceNormal
 
-                                planeEqWS =
-                                    localPlaneEq - Vec3.dot planeNormalWS t1.position
-                            in
-                                clipFaceAgainstPlane planeNormalWS planeEqWS
-                        )
-                        worldVertsB
-                    |> List.foldl
-                        (\point result ->
-                            let
-                                depth =
-                                    max minDist (Vec3.dot planeNormalWS point + planeEqWS)
-                            in
-                                if depth <= maxDist then
-                                    if depth <= 0 then
-                                        { point = point
-                                        , normal = planeNormalWS
-                                        , depth = depth
-                                        }
-                                            :: result
-                                    else
-                                        result
-                                else
-                                    result
-                        )
-                        []
+                            planeEqWS_ =
+                                localPlaneEq_ - Vec3.dot planeNormalWS_ t1.position
+                        in
+                        clipFaceAgainstPlane planeNormalWS_ planeEqWS_
+                    )
+                    worldVertsB
+                |> List.foldl
+                    (\point result ->
+                        let
+                            depth =
+                                max minDist (Vec3.dot planeNormalWS point + planeEqWS)
+                        in
+                        if depth <= maxDist then
+                            if depth <= 0 then
+                                { point = point
+                                , normal = planeNormalWS
+                                , depth = depth
+                                }
+                                    :: result
+
+                            else
+                                result
+
+                        else
+                            result
+                    )
+                    []
 
         Nothing ->
             []
@@ -390,8 +393,8 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
 
 {-| Encapsulate a compatible comparison operator and a worst case value
 according to that operator such that for any DistanceCriterion dc:
-(compareOp dc) _ (worstValue dc) == True
-(compareOp dc) (worstValue dc) _ == False
+(compareOp dc) \_ (worstValue dc) == True
+(compareOp dc) (worstValue dc) \_ == False
 DistanceCriterion prevents accidental combination of comparators with
 inappropriate worst case values such as when starting an iterative run-off.
 It should be easier and less error prone to write and use generic run-off
@@ -431,22 +434,23 @@ bestFace comparator transform faces separatingNormal =
         compareFunc =
             compareOp comparator
     in
-        faces
-            |> Array.foldl
-                (\face (( _, bestDistance ) as bestPair) ->
-                    let
-                        faceDistance =
-                            face.normal
-                                |> Quaternion.rotate transform.quaternion
-                                |> Vec3.dot separatingNormal
-                    in
-                        if compareFunc faceDistance bestDistance then
-                            ( Just face, faceDistance )
-                        else
-                            bestPair
-                )
-                ( Nothing, worstDistance )
-            |> Tuple.first
+    faces
+        |> Array.foldl
+            (\face (( _, bestDistance ) as bestPair) ->
+                let
+                    faceDistance =
+                        face.normal
+                            |> Quaternion.rotate transform.quaternion
+                            |> Vec3.dot separatingNormal
+                in
+                if compareFunc faceDistance bestDistance then
+                    ( Just face, faceDistance )
+
+                else
+                    bestPair
+            )
+            ( Nothing, worstDistance )
+        |> Tuple.first
 
 
 clipFaceAgainstPlane : Vec3 -> Float -> List Vec3 -> List Vec3
@@ -465,7 +469,7 @@ clipFaceAgainstPlane planeNormal planeConstant vertices =
                             tail =
                                 List.drop 1 l
                         in
-                            head ++ List.reverse tail
+                        head ++ List.reverse tail
                    )
 
         _ ->
@@ -504,18 +508,21 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
         nDotNext =
             Vec3.dot planeNormal next + planeConstant
     in
-        if nDotPrev < 0 then
-            if nDotNext < 0 then
-                next :: result
-            else
-                (lerp (nDotPrev / (nDotPrev - nDotNext)) prev next)
-                    :: result
-        else if nDotNext < 0 then
-            next
-                :: (lerp (nDotPrev / (nDotPrev - nDotNext)) prev next)
-                :: result
+    if nDotPrev < 0 then
+        if nDotNext < 0 then
+            next :: result
+
         else
-            result
+            lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
+                :: result
+
+    else if nDotNext < 0 then
+        next
+            :: lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
+            :: result
+
+    else
+        result
 
 
 lerp : Float -> Vec3 -> Vec3 -> Vec3
@@ -537,31 +544,33 @@ findSeparatingAxis t1 hull1 t2 hull2 =
                         rotatedNormal =
                             Quaternion.rotate quat normal
                     in
-                        case testSepAxis t1 hull1 t2 hull2 rotatedNormal of
-                            Nothing ->
-                                Nothing
+                    case testSepAxis t1 hull1 t2 hull2 rotatedNormal of
+                        Nothing ->
+                            Nothing
 
-                            Just d ->
-                                (if d < bestSoFar.dmin then
-                                    { dmin = d, target = rotatedNormal }
-                                 else
-                                    bestSoFar
-                                )
-                                    |> bestFaceNormal
-                                        quat
-                                        restFaces
+                        Just d ->
+                            (if d < bestSoFar.dmin then
+                                { dmin = d, target = rotatedNormal }
+
+                             else
+                                bestSoFar
+                            )
+                                |> bestFaceNormal
+                                    quat
+                                    restFaces
     in
-        { dmin = Const.maxNumber, target = Const.zero3 }
-            |> bestFaceNormal t1.quaternion (Array.toList hull1.faces)
-            |> Maybe.andThen (bestFaceNormal t2.quaternion (Array.toList hull2.faces))
-            |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
-            |> Maybe.map
-                (\{ target } ->
-                    if Vec3.dot (Vec3.sub t2.position t1.position) target > 0 then
-                        Vec3.negate target
-                    else
-                        target
-                )
+    { dmin = Const.maxNumber, target = Const.zero3 }
+        |> bestFaceNormal t1.quaternion (Array.toList hull1.faces)
+        |> Maybe.andThen (bestFaceNormal t2.quaternion (Array.toList hull2.faces))
+        |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
+        |> Maybe.map
+            (\{ target } ->
+                if Vec3.dot (Vec3.sub t2.position t1.position) target > 0 then
+                    Vec3.negate target
+
+                else
+                    target
+            )
 
 
 testEdges : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
@@ -573,38 +582,40 @@ testEdges t1 hull1 t2 hull2 context =
                 worldEdge1 =
                     Quaternion.rotate t1.quaternion edge1
             in
-                List.foldl
-                    (\edge2 acc2 ->
-                        let
-                            worldEdge2 =
-                                Quaternion.rotate t2.quaternion edge2
+            List.foldl
+                (\edge2 acc2 ->
+                    let
+                        worldEdge2 =
+                            Quaternion.rotate t2.quaternion edge2
 
-                            cross =
-                                Vec3.cross worldEdge1 worldEdge2
-                        in
-                            if almostZero cross then
-                                acc2
-                            else
-                                case acc2 of
-                                    Just context ->
-                                        case testSepAxis t1 hull1 t2 hull2 (Vec3.normalize cross) of
-                                            Just dist ->
-                                                if dist < context.dmin then
-                                                    Just
-                                                        { dmin = dist
-                                                        , target = Vec3.normalize cross
-                                                        }
-                                                else
-                                                    acc2
+                        cross =
+                            Vec3.cross worldEdge1 worldEdge2
+                    in
+                    if almostZero cross then
+                        acc2
 
-                                            Nothing ->
-                                                Nothing
+                    else
+                        case acc2 of
+                            Just ctx ->
+                                case testSepAxis t1 hull1 t2 hull2 (Vec3.normalize cross) of
+                                    Just dist ->
+                                        if dist < ctx.dmin then
+                                            Just
+                                                { dmin = dist
+                                                , target = Vec3.normalize cross
+                                                }
+
+                                        else
+                                            acc2
 
                                     Nothing ->
                                         Nothing
-                    )
-                    acc1
-                    hull2.edges
+
+                            Nothing ->
+                                Nothing
+                )
+                acc1
+                hull2.edges
         )
         (Just context)
         hull1.edges
@@ -619,10 +630,11 @@ testSepAxis t1 hull1 t2 hull2 axis =
         ( max2, min2 ) =
             project t2 hull2 axis
     in
-        if max1 < min2 || max2 < min1 then
-            Nothing
-        else
-            Just (min (max1 - min2) (max2 - min1))
+    if max1 < min2 || max2 < min1 then
+        Nothing
+
+    else
+        Just (min (max1 - min2) (max2 - min1))
 
 
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.
@@ -638,21 +650,21 @@ project transform { vertices } axis =
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
     in
-        Array.foldl
-            (\vec ( maxVal, minVal ) ->
-                let
-                    val =
-                        Vec3.dot vec localAxis
-                in
-                    ( max maxVal val, min minVal val )
-            )
-            ( -Const.maxNumber, Const.maxNumber )
-            vertices
-            |> (\( maxVal, minVal ) ->
-                    ( maxVal - add
-                    , minVal - add
-                    )
-               )
+    Array.foldl
+        (\vec ( maxVal, minVal ) ->
+            let
+                val =
+                    Vec3.dot vec localAxis
+            in
+            ( max maxVal val, min minVal val )
+        )
+        ( -Const.maxNumber, Const.maxNumber )
+        vertices
+        |> (\( maxVal, minVal ) ->
+                ( maxVal - add
+                , minVal - add
+                )
+           )
 
 
 {-| Encapsulated result of sphereTestFace
@@ -753,13 +765,13 @@ sphereContact center radius t2 { vertices, faces } =
                     )
                     (QualifiedEdges [])
     in
-        case testFaceResult of
-            QualifiedEdges faceEdgeList ->
-                -- Check the candidate faces' edges and vertices.
-                spherePossibleBoundaryContact faceEdgeList
+    case testFaceResult of
+        QualifiedEdges faceEdgeList ->
+            -- Check the candidate faces' edges and vertices.
+            spherePossibleBoundaryContact faceEdgeList
 
-            FaceContact faceNormal faceDistance ->
-                sphereFaceContact faceNormal faceDistance
+        FaceContact faceNormal faceDistance ->
+            sphereFaceContact faceNormal faceDistance
 
 
 {-| The contact point and distance, if any, of a ConvexPolyhedron's face
@@ -787,33 +799,34 @@ sphereTestFace radius normal vertices vertexIndices acc =
                 -- Check that all the vertices are valid.
                 vertexIndices
                     |> List.foldl
-                        (\index acc ->
+                        (\index acc1 ->
                             Maybe.map2
                                 (::)
                                 (Array.get index vertices)
-                                acc
+                                acc1
                         )
                         (Just [])
+
             else
                 Nothing
     in
-        case faceVertices of
-            -- Require 3 or more valid vertices to proceed
-            Just ((_ :: _ :: _ :: _) as validVertices) ->
-                -- If vertices are valid, check if the sphere center
-                -- projects onto the face plane INSIDE the face polygon.
-                case originProjection validVertices normal of
-                    [] ->
-                        -- The projection falls within all the face's edges.
-                        FaceContact normal faceDistance
+    case faceVertices of
+        -- Require 3 or more valid vertices to proceed
+        Just ((_ :: _ :: _ :: _) as validVertices) ->
+            -- If vertices are valid, check if the sphere center
+            -- projects onto the face plane INSIDE the face polygon.
+            case originProjection validVertices normal of
+                [] ->
+                    -- The projection falls within all the face's edges.
+                    FaceContact normal faceDistance
 
-                    separatingEdges ->
-                        -- These origin-excluding edges are candidates for
-                        -- having an edge or vertex contact.
-                        QualifiedEdges <| separatingEdges :: acc
+                separatingEdges ->
+                    -- These origin-excluding edges are candidates for
+                    -- having an edge or vertex contact.
+                    QualifiedEdges <| separatingEdges :: acc
 
-            _ ->
-                QualifiedEdges acc
+        _ ->
+            QualifiedEdges acc
 
 
 {-| The edge or vertex contact point and its distance (squared), if any,
@@ -863,10 +876,11 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
                 vertexLengthSq =
                     Vec3.lengthSquared candidate
             in
-                if vertexLengthSq < minDistanceSq then
-                    ( Just candidate, vertexLengthSq )
-                else
-                    statusQuo
+            if vertexLengthSq < minDistanceSq then
+                ( Just candidate, vertexLengthSq )
+
+            else
+                statusQuo
 
         edge =
             Vec3.sub vertex prevVertex
@@ -884,29 +898,32 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
         offset =
             -(Vec3.dot prevVertex edgeUnit)
     in
-        if offset < 0 then
-            -- prevVertex is closest in this edge,
-            -- but there may be a closer edge or
-            -- no contact.
-            PossibleVertexContact <| betterVertexContact prevVertex
-        else if offset ^ 2 > Vec3.lengthSquared edge then
-            -- vertex is closest in this edge,
-            -- but there may be a closer edge or
-            -- no contact.
-            PossibleVertexContact <| betterVertexContact vertex
-        else
-            let
-                edgeContact =
-                    Vec3.add prevVertex <|
-                        Vec3.scale offset edgeUnit
+    if offset < 0 then
+        -- prevVertex is closest in this edge,
+        -- but there may be a closer edge or
+        -- no contact.
+        PossibleVertexContact <| betterVertexContact prevVertex
 
-                edgeDistanceSq =
-                    Vec3.lengthSquared edgeContact
-            in
-                if edgeDistanceSq < minDistanceSq then
-                    EdgeContact ( edgeContact, edgeDistanceSq )
-                else
-                    PossibleVertexContact statusQuo
+    else if offset ^ 2 > Vec3.lengthSquared edge then
+        -- vertex is closest in this edge,
+        -- but there may be a closer edge or
+        -- no contact.
+        PossibleVertexContact <| betterVertexContact vertex
+
+    else
+        let
+            edgeContact =
+                Vec3.add prevVertex <|
+                    Vec3.scale offset edgeUnit
+
+            edgeDistanceSq =
+                Vec3.lengthSquared edgeContact
+        in
+        if edgeDistanceSq < minDistanceSq then
+            EdgeContact ( edgeContact, edgeDistanceSq )
+
+        else
+            PossibleVertexContact statusQuo
 
 
 {-| A 2D point-in-polygon check for the projection of the origin
@@ -926,18 +943,19 @@ originProjection vertices normal =
                         Vec3.sub vertex prevVertex
                             |> Vec3.cross normal
                 in
-                    -- The sign of this dot product determines on which
-                    -- side of the directed edge the projected point lies,
-                    -- left or right, within the face plane.
-                    -- For the projection to be within the face, the sign
-                    -- must always be non-negative when circling from vertex
-                    -- to vertex in the listed (counter-clockwise) direction.
-                    -- Retain any edge that tests negative as a candidate
-                    -- for an edge or vertex contact.
-                    if (Vec3.dot edge_x_normal prevVertex < 0) then
-                        ( prevVertex, vertex ) :: acc
-                    else
-                        acc
+                -- The sign of this dot product determines on which
+                -- side of the directed edge the projected point lies,
+                -- left or right, within the face plane.
+                -- For the projection to be within the face, the sign
+                -- must always be non-negative when circling from vertex
+                -- to vertex in the listed (counter-clockwise) direction.
+                -- Retain any edge that tests negative as a candidate
+                -- for an edge or vertex contact.
+                if Vec3.dot edge_x_normal prevVertex < 0 then
+                    ( prevVertex, vertex ) :: acc
+
+                else
+                    acc
             )
             []
 
@@ -960,7 +978,7 @@ foldFaceNormals fn acc { vertices, faces } =
                     vcount =
                         List.length vertexIndices
                 in
-                    fn normal (Vec3.scale (1.0 / (toFloat vcount)) vsum) acc1
+                fn normal (Vec3.scale (1.0 / toFloat vcount) vsum) acc1
             )
             acc
 
@@ -1006,6 +1024,7 @@ arrayRecurseUntil test fn seed array =
                 Just element ->
                     if test acc then
                         acc
+
                     else
                         fn element acc
                             |> recurse (index + 1)
@@ -1013,7 +1032,7 @@ arrayRecurseUntil test fn seed array =
                 Nothing ->
                     acc
     in
-        recurse 0 seed
+    recurse 0 seed
 
 
 {-| Easily disabled wrapper for Debug.crash.
@@ -1056,7 +1075,7 @@ Equivalent to elm-community/list-extra/7.1.0/List-Extra last.
 listLast : List a -> Maybe a
 listLast list =
     list
-        |> List.drop ((List.length list) - 1)
+        |> List.drop (List.length list - 1)
         |> List.head
 
 
@@ -1090,6 +1109,7 @@ listRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> List a -> b
 listRecurseUntil test fn resultSoFar list =
     if test resultSoFar then
         resultSoFar
+
     else
         case list of
             head :: tail ->
@@ -1097,7 +1117,7 @@ listRecurseUntil test fn resultSoFar list =
                     acc =
                         fn head resultSoFar
                 in
-                    listRecurseUntil test fn acc tail
+                listRecurseUntil test fn acc tail
 
             _ ->
                 resultSoFar

@@ -1,11 +1,11 @@
-module Physics.NarrowPhase
-    exposing
-        ( getContacts
-          -- exposed only for tests
-        , addSphereConvexContacts
-        )
+module Physics.NarrowPhase exposing
+    ( addSphereConvexContacts
+    ,  getContacts
+       -- exposed only for tests
 
-import Array.Hamt as Array exposing (Array)
+    )
+
+import Array exposing (Array)
 import Dict exposing (Dict)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body, BodyId)
@@ -159,37 +159,38 @@ addPlaneConvexContacts planeTransform planeBodyId planeBody convexTransform conv
         worldNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
     in
-        Array.foldl
-            (\vertex currentContactEquations ->
-                let
-                    worldVertex =
-                        Transform.pointToWorldFrame convexTransform vertex
+    Array.foldl
+        (\vertex currentContactEquations ->
+            let
+                worldVertex =
+                    Transform.pointToWorldFrame convexTransform vertex
 
-                    dot =
-                        planeTransform.position
+                dot =
+                    planeTransform.position
+                        |> Vec3.sub worldVertex
+                        |> Vec3.dot worldNormal
+            in
+            if dot <= 0 then
+                { bodyId1 = planeBodyId
+                , bodyId2 = convexBodyId
+                , ni = worldNormal
+                , ri =
+                    Vec3.sub
+                        (worldNormal
+                            |> Vec3.scale dot
                             |> Vec3.sub worldVertex
-                            |> Vec3.dot worldNormal
-                in
-                    if dot <= 0 then
-                        { bodyId1 = planeBodyId
-                        , bodyId2 = convexBodyId
-                        , ni = worldNormal
-                        , ri =
-                            Vec3.sub
-                                (worldNormal
-                                    |> Vec3.scale dot
-                                    |> Vec3.sub worldVertex
-                                )
-                                planeBody.position
-                        , rj = Vec3.sub worldVertex convexBody.position
-                        , restitution = 0
-                        }
-                            :: currentContactEquations
-                    else
-                        currentContactEquations
-            )
-            contactEquations
-            convexPolyhedron.vertices
+                        )
+                        planeBody.position
+                , rj = Vec3.sub worldVertex convexBody.position
+                , restitution = 0
+                }
+                    :: currentContactEquations
+
+            else
+                currentContactEquations
+        )
+        contactEquations
+        convexPolyhedron.vertices
 
 
 addConvexConvexContacts : Transform -> ConvexPolyhedron -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> List ContactEquation -> List ContactEquation
@@ -213,14 +214,14 @@ addConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTra
                                 point
                                     |> Vec3.add (Vec3.negate body2.position)
                         in
-                            { bodyId1 = bodyId1
-                            , bodyId2 = bodyId2
-                            , ni = Vec3.negate sepAxis
-                            , ri = ri
-                            , rj = rj
-                            , restitution = 0
-                            }
-                                :: currentContactEquations
+                        { bodyId1 = bodyId1
+                        , bodyId2 = bodyId2
+                        , ni = Vec3.negate sepAxis
+                        , ri = ri
+                        , rj = rj
+                        , restitution = 0
+                        }
+                            :: currentContactEquations
                     )
                     contactEquations
 
@@ -244,23 +245,24 @@ addPlaneSphereContacts planeTransform bodyId1 body1 t2 radius bodyId2 body2 cont
                 |> Vec3.sub worldVertex
                 |> Vec3.dot worldPlaneNormal
     in
-        if dot <= 0 then
-            { bodyId1 = bodyId1
-            , bodyId2 = bodyId2
-            , ni = worldPlaneNormal
-            , ri =
-                Vec3.sub
-                    (worldPlaneNormal
-                        |> Vec3.scale dot
-                        |> Vec3.sub worldVertex
-                    )
-                    body1.position
-            , rj = Vec3.sub worldVertex body2.position
-            , restitution = 0
-            }
-                :: contactEquations
-        else
-            contactEquations
+    if dot <= 0 then
+        { bodyId1 = bodyId1
+        , bodyId2 = bodyId2
+        , ni = worldPlaneNormal
+        , ri =
+            Vec3.sub
+                (worldPlaneNormal
+                    |> Vec3.scale dot
+                    |> Vec3.sub worldVertex
+                )
+                body1.position
+        , rj = Vec3.sub worldVertex body2.position
+        , restitution = 0
+        }
+            :: contactEquations
+
+    else
+        contactEquations
 
 
 addSphereConvexContacts : Transform -> Float -> BodyId -> Transform -> ConvexPolyhedron -> BodyId -> List ContactEquation -> List ContactEquation
@@ -269,23 +271,23 @@ addSphereConvexContacts { position } radius bodyId1 t2 hull2 bodyId2 contactEqua
         ( maybeWorldContact, penetration ) =
             ConvexPolyhedron.sphereContact position radius t2 hull2
     in
-        case maybeWorldContact of
-            Just worldContact2 ->
-                let
-                    worldNormal =
-                        Vec3.direction worldContact2 position
-                in
-                    { bodyId1 = bodyId1
-                    , bodyId2 = bodyId2
-                    , ni = worldNormal
-                    , ri = Vec3.scale radius worldNormal
-                    , rj = Vec3.sub worldContact2 t2.position
-                    , restitution = 0
-                    }
-                        :: contactEquations
+    case maybeWorldContact of
+        Just worldContact2 ->
+            let
+                worldNormal =
+                    Vec3.direction worldContact2 position
+            in
+            { bodyId1 = bodyId1
+            , bodyId2 = bodyId2
+            , ni = worldNormal
+            , ri = Vec3.scale radius worldNormal
+            , rj = Vec3.sub worldContact2 t2.position
+            , restitution = 0
+            }
+                :: contactEquations
 
-            Nothing ->
-                contactEquations
+        Nothing ->
+            contactEquations
 
 
 addSphereSphereContacts : Transform -> Float -> BodyId -> Body -> Transform -> Float -> BodyId -> Body -> List ContactEquation -> List ContactEquation
@@ -305,14 +307,15 @@ addSphereSphereContacts t1 radius1 bodyId1 body1 t2 radius2 bodyId2 body2 contac
         normal =
             Vec3.direction center2 center1
     in
-        if distance > 0 then
-            contactEquations
-        else
-            { bodyId1 = bodyId1
-            , bodyId2 = bodyId2
-            , ni = normal
-            , ri = Vec3.scale radius1 normal
-            , rj = Vec3.scale -radius2 normal
-            , restitution = 0
-            }
-                :: contactEquations
+    if distance > 0 then
+        contactEquations
+
+    else
+        { bodyId1 = bodyId1
+        , bodyId2 = bodyId2
+        , ni = normal
+        , ri = Vec3.scale radius1 normal
+        , rj = Vec3.scale -radius2 normal
+        , restitution = 0
+        }
+            :: contactEquations

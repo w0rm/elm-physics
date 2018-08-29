@@ -1,9 +1,8 @@
-module Physics.JacobianElement
-    exposing
-        ( JacobianElement
-        , jacobianElement
-        , mulVec
-        )
+module Physics.JacobianElement exposing
+    ( JacobianElement
+    , jacobianElement
+    , mulVec
+    )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Const as Const
@@ -23,6 +22,6 @@ jacobianElement =
 
 
 mulVec : Vec3 -> Vec3 -> JacobianElement -> Float
-mulVec spatial rotational jacobianElement =
-    Vec3.dot jacobianElement.spatial spatial
-        + Vec3.dot jacobianElement.rotational rotational
+mulVec spatial rotational jacobianElement_ =
+    Vec3.dot jacobianElement_.spatial spatial
+        + Vec3.dot jacobianElement_.rotational rotational

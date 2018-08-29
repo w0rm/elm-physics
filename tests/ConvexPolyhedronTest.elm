@@ -1,6 +1,6 @@
-module ConvexPolyhedron exposing (..)
+module ConvexPolyhedronTest exposing (addEdgesOfConvexPolyhedron, addFaceEdges, boxHull, boxUniqueEdges, clipAgainstHull, clipFaceAgainstHull, clipFaceAgainstPlane, countEdgesOfConvexPolyhedron, expectListVec3WithinPrecision, faceAdjacency, findSeparatingAxis, initFaceNormal, initUniqueEdges, listRingRotate, normalizeVec3Towards, project, testSepAxis, uniqueEdgesOfConvexPolyhedron)
 
-import Array.Hamt as Array exposing (Array)
+import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -96,29 +96,29 @@ clipFaceAgainstHull =
                     -- We can expect to get back the 4 corners of the box hullA penetrated 0.05 units
                     -- into the plane worldVertsB we constructed
                 in
-                    {-
-                       [ { point: Vec3 { x: 0.5, y: -0.5, z: 0 },
-                             normal: Vec3 { x: 0, y: 0, z: -1 },
-                             depth: -0.04999999999999999 },
-                         { point: Vec3 { x: -0.5, y: -0.5, z: 0 },
-                             normal: Vec3 { x: 0, y: 0, z: -1 },
-                             depth: -0.04999999999999999 },
-                         { point: Vec3 { x: -0.5, y: 0.5, z: 0 },
-                             normal: Vec3 { x: 0, y: 0, z: -1 },
-                             depth: -0.04999999999999999 },
-                         { point: Vec3 { x: 0.5, y: 0.5, z: 0 },
-                             normal: Vec3 { x: 0, y: 0, z: -1 },
-                             depth: -0.04999999999999999 } ]
-                    -}
-                    ConvexPolyhedron.clipFaceAgainstHull
-                        transform
-                        (boxHull 0.5)
-                        sepNormal
-                        worldVertsB
-                        -100
-                        100
-                        |> List.length
-                        |> Expect.equal 4
+                {-
+                   [ { point: Vec3 { x: 0.5, y: -0.5, z: 0 },
+                         normal: Vec3 { x: 0, y: 0, z: -1 },
+                         depth: -0.04999999999999999 },
+                     { point: Vec3 { x: -0.5, y: -0.5, z: 0 },
+                         normal: Vec3 { x: 0, y: 0, z: -1 },
+                         depth: -0.04999999999999999 },
+                     { point: Vec3 { x: -0.5, y: 0.5, z: 0 },
+                         normal: Vec3 { x: 0, y: 0, z: -1 },
+                         depth: -0.04999999999999999 },
+                     { point: Vec3 { x: 0.5, y: 0.5, z: 0 },
+                         normal: Vec3 { x: 0, y: 0, z: -1 },
+                         depth: -0.04999999999999999 } ]
+                -}
+                ConvexPolyhedron.clipFaceAgainstHull
+                    transform
+                    (boxHull 0.5)
+                    sepNormal
+                    worldVertsB
+                    -100
+                    100
+                    |> List.length
+                    |> Expect.equal 4
         ]
 
 
@@ -144,28 +144,28 @@ clipAgainstHull =
                         , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
                         }
                 in
-                    {-
-                       [ { point: Vec3 { x: 0.9999999999999997, y: 1, z: 3.0000000000000004 },
-                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
-                           depth: -0.09999999999999964 },
-                         { point: Vec3 { x: 0.9999999999999998, y: -1, z: 3.0000000000000004 },
-                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
-                           depth: -0.09999999999999964 },
-                         { point: Vec3 { x: -0.9999999999999997, y: -1, z: 3 },
-                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
-                           depth: -0.10000000000000009 },
-                         { point: Vec3 { x: -0.9999999999999997, y: 1, z: 3 },
-                           normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
-                           depth: -0.10000000000000009 } ]
-                    -}
-                    case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
-                        Just separatingAxis ->
-                            ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
-                                |> List.length
-                                |> Expect.equal 4
+                {-
+                   [ { point: Vec3 { x: 0.9999999999999997, y: 1, z: 3.0000000000000004 },
+                       normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                       depth: -0.09999999999999964 },
+                     { point: Vec3 { x: 0.9999999999999998, y: -1, z: 3.0000000000000004 },
+                       normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                       depth: -0.09999999999999964 },
+                     { point: Vec3 { x: -0.9999999999999997, y: -1, z: 3 },
+                       normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                       depth: -0.10000000000000009 },
+                     { point: Vec3 { x: -0.9999999999999997, y: 1, z: 3 },
+                       normal: Vec3 { x: -2.220446049250313e-16, y: 0, z: 1 },
+                       depth: -0.10000000000000009 } ]
+                -}
+                case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
+                    Just separatingAxis ->
+                        ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
+                            |> List.length
+                            |> Expect.equal 4
 
-                        Nothing ->
-                            Expect.fail "Couldn't find separate axis"
+                    Nothing ->
+                        Expect.fail "Couldn't find separate axis"
         , test "should return 2 results" <|
             \_ ->
                 let
@@ -185,22 +185,22 @@ clipAgainstHull =
                         , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
                 in
-                    {-
-                       [ { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: -0.5 },
-                           normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
-                           depth: -0.30710678118654733 },
-                         { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: 0.5 },
-                           normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
-                           depth: -0.30710678118654733 } ]
-                    -}
-                    case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
-                        Just separatingAxis ->
-                            ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
-                                |> List.length
-                                |> Expect.equal 2
+                {-
+                   [ { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: -0.5 },
+                       normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
+                       depth: -0.30710678118654733 },
+                     { point: Vec3 { x: -0.20710678118654746, y: -5.551115123125783e-17, z: 0.5 },
+                       normal: Vec3 { x: 0.9999999999999999, y: 0, z: 0 },
+                       depth: -0.30710678118654733 } ]
+                -}
+                case ConvexPolyhedron.findSeparatingAxis t1 hull1 t2 hull2 of
+                    Just separatingAxis ->
+                        ConvexPolyhedron.clipAgainstHull t1 hull1 t2 hull2 separatingAxis -100 100
+                            |> List.length
+                            |> Expect.equal 2
 
-                        Nothing ->
-                            Expect.fail "Couldn't find separate axis"
+                    Nothing ->
+                        Expect.fail "Couldn't find separate axis"
         , test "should work for the case from the debugger" <|
             \_ ->
                 let
@@ -220,19 +220,19 @@ clipAgainstHull =
                     maybeSeparatingAxis =
                         ConvexPolyhedron.findSeparatingAxis t1 hull t2 hull
                 in
-                    case maybeSeparatingAxis of
-                        Just separatingAxis ->
-                            ConvexPolyhedron.clipAgainstHull t1 hull t2 hull separatingAxis -100 100
-                                |> List.length
-                                |> Expect.equal 1
+                case maybeSeparatingAxis of
+                    Just separatingAxis ->
+                        ConvexPolyhedron.clipAgainstHull t1 hull t2 hull separatingAxis -100 100
+                            |> List.length
+                            |> Expect.equal 1
 
-                        {-
-                           [ { point: Vec3 { x: -1.9395931897893413, y: -0.620034911301545, z: 0.567836561523491 },
-                               normal: Vec3 { x: 0.013437614750654274, y: 0.04564300225339029, z: 0.9988674320724998 },
-                               depth: -0.502776622199867 } ]
-                        -}
-                        Nothing ->
-                            Expect.fail "Couldn't find separate axis"
+                    {-
+                       [ { point: Vec3 { x: -1.9395931897893413, y: -0.620034911301545, z: 0.567836561523491 },
+                           normal: Vec3 { x: 0.013437614750654274, y: 0.04564300225339029, z: 0.9988674320724998 },
+                           depth: -0.502776622199867 } ]
+                    -}
+                    Nothing ->
+                        Expect.fail "Couldn't find separate axis"
         ]
 
 
@@ -272,7 +272,7 @@ testSepAxis =
         , test "works with rotation" <|
             \_ ->
                 case
-                    (ConvexPolyhedron.testSepAxis
+                    ConvexPolyhedron.testSepAxis
                         { position = vec3 1 0 0
                         , quaternion = Quaternion.identity
                         }
@@ -282,7 +282,6 @@ testSepAxis =
                         }
                         (boxHull 0.5)
                         (vec3 1 0 0)
-                    )
                 of
                     Nothing ->
                         Expect.fail "expected depth"
@@ -369,13 +368,12 @@ project =
                     ( 1.5, 0.5 )
         , test "works for the rotation and offset" <|
             \_ ->
-                (ConvexPolyhedron.project
+                ConvexPolyhedron.project
                     { quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 1 0 0)
                     , position = vec3 0 1 0
                     }
                     (boxHull 0.5)
                     (vec3 0 1 0)
-                )
                     |> Expect.all
                         [ Tuple.first >> Expect.within (Expect.Absolute 0.00001) 1.5
                         , Tuple.second >> Expect.within (Expect.Absolute 0.00001) 0.5
@@ -491,75 +489,75 @@ initFaceNormal =
                         |> Array.fromList
                 )
     in
-        describe "ConvexPolyhedron.initFaceNormal"
-            [ test "works for the box" <|
-                \_ ->
-                    boxHull 1
-                        |> (\{ faces, vertices } ->
-                                faces
-                                    |> Array.toList
-                                    |> List.map
-                                        (\{ vertexIndices } ->
-                                            ConvexPolyhedron.initFaceNormal vertexIndices vertices
-                                        )
-                           )
-                        |> Expect.equal boxNormals
-            , test "box-specific bypass optimization works identically" <|
-                \_ ->
-                    boxHull 1
-                        |> .faces
-                        |> Array.toList
-                        |> List.map .normal
-                        |> Expect.equal boxNormals
-            , test "works for a right-handed triangle flipped around the x axis" <|
-                \_ ->
-                    xRotationRingSequence
-                        |> toRightTriangles xyRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal faceIndices)
-                        |> expectListVec3WithinPrecision
-                            xNormalRingSequence
-            , test "works for a left-handed triangle flipped around the x axis" <|
-                \_ ->
-                    xRotationRingSequence
-                        |> toRightTriangles xyRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
-                        |> expectListVec3WithinPrecision
-                            xAntiNormalRingSequence
-            , test "works for a right-handed triangle flipped around the y axis" <|
-                \_ ->
-                    yRotationRingSequence
-                        |> toRightTriangles yzRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal faceIndices)
-                        |> expectListVec3WithinPrecision
-                            yNormalRingSequence
-            , test "works for a left-handed triangle flipped around the y axis" <|
-                \_ ->
-                    yRotationRingSequence
-                        |> toRightTriangles yzRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
-                        |> expectListVec3WithinPrecision
-                            yAntiNormalRingSequence
-            , test "works for a right-handed triangle flipped around the z axis" <|
-                \_ ->
-                    zRotationRingSequence
-                        |> toRightTriangles zxRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal faceIndices)
-                        |> expectListVec3WithinPrecision
-                            zNormalRingSequence
-            , test "works for a left-handed triangle flipped around the z axis" <|
-                \_ ->
-                    zRotationRingSequence
-                        |> toRightTriangles zxRightTriangle
-                        |> List.map
-                            (ConvexPolyhedron.initFaceNormal backFaceIndices)
-                        |> expectListVec3WithinPrecision
-                            zAntiNormalRingSequence
-            ]
+    describe "ConvexPolyhedron.initFaceNormal"
+        [ test "works for the box" <|
+            \_ ->
+                boxHull 1
+                    |> (\{ faces, vertices } ->
+                            faces
+                                |> Array.toList
+                                |> List.map
+                                    (\{ vertexIndices } ->
+                                        ConvexPolyhedron.initFaceNormal vertexIndices vertices
+                                    )
+                       )
+                    |> Expect.equal boxNormals
+        , test "box-specific bypass optimization works identically" <|
+            \_ ->
+                boxHull 1
+                    |> .faces
+                    |> Array.toList
+                    |> List.map .normal
+                    |> Expect.equal boxNormals
+        , test "works for a right-handed triangle flipped around the x axis" <|
+            \_ ->
+                xRotationRingSequence
+                    |> toRightTriangles xyRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                    |> expectListVec3WithinPrecision
+                        xNormalRingSequence
+        , test "works for a left-handed triangle flipped around the x axis" <|
+            \_ ->
+                xRotationRingSequence
+                    |> toRightTriangles xyRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                    |> expectListVec3WithinPrecision
+                        xAntiNormalRingSequence
+        , test "works for a right-handed triangle flipped around the y axis" <|
+            \_ ->
+                yRotationRingSequence
+                    |> toRightTriangles yzRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                    |> expectListVec3WithinPrecision
+                        yNormalRingSequence
+        , test "works for a left-handed triangle flipped around the y axis" <|
+            \_ ->
+                yRotationRingSequence
+                    |> toRightTriangles yzRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                    |> expectListVec3WithinPrecision
+                        yAntiNormalRingSequence
+        , test "works for a right-handed triangle flipped around the z axis" <|
+            \_ ->
+                zRotationRingSequence
+                    |> toRightTriangles zxRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                    |> expectListVec3WithinPrecision
+                        zNormalRingSequence
+        , test "works for a left-handed triangle flipped around the z axis" <|
+            \_ ->
+                zRotationRingSequence
+                    |> toRightTriangles zxRightTriangle
+                    |> List.map
+                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                    |> expectListVec3WithinPrecision
+                        zAntiNormalRingSequence
+        ]
 
 
 {-| Force point equality for a point within a radius epsilon
@@ -576,6 +574,7 @@ normalizeVec3Towards approximation canonical =
                )
     then
         canonical
+
     else
         approximation
 
@@ -584,6 +583,7 @@ normalizeVec3Towards approximation canonical =
 
     Substitute a less precise test for Equals without sacrificing
     the detailed reporting on failure.
+
 -}
 expectListVec3WithinPrecision : List Vec3 -> List Vec3 -> Expectation
 expectListVec3WithinPrecision actualList expectedList =
@@ -603,10 +603,10 @@ listRingRotate offset ring =
         resultLength =
             List.length ring
     in
-        ring
-            ++ ring
-            |> List.drop (offset % resultLength)
-            |> List.take resultLength
+    ring
+        ++ ring
+        |> List.drop (modBy resultLength offset)
+        |> List.take resultLength
 
 
 initUniqueEdges : Test
@@ -684,9 +684,9 @@ addFaceEdges =
                         , vec3 0 0 1
                         ]
                 in
-                    boxHull 1
-                        |> addEdgesOfConvexPolyhedron fullSeedSet
-                        |> Expect.equal fullSeedSet
+                boxHull 1
+                    |> addEdgesOfConvexPolyhedron fullSeedSet
+                    |> Expect.equal fullSeedSet
         , test "works for the box with negatively directed seeds" <|
             \_ ->
                 let
@@ -696,9 +696,9 @@ addFaceEdges =
                         , vec3 0 0 -1
                         ]
                 in
-                    boxHull 1
-                        |> addEdgesOfConvexPolyhedron fullSeedSet
-                        |> Expect.equal fullSeedSet
+                boxHull 1
+                    |> addEdgesOfConvexPolyhedron fullSeedSet
+                    |> Expect.equal fullSeedSet
         , test "works for the box with partial seeds" <|
             \_ ->
                 let
@@ -710,9 +710,9 @@ addFaceEdges =
                         , vec3 0 0 1
                         ]
                 in
-                    boxHull 1
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        |> Expect.equal 3
+                boxHull 1
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    |> Expect.equal 3
         , test "works for the box with different partial seeds" <|
             \_ ->
                 let
@@ -722,9 +722,9 @@ addFaceEdges =
                     partialSeedSet =
                         [ vec3 0 0 1 ]
                 in
-                    boxHull 1
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        |> Expect.equal 3
+                boxHull 1
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    |> Expect.equal 3
         , test "works for the box with other different partial seeds" <|
             \_ ->
                 let
@@ -734,9 +734,9 @@ addFaceEdges =
                     partialSeedSet =
                         [ vec3 0 1 0 ]
                 in
-                    boxHull 1
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        |> Expect.equal 3
+                boxHull 1
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    |> Expect.equal 3
         , test "works for the box with approximate seeds" <|
             \_ ->
                 let
@@ -750,12 +750,12 @@ addFaceEdges =
                     validSeedSet =
                         [ vec3 (1 - Const.precision / 3.0) 0 0
                         , vec3 0 (1 + Const.precision / 3.0) 0
-                        , vec3 0 0 ((-1) - Const.precision / 3.0)
+                        , vec3 0 0 (-1 - Const.precision / 3.0)
                         ]
                 in
-                    boxHull 1
-                        |> addEdgesOfConvexPolyhedron validSeedSet
-                        |> Expect.equal validSeedSet
+                boxHull 1
+                    |> addEdgesOfConvexPolyhedron validSeedSet
+                    |> Expect.equal validSeedSet
         , test "works for the box with invalid seeds" <|
             \_ ->
                 let
@@ -775,13 +775,13 @@ addFaceEdges =
                     invalidSeedSet =
                         [ vec3 1 1 0
                         , vec3 (1 - Const.precision * 3.0) 0 0
-                        , vec3 0 0 ((-1) - Const.precision * 3.0)
+                        , vec3 0 0 (-1 - Const.precision * 3.0)
                         , vec3 0 0 0
                         ]
                 in
-                    boxHull 1
-                        |> countEdgesOfConvexPolyhedron invalidSeedSet
-                        |> Expect.equal (List.length invalidSeedSet + 3)
+                boxHull 1
+                    |> countEdgesOfConvexPolyhedron invalidSeedSet
+                    |> Expect.equal (List.length invalidSeedSet + 3)
 
         -- The square pyramid shape has fewer parallel edges than a box.
         -- The extent of parallel edges in a box was masking a bug discovered
@@ -795,9 +795,9 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    Fixtures.ConvexPolyhedron.squarePyramid
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        |> Expect.equal 6
+                Fixtures.ConvexPolyhedron.squarePyramid
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    |> Expect.equal 6
         , test "works for an off-square pyramid" <|
             \_ ->
                 let
@@ -806,9 +806,9 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    Fixtures.ConvexPolyhedron.askewSquarePyramid
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        |> Expect.equal 6
+                Fixtures.ConvexPolyhedron.askewSquarePyramid
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->
                 let
@@ -817,10 +817,10 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                    Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
-                        |> countEdgesOfConvexPolyhedron partialSeedSet
-                        -- all edges unique, none parallel
-                        |> Expect.equal 8
+                Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
+                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                    -- all edges unique, none parallel
+                    |> Expect.equal 8
         ]
 
 

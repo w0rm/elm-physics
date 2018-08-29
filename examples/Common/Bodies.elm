@@ -1,15 +1,14 @@
-module Common.Bodies
-    exposing
-        ( getBody
-        , getMesh
-        , getWireframe
-        , DemoBody(..)
-        )
+module Common.Bodies exposing
+    ( DemoBody(..)
+    , getBody
+    , getMesh
+    , getWireframe
+    )
 
 import Common.Meshes as Meshes exposing (Attributes)
-import Physics
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import WebGL exposing (Entity, Shader, Mesh)
+import Physics
+import WebGL exposing (Entity, Mesh, Shader)
 
 
 type DemoBody

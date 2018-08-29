@@ -3,17 +3,20 @@ set -e
 
 rm -rf gh-pages || exit 0;
 
-# compile JS using Elm
-for example in Boxes Spheres; do
-  lower=$(echo "$example" | tr '[:upper:]' '[:lower:]')
-  cd examples/
+# Compile the examples
+cd examples/
+for example in *.elm; do
+  # rename CamelCase to snake-case
+  lower=$( echo "${example%.*}" \
+         | sed 's/\(.\)\([A-Z]\)/\1-\2/g' \
+         | tr '[:upper:]' '[:lower:]' \
+         )
   mkdir -p ../gh-pages/examples/$lower
-  elm make $example.elm --yes --output ../gh-pages/examples/$lower/index.html
-  cd ..
+  elm make $example --optimize --output ../gh-pages/examples/$lower/index.html
 done
 
-# init branch and commit
-cd gh-pages
+# Deploy to GH Pages
+cd ../gh-pages
 git init
 git add .
 git commit -m "Deploying to GH Pages"

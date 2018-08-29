@@ -1,28 +1,25 @@
-module Physics.Body
-    exposing
-        ( Body
-        , BodyId
-        , addGravity
-        , clearForces
-        , shapeWorldTransform
-        , tick
-        , body
-        , setMass
-        , getNextShapeId
-        , addShape
-        )
+module Physics.Body exposing
+    ( Body
+    , BodyId
+    , addGravity
+    , addShape
+    , body
+    , clearForces
+    , getNextShapeId
+    , setMass
+    , shapeWorldTransform
+    , tick
+    )
 
+import Dict exposing (Dict)
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Math.Vector4 as Vec4 exposing (Vec4)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform exposing (Transform)
 import Physics.AABB as AABB exposing (AABB)
 import Physics.Const as Const
-import Dict exposing (Dict)
+import Physics.Quaternion as Quaternion
 import Physics.Shape as Shape exposing (Shape(..), ShapeId)
-import Time exposing (Time)
-import Physics.Const as Const
+import Physics.Transform as Transform exposing (Transform)
 
 
 type alias BodyId =
@@ -73,55 +70,55 @@ body =
 
 
 addGravity : Vec3 -> Body -> Body
-addGravity gravity body =
-    { body
+addGravity gravity body_ =
+    { body_
         | force =
             gravity
-                |> Vec3.scale body.mass
-                |> Vec3.add body.force
+                |> Vec3.scale body_.mass
+                |> Vec3.add body_.force
     }
 
 
 clearForces : Body -> Body
-clearForces body =
-    { body
+clearForces body_ =
+    { body_
         | force = Const.zero3
         , torque = Const.zero3
     }
 
 
 setMass : Float -> Body -> Body
-setMass mass body =
+setMass mass body_ =
     updateMassProperties
-        { body | mass = mass }
+        { body_ | mass = mass }
 
 
 setPosition : Vec3 -> Body -> Body
-setPosition position body =
+setPosition position body_ =
     updateMassProperties
-        { body | position = position }
+        { body_ | position = position }
 
 
 setQuaternion : Vec4 -> Body -> Body
-setQuaternion quaternion body =
+setQuaternion quaternion body_ =
     updateMassProperties
-        { body | quaternion = quaternion }
+        { body_ | quaternion = quaternion }
 
 
 {-| Predict the shape id of the next shape to be added
 -}
 getNextShapeId : Body -> ShapeId
-getNextShapeId body =
-    body.nextShapeId
+getNextShapeId =
+    .nextShapeId
 
 
 addShape : Shape -> Body -> Body
-addShape shape body =
+addShape shape body_ =
     -- TODO: support shape's position and rotation:
-    { body
-        | shapes = Dict.insert body.nextShapeId shape body.shapes
-        , nextShapeId = body.nextShapeId + 1
-        , boundingSphereRadius = Shape.expandBoundingSphereRadius Transform.identity shape body.boundingSphereRadius
+    { body_
+        | shapes = Dict.insert body_.nextShapeId shape body_.shapes
+        , nextShapeId = body_.nextShapeId + 1
+        , boundingSphereRadius = Shape.expandBoundingSphereRadius Transform.identity shape body_.boundingSphereRadius
     }
         |> updateMassProperties
 
@@ -145,66 +142,68 @@ shapeWorldTransform shapeId { position, quaternion, shapeTransforms } =
             }
 
 
-tick : Time -> Body -> Body
-tick dt body =
+tick : Float -> Body -> Body
+tick dt body_ =
     let
         invMass =
-            if body.mass == 0 then
+            if body_.mass == 0 then
                 0
+
             else
-                1.0 / body.mass
+                1.0 / body_.mass
 
         newVelocity =
-            body.force
+            body_.force
                 |> Vec3.scale (invMass * dt)
-                |> Vec3.add body.velocity
+                |> Vec3.add body_.velocity
 
         newAngularVelocity =
-            body.torque
-                |> Mat4.transform body.invInertiaWorld
+            body_.torque
+                |> Mat4.transform body_.invInertiaWorld
                 |> Vec3.scale dt
-                |> Vec3.add body.angularVelocity
+                |> Vec3.add body_.angularVelocity
     in
-        updateInertiaWorld False
-            { body
-                | velocity = newVelocity
-                , angularVelocity = newAngularVelocity
-                , position =
-                    newVelocity
-                        |> Vec3.scale dt
-                        |> Vec3.add body.position
-                , quaternion =
-                    body.quaternion
-                        |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                        |> Vec4.normalize
-            }
+    updateInertiaWorld False
+        { body_
+            | velocity = newVelocity
+            , angularVelocity = newAngularVelocity
+            , position =
+                newVelocity
+                    |> Vec3.scale dt
+                    |> Vec3.add body_.position
+            , quaternion =
+                body_.quaternion
+                    |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
+                    |> Vec4.normalize
+        }
 
 
 {-| Should be called whenever you change the body shape or mass.
 -}
 updateMassProperties : Body -> Body
-updateMassProperties ({ mass } as body) =
+updateMassProperties ({ mass } as body_) =
     let
         invMass =
             if mass == 0 then
                 0
+
             else
                 1.0 / mass
 
-        ( ex, ey, ez ) =
-            body
+        e =
+            body_
                 |> computeAABB
                 |> AABB.toHalfExtends
-                |> Vec3.toTuple
+                |> Vec3.toRecord
 
         ix =
-            (1.0 / 12.0 * mass * (2 * ey * 2 * ey + 2 * ez * 2 * ez))
+            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.z * 2 * e.z)
 
         iy =
-            (1.0 / 12.0 * mass * (2 * ex * 2 * ex + 2 * ez * 2 * ez))
+            1.0 / 12.0 * mass * (2 * e.x * 2 * e.x + 2 * e.z * 2 * e.z)
 
         iz =
-            (1.0 / 12.0 * mass * (2 * ey * 2 * ey + 2 * ex * 2 * ex))
+            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.x * 2 * e.x)
 
         inertia =
             vec3 ix iy iz
@@ -213,52 +212,56 @@ updateMassProperties ({ mass } as body) =
             vec3
                 (if ix > 0 then
                     1.0 / ix
+
                  else
                     0
                 )
                 (if iy > 0 then
                     1.0 / iy
+
                  else
                     0
                 )
                 (if iz > 0 then
                     1.0 / iz
+
                  else
                     0
                 )
     in
-        updateInertiaWorld True
-            { body
-                | invMass = invMass
-                , inertia = inertia
-                , invInertia = invInertia
-            }
+    updateInertiaWorld True
+        { body_
+            | invMass = invMass
+            , inertia = inertia
+            , invInertia = invInertia
+        }
 
 
 updateInertiaWorld : Bool -> Body -> Body
-updateInertiaWorld force ({ invInertia, quaternion } as body) =
+updateInertiaWorld force ({ invInertia, quaternion } as body_) =
     if not force && Vec3.getX invInertia == Vec3.getY invInertia && Vec3.getY invInertia == Vec3.getZ invInertia then
-        body
+        body_
+
     else
         let
             m =
                 Quaternion.toMat4 quaternion
         in
-            { body
-                | invInertiaWorld =
-                    Mat4.mul
-                        (Mat4.transpose m)
-                        (Mat4.scale invInertia m)
-            }
+        { body_
+            | invInertiaWorld =
+                Mat4.mul
+                    (Mat4.transpose m)
+                    (Mat4.scale invInertia m)
+        }
 
 
 computeAABB : Body -> AABB
-computeAABB body =
+computeAABB body_ =
     Dict.foldl
         (\shapeId shape ->
-            shapeWorldTransform shapeId body
+            shapeWorldTransform shapeId body_
                 |> Shape.aabbClosure shape
                 |> AABB.extend
         )
         AABB.impossible
-        body.shapes
+        body_.shapes

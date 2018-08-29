@@ -1,30 +1,31 @@
-module Common.Demo
-    exposing
-        ( Demo
-        , DemoProgram
-        , demo
-        , addBodies
-        , dropOnClick
-        , run
-        )
+module Common.Demo exposing
+    ( Demo
+    , DemoProgram
+    , addBodies
+    , demo
+    , dropOnClick
+    , run
+    )
 
-import AnimationFrame
+import Browser
+import Browser.Dom exposing (getViewport)
+import Browser.Events exposing (onAnimationFrameDelta, onResize)
+import Common.Bodies as Bodies exposing (DemoBody)
 import Common.Math as Math
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Shaders as Shaders
+import Dict exposing (Dict)
 import Html exposing (Html)
-import Html.Attributes exposing (width, height, style, type_, checked)
-import Html.Events exposing (onClick, onCheck)
+import Html.Attributes exposing (checked, height, style, type_, width)
+import Html.Events exposing (onCheck, onClick)
+import Json.Decode exposing (Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics exposing (World)
 import Random
-import Dict exposing (Dict)
 import Task
-import Time exposing (Time)
-import WebGL exposing (Entity, Shader, Mesh)
-import Window
-import Common.Bodies as Bodies exposing (DemoBody)
+import WebGL exposing (Entity, Mesh, Shader)
+
 
 
 -- Model
@@ -36,8 +37,8 @@ type alias Model =
     , debugEdges : Bool -- Set to True to see edge markers
     , debugWireframes : Bool -- Set to True to see wireframes
     , showSettings : Bool
-    , screenWidth : Int
-    , screenHeight : Int
+    , screenWidth : Float
+    , screenHeight : Float
     , initialWorld : World
     , world : World
     , bodies : Dict Int DemoBody
@@ -49,13 +50,13 @@ type alias Model =
 
 
 type Msg
-    = Tick Time
+    = Tick Float
     | ToggleContacts Bool
     | ToggleNormals Bool
     | ToggleEdges Bool
     | ToggleWireframes Bool
     | ToggleSettings
-    | Resize Window.Size
+    | Resize Float Float
     | ResetClick
     | SceneClick
     | AddBody ( DemoBody, Physics.Body )
@@ -109,48 +110,48 @@ plane =
 {-| Allow to drop random bodies on click
 -}
 dropOnClick : Random.Generator ( DemoBody, Physics.Body ) -> Demo -> Demo
-dropOnClick randomBody (Demo demo) =
-    Demo { demo | randomBody = Just randomBody }
+dropOnClick randomBody (Demo demo_) =
+    Demo { demo_ | randomBody = Just randomBody }
 
 
 {-| Add initial bodies for the scene
 -}
 addBodies : List ( DemoBody, Physics.Body ) -> Demo -> Demo
-addBodies bodiesWithMeshes (Demo demo) =
+addBodies bodiesWithMeshes (Demo demo_) =
     Demo
-        (List.foldl addBodyWithMesh demo bodiesWithMeshes)
+        (List.foldl addBodyWithMesh demo_ bodiesWithMeshes)
 
 
 addBodyWithMesh : ( DemoBody, Physics.Body ) -> { a | world : World, bodies : Dict Int DemoBody } -> { a | world : World, bodies : Dict Int DemoBody }
-addBodyWithMesh ( mesh, body ) demo =
+addBodyWithMesh ( mesh, body ) demo_ =
     let
         ( world, bodyId ) =
-            Physics.addBody body demo.world
+            Physics.addBody body demo_.world
     in
-        { demo
-            | world = world
-            , bodies = Dict.insert bodyId mesh demo.bodies
-        }
+    { demo_
+        | world = world
+        , bodies = Dict.insert bodyId mesh demo_.bodies
+    }
 
 
 type alias DemoProgram =
-    Program Never Model Msg
+    Program Value Model Msg
 
 
 {-| Run the demo as an Elm program!
 -}
 run : Demo -> DemoProgram
-run (Demo demo) =
-    Html.program
-        { init = init demo
-        , update = update demo.randomBody
+run (Demo demo_) =
+    Browser.element
+        { init = \_ -> init demo_
+        , update = update demo_.randomBody
         , subscriptions = subscriptions
         , view = view
         }
 
 
 init : DemoConfig -> ( Model, Cmd Msg )
-init demo =
+init demo_ =
     ( { debugContacts = False
       , debugNormals = False
       , debugEdges = False
@@ -160,11 +161,11 @@ init demo =
       -- replaced by resize, including the initial resize
       , screenWidth = 1
       , screenHeight = 1
-      , initialWorld = demo.world
-      , world = demo.world
-      , bodies = demo.bodies
+      , initialWorld = demo_.world
+      , world = demo_.world
+      , bodies = demo_.bodies
       }
-    , Task.perform Resize Window.size
+    , Task.perform (\{ viewport } -> Resize viewport.width viewport.height) getViewport
     )
 
 
@@ -186,7 +187,7 @@ update randomBody msg model =
         ToggleWireframes debugWireframes ->
             ( { model | debugWireframes = debugWireframes }, Cmd.none )
 
-        Resize { width, height } ->
+        Resize width height ->
             ( { model
                 | screenWidth = width
                 , screenHeight = height
@@ -204,8 +205,8 @@ update randomBody msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-                Just randomBody ->
-                    ( model, Random.generate AddBody randomBody )
+                Just body_ ->
+                    ( model, Random.generate AddBody body_ )
 
         ResetClick ->
             ( { model | world = model.initialWorld }, Cmd.none )
@@ -219,8 +220,8 @@ update randomBody msg model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ Window.resizes Resize
-        , AnimationFrame.diffs Tick
+        [ onResize (\w h -> Resize (toFloat w) (toFloat h))
+        , onAnimationFrameDelta Tick
         ]
 
 
@@ -236,7 +237,10 @@ type alias SceneParams =
 view : Model -> Html Msg
 view model =
     Html.div
-        []
+        [ style "position" "absolute"
+        , style "top" "0"
+        , style "left" "0"
+        ]
         [ webGL model
         , settings model
         ]
@@ -245,31 +249,28 @@ view model =
 settings : Model -> Html Msg
 settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframes } =
     Html.div
-        [ style
-            [ ( "position", "fixed" )
-            , ( "right", "6px" )
-            , ( "top", "0" )
-            , ( "font-family", "monospace" )
-            , ( "color", "white" )
-            ]
+        [ style "position" "fixed"
+        , style "right" "6px"
+        , style "top" "0"
+        , style "font-family" "monospace"
+        , style "color" "white"
         ]
         (if showSettings then
             [ button ToggleSettings "Hide Settings"
             , Html.div
-                [ style
-                    [ ( "padding", "6px" )
-                    , ( "min-width", "24ch" )
-                    , ( "background", "rgb(50, 50, 50)" )
-                    , ( "border-radius", "0 0 4px 4px" )
-                    ]
+                [ style "padding" "6px"
+                , style "min-width" "24ch"
+                , style "background" "rgb(50, 50, 50)"
+                , style "border-radius" "0 0 4px 4px"
                 ]
                 [ checkbox ToggleContacts debugContacts "collision points"
                 , checkbox ToggleNormals debugNormals "normals"
                 , checkbox ToggleEdges debugEdges "unique edges"
                 , checkbox ToggleWireframes debugWireframes "wireframes"
-                , Html.button [ onClick ResetClick, style [ ( "margin", "10px 0 5px" ) ] ] [ Html.text "Click to restart the demo" ]
+                , Html.button [ onClick ResetClick, style "margin" "10px 0 5px" ] [ Html.text "Click to restart the demo" ]
                 ]
             ]
+
          else
             [ button ToggleSettings "Show Settings" ]
         )
@@ -278,18 +279,16 @@ settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframe
 button : Msg -> String -> Html Msg
 button msg text =
     Html.button
-        [ style
-            [ ( "padding", "6px" )
-            , ( "box-sizing", "content-box" )
-            , ( "min-width", "24ch" )
-            , ( "color", "inherit" )
-            , ( "border", "none" )
-            , ( "font", "inherit" )
-            , ( "text-align", "center" )
-            , ( "margin", "0" )
-            , ( "display", "block" )
-            , ( "background", "rgb(61, 61, 61)" )
-            ]
+        [ style "padding" "6px"
+        , style "box-sizing" "content-box"
+        , style "min-width" "24ch"
+        , style "color" "inherit"
+        , style "border" "none"
+        , style "font" "inherit"
+        , style "text-align" "center"
+        , style "margin" "0"
+        , style "display" "block"
+        , style "background" "rgb(61, 61, 61)"
         , onClick msg
         ]
         [ Html.text text ]
@@ -297,12 +296,12 @@ button msg text =
 
 checkbox : (Bool -> Msg) -> Bool -> String -> Html Msg
 checkbox msg value label =
-    Html.label [ style [ ( "display", "block" ), ( "padding", "5px 0" ) ] ]
+    Html.label [ style "display" "block", style "padding" "5px 0" ]
         [ Html.input
             [ onCheck msg
             , checked value
             , type_ "checkbox"
-            , style [ ( "margin-right", "10px" ) ]
+            , style "margin-right" "10px"
             ]
             []
         , Html.text label
@@ -317,14 +316,14 @@ webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, d
         , WebGL.antialias
         , WebGL.clearColor 0.3 0.3 0.3 1
         ]
-        [ width screenWidth
-        , height screenHeight
-        , style [ ( "display", "block" ) ]
+        [ width (round screenWidth)
+        , height (round screenHeight)
+        , style "display" "block"
         , onClick SceneClick
         ]
         (let
             aspectRatio =
-                (toFloat screenWidth) / (toFloat screenHeight)
+                screenWidth / screenHeight
 
             sceneParams =
                 { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
@@ -334,20 +333,20 @@ webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, d
                 , debugWireframes = debugWireframes
                 }
          in
-            [ ( True, Physics.foldl (addShape sceneParams) )
-            , ( debugContacts
-              , Physics.foldContacts (addContactIndicator sceneParams)
-              )
-            , ( debugNormals
-              , Physics.foldFaceNormals (addNormalIndicator sceneParams)
-              )
-            , ( debugEdges
-              , Physics.foldUniqueEdges (addEdgeIndicator sceneParams)
-              )
-            ]
-                |> List.filter Tuple.first
-                |> List.map Tuple.second
-                |> List.foldl (\fn entities -> fn entities world) []
+         [ ( True, Physics.foldl (addShape sceneParams) )
+         , ( debugContacts
+           , Physics.foldContacts (addContactIndicator sceneParams)
+           )
+         , ( debugNormals
+           , Physics.foldFaceNormals (addNormalIndicator sceneParams)
+           )
+         , ( debugEdges
+           , Physics.foldUniqueEdges (addEdgeIndicator sceneParams)
+           )
+         ]
+            |> List.filter Tuple.first
+            |> List.map Tuple.second
+            |> List.foldl (\fn entities -> fn entities world) []
         )
 
 

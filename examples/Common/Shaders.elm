@@ -1,8 +1,8 @@
-module Common.Shaders exposing (Uniforms, Varying, vertex, fragment, shadowFragment)
+module Common.Shaders exposing (Uniforms, Varying, fragment, shadowFragment, vertex)
 
 import Common.Meshes exposing (Attributes)
-import Math.Vector3 as Vec3 exposing (Vec3)
 import Math.Matrix4 as Mat4 exposing (Mat4)
+import Math.Vector3 as Vec3 exposing (Vec3)
 import WebGL exposing (Shader)
 
 

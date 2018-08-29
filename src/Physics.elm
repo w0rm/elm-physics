@@ -1,27 +1,9 @@
-module Physics
-    exposing
-        ( step
-        , foldl
-        , foldContacts
-        , foldFaceNormals
-        , foldUniqueEdges
-        , World
-        , world
-        , setGravity
-        , addBody
-        , Body
-        , body
-        , BodyId
-        , setMass
-        , addShape
-        , rotateBy
-        , offsetBy
-        , Shape
-        , ShapeId
-        , box
-        , plane
-        , sphere
-        )
+module Physics exposing
+    ( World, world, setGravity, addBody, BodyId
+    , Body, body, setMass, addShape, rotateBy, offsetBy, ShapeId
+    , Shape, box, plane, sphere
+    , step, foldl, foldContacts, foldFaceNormals, foldUniqueEdges
+    )
 
 {-| Highly experimental toy physics engine in Elm.
 
@@ -49,17 +31,16 @@ The API is currently shaping up and will be most likely changed.
 
 -}
 
-import Physics.World as World
-import Physics.Body as Body exposing (Body, BodyId)
-import Physics.Shape as Shape exposing (Shape, ShapeId)
-import Physics.NarrowPhase as NarrowPhase exposing (..)
-import Physics.Solver as Solver exposing (..)
-import Physics.Quaternion as Quaternion
-import Time exposing (Time)
-import Math.Matrix4 as Mat4 exposing (Mat4)
 import Dict
+import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.Body as Body exposing (Body, BodyId)
 import Physics.ConvexPolyhedron as ConvexPolyhedron
+import Physics.NarrowPhase as NarrowPhase exposing (..)
+import Physics.Quaternion as Quaternion
+import Physics.Shape as Shape exposing (Shape, ShapeId)
+import Physics.Solver as Solver exposing (..)
+import Physics.World as World
 
 
 {-| -}
@@ -82,16 +63,16 @@ cause by default it's an open space
 
 -}
 setGravity : Vec3 -> World -> World
-setGravity gravity (World world) =
-    World (World.setGravity gravity world)
+setGravity gravity (World world_) =
+    World (World.setGravity gravity world_)
 
 
 {-| You can also add bodies to the world
 -}
 addBody : Body -> World -> ( World, BodyId )
-addBody (Body body) (World world) =
-    ( World (World.addBody body world)
-    , World.getNextBodyId world
+addBody (Body body_) (World world_) =
+    ( World (World.addBody body_ world_)
+    , World.getNextBodyId world_
     )
 
 
@@ -123,8 +104,8 @@ body =
 {-| After creating a body, you have to give it a mass. Bodies without mass don't move!
 -}
 setMass : Float -> Body -> Body
-setMass mass (Body body) =
-    Body (Body.setMass mass body)
+setMass mass (Body body_) =
+    Body (Body.setMass mass body_)
 
 
 {-| Adds [shapes](#Shape) to the body. For example, call this to add a box:
@@ -134,30 +115,30 @@ setMass mass (Body body) =
 
 -}
 addShape : Shape -> Body -> ( Body, ShapeId )
-addShape (Shape shape) (Body body) =
-    ( Body (Body.addShape shape body)
-    , Body.getNextShapeId body
+addShape (Shape shape) (Body body_) =
+    ( Body (Body.addShape shape body_)
+    , Body.getNextShapeId body_
     )
 
 
 {-| Rotate the body around the axis by a specific angle from its current orientation
 -}
 rotateBy : Vec3 -> Float -> Body -> Body
-rotateBy axis angle (Body body) =
+rotateBy axis angle (Body body_) =
     Body
-        { body
+        { body_
             | quaternion =
                 Quaternion.mul
                     (Quaternion.fromAngleAxis angle axis)
-                    body.quaternion
+                    body_.quaternion
         }
 
 
 {-| Move the body from its current position
 -}
 offsetBy : Vec3 -> Body -> Body
-offsetBy offset (Body body) =
-    Body { body | position = Vec3.add offset body.position }
+offsetBy offset (Body body_) =
+    Body { body_ | position = Vec3.add offset body_.position }
 
 
 {-| Shape is an integral part of a body. It is positioned in the body's coordinate system.
@@ -198,11 +179,11 @@ plane =
 Call this function on a message from the AnimationFrame subscription!
 
 -}
-step : Time -> World -> World
-step dt (World world) =
-    world
+step : Float -> World -> World
+step dt (World world_) =
+    world_
         |> World.addGravityForces
-        |> Solver.solve dt (NarrowPhase.getContacts world)
+        |> Solver.solve dt (NarrowPhase.getContacts world_)
         |> World.tick dt
         |> World
 
@@ -228,7 +209,7 @@ or what color should this shape be.
 
 -}
 foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
-foldl fn acc world =
+foldl fn acc world_ =
     foldOverShapes
         (\transform bodyId _ shapeId _ tail ->
             fn
@@ -239,13 +220,13 @@ foldl fn acc world =
                 tail
         )
         acc
-        world
+        world_
 
 
 {-| Fold over the contact points in the world for visual debugging
 -}
 foldContacts : (Vec3 -> a -> a) -> a -> World -> a
-foldContacts fn acc (World ({ bodies } as world)) =
+foldContacts fn acc (World ({ bodies } as world_)) =
     List.foldl
         (\{ bodyId1, bodyId2, ri, rj } acc1 ->
             [ ( bodyId1, ri )
@@ -259,19 +240,19 @@ foldContacts fn acc (World ({ bodies } as world)) =
         )
         acc
         -- TODO: maybe cache the previous contacts in the world
-        (NarrowPhase.getContacts world)
+        (NarrowPhase.getContacts world_)
 
 
 foldOverShapes : (Mat4 -> BodyId -> Body.Body -> ShapeId -> Shape.Shape -> a -> a) -> a -> World -> a
 foldOverShapes fn acc (World { bodies }) =
     Dict.foldl
-        (\bodyId ({ position, quaternion, shapes, shapeTransforms } as body) acc1 ->
+        (\bodyId ({ position, quaternion, shapes, shapeTransforms } as body_) acc1 ->
             Dict.foldl
                 (\shapeId shape acc2 ->
                     fn
                         (case Dict.get shapeId shapeTransforms of
                             Just transform ->
-                                (Quaternion.toMat4 transform.quaternion)
+                                Quaternion.toMat4 transform.quaternion
                                     |> Mat4.mul (Mat4.makeTranslate transform.position)
                                     |> Mat4.mul (Quaternion.toMat4 quaternion)
                                     |> Mat4.mul (Mat4.makeTranslate position)
@@ -282,7 +263,7 @@ foldOverShapes fn acc (World { bodies }) =
                                     (Quaternion.toMat4 quaternion)
                         )
                         bodyId
-                        body
+                        body_
                         shapeId
                         shape
                         acc2
@@ -301,7 +282,7 @@ These are both expressed within the local shape coordinate system.
 The transform to the current world coordinates from the shape coordinates is also provided.
 -}
 foldFaceNormals : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
-foldFaceNormals fn acc world =
+foldFaceNormals fn acc world_ =
     foldOverShapes
         (\transform _ _ _ shape acc1 ->
             case shape of
@@ -318,7 +299,7 @@ foldFaceNormals fn acc world =
                         convex
         )
         acc
-        world
+        world_
 
 
 {-| Fold over all the unique edges in the world, where each unique edge
@@ -329,7 +310,7 @@ from the shape coordinates is also provided for context. Both the vector and
 the point are expressed within the local shape coordinate system.
 -}
 foldUniqueEdges : (Mat4 -> Vec3 -> Vec3 -> a -> a) -> a -> World -> a
-foldUniqueEdges fn acc world =
+foldUniqueEdges fn acc world_ =
     foldOverShapes
         (\transform _ _ _ shape acc1 ->
             case shape of
@@ -346,4 +327,4 @@ foldUniqueEdges fn acc world =
                         convex
         )
         acc
-        world
+        world_
