@@ -1,8 +1,9 @@
 module Physics exposing
     ( World, world, setGravity, addBody, BodyId
-    , Body, body, setMass, addShape, rotateBy, offsetBy, ShapeId
+    , Body, body, setMass, addShape, ShapeId, rotateBy, offsetBy
     , Shape, box, plane, sphere
-    , step, foldl, foldContacts, foldFaceNormals, foldUniqueEdges
+    , step, fold
+    , foldContacts, foldFaceNormals, foldUniqueEdges
     )
 
 {-| Highly experimental toy physics engine in Elm.
@@ -17,7 +18,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Body
 
-@docs Body, body, setMass, addShape, rotateBy, offsetBy, ShapeId
+@docs Body, body, setMass, addShape, ShapeId, rotateBy, offsetBy
 
 
 ## Shape
@@ -27,7 +28,15 @@ The API is currently shaping up and will be most likely changed.
 
 ## Physics
 
-@docs step, foldl, foldContacts, foldFaceNormals, foldUniqueEdges
+@docs step, fold
+
+
+## Debug
+
+The following functions are exposed for debugging.
+Check the [demos](https://github.com/w0rm/elm-physics/blob/master/examples/Common/Demo.elm#L325) for usage details.
+
+@docs foldContacts, foldFaceNormals, foldUniqueEdges
 
 -}
 
@@ -55,11 +64,11 @@ world =
     World World.world
 
 
-{-| Call it to set the world's gravity,
-cause by default it's an open space
+{-| Call it to set the world’s gravity,
+cause by default it’s an open space:
 
-    world
-        |> setGravity (vec3 0 0 -10)
+    setGravity (vec3 0 0 -10) world
+    --> worldWithGravity
 
 -}
 setGravity : Vec3 -> World -> World
@@ -67,7 +76,12 @@ setGravity gravity (World world_) =
     World (World.setGravity gravity world_)
 
 
-{-| You can also add bodies to the world
+{-| You can also add bodies to the world. The function
+returns updated world and an id of the body.
+
+    addBody body world
+    --> (newWorld, bodyId)
+
 -}
 addBody : Body -> World -> ( World, BodyId )
 addBody (Body body_) (World world_) =
@@ -76,42 +90,45 @@ addBody (Body body_) (World world_) =
     )
 
 
-{-| Pass-through definition for convenience of importers
+{-| A unique identifier of a body in the world.
+It can be used to link additional information, like meshes.
 -}
 type alias BodyId =
     Body.BodyId
 
 
-{-| Pass-through definition for convenience of importers
--}
-type alias ShapeId =
-    Shape.ShapeId
-
-
-{-| Body is a solid matter without any moving parts
+{-| Body is a solid matter without any moving parts.
 -}
 type Body
     = Body Body.Body
 
 
-{-| This gives you an empty body, add shapes to turn it into something meaningful
+{-| This gives you an empty body, add shapes to turn it
+into something meaningful.
 -}
 body : Body
 body =
     Body Body.body
 
 
-{-| After creating a body, you have to give it a mass. Bodies without mass don't move!
+{-| After creating a body, you have to give it a mass.
+Bodies without mass don’t move!
+
+    setMass 5 boxBody
+    --> heavyBoxBody
+
 -}
 setMass : Float -> Body -> Body
 setMass mass (Body body_) =
     Body (Body.setMass mass body_)
 
 
-{-| Adds [shapes](#Shape) to the body. For example, call this to add a box:
+{-| Adds a [shape](#Shape) at the center of the body
+and returns a tuple of updated body and a shape id.
+For example, call this to add a box:
 
-    body
-        |> addShape (box (vec3 1 1 1))
+    addShape (box (vec3 1 1 1)) body
+    --> (newBody, shapeId)
 
 -}
 addShape : Shape -> Body -> ( Body, ShapeId )
@@ -121,7 +138,18 @@ addShape (Shape shape) (Body body_) =
     )
 
 
-{-| Rotate the body around the axis by a specific angle from its current orientation
+{-| Same as BodyId, but for shapes within a body.
+-}
+type alias ShapeId =
+    Shape.ShapeId
+
+
+{-| Rotate the body around the axis by a specific angle
+from its current orientation.
+
+    rotateBy (vec3 1 0 0) (pi / 2) body
+    --> upsideDownBody
+
 -}
 rotateBy : Vec3 -> Float -> Body -> Body
 rotateBy axis angle (Body body_) =
@@ -134,23 +162,33 @@ rotateBy axis angle (Body body_) =
         }
 
 
-{-| Move the body from its current position
+{-| Move the body from its current position.
+
+    offsetBy (vec3 0 0 12) body
+    --> elevatedBody
+
 -}
 offsetBy : Vec3 -> Body -> Body
 offsetBy offset (Body body_) =
     Body { body_ | position = Vec3.add offset body_.position }
 
 
-{-| Shape is an integral part of a body. It is positioned in the body's coordinate system.
+{-| Shape is an integral part of a body. It is positioned in the
+body’s coordinate system.
 
-We support two types of shapes, a [box](#box) and a [plane](#plane).
+We support the following shapes:
+
+  - [box](#box),
+  - [sphere](#sphere),
+  - [plane](#plane).
 
 -}
 type Shape
     = Shape Shape.Shape
 
 
-{-| A box shape defined by its half extends. To create a 2x2 box, call this:
+{-| A box shape is defined by its half extends.
+To create a 2x2 box, call this:
 
     box (vec3 1 1 1)
 
@@ -160,7 +198,7 @@ box halfExtends =
     Shape (Shape.Convex (ConvexPolyhedron.fromBox halfExtends))
 
 
-{-| A sphere shape defined by its radius.
+{-| A sphere shape is defined by its radius.
 -}
 sphere : Float -> Shape
 sphere radius =
@@ -176,7 +214,7 @@ plane =
 
 {-| Simulate the world, given the time delta since the last step.
 
-Call this function on a message from the AnimationFrame subscription!
+Call this function on a message from the [onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame) subscription!
 
 -}
 step : Float -> World -> World
@@ -191,7 +229,7 @@ step dt (World world_) =
 {-| Fold over each shape in the world. Use this to convert shapes into visual representation, e.g. WebGL entities.
 
     entities =
-        foldl
+        fold
         ({ transform, bodyId, shapeId } currentEntities ->
             makeEntity transform bodyId shapeId :: currentEntities
         )
@@ -200,16 +238,16 @@ step dt (World world_) =
 
   - `transform` is a transformation matrix that offsets and rotates a shape into the world coorditantes
 
-  - `bodyId` is an id of a body the shape belongs to, each new body in the world gets and id starting from 0
+  - `bodyId` is an id of the body the shape belongs to
 
-  - `shapeId` is an id of the shape, each new shape in a body gets and id starting from 0
+  - `shapeId` is an id of the shape within the body
 
 Use `bodyId` and `shapeId` to link additional information from the outside of the engine, e.g. which mesh to render
 or what color should this shape be.
 
 -}
-foldl : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
-foldl fn acc world_ =
+fold : ({ transform : Mat4, bodyId : BodyId, shapeId : ShapeId } -> a -> a) -> a -> World -> a
+fold fn acc world_ =
     foldOverShapes
         (\transform bodyId _ shapeId _ tail ->
             fn
@@ -223,7 +261,7 @@ foldl fn acc world_ =
         world_
 
 
-{-| Fold over the contact points in the world for visual debugging
+{-| Fold over the contact points in the world.
 -}
 foldContacts : (Vec3 -> a -> a) -> a -> World -> a
 foldContacts fn acc (World ({ bodies } as world_)) =

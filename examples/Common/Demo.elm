@@ -333,7 +333,7 @@ webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, d
                 , debugWireframes = debugWireframes
                 }
          in
-         [ ( True, Physics.foldl (addShape sceneParams) )
+         [ ( True, Physics.fold (addShape sceneParams) )
          , ( debugContacts
            , Physics.foldContacts (addContactIndicator sceneParams)
            )
