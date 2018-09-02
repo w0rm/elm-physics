@@ -1,7 +1,7 @@
 module Physics exposing
     ( World, world, setGravity, addBody, BodyId
     , Body, body, setMass, addShape, ShapeId, rotateBy, offsetBy
-    , Shape, box, plane, sphere
+    , Shape, box, sphere, plane
     , step, fold
     , foldContacts, foldFaceNormals, foldUniqueEdges
     )
@@ -23,7 +23,7 @@ The API is currently shaping up and will be most likely changed.
 
 ## Shape
 
-@docs Shape, box, plane, sphere
+@docs Shape, box, sphere, plane
 
 
 ## Physics
@@ -147,7 +147,7 @@ type alias ShapeId =
 {-| Rotate the body around the axis by a specific angle
 from its current orientation.
 
-    rotateBy (vec3 1 0 0) (pi / 2) body
+    rotateBy (vec3 1 0 0) pi body
     --> upsideDownBody
 
 -}
@@ -205,7 +205,7 @@ sphere radius =
     Shape (Shape.Sphere radius)
 
 
-{-| A plane shape, with a normal pointing in the direction of the z axis
+{-| A plane shape, with a normal pointing in the direction of the z axis.
 -}
 plane : Shape
 plane =
