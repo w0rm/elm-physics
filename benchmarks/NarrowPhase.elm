@@ -13,11 +13,17 @@ module NarrowPhase exposing (main)
 -}
 {- import Physics.OriginalNarrowPhase as OriginalNarrowPhase -}
 
+import AltFixtures.ConvexPolyhedron as AltConvexPolyhedron
+import AltFixtures.NarrowPhase
+import AltMath.Vector3 as AltVec3
+import AltPhysics.NarrowPhase as AltNarrowPhase
+import AltPhysics.Quaternion as AltQuaternion
+import AltPhysics.Transform as AltTransform
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Fixtures.ConvexPolyhedron as HullFixtures
+import Fixtures.ConvexPolyhedron as ConvexPolyhedron
 import Fixtures.NarrowPhase
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector3 as Vec3
 import Physics.NarrowPhase as NarrowPhase
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform
@@ -32,7 +38,10 @@ suite : Benchmark
 suite =
     let
         center =
-            vec3 0 0 7
+            Vec3.vec3 0 0 7
+
+        altCenter =
+            AltVec3.vec3 0 0 7
 
         radius =
             5
@@ -41,34 +50,50 @@ suite =
             1
 
         boxHull =
-            HullFixtures.boxHull boxHalfExtent
+            ConvexPolyhedron.boxHull boxHalfExtent
 
-        originalBoxHull =
-            HullFixtures.originalBoxHull boxHalfExtent
+        altBoxHull =
+            AltConvexPolyhedron.boxHull boxHalfExtent
 
         boxPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions center radius boxHalfExtent
+                |> List.map Tuple.first
+
+        altBoxPositions =
+            AltFixtures.NarrowPhase.sphereContactBoxPositions altCenter radius boxHalfExtent
                 |> List.map Tuple.first
 
         boxFarPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions center (radius * 2) boxHalfExtent
                 |> List.map Tuple.first
 
+        altBoxFarPositions =
+            AltFixtures.NarrowPhase.sphereContactBoxPositions altCenter (radius * 2) boxHalfExtent
+                |> List.map Tuple.first
+
         octoHalfExtent =
             3
 
         octoHull =
-            HullFixtures.octoHull octoHalfExtent
+            ConvexPolyhedron.octoHull octoHalfExtent
 
-        originalOctoHull =
-            HullFixtures.originalOctoHull octoHalfExtent
+        altOctoHull =
+            AltConvexPolyhedron.originalOctoHull octoHalfExtent
 
         octoPositions =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions center radius octoHalfExtent
                 |> List.map Tuple.first
 
+        altOctoPositions =
+            AltFixtures.NarrowPhase.sphereContactOctohedronPositions altCenter radius octoHalfExtent
+                |> List.map Tuple.first
+
         octoFarPositions =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions center (radius * 2) octoHalfExtent
+                |> List.map Tuple.first
+
+        altOctoFarPositions =
+            AltFixtures.NarrowPhase.sphereContactOctohedronPositions altCenter (radius * 2) octoHalfExtent
                 |> List.map Tuple.first
     in
     describe "NarrowPhase"
@@ -78,7 +103,6 @@ suite =
                 boxPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
                                 Transform.identity
                                 radius
@@ -86,26 +110,26 @@ suite =
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
-                                originalBoxHull
+                                boxHull
                                 1
                                 []
                         )
             )
             "latest code"
             (\_ ->
-                boxPositions
+                altBoxPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                { position = center
-                                , quaternion = Quaternion.identity
+                            AltNarrowPhase.addSphereConvexContacts
+                                { position = altCenter
+                                , quaternion = AltQuaternion.identity
                                 }
                                 radius
                                 0
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , quaternion = AltQuaternion.identity
                                 }
-                                boxHull
+                                altBoxHull
                                 1
                                 []
                         )
@@ -116,26 +140,6 @@ suite =
                 boxFarPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                { position = center
-                                , quaternion = Quaternion.identity
-                                }
-                                radius
-                                0
-                                { position = position
-                                , quaternion = Quaternion.identity
-                                }
-                                originalBoxHull
-                                1
-                                []
-                        )
-            )
-            "latest code"
-            (\_ ->
-                boxFarPositions
-                    |> List.map
-                        (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
                                 , quaternion = Quaternion.identity
@@ -150,28 +154,27 @@ suite =
                                 []
                         )
             )
-        , Benchmark.compare "addSphereConvexContacts octohedron"
-            "baseline"
+            "latest code"
             (\_ ->
-                octoPositions
+                altBoxFarPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                { position = center
-                                , quaternion = Quaternion.identity
+                            AltNarrowPhase.addSphereConvexContacts
+                                { position = altCenter
+                                , quaternion = AltQuaternion.identity
                                 }
                                 radius
                                 0
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , quaternion = AltQuaternion.identity
                                 }
-                                originalOctoHull
+                                altBoxHull
                                 1
                                 []
                         )
             )
-            "latest code"
+        , Benchmark.compare "addSphereConvexContacts octohedron"
+            "baseline"
             (\_ ->
                 octoPositions
                     |> List.map
@@ -186,6 +189,25 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
+                                1
+                                []
+                        )
+            )
+            "latest code"
+            (\_ ->
+                altOctoPositions
+                    |> List.map
+                        (\position ->
+                            AltNarrowPhase.addSphereConvexContacts
+                                { position = altCenter
+                                , quaternion = AltQuaternion.identity
+                                }
+                                radius
+                                0
+                                { position = position
+                                , quaternion = AltQuaternion.identity
+                                }
+                                altOctoHull
                                 1
                                 []
                         )
@@ -196,26 +218,6 @@ suite =
                 octoFarPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                { position = center
-                                , quaternion = Quaternion.identity
-                                }
-                                radius
-                                0
-                                { position = position
-                                , quaternion = Quaternion.identity
-                                }
-                                originalOctoHull
-                                1
-                                []
-                        )
-            )
-            "latest code"
-            (\_ ->
-                octoFarPositions
-                    |> List.map
-                        (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
                                 , quaternion = Quaternion.identity
@@ -226,6 +228,25 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
+                                1
+                                []
+                        )
+            )
+            "latest code"
+            (\_ ->
+                altOctoFarPositions
+                    |> List.map
+                        (\position ->
+                            AltNarrowPhase.addSphereConvexContacts
+                                { position = altCenter
+                                , quaternion = AltQuaternion.identity
+                                }
+                                radius
+                                0
+                                { position = position
+                                , quaternion = AltQuaternion.identity
+                                }
+                                altOctoHull
                                 1
                                 []
                         )

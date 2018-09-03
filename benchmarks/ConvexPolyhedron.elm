@@ -13,9 +13,12 @@ module ConvexPolyhedron exposing (main)
 -}
 {- import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron -}
 
+import AltMath.Vector3 as AltVec3
+import AltPhysics.ConvexPolyhedron as AltConvexPolyhedron
+import AltPhysics.Quaternion as AltQuaternion
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector3 as Vec3
 import Physics.ConvexPolyhedron as ConvexPolyhedron
 import Physics.Quaternion as Quaternion
 
@@ -29,62 +32,75 @@ suite : Benchmark
 suite =
     let
         sampleHull =
-            vec3 1 1 1
+            Vec3.vec3 1 1 1
                 |> ConvexPolyhedron.fromBox
 
-        originalSampleHull =
-            vec3 1 1 1
-                |> {- OriginalConvexPolyhedron.fromBox -} ConvexPolyhedron.fromBox
+        altSampleHull =
+            AltVec3.vec3 1 1 1
+                |> AltConvexPolyhedron.fromBox
 
-        trivialVisitor : Vec3 -> Vec3 -> Int -> Int
+        trivialVisitor : a -> a -> Int -> Int
         trivialVisitor _ _ _ =
             0
 
         sepNormal =
-            vec3 0 0 1
+            Vec3.vec3 0 0 1
+
+        altSepNormal =
+            AltVec3.vec3 0 0 1
 
         -- Move the box 0.45 units up
         -- only 0.05 units of the box will be below plane z=0
         transform =
-            { position = vec3 0 0 0.45
+            { position = Vec3.vec3 0 0 0.45
             , quaternion = Quaternion.identity
+            }
+
+        altTransform =
+            { position = AltVec3.vec3 0 0 0.45
+            , quaternion = AltQuaternion.identity
             }
 
         -- points in the plane z
         worldVertsB =
-            [ vec3 -1.0 -1.0 0
-            , vec3 -1.0 1.0 0
-            , vec3 1.0 1.0 0
-            , vec3 1.0 -1.0 0
+            [ Vec3.vec3 -1.0 -1.0 0
+            , Vec3.vec3 -1.0 1.0 0
+            , Vec3.vec3 1.0 1.0 0
+            , Vec3.vec3 1.0 -1.0 0
+            ]
+
+        altWorldVertsB =
+            [ AltVec3.vec3 -1.0 -1.0 0
+            , AltVec3.vec3 -1.0 1.0 0
+            , AltVec3.vec3 1.0 1.0 0
+            , AltVec3.vec3 1.0 -1.0 0
             ]
 
         boxHull halfExtent =
             ConvexPolyhedron.fromBox
-                (vec3 halfExtent halfExtent halfExtent)
+                (Vec3.vec3 halfExtent halfExtent halfExtent)
 
-        originalBoxHull halfExtent =
-            {- OriginalConvexPolyhedron.fromBox -}
-            ConvexPolyhedron.fromBox
-                (vec3 halfExtent halfExtent halfExtent)
+        altBoxHull halfExtent =
+            AltConvexPolyhedron.fromBox
+                (AltVec3.vec3 halfExtent halfExtent halfExtent)
     in
     describe "ConvexPolyhedron"
         [ Benchmark.compare "foldFaceNormals"
             "baseline"
-            (\_ ->
-                {- OriginalConvexPolyhedron.foldFaceNormals -}
-                ConvexPolyhedron.foldFaceNormals
-                    -- fold a function with minimal overhead
-                    trivialVisitor
-                    0
-                    originalSampleHull
-            )
-            "latest code"
             (\_ ->
                 ConvexPolyhedron.foldFaceNormals
                     -- fold a function with minimal overhead
                     trivialVisitor
                     0
                     sampleHull
+            )
+            "latest code"
+            (\_ ->
+                AltConvexPolyhedron.foldFaceNormals
+                    -- fold a function with minimal overhead
+                    trivialVisitor
+                    0
+                    altSampleHull
             )
 
         -- We will now clip a face in hullA that is closest to the
@@ -95,10 +111,9 @@ suite =
         , Benchmark.compare "clipFaceAgainstHull"
             "baseline"
             (\_ ->
-                {- OriginalConvexPolyhedron.clipFaceAgainstHull -}
                 ConvexPolyhedron.clipFaceAgainstHull
                     transform
-                    (originalBoxHull 0.5)
+                    (boxHull 0.5)
                     sepNormal
                     worldVertsB
                     -100
@@ -106,11 +121,11 @@ suite =
             )
             "latest code"
             (\_ ->
-                ConvexPolyhedron.clipFaceAgainstHull
-                    transform
-                    (boxHull 0.5)
-                    sepNormal
-                    worldVertsB
+                AltConvexPolyhedron.clipFaceAgainstHull
+                    altTransform
+                    (altBoxHull 0.5)
+                    altSepNormal
+                    altWorldVertsB
                     -100
                     100
             )
