@@ -36,12 +36,14 @@ type alias Model =
     , debugNormals : Bool -- Set to True to see normal spikes
     , debugEdges : Bool -- Set to True to see edge markers
     , debugWireframes : Bool -- Set to True to see wireframes
+    , showFpsMeter : Bool
     , showSettings : Bool
     , screenWidth : Float
     , screenHeight : Float
     , initialWorld : World
     , world : World
     , bodies : Dict Int DemoBody
+    , dt : List Float
     }
 
 
@@ -55,6 +57,7 @@ type Msg
     | ToggleNormals Bool
     | ToggleEdges Bool
     | ToggleWireframes Bool
+    | ToggleFpsMeter Bool
     | ToggleSettings
     | Resize Float Float
     | ResetClick
@@ -157,6 +160,7 @@ init demo_ =
       , debugEdges = False
       , debugWireframes = False
       , showSettings = False
+      , showFpsMeter = False
 
       -- replaced by resize, including the initial resize
       , screenWidth = 1
@@ -164,6 +168,7 @@ init demo_ =
       , initialWorld = demo_.world
       , world = demo_.world
       , bodies = demo_.bodies
+      , dt = [ 16 ]
       }
     , Task.perform (\{ viewport } -> Resize viewport.width viewport.height) getViewport
     )
@@ -187,6 +192,9 @@ update randomBody msg model =
         ToggleWireframes debugWireframes ->
             ( { model | debugWireframes = debugWireframes }, Cmd.none )
 
+        ToggleFpsMeter showFpsMeter ->
+            ( { model | showFpsMeter = showFpsMeter }, Cmd.none )
+
         Resize width height ->
             ( { model
                 | screenWidth = width
@@ -196,7 +204,10 @@ update randomBody msg model =
             )
 
         Tick dt ->
-            ( { model | world = Physics.step (1 / 60) model.world }
+            ( { model
+                | world = Physics.step (1 / 60) model.world
+                , dt = List.take 50 (dt :: model.dt)
+              }
             , Cmd.none
             )
 
@@ -243,11 +254,52 @@ view model =
         ]
         [ webGL model
         , settings model
+        , fpsMeter model
         ]
 
 
+fpsMeter : Model -> Html Msg
+fpsMeter { showFpsMeter, dt, bodies } =
+    let
+        average currentWeight sumOfWeights weightedSum list =
+            case list of
+                [] ->
+                    weightedSum / sumOfWeights
+
+                el :: rest ->
+                    average
+                        (currentWeight * 0.9)
+                        (currentWeight + sumOfWeights)
+                        (el * currentWeight + weightedSum)
+                        rest
+
+        numBodies =
+            Dict.size bodies
+    in
+    Html.div
+        [ style "position" "fixed"
+        , style "font-family" "monospaced"
+        , style "right" "250px"
+        , style "top" "0"
+        , style "color" "white"
+        ]
+        (if showFpsMeter then
+            [ Html.span [ style "font" "50px sans-serif" ]
+                [ Html.text (String.fromInt (round (1000 / average 1 0 0 dt))) ]
+            , Html.text " fps"
+            , Html.span
+                [ style "font" "50px sans-serif" ]
+                [ Html.text (" " ++ String.fromInt numBodies) ]
+            , Html.text " bodies"
+            ]
+
+         else
+            []
+        )
+
+
 settings : Model -> Html Msg
-settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframes } =
+settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframes, showFpsMeter } =
     Html.div
         [ style "position" "fixed"
         , style "right" "6px"
@@ -267,6 +319,7 @@ settings { showSettings, debugContacts, debugEdges, debugNormals, debugWireframe
                 , checkbox ToggleNormals debugNormals "normals"
                 , checkbox ToggleEdges debugEdges "unique edges"
                 , checkbox ToggleWireframes debugWireframes "wireframes"
+                , checkbox ToggleFpsMeter showFpsMeter "fps meter"
                 , Html.button [ onClick ResetClick, style "margin" "10px 0 5px" ] [ Html.text "Click to restart the demo" ]
                 ]
             ]
