@@ -41,6 +41,7 @@ type alias Model =
     , screenWidth : Float
     , screenHeight : Float
     , initialWorld : World
+    , initialBodies : Dict Int DemoBody
     , world : World
     , bodies : Dict Int DemoBody
     , dt : List Float
@@ -166,6 +167,7 @@ init demo_ =
       , screenWidth = 1
       , screenHeight = 1
       , initialWorld = demo_.world
+      , initialBodies = demo_.bodies
       , world = demo_.world
       , bodies = demo_.bodies
       , dt = [ 16 ]
@@ -222,7 +224,7 @@ update randomBody msg model =
         ResetClick ->
             ( { model
                 | world = model.initialWorld
-                , bodies = Dict.empty
+                , bodies = model.initialBodies
               }
             , Cmd.none
             )
