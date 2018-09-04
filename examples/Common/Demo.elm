@@ -220,7 +220,12 @@ update randomBody msg model =
                     ( model, Random.generate AddBody body_ )
 
         ResetClick ->
-            ( { model | world = model.initialWorld }, Cmd.none )
+            ( { model
+                | world = model.initialWorld
+                , bodies = Dict.empty
+              }
+            , Cmd.none
+            )
 
         AddBody bodyAndMesh ->
             ( addBodyWithMesh bodyAndMesh model
