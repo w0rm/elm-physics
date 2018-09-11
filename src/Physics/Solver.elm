@@ -81,7 +81,20 @@ solveStep context =
                                     deltalambdaPrev
 
                             newEquation =
-                                { equation | solverLambda = equation.solverLambda + deltalambda }
+                                { kind = equation.kind
+                                , bodyId1 = equation.bodyId1
+                                , bodyId2 = equation.bodyId2
+                                , minForce = equation.minForce
+                                , maxForce = equation.maxForce
+                                , solverLambda = equation.solverLambda + deltalambda
+                                , solverBs = equation.solverBs
+                                , solverInvCs = equation.solverInvCs
+                                , spookA = equation.spookA
+                                , spookB = equation.spookB
+                                , spookEps = equation.spookEps
+                                , jacobianElementA = equation.jacobianElementA
+                                , jacobianElementB = equation.jacobianElementB
+                                }
                         in
                         { newContext
                             | deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
