@@ -21,7 +21,7 @@ import Set exposing (Set)
 
 getContacts : World -> List ContactEquation
 getContacts world =
-    Set.foldl
+    List.foldl
         (\( bodyId1, bodyId2 ) ->
             Maybe.map2
                 (getBodyContacts world bodyId1 bodyId2)

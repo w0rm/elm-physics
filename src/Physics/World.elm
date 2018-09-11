@@ -70,7 +70,7 @@ addBody body world_ =
     }
 
 
-getPairs : World -> Set ( BodyId, BodyId )
+getPairs : World -> List ( BodyId, BodyId )
 getPairs { bodies } =
     Dict.foldl
         (\id1 body1 acc1 ->
@@ -81,7 +81,7 @@ getPairs { bodies } =
                             && Vec3.distance body1.position body2.position
                             < (body1.boundingSphereRadius + body2.boundingSphereRadius)
                     then
-                        Set.insert ( id2, id1 )
+                        (::) ( id2, id1 )
 
                     else
                         identity
@@ -89,5 +89,5 @@ getPairs { bodies } =
                 acc1
                 bodies
         )
-        Set.empty
+        []
         bodies

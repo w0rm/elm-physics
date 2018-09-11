@@ -96,13 +96,13 @@ solveStep context =
                                 , jacobianElementB = equation.jacobianElementB
                                 }
                         in
-                        { newContext
-                            | deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
-                            , equations = newEquation :: newContext.equations
-                            , bodies =
-                                newContext.bodies
-                                    |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
-                                    |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
+                        { world = newContext.world
+                        , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
+                        , equations = newEquation :: newContext.equations
+                        , bodies =
+                            newContext.bodies
+                                |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
+                                |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
                         }
                     )
                     (Dict.get equation.bodyId1 newContext.bodies)
