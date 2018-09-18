@@ -214,7 +214,7 @@ plane =
 
 {-| Simulate the world, given the time delta since the last step.
 
-Call this function on a message from the [onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame) subscription!
+Call this function on a message from the [onAnimationFrameDelta](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrameDelta) subscription!
 
 -}
 step : Float -> World -> World
