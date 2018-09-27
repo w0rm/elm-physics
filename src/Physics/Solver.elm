@@ -81,15 +81,28 @@ solveStep context =
                                     deltalambdaPrev
 
                             newEquation =
-                                { equation | solverLambda = equation.solverLambda + deltalambda }
+                                { kind = equation.kind
+                                , bodyId1 = equation.bodyId1
+                                , bodyId2 = equation.bodyId2
+                                , minForce = equation.minForce
+                                , maxForce = equation.maxForce
+                                , solverLambda = equation.solverLambda + deltalambda
+                                , solverBs = equation.solverBs
+                                , solverInvCs = equation.solverInvCs
+                                , spookA = equation.spookA
+                                , spookB = equation.spookB
+                                , spookEps = equation.spookEps
+                                , jacobianElementA = equation.jacobianElementA
+                                , jacobianElementB = equation.jacobianElementB
+                                }
                         in
-                        { newContext
-                            | deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
-                            , equations = newEquation :: newContext.equations
-                            , bodies =
-                                newContext.bodies
-                                    |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
-                                    |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
+                        { world = newContext.world
+                        , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
+                        , equations = newEquation :: newContext.equations
+                        , bodies =
+                            newContext.bodies
+                                |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
+                                |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
                         }
                     )
                     (Dict.get equation.bodyId1 newContext.bodies)

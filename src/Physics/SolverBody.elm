@@ -43,14 +43,21 @@ fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque,
 
 addToWlambda : Float -> JacobianElement -> SolverBody -> SolverBody
 addToWlambda deltalambda { spatial, rotational } solverBody =
-    { solverBody
-        | vlambda =
-            spatial
-                |> Vec3.scale (deltalambda * solverBody.invMass)
-                |> Vec3.add solverBody.vlambda
-        , wlambda =
-            rotational
-                |> Mat4.transform solverBody.invInertiaWorld
-                |> Vec3.scale deltalambda
-                |> Vec3.add solverBody.wlambda
+    { position = solverBody.position
+    , velocity = solverBody.velocity
+    , angularVelocity = solverBody.angularVelocity
+    , quaternion = solverBody.quaternion
+    , force = solverBody.force
+    , torque = solverBody.torque
+    , invMass = solverBody.invMass
+    , invInertiaWorld = solverBody.invInertiaWorld
+    , vlambda =
+        spatial
+            |> Vec3.scale (deltalambda * solverBody.invMass)
+            |> Vec3.add solverBody.vlambda
+    , wlambda =
+        rotational
+            |> Mat4.transform solverBody.invInertiaWorld
+            |> Vec3.scale deltalambda
+            |> Vec3.add solverBody.wlambda
     }
