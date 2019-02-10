@@ -83,8 +83,8 @@ addFrictionEquations dt gravity bi bj contactEquation =
             defaultContactMaterial.friction * Vec3.length gravity
 
         reducedMass =
-            if (bi.invMass + bj.invMass) > 0 then
-                1 / (bi.invMass + bj.invMass)
+            if (bi.body.invMass + bj.body.invMass) > 0 then
+                1 / (bi.body.invMass + bj.body.invMass)
 
             else
                 0
@@ -204,17 +204,17 @@ computeContactB : Float -> SolverBody -> SolverBody -> SolverEquation -> Contact
 computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, ri, rj, ni } =
     let
         g =
-            bj.position
+            bj.body.position
                 |> Vec3.add rj
-                |> Vec3.add (Vec3.negate bi.position)
+                |> Vec3.add (Vec3.negate bi.body.position)
                 |> Vec3.add (Vec3.negate ri)
                 |> Vec3.dot ni
 
         gW =
             (restitution + 1)
-                * (Vec3.dot bj.velocity ni - Vec3.dot bi.velocity ni)
-                + Vec3.dot bj.angularVelocity (Vec3.cross rj ni)
-                - Vec3.dot bi.angularVelocity (Vec3.cross ri ni)
+                * (Vec3.dot bj.body.velocity ni - Vec3.dot bi.body.velocity ni)
+                + Vec3.dot bj.body.angularVelocity (Vec3.cross rj ni)
+                - Vec3.dot bi.body.angularVelocity (Vec3.cross ri ni)
 
         giMf =
             computeGiMf bi bj solverEquation
@@ -244,13 +244,13 @@ computeGiMf : SolverBody -> SolverBody -> SolverEquation -> Float
 computeGiMf bi bj { jacobianElementA, jacobianElementB } =
     (+)
         (JacobianElement.mulVec
-            (Vec3.scale bi.invMass bi.force)
-            (Mat4.transform bi.invInertiaWorld bi.torque)
+            (Vec3.scale bi.body.invMass bi.body.force)
+            (Mat4.transform bi.body.invInertiaWorld bi.body.torque)
             jacobianElementA
         )
         (JacobianElement.mulVec
-            (Vec3.scale bj.invMass bj.force)
-            (Mat4.transform bj.invInertiaWorld bj.torque)
+            (Vec3.scale bj.body.invMass bj.body.force)
+            (Mat4.transform bj.body.invInertiaWorld bj.body.torque)
             jacobianElementB
         )
 
@@ -259,10 +259,10 @@ computeGiMf bi bj { jacobianElementA, jacobianElementB } =
 -}
 computeC : SolverBody -> SolverBody -> SolverEquation -> Float
 computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
-    bi.invMass
-        + bj.invMass
-        + Vec3.dot (Mat4.transform bi.invInertiaWorld jacobianElementA.rotational) jacobianElementA.rotational
-        + Vec3.dot (Mat4.transform bj.invInertiaWorld jacobianElementB.rotational) jacobianElementB.rotational
+    bi.body.invMass
+        + bj.body.invMass
+        + Vec3.dot (Mat4.transform bi.body.invInertiaWorld jacobianElementA.rotational) jacobianElementA.rotational
+        + Vec3.dot (Mat4.transform bj.body.invInertiaWorld jacobianElementB.rotational) jacobianElementB.rotational
         + spookEps
 
 
@@ -278,8 +278,8 @@ computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
 -}
 computeGW : SolverBody -> SolverBody -> SolverEquation -> Float
 computeGW bi bj { jacobianElementA, jacobianElementB } =
-    JacobianElement.mulVec bi.velocity bi.angularVelocity jacobianElementA
-        + JacobianElement.mulVec bj.velocity bj.angularVelocity jacobianElementB
+    JacobianElement.mulVec bi.body.velocity bi.body.angularVelocity jacobianElementA
+        + JacobianElement.mulVec bj.body.velocity bj.body.angularVelocity jacobianElementB
 
 
 type alias ContactMaterial =

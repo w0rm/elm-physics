@@ -13,51 +13,30 @@ import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
 
 
 type alias SolverBody =
-    { position : Vec3
-    , velocity : Vec3
-    , angularVelocity : Vec3
-    , quaternion : Vec4
-    , force : Vec3
-    , torque : Vec3
-    , invMass : Float
-    , invInertiaWorld : Mat4
+    { body : Body
     , vlambda : Vec3
     , wlambda : Vec3
     }
 
 
 fromBody : Body -> SolverBody
-fromBody { mass, position, velocity, angularVelocity, quaternion, force, torque, invMass, invInertiaWorld } =
-    { position = position
-    , velocity = velocity
-    , angularVelocity = angularVelocity
-    , quaternion = quaternion
-    , force = force
-    , torque = torque
-    , invMass = invMass
-    , invInertiaWorld = invInertiaWorld
+fromBody body =
+    { body = body
     , vlambda = Const.zero3
     , wlambda = Const.zero3
     }
 
 
 addToWlambda : Float -> JacobianElement -> SolverBody -> SolverBody
-addToWlambda deltalambda { spatial, rotational } solverBody =
-    { position = solverBody.position
-    , velocity = solverBody.velocity
-    , angularVelocity = solverBody.angularVelocity
-    , quaternion = solverBody.quaternion
-    , force = solverBody.force
-    , torque = solverBody.torque
-    , invMass = solverBody.invMass
-    , invInertiaWorld = solverBody.invInertiaWorld
+addToWlambda deltalambda { spatial, rotational } { body, vlambda, wlambda } =
+    { body = body
     , vlambda =
         spatial
-            |> Vec3.scale (deltalambda * solverBody.invMass)
-            |> Vec3.add solverBody.vlambda
+            |> Vec3.scale (deltalambda * body.invMass)
+            |> Vec3.add vlambda
     , wlambda =
         rotational
-            |> Mat4.transform solverBody.invInertiaWorld
+            |> Mat4.transform body.invInertiaWorld
             |> Vec3.scale deltalambda
-            |> Vec3.add solverBody.wlambda
+            |> Vec3.add wlambda
     }
