@@ -40,9 +40,9 @@ Check the [demos](https://github.com/w0rm/elm-physics/blob/master/examples/Commo
 
 -}
 
+import AltMath.Matrix4 as Mat4 exposing (Mat4)
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.ConvexPolyhedron as ConvexPolyhedron
 import Physics.NarrowPhase as NarrowPhase exposing (..)

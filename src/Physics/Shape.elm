@@ -5,7 +5,7 @@ module Physics.Shape exposing
     , expandBoundingSphereRadius
     )
 
-import Math.Vector3 as Vec3
+import AltMath.Vector3 as Vec3
 import Physics.AABB as AABB
 import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)

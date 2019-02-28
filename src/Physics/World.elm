@@ -9,9 +9,9 @@ module Physics.World exposing
     , world
     )
 
-import Dict exposing (Dict)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body, BodyId)
+import Dict exposing (Dict)
 import Set exposing (Set)
 
 

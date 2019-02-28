@@ -17,12 +17,12 @@ type alias Attributes =
     }
 
 
-makeBox : Vec3 -> Mesh Attributes
+makeBox : { x : Float, y : Float, z : Float } -> Mesh Attributes
 makeBox halfExtends =
     WebGL.triangles (makeBoxTriangles halfExtends)
 
 
-makeBoxWireframe : Vec3 -> Mesh Attributes
+makeBoxWireframe : { x : Float, y : Float, z : Float } -> Mesh Attributes
 makeBoxWireframe halfExtends =
     WebGL.lines (trianglesToLines (makeBoxTriangles halfExtends))
 
@@ -35,12 +35,9 @@ trianglesToLines triangles =
         triangles
 
 
-makeBoxTriangles : Vec3 -> List ( Attributes, Attributes, Attributes )
-makeBoxTriangles halfExtends =
+makeBoxTriangles : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes )
+makeBoxTriangles { x, y, z } =
     let
-        { x, y, z } =
-            Vec3.toRecord halfExtends
-
         v0 =
             vec3 -x -y -z
 

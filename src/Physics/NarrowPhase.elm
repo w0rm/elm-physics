@@ -5,9 +5,7 @@ module Physics.NarrowPhase exposing
 
     )
 
-import Array exposing (Array)
-import Dict exposing (Dict)
-import Math.Vector3 as Vec3 exposing (Vec3)
+import AltMath.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.Const as Const
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
@@ -16,6 +14,8 @@ import Physics.Quaternion as Quaternion
 import Physics.Shape as Shape exposing (Shape(..))
 import Physics.Transform as Transform exposing (Transform)
 import Physics.World as World exposing (World)
+import Array exposing (Array)
+import Dict exposing (Dict)
 import Set exposing (Set)
 
 

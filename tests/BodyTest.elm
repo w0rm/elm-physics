@@ -1,7 +1,7 @@
 module BodyTest exposing (boundingSphereRadius, box)
 
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body)
 import Physics.Const as Const
 import Physics.ConvexPolyhedron as ConvexPolyhedron

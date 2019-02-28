@@ -20,22 +20,18 @@ module Physics.ConvexPolyhedron exposing
     , testSepAxis
     )
 
-import Array exposing (Array)
-import Dict
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4)
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Physics.Const as Const
 import Physics.Quaternion as Quaternion
 import Physics.Transform as Transform exposing (Transform)
+import Array exposing (Array)
+import Dict
 import Set
 
 
 almostZero : Vec3 -> Bool
-almostZero vec =
-    let
-        { x, y, z } =
-            Vec3.toRecord vec
-    in
+almostZero { x, y, z } =
     (abs x <= Const.precision)
         && (abs y <= Const.precision)
         && (abs z <= Const.precision)
@@ -146,11 +142,7 @@ faceAdjacency faceVertexLists =
 
 
 fromBox : Vec3 -> ConvexPolyhedron
-fromBox halfExtents =
-    let
-        { x, y, z } =
-            Vec3.toRecord halfExtents
-    in
+fromBox { x, y, z } =
     { faces = boxFaces
     , vertices =
         Array.fromList

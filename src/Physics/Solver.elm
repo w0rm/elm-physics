@@ -1,13 +1,13 @@
 module Physics.Solver exposing (solve)
 
-import Dict exposing (Dict)
-import Math.Vector3 as Vec3
+import AltMath.Vector3 as Vec3
 import Physics.Body as Body exposing (Body, BodyId)
 import Physics.Const as Const
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.SolverBody as SolverBody exposing (SolverBody)
 import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
 import Physics.World as World exposing (World)
+import Dict exposing (Dict)
 
 
 maxIterations : Int

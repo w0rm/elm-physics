@@ -11,15 +11,15 @@ module Physics.Body exposing
     , tick
     )
 
-import Dict exposing (Dict)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4)
+import AltMath.Matrix4 as Mat4 exposing (Mat4)
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Physics.AABB as AABB exposing (AABB)
 import Physics.Const as Const
 import Physics.Quaternion as Quaternion
 import Physics.Shape as Shape exposing (Shape(..), ShapeId)
 import Physics.Transform as Transform exposing (Transform)
+import Dict exposing (Dict)
 
 
 type alias BodyId =
@@ -194,7 +194,6 @@ updateMassProperties ({ mass } as body_) =
             body_
                 |> computeAABB
                 |> AABB.toHalfExtends
-                |> Vec3.toRecord
 
         ix =
             1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.z * 2 * e.z)

@@ -15,18 +15,6 @@ for example in *.elm; do
   elm make $example --optimize --output ../gh-pages/examples/$lower/index.html
 done
 
-# Compile the alt examples
-cd ../alt-examples/
-for example in *.elm; do
-  # rename CamelCase to snake-case
-  lower=$( echo "${example%.*}" \
-         | sed 's/\(.\)\([A-Z]\)/\1-\2/g' \
-         | tr '[:upper:]' '[:lower:]' \
-         )
-  mkdir -p ../gh-pages/alt-examples/$lower
-  elm make $example --optimize --output ../gh-pages/alt-examples/$lower/index.html
-done
-
 # Deploy to GH Pages
 cd ../gh-pages
 git init

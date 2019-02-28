@@ -1,6 +1,6 @@
 module Physics.ContactEquation exposing (ContactEquation)
 
-import Math.Vector3 as Vec3 exposing (Vec3)
+import AltMath.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (BodyId)
 
 

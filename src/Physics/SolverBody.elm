@@ -4,9 +4,9 @@ module Physics.SolverBody exposing
     , fromBody
     )
 
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4)
+import AltMath.Matrix4 as Mat4 exposing (Mat4)
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Physics.Body as Body exposing (Body)
 import Physics.Const as Const
 import Physics.JacobianElement as JacobianElement exposing (JacobianElement)

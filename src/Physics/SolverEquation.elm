@@ -5,8 +5,8 @@ module Physics.SolverEquation exposing
     , computeGWlambda
     )
 
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3)
+import AltMath.Matrix4 as Mat4 exposing (Mat4)
+import AltMath.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body exposing (BodyId)
 import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
 import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
