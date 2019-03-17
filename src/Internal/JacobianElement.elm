@@ -1,11 +1,11 @@
-module Physics.JacobianElement exposing
+module Internal.JacobianElement exposing
     ( JacobianElement
     , jacobianElement
     , mulVec
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
+import Internal.Const as Const
 
 
 type alias JacobianElement =

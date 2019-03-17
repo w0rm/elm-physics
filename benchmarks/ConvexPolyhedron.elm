@@ -16,8 +16,8 @@ module ConvexPolyhedron exposing (main)
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Physics.ConvexPolyhedron as ConvexPolyhedron
-import Physics.Quaternion as Quaternion
+import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Quaternion as Quaternion
 
 
 main : BenchmarkProgram

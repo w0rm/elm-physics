@@ -5,10 +5,10 @@ import AltMath.Vector4 as Vec4 exposing (Vec4, vec4)
 import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform
+import Internal.Const as Const
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform
 import Test exposing (..)
 
 

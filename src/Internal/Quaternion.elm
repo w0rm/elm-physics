@@ -1,4 +1,4 @@
-module Physics.Quaternion exposing
+module Internal.Quaternion exposing
     ( conjugate
     , fromAngleAxis
     , identity

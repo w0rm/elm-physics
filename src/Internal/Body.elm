@@ -1,4 +1,4 @@
-module Physics.Body exposing
+module Internal.Body exposing
     ( Body
     , BodyId
     , addGravity
@@ -14,12 +14,12 @@ module Physics.Body exposing
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import AltMath.Vector4 as Vec4 exposing (Vec4)
-import Physics.AABB as AABB exposing (AABB)
-import Physics.Const as Const
-import Physics.Quaternion as Quaternion
-import Physics.Shape as Shape exposing (Shape(..), ShapeId)
-import Physics.Transform as Transform exposing (Transform)
 import Dict exposing (Dict)
+import Internal.AABB as AABB exposing (AABB)
+import Internal.Const as Const
+import Internal.Quaternion as Quaternion
+import Internal.Shape as Shape exposing (Shape(..), ShapeId)
+import Internal.Transform as Transform exposing (Transform)
 
 
 type alias BodyId =

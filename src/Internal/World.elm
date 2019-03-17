@@ -1,4 +1,4 @@
-module Physics.World exposing
+module Internal.World exposing
     ( World
     , addBody
     , addGravityForces
@@ -10,8 +10,8 @@ module Physics.World exposing
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Body as Body exposing (Body, BodyId)
 import Dict exposing (Dict)
+import Internal.Body as Body exposing (Body, BodyId)
 import Set exposing (Set)
 
 

@@ -1,8 +1,8 @@
 module Fixtures.NarrowPhase exposing (completeSphereContactEquation, sphereContactBoxPositions, sphereContactOctohedronPositions)
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.Const as Const
+import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 
 
 sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List ContactEquation )

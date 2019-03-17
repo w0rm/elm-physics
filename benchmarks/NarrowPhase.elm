@@ -18,9 +18,9 @@ import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
-import Physics.NarrowPhase as NarrowPhase
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform
+import Internal.NarrowPhase as NarrowPhase
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform
 
 
 main : BenchmarkProgram

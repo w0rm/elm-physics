@@ -1,4 +1,4 @@
-module Physics.Const exposing (maxNumber, precision, zero3)
+module Internal.Const exposing (maxNumber, precision, zero3)
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 

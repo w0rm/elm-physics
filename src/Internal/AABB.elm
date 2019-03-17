@@ -1,4 +1,4 @@
-module Physics.AABB exposing
+module Internal.AABB exposing
     ( AABB
     , convexPolyhedron
     , extend
@@ -9,11 +9,11 @@ module Physics.AABB exposing
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform exposing (Transform)
 import Array exposing (Array)
+import Internal.Const as Const
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform exposing (Transform)
 
 
 type alias AABB =

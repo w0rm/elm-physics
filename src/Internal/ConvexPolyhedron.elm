@@ -1,4 +1,4 @@
-module Physics.ConvexPolyhedron exposing
+module Internal.ConvexPolyhedron exposing
     ( ConvexPolyhedron
     , addFaceEdges
     , clipAgainstHull
@@ -22,11 +22,11 @@ module Physics.ConvexPolyhedron exposing
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import AltMath.Vector4 as Vec4 exposing (Vec4)
-import Physics.Const as Const
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform exposing (Transform)
 import Array exposing (Array)
 import Dict
+import Internal.Const as Const
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform exposing (Transform)
 import Set
 
 

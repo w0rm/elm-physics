@@ -1,7 +1,7 @@
-module Physics.ContactEquation exposing (ContactEquation)
+module Internal.ContactEquation exposing (ContactEquation)
 
 import AltMath.Vector3 as Vec3 exposing (Vec3)
-import Physics.Body as Body exposing (BodyId)
+import Internal.Body as Body exposing (BodyId)
 
 
 type alias ContactEquation =

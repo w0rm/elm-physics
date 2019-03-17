@@ -1,4 +1,4 @@
-module Physics.SolverBody exposing
+module Internal.SolverBody exposing
     ( SolverBody
     , addToWlambda
     , fromBody
@@ -7,9 +7,9 @@ module Physics.SolverBody exposing
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import AltMath.Vector4 as Vec4 exposing (Vec4)
-import Physics.Body as Body exposing (Body)
-import Physics.Const as Const
-import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
+import Internal.Body as Body exposing (Body)
+import Internal.Const as Const
+import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 
 
 type alias SolverBody =
