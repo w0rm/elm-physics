@@ -1,14 +1,14 @@
 module ConvexPolyhedronTest exposing (addEdgesOfConvexPolyhedron, addFaceEdges, boxHull, boxUniqueEdges, clipAgainstHull, clipFaceAgainstHull, clipFaceAgainstPlane, countEdgesOfConvexPolyhedron, expectListVec3WithinPrecision, faceAdjacency, findSeparatingAxis, initFaceNormal, initUniqueEdges, listRingRotate, normalizeVec3Towards, project, testSepAxis, uniqueEdgesOfConvexPolyhedron)
 
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4, vec4)
 import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4, vec4)
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform
+import Internal.Const as Const
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform
 import Test exposing (..)
 
 

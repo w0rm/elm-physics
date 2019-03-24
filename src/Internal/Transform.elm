@@ -1,4 +1,4 @@
-module Physics.Transform exposing
+module Internal.Transform exposing
     ( Transform
     , identity
     , pointToLocalFrame
@@ -6,9 +6,9 @@ module Physics.Transform exposing
     , vectorToLocalFrame
     )
 
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4)
-import Physics.Quaternion as Quaternion
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4)
+import Internal.Quaternion as Quaternion
 
 
 type alias Transform =

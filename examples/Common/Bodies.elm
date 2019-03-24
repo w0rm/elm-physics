@@ -50,9 +50,9 @@ getWireframe demoBody =
 -- BOX
 
 
-boxHalfExtends : Vec3
+boxHalfExtends : { x : Float, y : Float, z : Float }
 boxHalfExtends =
-    vec3 1 1 1
+    { x = 1, y = 1, z = 1 }
 
 
 boxMesh : Mesh Attributes

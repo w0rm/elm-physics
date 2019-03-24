@@ -1,13 +1,13 @@
-module Physics.Solver exposing (solve)
+module Internal.Solver exposing (solve)
 
+import AltMath.Vector3 as Vec3
 import Dict exposing (Dict)
-import Math.Vector3 as Vec3
-import Physics.Body as Body exposing (Body, BodyId)
-import Physics.Const as Const
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.SolverBody as SolverBody exposing (SolverBody)
-import Physics.SolverEquation as SolverEquation exposing (SolverEquation)
-import Physics.World as World exposing (World)
+import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Const as Const
+import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.SolverBody as SolverBody exposing (SolverBody)
+import Internal.SolverEquation as SolverEquation exposing (SolverEquation)
+import Internal.World as World exposing (World)
 
 
 maxIterations : Int

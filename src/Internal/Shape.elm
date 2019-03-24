@@ -1,15 +1,15 @@
-module Physics.Shape exposing
+module Internal.Shape exposing
     ( Shape(..)
     , ShapeId
     , aabbClosure
     , expandBoundingSphereRadius
     )
 
-import Math.Vector3 as Vec3
-import Physics.AABB as AABB
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Transform as Transform exposing (Transform)
+import AltMath.Vector3 as Vec3
+import Internal.AABB as AABB
+import Internal.Const as Const
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Transform as Transform exposing (Transform)
 
 
 type alias ShapeId =

@@ -90,7 +90,7 @@ demo =
     Demo
         { world =
             Physics.world
-                |> Physics.setGravity (vec3 0 0 -10)
+                |> Physics.setGravity { x = 0, y = 0, z = -10 }
                 |> Physics.addBody plane
                 |> Tuple.first
         , bodies = Dict.empty
@@ -98,9 +98,9 @@ demo =
         }
 
 
-planeOffset : Vec3
+planeOffset : { x : Float, y : Float, z : Float }
 planeOffset =
-    vec3 0 0 -1
+    { x = 0, y = 0, z = -1 }
 
 
 plane : Physics.Body
@@ -410,7 +410,7 @@ webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, d
         )
 
 
-addShape : SceneParams -> { transform : Mat4, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
+addShape : SceneParams -> { transform : { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float }, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
 addShape { lightDirection, bodies, camera, perspective, debugWireframes } { transform, bodyId } tail =
     case ( Dict.get bodyId bodies, debugWireframes ) of
         ( Nothing, _ ) ->
@@ -425,7 +425,7 @@ addShape { lightDirection, bodies, camera, perspective, debugWireframes } { tran
                 , color = vec3 0.9 0.9 0.9
                 , lightDirection = lightDirection
                 , perspective = perspective
-                , transform = transform
+                , transform = Mat4.fromRecord transform
                 }
                 :: tail
 
@@ -440,11 +440,11 @@ addShape { lightDirection, bodies, camera, perspective, debugWireframes } { tran
                 , lightDirection = lightDirection
                 , perspective = perspective
                 , transform =
-                    transform
+                    Mat4.fromRecord transform
                         -- project on the floor
                         |> Mat4.mul
                             (Math.makeShadow
-                                planeOffset
+                                (Vec3.fromRecord planeOffset)
                                 Vec3.k
                                 lightDirection
                             )
@@ -458,15 +458,15 @@ addShape { lightDirection, bodies, camera, perspective, debugWireframes } { tran
                     , color = vec3 0.9 0.9 0.9
                     , lightDirection = lightDirection
                     , perspective = perspective
-                    , transform = transform
+                    , transform = Mat4.fromRecord transform
                     }
                 :: tail
 
 
 {-| Render collision point for the purpose of debugging
 -}
-addContactIndicator : SceneParams -> Vec3 -> List Entity -> List Entity
-addContactIndicator { lightDirection, camera, perspective } contactPoint tail =
+addContactIndicator : SceneParams -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
+addContactIndicator { lightDirection, camera, perspective } { x, y, z } tail =
     WebGL.entity
         Shaders.vertex
         Shaders.fragment
@@ -476,14 +476,14 @@ addContactIndicator { lightDirection, camera, perspective } contactPoint tail =
         , color = vec3 1 0 0
         , lightDirection = lightDirection
         , transform =
-            Mat4.makeTranslate contactPoint
+            Mat4.makeTranslate3 x y z
         }
         :: tail
 
 
 {-| Render shape face normals for the purpose of debugging
 -}
-addNormalIndicator : SceneParams -> Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+addNormalIndicator : SceneParams -> { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float } -> { x : Float, y : Float, z : Float } -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
 addNormalIndicator { lightDirection, camera, perspective } transform normal facePoint tail =
     WebGL.entity
         Shaders.vertex
@@ -494,11 +494,11 @@ addNormalIndicator { lightDirection, camera, perspective } transform normal face
         , color = vec3 1 0 1
         , perspective = perspective
         , transform =
-            Math.makeRotateKTo normal
+            Math.makeRotateKTo (Vec3.fromRecord normal)
                 |> Mat4.mul
-                    (facePoint
+                    (Vec3.fromRecord facePoint
                         |> Mat4.makeTranslate
-                        |> Mat4.mul transform
+                        |> Mat4.mul (Mat4.fromRecord transform)
                     )
         }
         :: tail
@@ -506,7 +506,7 @@ addNormalIndicator { lightDirection, camera, perspective } transform normal face
 
 {-| Render shapes' unique edge for the purpose of debugging
 -}
-addEdgeIndicator : SceneParams -> Mat4 -> Vec3 -> Vec3 -> List Entity -> List Entity
+addEdgeIndicator : SceneParams -> { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float } -> { x : Float, y : Float, z : Float } -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
 addEdgeIndicator { lightDirection, camera, perspective } transform edge origin tail =
     WebGL.entity
         Shaders.vertex
@@ -517,11 +517,11 @@ addEdgeIndicator { lightDirection, camera, perspective } transform edge origin t
         , color = vec3 0 1 0
         , perspective = perspective
         , transform =
-            Math.makeRotateKTo edge
+            Math.makeRotateKTo (Vec3.fromRecord edge)
                 |> Mat4.mul
-                    (origin
+                    (Vec3.fromRecord origin
                         |> Mat4.makeTranslate
-                        |> Mat4.mul transform
+                        |> Mat4.mul (Mat4.fromRecord transform)
                     )
         }
         :: tail

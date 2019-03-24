@@ -1,4 +1,4 @@
-module Physics.AABB exposing
+module Internal.AABB exposing
     ( AABB
     , convexPolyhedron
     , extend
@@ -8,12 +8,12 @@ module Physics.AABB exposing
     , toHalfExtends
     )
 
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Quaternion as Quaternion
-import Physics.Transform as Transform exposing (Transform)
+import Internal.Const as Const
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion
+import Internal.Transform as Transform exposing (Transform)
 
 
 type alias AABB =
@@ -47,16 +47,16 @@ extend : AABB -> AABB -> AABB
 extend aabb1 aabb =
     let
         l =
-            Vec3.toRecord aabb.lowerBound
+            aabb.lowerBound
 
         u =
-            Vec3.toRecord aabb.upperBound
+            aabb.upperBound
 
         l1 =
-            Vec3.toRecord aabb1.lowerBound
+            aabb1.lowerBound
 
         u1 =
-            Vec3.toRecord aabb1.upperBound
+            aabb1.upperBound
     in
     { lowerBound = vec3 (min l.x l1.x) (min l.y l1.y) (min l.z l1.z)
     , upperBound = vec3 (max u.x u1.x) (max u.y u1.y) (max u.z u1.z)
@@ -67,16 +67,16 @@ overlaps : AABB -> AABB -> Bool
 overlaps aabb1 aabb2 =
     let
         l1 =
-            Vec3.toRecord aabb1.lowerBound
+            aabb1.lowerBound
 
         u1 =
-            Vec3.toRecord aabb1.upperBound
+            aabb1.upperBound
 
         l2 =
-            Vec3.toRecord aabb2.lowerBound
+            aabb2.lowerBound
 
         u2 =
-            Vec3.toRecord aabb2.upperBound
+            aabb2.upperBound
     in
     ((l2.x <= u1.x && u1.x <= u2.x) || (l1.x <= u2.x && u2.x <= u1.x))
         && ((l2.y <= u1.y && u1.y <= u2.y) || (l1.y <= u2.y && u2.y <= u1.y))
@@ -112,7 +112,7 @@ plane : Transform -> AABB
 plane { position, quaternion } =
     let
         { x, y, z } =
-            Vec3.toRecord (Quaternion.rotate quaternion Vec3.k)
+            Quaternion.rotate quaternion Vec3.k
     in
     if abs x == 1 then
         { maximum | upperBound = vec3 (Vec3.getX position) (x * Const.maxNumber) (x * Const.maxNumber) }
@@ -131,7 +131,7 @@ sphere : Float -> Transform -> AABB
 sphere radius { position } =
     let
         c =
-            Vec3.toRecord position
+            position
     in
     { lowerBound = vec3 (c.x - radius) (c.y - radius) (c.z - radius)
     , upperBound = vec3 (c.x + radius) (c.y + radius) (c.z + radius)

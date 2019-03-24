@@ -20,16 +20,16 @@ main =
 initialBoxes : List ( DemoBody, Physics.Body )
 initialBoxes =
     [ Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 0 0 2)
-            >> Physics.rotateBy Vec3.j (-pi / 5)
+        (Physics.offsetBy { x = 0, y = 0, z = 2 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (-pi / 5)
         )
     , Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 -1.2 0 9)
-            >> Physics.rotateBy Vec3.j (-pi / 4)
+        (Physics.offsetBy { x = -1.2, y = 0, z = 9 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (-pi / 4)
         )
     , Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 1.3 0 6)
-            >> Physics.rotateBy Vec3.j (pi / 5)
+        (Physics.offsetBy { x = 1.3, y = 0, z = 6 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (pi / 5)
         )
     ]
 
@@ -43,14 +43,14 @@ randomShape =
             case isSphere of
                 0 ->
                     Bodies.getBody DemoBox
-                        (Physics.offsetBy (vec3 0 0 10)
-                            >> Physics.rotateBy (vec3 x y z) angle
+                        (Physics.offsetBy { x = 0, y = 0, z = 10 }
+                            >> Physics.rotateBy { x = x, y = y, z = z } angle
                         )
 
                 _ ->
                     Bodies.getBody DemoSphere
-                        (Physics.offsetBy (vec3 0 0 10)
-                            >> Physics.offsetBy (vec3 x y z)
+                        (Physics.offsetBy { x = 0, y = 0, z = 10 }
+                            >> Physics.offsetBy { x = x, y = y, z = z }
                         )
         )
         (Random.float (-pi / 2) (pi / 2))

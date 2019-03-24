@@ -2,7 +2,6 @@ module Boxes exposing (main)
 
 import Common.Bodies as Bodies exposing (DemoBody(..))
 import Common.Demo as Demo exposing (Demo, DemoProgram)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics
 import Random
 
@@ -20,16 +19,16 @@ main =
 initialBoxes : List ( DemoBody, Physics.Body )
 initialBoxes =
     [ Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 0 0 2)
-            >> Physics.rotateBy Vec3.j (-pi / 5)
+        (Physics.offsetBy { x = 0, y = 0, z = 2 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (-pi / 5)
         )
     , Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 -1.2 0 9)
-            >> Physics.rotateBy Vec3.j (-pi / 4)
+        (Physics.offsetBy { x = -1.2, y = 0, z = 9 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (-pi / 4)
         )
     , Bodies.getBody DemoBox
-        (Physics.offsetBy (vec3 1.3 0 6)
-            >> Physics.rotateBy Vec3.j (pi / 5)
+        (Physics.offsetBy { x = 1.3, y = 0, z = 6 }
+            >> Physics.rotateBy { x = 0, y = 1, z = 0 } (pi / 5)
         )
     ]
 
@@ -41,8 +40,8 @@ randomlyRotatedBox =
     Random.map4
         (\angle x y z ->
             Bodies.getBody DemoBox
-                (Physics.offsetBy (vec3 0 0 10)
-                    >> Physics.rotateBy (vec3 x y z) angle
+                (Physics.offsetBy { x = 0, y = 0, z = 10 }
+                    >> Physics.rotateBy { x = x, y = y, z = z } angle
                 )
         )
         (Random.float (-pi / 2) (pi / 2))

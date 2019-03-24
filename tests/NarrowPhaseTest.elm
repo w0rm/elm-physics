@@ -1,13 +1,13 @@
 module NarrowPhaseTest exposing (addSphereConvexContacts, expectNormalizedEqual, listOfPairsToPairOfLists, normalizeContactTowards, normalizeListTowards, normalizeVec3Towards)
 
+import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Const as Const
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.NarrowPhase as NarrowPhase
-import Physics.Quaternion as Quaternion
+import Internal.Const as Const
+import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.NarrowPhase as NarrowPhase
+import Internal.Quaternion as Quaternion
 import Test exposing (..)
 
 

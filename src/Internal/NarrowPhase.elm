@@ -1,21 +1,21 @@
-module Physics.NarrowPhase exposing
+module Internal.NarrowPhase exposing
     ( addSphereConvexContacts
     ,  getContacts
        -- exposed only for tests
 
     )
 
+import AltMath.Vector3 as Vec3 exposing (Vec3)
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Math.Vector3 as Vec3 exposing (Vec3)
-import Physics.Body as Body exposing (Body, BodyId)
-import Physics.Const as Const
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Physics.Quaternion as Quaternion
-import Physics.Shape as Shape exposing (Shape(..))
-import Physics.Transform as Transform exposing (Transform)
-import Physics.World as World exposing (World)
+import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Const as Const
+import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion
+import Internal.Shape as Shape exposing (Shape(..))
+import Internal.Transform as Transform exposing (Transform)
+import Internal.World as World exposing (World)
 import Set exposing (Set)
 
 

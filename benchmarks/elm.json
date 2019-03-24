@@ -11,8 +11,7 @@
             "elm/html": "1.0.0",
             "elm/json": "1.0.0",
             "elm/random": "1.0.0",
-            "elm-explorations/benchmark": "1.0.0",
-            "elm-explorations/linear-algebra": "1.0.2"
+            "elm-explorations/benchmark": "1.0.0"
         },
         "indirect": {
             "BrianHicks/elm-trend": "2.1.2",

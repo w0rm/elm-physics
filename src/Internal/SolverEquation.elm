@@ -1,16 +1,16 @@
-module Physics.SolverEquation exposing
+module Internal.SolverEquation exposing
     ( SolverEquation
     , addContactEquation
     , addFrictionEquations
     , computeGWlambda
     )
 
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3)
-import Physics.Body exposing (BodyId)
-import Physics.ContactEquation as ContactEquation exposing (ContactEquation)
-import Physics.JacobianElement as JacobianElement exposing (JacobianElement)
-import Physics.SolverBody as SolverBody exposing (SolverBody)
+import AltMath.Matrix4 as Mat4 exposing (Mat4)
+import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Body exposing (BodyId)
+import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
+import Internal.SolverBody as SolverBody exposing (SolverBody)
 
 
 type alias FrictionEquation =
