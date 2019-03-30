@@ -19,7 +19,6 @@ type alias World =
     { bodies : Dict BodyId Body
     , nextBodyId : BodyId
     , gravity : Vec3
-    , time : Float
     }
 
 
@@ -28,7 +27,6 @@ world =
     { bodies = Dict.empty
     , nextBodyId = 0
     , gravity = vec3 0 0 0
-    , time = 0
     }
 
 
@@ -51,7 +49,6 @@ tick dt world_ =
             Dict.map
                 (\_ -> Body.tick dt >> Body.clearForces)
                 world_.bodies
-        , time = world_.time + dt
     }
 
 
