@@ -12,14 +12,14 @@ import Internal.Const as Const
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 
 
-type alias SolverBody =
-    { body : Body
+type alias SolverBody data =
+    { body : Body data
     , vlambda : Vec3
     , wlambda : Vec3
     }
 
 
-fromBody : Body -> SolverBody
+fromBody : Body data -> SolverBody data
 fromBody body =
     { body = body
     , vlambda = Const.zero3
@@ -27,7 +27,7 @@ fromBody body =
     }
 
 
-addToWlambda : Float -> JacobianElement -> SolverBody -> SolverBody
+addToWlambda : Float -> JacobianElement -> SolverBody data -> SolverBody data
 addToWlambda deltalambda { spatial, rotational } { body, vlambda, wlambda } =
     { body = body
     , vlambda =

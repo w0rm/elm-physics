@@ -1,9 +1,10 @@
-module NarrowPhaseTest exposing (addSphereConvexContacts, expectNormalizedEqual, listOfPairsToPairOfLists, normalizeContactTowards, normalizeListTowards, normalizeVec3Towards)
+module NarrowPhaseTest exposing (addSphereConvexContacts)
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
-import Fixtures.NarrowPhase
+import Fixtures.NarrowPhase exposing (body1, body2)
+import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.NarrowPhase as NarrowPhase
@@ -71,12 +72,12 @@ addSphereConvexContacts =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 boxHull
-                                1
+                                body2
                                 []
                         )
                     |> expectNormalizedEqual
@@ -95,12 +96,12 @@ addSphereConvexContacts =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 boxHull
-                                1
+                                body2
                                 []
                         )
                     |> Expect.equal []
@@ -114,12 +115,12 @@ addSphereConvexContacts =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
-                                1
+                                body2
                                 []
                         )
                     |> expectNormalizedEqual
@@ -138,12 +139,12 @@ addSphereConvexContacts =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
-                                1
+                                body2
                                 []
                         )
                     |> Expect.equal []
@@ -176,7 +177,7 @@ normalizeListTowards normalizeElementTowards expected actual =
         actual
 
 
-normalizeContactTowards : ContactEquation -> ContactEquation -> ContactEquation
+normalizeContactTowards : ContactEquation () -> ContactEquation () -> ContactEquation ()
 normalizeContactTowards expected actual =
     -- optimize common case
     if actual == expected then

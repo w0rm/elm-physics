@@ -15,7 +15,7 @@ maxIterations =
     20
 
 
-solve : Float -> List ContactEquation -> World -> World
+solve : Float -> List (ContactEquation data) -> World data -> World data
 solve dt contactEquations world =
     if contactEquations == [] then
         world
@@ -27,7 +27,7 @@ solve dt contactEquations world =
             |> updateVelocities
 
 
-solveHelp : Int -> SolveContext -> SolveContext
+solveHelp : Int -> SolveContext data -> SolveContext data
 solveHelp number context =
     if number == 0 || context.deltalambdaTot < Const.precision then
         context
@@ -36,13 +36,13 @@ solveHelp number context =
         solveHelp (number - 1) (solveStep context)
 
 
-updateVelocities : SolveContext -> World
+updateVelocities : SolveContext data -> World data
 updateVelocities { bodies, world } =
     { world
         | bodies =
-            Dict.map
-                (\bodyId body ->
-                    Dict.get bodyId bodies
+            List.map
+                (\body ->
+                    Dict.get body.id bodies
                         |> Maybe.map
                             (\{ vlambda, wlambda } ->
                                 { body
@@ -56,7 +56,7 @@ updateVelocities { bodies, world } =
     }
 
 
-solveStep : SolveContext -> SolveContext
+solveStep : SolveContext data -> SolveContext data
 solveStep context =
     List.foldl
         (\equation newContext ->
@@ -112,19 +112,21 @@ solveStep context =
         context.equations
 
 
-type alias SolveContext =
-    { bodies : Dict BodyId SolverBody
-    , equations : List SolverEquation
+type alias SolveContext data =
+    { bodies : Dict BodyId (SolverBody data)
+    , equations : List (SolverEquation data)
     , deltalambdaTot : Float
-    , world : World
+    , world : World data
     }
 
 
-solveContext : Float -> List ContactEquation -> World -> SolveContext
+solveContext : Float -> List (ContactEquation data) -> World data -> SolveContext data
 solveContext dt contactEquations world =
     let
         solverBodies =
-            Dict.map (\_ -> SolverBody.fromBody) world.bodies
+            world.bodies
+                |> List.map (\body -> ( body.id, SolverBody.fromBody body ))
+                |> Dict.fromList
     in
     { bodies = solverBodies
     , equations =
@@ -137,8 +139,8 @@ solveContext dt contactEquations world =
                                 |> SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
                                 |> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
                         )
-                        (Dict.get contactEquation.bodyId1 solverBodies)
-                        (Dict.get contactEquation.bodyId2 solverBodies)
+                        (Dict.get contactEquation.body1.id solverBodies)
+                        (Dict.get contactEquation.body2.id solverBodies)
             )
             []
             contactEquations

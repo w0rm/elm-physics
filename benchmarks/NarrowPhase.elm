@@ -18,9 +18,25 @@ import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
+import Internal.Body as Body exposing (Body)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
+
+
+emptyBody : Body ()
+emptyBody =
+    Body.compound [] ()
+
+
+body1 : Body ()
+body1 =
+    { emptyBody | id = 0 }
+
+
+body2 : Body ()
+body2 =
+    { emptyBody | id = 1 }
 
 
 main : BenchmarkProgram
@@ -82,12 +98,12 @@ suite =
                             NarrowPhase.addSphereConvexContacts
                                 Transform.identity
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 originalBoxHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -101,12 +117,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 boxHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -122,12 +138,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 originalBoxHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -141,12 +157,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 boxHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -162,12 +178,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 originalOctoHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -181,12 +197,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -202,12 +218,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 originalOctoHull
-                                1
+                                body2
                                 []
                         )
             )
@@ -221,12 +237,12 @@ suite =
                                 , quaternion = Quaternion.identity
                                 }
                                 radius
-                                0
+                                body1
                                 { position = position
                                 , quaternion = Quaternion.identity
                                 }
                                 octoHull
-                                1
+                                body2
                                 []
                         )
             )

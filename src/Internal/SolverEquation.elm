@@ -20,13 +20,13 @@ type alias FrictionEquation =
     }
 
 
-type EquationKind
-    = Contact ContactEquation
+type EquationKind data
+    = Contact (ContactEquation data)
     | Friction FrictionEquation
 
 
-type alias SolverEquation =
-    { kind : EquationKind
+type alias SolverEquation data =
+    { kind : EquationKind data
     , bodyId1 : BodyId
     , bodyId2 : BodyId
     , minForce : Float
@@ -42,7 +42,7 @@ type alias SolverEquation =
     }
 
 
-addContactEquation : Float -> Vec3 -> SolverBody -> SolverBody -> ContactEquation -> List SolverEquation -> List SolverEquation
+addContactEquation : Float -> Vec3 -> SolverBody data -> SolverBody data -> ContactEquation data -> List (SolverEquation data) -> List (SolverEquation data)
 addContactEquation dt gravity bi bj contactEquation =
     let
         rixn =
@@ -51,8 +51,8 @@ addContactEquation dt gravity bi bj contactEquation =
         rjxn =
             Vec3.cross contactEquation.rj contactEquation.ni
     in
-    { bodyId1 = contactEquation.bodyId1
-    , bodyId2 = contactEquation.bodyId2
+    { bodyId1 = contactEquation.body1.id
+    , bodyId2 = contactEquation.body2.id
     , kind = Contact contactEquation
     , minForce = 0
     , maxForce = 1000000
@@ -76,7 +76,7 @@ addContactEquation dt gravity bi bj contactEquation =
         |> (::)
 
 
-addFrictionEquations : Float -> Vec3 -> SolverBody -> SolverBody -> ContactEquation -> List SolverEquation -> List SolverEquation
+addFrictionEquations : Float -> Vec3 -> SolverBody data -> SolverBody data -> ContactEquation data -> List (SolverEquation data) -> List (SolverEquation data)
 addFrictionEquations dt gravity bi bj contactEquation =
     let
         mug =
@@ -117,8 +117,8 @@ addFrictionEquations dt gravity bi bj contactEquation =
             Vec3.cross contactEquation.rj t2
     in
     (++)
-        [ { bodyId1 = contactEquation.bodyId1
-          , bodyId2 = contactEquation.bodyId2
+        [ { bodyId1 = contactEquation.body1.id
+          , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation1
           , minForce = -mug * reducedMass
           , maxForce = mug * reducedMass
@@ -142,8 +142,8 @@ addFrictionEquations dt gravity bi bj contactEquation =
                 defaultContactMaterial.frictionEquationRelaxation
                 dt
             |> initSolverParams dt bi bj
-        , { bodyId1 = contactEquation.bodyId1
-          , bodyId2 = contactEquation.bodyId2
+        , { bodyId1 = contactEquation.body1.id
+          , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation2
           , minForce = -mug * reducedMass
           , maxForce = mug * reducedMass
@@ -170,7 +170,7 @@ addFrictionEquations dt gravity bi bj contactEquation =
         ]
 
 
-setSpookParams : Float -> Float -> Float -> SolverEquation -> SolverEquation
+setSpookParams : Float -> Float -> Float -> SolverEquation data -> SolverEquation data
 setSpookParams stiffness relaxation timeStep solverEquation =
     { solverEquation
         | spookA = 4.0 / (timeStep * (1 + 4 * relaxation))
@@ -179,7 +179,7 @@ setSpookParams stiffness relaxation timeStep solverEquation =
     }
 
 
-initSolverParams : Float -> SolverBody -> SolverBody -> SolverEquation -> SolverEquation
+initSolverParams : Float -> SolverBody data -> SolverBody data -> SolverEquation data -> SolverEquation data
 initSolverParams dt bi bj solverEquation =
     { solverEquation
         | solverLambda = 0
@@ -190,7 +190,7 @@ initSolverParams dt bi bj solverEquation =
 
 {-| Computes the RHS of the SPOOK equation
 -}
-computeB : Float -> SolverBody -> SolverBody -> SolverEquation -> Float
+computeB : Float -> SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeB dt bi bj solverEquation =
     case solverEquation.kind of
         Contact contactEquation ->
@@ -200,7 +200,7 @@ computeB dt bi bj solverEquation =
             computeFrictionB dt bi bj solverEquation frictionEquation
 
 
-computeContactB : Float -> SolverBody -> SolverBody -> SolverEquation -> ContactEquation -> Float
+computeContactB : Float -> SolverBody data -> SolverBody data -> SolverEquation data -> ContactEquation data -> Float
 computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, ri, rj, ni } =
     let
         g =
@@ -222,7 +222,7 @@ computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, r
     -g * spookA - gW * spookB - dt * giMf
 
 
-computeFrictionB : Float -> SolverBody -> SolverBody -> SolverEquation -> FrictionEquation -> Float
+computeFrictionB : Float -> SolverBody data -> SolverBody data -> SolverEquation data -> FrictionEquation -> Float
 computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
     let
         gW =
@@ -240,7 +240,7 @@ computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
   - f are the forces on the bodies
 
 -}
-computeGiMf : SolverBody -> SolverBody -> SolverEquation -> Float
+computeGiMf : SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeGiMf bi bj { jacobianElementA, jacobianElementB } =
     (+)
         (JacobianElement.mulVec
@@ -257,7 +257,7 @@ computeGiMf bi bj { jacobianElementA, jacobianElementB } =
 
 {-| Compute G\_inv(M)\_G' + eps, the denominator part of the SPOOK equation:
 -}
-computeC : SolverBody -> SolverBody -> SolverEquation -> Float
+computeC : SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
     bi.body.invMass
         + bj.body.invMass
@@ -268,7 +268,7 @@ computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
 
 {-| Computes G\*Wlambda, where W are the body velocities
 -}
-computeGWlambda : SolverBody -> SolverBody -> SolverEquation -> Float
+computeGWlambda : SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.vlambda bi.wlambda jacobianElementA
         + JacobianElement.mulVec bj.vlambda bj.wlambda jacobianElementB
@@ -276,7 +276,7 @@ computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
 
 {-| Computes G\*W, where W are the body velocities
 -}
-computeGW : SolverBody -> SolverBody -> SolverEquation -> Float
+computeGW : SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeGW bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.body.velocity bi.body.angularVelocity jacobianElementA
         + JacobianElement.mulVec bj.body.velocity bj.body.angularVelocity jacobianElementB

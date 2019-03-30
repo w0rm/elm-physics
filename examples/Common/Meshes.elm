@@ -1,10 +1,11 @@
 module Common.Meshes exposing
     ( Attributes
-    , makeBox
-    , makeBoxWireframe
-    , makePyramid
-    , makeSphere
-    , makeSphereWireframe
+    , box
+    , moveBy
+    , pyramid
+    , sphere
+    , toMesh
+    , toWireframe
     )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -17,14 +18,26 @@ type alias Attributes =
     }
 
 
-makeBox : { x : Float, y : Float, z : Float } -> Mesh Attributes
-makeBox halfExtends =
-    WebGL.triangles (makeBoxTriangles halfExtends)
+toMesh : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
+toMesh =
+    WebGL.triangles
 
 
-makeBoxWireframe : { x : Float, y : Float, z : Float } -> Mesh Attributes
-makeBoxWireframe halfExtends =
-    WebGL.lines (trianglesToLines (makeBoxTriangles halfExtends))
+toWireframe : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
+toWireframe =
+    trianglesToLines >> WebGL.lines
+
+
+moveBy : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
+moveBy offset triangles =
+    List.map
+        (\( p1, p2, p3 ) ->
+            ( { p1 | position = Vec3.add (Vec3.fromRecord offset) p1.position }
+            , { p2 | position = Vec3.add (Vec3.fromRecord offset) p2.position }
+            , { p3 | position = Vec3.add (Vec3.fromRecord offset) p3.position }
+            )
+        )
+        triangles
 
 
 trianglesToLines : List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes )
@@ -35,9 +48,18 @@ trianglesToLines triangles =
         triangles
 
 
-makeBoxTriangles : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes )
-makeBoxTriangles { x, y, z } =
+box : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes )
+box dimensions =
     let
+        x =
+            dimensions.x * 0.5
+
+        y =
+            dimensions.y * 0.5
+
+        z =
+            dimensions.z * 0.5
+
         v0 =
             vec3 -x -y -z
 
@@ -77,8 +99,8 @@ makeBoxTriangles { x, y, z } =
     ]
 
 
-makePyramid : Float -> Float -> Mesh Attributes
-makePyramid halfbase baserise =
+pyramid : Float -> Float -> List ( Attributes, Attributes, Attributes )
+pyramid halfbase baserise =
     let
         top =
             vec3 0 0 1
@@ -102,22 +124,12 @@ makePyramid halfbase baserise =
     , facet top lbb lfb
     , facet top rbb lbb
     ]
-        |> WebGL.triangles
 
 
-makeSphereWireframe : Int -> Float -> Mesh Attributes
-makeSphereWireframe iterations radius =
+sphere : Int -> Float -> List ( Attributes, Attributes, Attributes )
+sphere iterations radius =
     divideSphere iterations radius (octahedron radius)
         |> List.map (\( p1, p2, p3 ) -> facet p1 p2 p3)
-        |> trianglesToLines
-        |> WebGL.lines
-
-
-makeSphere : Int -> Float -> Mesh Attributes
-makeSphere iterations radius =
-    divideSphere iterations radius (octahedron radius)
-        |> List.map (\( p1, p2, p3 ) -> facet p1 p2 p3)
-        |> WebGL.triangles
 
 
 {-| Recursively divide an octahedron to turn it into a sphere

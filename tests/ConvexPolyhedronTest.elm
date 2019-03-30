@@ -1,4 +1,16 @@
-module ConvexPolyhedronTest exposing (addEdgesOfConvexPolyhedron, addFaceEdges, boxHull, boxUniqueEdges, clipAgainstHull, clipFaceAgainstHull, clipFaceAgainstPlane, countEdgesOfConvexPolyhedron, expectListVec3WithinPrecision, faceAdjacency, findSeparatingAxis, initFaceNormal, initUniqueEdges, listRingRotate, normalizeVec3Towards, project, testSepAxis, uniqueEdgesOfConvexPolyhedron)
+module ConvexPolyhedronTest exposing
+    ( addFaceEdges
+    , boxUniqueEdges
+    , clipAgainstHull
+    , clipFaceAgainstHull
+    , clipFaceAgainstPlane
+    , faceAdjacency
+    , findSeparatingAxis
+    , initFaceNormal
+    , initUniqueEdges
+    , project
+    , testSepAxis
+    )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
 import AltMath.Vector4 as Vec4 exposing (Vec4, vec4)
