@@ -13,40 +13,32 @@ import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
-import Internal.Shape as Shape exposing (Shape(..))
+import Internal.Shape as Shape exposing (Kind(..), Shape)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.World as World exposing (World)
 import Set exposing (Set)
 
 
-getContacts : World -> List ContactEquation
+getContacts : World data -> List (ContactEquation data)
 getContacts world =
     List.foldl
-        (\( bodyId1, bodyId2 ) ->
-            Maybe.map2
-                (getBodyContacts world bodyId1 bodyId2)
-                (Dict.get bodyId1 world.bodies)
-                (Dict.get bodyId2 world.bodies)
-                |> Maybe.withDefault identity
-        )
+        (\( body1, body2 ) -> getBodyContacts world body1 body2)
         []
         (World.getPairs world)
 
 
-getBodyContacts : World -> BodyId -> BodyId -> Body -> Body -> List ContactEquation -> List ContactEquation
-getBodyContacts world bodyId1 bodyId2 body1 body2 contactEquations =
-    Dict.foldl
-        (\shapeId1 shape1 currentContactEquations1 ->
-            Dict.foldl
-                (\shapeId2 shape2 currentContactEquations2 ->
+getBodyContacts : World data -> Body data -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+getBodyContacts world body1 body2 contactEquations =
+    List.foldl
+        (\shape1 currentContactEquations1 ->
+            List.foldl
+                (\shape2 currentContactEquations2 ->
                     getShapeContacts
-                        (Body.shapeWorldTransform shapeId1 body1)
+                        (Body.shapeWorldTransform shape1 body1)
                         shape1
-                        bodyId1
                         body1
-                        (Body.shapeWorldTransform shapeId2 body2)
+                        (Body.shapeWorldTransform shape2 body2)
                         shape2
-                        bodyId2
                         body2
                         currentContactEquations2
                 )
@@ -57,9 +49,9 @@ getBodyContacts world bodyId1 bodyId2 body1 body2 contactEquations =
         body1.shapes
 
 
-getShapeContacts : Transform -> Shape -> BodyId -> Body -> Transform -> Shape -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bodyId2 body2 contactEquations =
-    case ( shape1, shape2 ) of
+getShapeContacts : Transform -> Shape -> Body data -> Transform -> Shape -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+getShapeContacts shapeTransform1 shape1 body1 shapeTransform2 shape2 body2 contactEquations =
+    case ( shape1.kind, shape2.kind ) of
         ( Plane, Plane ) ->
             -- don't collide two planes
             contactEquations
@@ -67,33 +59,27 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
         ( Plane, Convex convexPolyhedron ) ->
             addPlaneConvexContacts
                 shapeTransform1
-                bodyId1
                 body1
                 shapeTransform2
                 convexPolyhedron
-                bodyId2
                 body2
                 contactEquations
 
         ( Plane, Sphere radius ) ->
             addPlaneSphereContacts
                 shapeTransform1
-                bodyId1
                 body1
                 shapeTransform2
                 radius
-                bodyId2
                 body2
                 contactEquations
 
         ( Convex convexPolyhedron, Plane ) ->
             addPlaneConvexContacts
                 shapeTransform2
-                bodyId2
                 body2
                 shapeTransform1
                 convexPolyhedron
-                bodyId1
                 body1
                 contactEquations
 
@@ -101,11 +87,9 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
             addConvexConvexContacts
                 shapeTransform1
                 convexPolyhedron1
-                bodyId1
                 body1
                 shapeTransform2
                 convexPolyhedron2
-                bodyId2
                 body2
                 contactEquations
 
@@ -113,20 +97,18 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
             addSphereConvexContacts
                 shapeTransform2
                 radius
-                bodyId2
+                body2
                 shapeTransform1
                 convexPolyhedron
-                bodyId1
+                body1
                 contactEquations
 
         ( Sphere radius, Plane ) ->
             addPlaneSphereContacts
                 shapeTransform1
-                bodyId1
                 body1
                 shapeTransform2
                 radius
-                bodyId2
                 body2
                 contactEquations
 
@@ -134,27 +116,25 @@ getShapeContacts shapeTransform1 shape1 bodyId1 body1 shapeTransform2 shape2 bod
             addSphereConvexContacts
                 shapeTransform1
                 radius
-                bodyId1
+                body1
                 shapeTransform2
                 convexPolyhedron
-                bodyId2
+                body2
                 contactEquations
 
         ( Sphere radius1, Sphere radius2 ) ->
             addSphereSphereContacts
                 shapeTransform1
                 radius1
-                bodyId1
                 body1
                 shapeTransform2
                 radius2
-                bodyId2
                 body2
                 contactEquations
 
 
-addPlaneConvexContacts : Transform -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-addPlaneConvexContacts planeTransform planeBodyId planeBody convexTransform convexPolyhedron convexBodyId convexBody contactEquations =
+addPlaneConvexContacts : Transform -> Body data -> Transform -> ConvexPolyhedron -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+addPlaneConvexContacts planeTransform planeBody convexTransform convexPolyhedron convexBody contactEquations =
     let
         worldNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
@@ -171,8 +151,8 @@ addPlaneConvexContacts planeTransform planeBodyId planeBody convexTransform conv
                         |> Vec3.dot worldNormal
             in
             if dot <= 0 then
-                { bodyId1 = planeBodyId
-                , bodyId2 = convexBodyId
+                { body1 = planeBody
+                , body2 = convexBody
                 , ni = worldNormal
                 , ri =
                     Vec3.sub
@@ -193,8 +173,8 @@ addPlaneConvexContacts planeTransform planeBodyId planeBody convexTransform conv
         convexPolyhedron.vertices
 
 
-addConvexConvexContacts : Transform -> ConvexPolyhedron -> BodyId -> Body -> Transform -> ConvexPolyhedron -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-addConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTransform2 convexPolyhedron2 bodyId2 body2 contactEquations =
+addConvexConvexContacts : Transform -> ConvexPolyhedron -> Body data -> Transform -> ConvexPolyhedron -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+addConvexConvexContacts shapeTransform1 convexPolyhedron1 body1 shapeTransform2 convexPolyhedron2 body2 contactEquations =
     case ConvexPolyhedron.findSeparatingAxis shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 of
         Just sepAxis ->
             ConvexPolyhedron.clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
@@ -214,8 +194,8 @@ addConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTra
                                 point
                                     |> Vec3.add (Vec3.negate body2.position)
                         in
-                        { bodyId1 = bodyId1
-                        , bodyId2 = bodyId2
+                        { body1 = body1
+                        , body2 = body2
                         , ni = Vec3.negate sepAxis
                         , ri = ri
                         , rj = rj
@@ -229,8 +209,8 @@ addConvexConvexContacts shapeTransform1 convexPolyhedron1 bodyId1 body1 shapeTra
             contactEquations
 
 
-addPlaneSphereContacts : Transform -> BodyId -> Body -> Transform -> Float -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-addPlaneSphereContacts planeTransform bodyId1 body1 t2 radius bodyId2 body2 contactEquations =
+addPlaneSphereContacts : Transform -> Body data -> Transform -> Float -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+addPlaneSphereContacts planeTransform body1 t2 radius body2 contactEquations =
     let
         worldPlaneNormal =
             Quaternion.rotate planeTransform.quaternion Vec3.k
@@ -246,8 +226,8 @@ addPlaneSphereContacts planeTransform bodyId1 body1 t2 radius bodyId2 body2 cont
                 |> Vec3.dot worldPlaneNormal
     in
     if dot <= 0 then
-        { bodyId1 = bodyId1
-        , bodyId2 = bodyId2
+        { body1 = body1
+        , body2 = body2
         , ni = worldPlaneNormal
         , ri =
             Vec3.sub
@@ -265,8 +245,8 @@ addPlaneSphereContacts planeTransform bodyId1 body1 t2 radius bodyId2 body2 cont
         contactEquations
 
 
-addSphereConvexContacts : Transform -> Float -> BodyId -> Transform -> ConvexPolyhedron -> BodyId -> List ContactEquation -> List ContactEquation
-addSphereConvexContacts { position } radius bodyId1 t2 hull2 bodyId2 contactEquations =
+addSphereConvexContacts : Transform -> Float -> Body data -> Transform -> ConvexPolyhedron -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+addSphereConvexContacts { position } radius body1 t2 hull2 body2 contactEquations =
     let
         ( maybeWorldContact, penetration ) =
             ConvexPolyhedron.sphereContact position radius t2 hull2
@@ -277,8 +257,8 @@ addSphereConvexContacts { position } radius bodyId1 t2 hull2 bodyId2 contactEqua
                 worldNormal =
                     Vec3.direction worldContact2 position
             in
-            { bodyId1 = bodyId1
-            , bodyId2 = bodyId2
+            { body1 = body1
+            , body2 = body2
             , ni = worldNormal
             , ri = Vec3.scale radius worldNormal
             , rj = Vec3.sub worldContact2 t2.position
@@ -290,8 +270,8 @@ addSphereConvexContacts { position } radius bodyId1 t2 hull2 bodyId2 contactEqua
             contactEquations
 
 
-addSphereSphereContacts : Transform -> Float -> BodyId -> Body -> Transform -> Float -> BodyId -> Body -> List ContactEquation -> List ContactEquation
-addSphereSphereContacts t1 radius1 bodyId1 body1 t2 radius2 bodyId2 body2 contactEquations =
+addSphereSphereContacts : Transform -> Float -> Body data -> Transform -> Float -> Body data -> List (ContactEquation data) -> List (ContactEquation data)
+addSphereSphereContacts t1 radius1 body1 t2 radius2 body2 contactEquations =
     let
         center1 =
             Transform.pointToWorldFrame t1 Const.zero3
@@ -311,8 +291,8 @@ addSphereSphereContacts t1 radius1 bodyId1 body1 t2 radius2 bodyId2 body2 contac
         contactEquations
 
     else
-        { bodyId1 = bodyId1
-        , bodyId2 = bodyId2
+        { body1 = body1
+        , body2 = body2
         , ni = normal
         , ri = Vec3.scale radius1 normal
         , rj = Vec3.scale -radius2 normal

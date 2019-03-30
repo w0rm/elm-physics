@@ -1,14 +1,13 @@
 module Internal.Body exposing
     ( Body
     , BodyId
+    , Protected(..)
     , addGravity
-    , addShape
-    , body
     , clearForces
-    , getNextShapeId
-    , setMass
+    , compound
     , shapeWorldTransform
     , tick
+    , updateMassProperties
     )
 
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
@@ -18,7 +17,7 @@ import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
 import Internal.Quaternion as Quaternion
-import Internal.Shape as Shape exposing (Shape(..), ShapeId)
+import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
 
 
@@ -26,15 +25,19 @@ type alias BodyId =
     Int
 
 
-type alias Body =
-    { position : Vec3
+type Protected data
+    = Protected (Body data)
+
+
+type alias Body data =
+    { id : BodyId
+    , data : data
+    , position : Vec3
     , velocity : Vec3
     , angularVelocity : Vec3
     , quaternion : Vec4
     , mass : Float
-    , shapes : Dict ShapeId Shape
-    , shapeTransforms : Dict ShapeId Transform
-    , nextShapeId : ShapeId
+    , shapes : List Shape
     , force : Vec3
     , torque : Vec3
     , boundingSphereRadius : Float
@@ -47,29 +50,32 @@ type alias Body =
     }
 
 
-body : Body
-body =
-    { position = Const.zero3
-    , velocity = Const.zero3
-    , angularVelocity = Const.zero3
-    , quaternion = Quaternion.identity
-    , mass = 0
-    , shapes = Dict.empty
-    , shapeTransforms = Dict.empty -- positions of the shapes inside this body
-    , nextShapeId = 0
-    , force = Const.zero3
-    , torque = Const.zero3
-    , boundingSphereRadius = 0
+compound : List Shape -> data -> Body data
+compound shapes data =
+    updateMassProperties
+        { id = -1
+        , data = data
+        , position = Const.zero3
+        , velocity = Const.zero3
+        , angularVelocity = Const.zero3
+        , quaternion = Quaternion.identity
+        , mass = 0
+        , shapes = shapes
+        , force = Const.zero3
+        , torque = Const.zero3
 
-    -- mass props
-    , invMass = 0
-    , inertia = Const.zero3
-    , invInertia = Const.zero3
-    , invInertiaWorld = Mat4.identity
-    }
+        -- TODO: support shape's position and rotation
+        , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 shapes
+
+        -- mass props
+        , invMass = 0
+        , inertia = Const.zero3
+        , invInertia = Const.zero3
+        , invInertiaWorld = Mat4.identity
+        }
 
 
-addGravity : Vec3 -> Body -> Body
+addGravity : Vec3 -> Body data -> Body data
 addGravity gravity body_ =
     { body_
         | force =
@@ -79,7 +85,7 @@ addGravity gravity body_ =
     }
 
 
-clearForces : Body -> Body
+clearForces : Body data -> Body data
 clearForces body_ =
     { body_
         | force = Const.zero3
@@ -87,62 +93,16 @@ clearForces body_ =
     }
 
 
-setMass : Float -> Body -> Body
-setMass mass body_ =
-    updateMassProperties
-        { body_ | mass = mass }
-
-
-setPosition : Vec3 -> Body -> Body
-setPosition position body_ =
-    updateMassProperties
-        { body_ | position = position }
-
-
-setQuaternion : Vec4 -> Body -> Body
-setQuaternion quaternion body_ =
-    updateMassProperties
-        { body_ | quaternion = quaternion }
-
-
-{-| Predict the shape id of the next shape to be added
--}
-getNextShapeId : Body -> ShapeId
-getNextShapeId =
-    .nextShapeId
-
-
-addShape : Shape -> Body -> Body
-addShape shape body_ =
-    -- TODO: support shape's position and rotation:
-    { body_
-        | shapes = Dict.insert body_.nextShapeId shape body_.shapes
-        , nextShapeId = body_.nextShapeId + 1
-        , boundingSphereRadius = Shape.expandBoundingSphereRadius Transform.identity shape body_.boundingSphereRadius
+shapeWorldTransform : Shape -> Body data -> Transform
+shapeWorldTransform shape { position, quaternion } =
+    { quaternion =
+        Quaternion.mul quaternion shape.orientation
+    , position =
+        Vec3.add position (Quaternion.rotate quaternion shape.position)
     }
-        |> updateMassProperties
 
 
-shapeWorldTransform : ShapeId -> Body -> Transform
-shapeWorldTransform shapeId { position, quaternion, shapeTransforms } =
-    case Dict.get shapeId shapeTransforms of
-        Just transform ->
-            { quaternion =
-                transform.quaternion
-                    |> Quaternion.mul quaternion
-            , position =
-                transform.position
-                    |> Quaternion.rotate quaternion
-                    |> Vec3.add position
-            }
-
-        Nothing ->
-            { quaternion = quaternion
-            , position = position
-            }
-
-
-tick : Float -> Body -> Body
+tick : Float -> Body data -> Body data
 tick dt body_ =
     let
         invMass =
@@ -178,9 +138,9 @@ tick dt body_ =
         }
 
 
-{-| Should be called whenever you change the body shape or mass.
+{-| Should be called whenever you change the body shapes or mass.
 -}
-updateMassProperties : Body -> Body
+updateMassProperties : Body data -> Body data
 updateMassProperties ({ mass } as body_) =
     let
         invMass =
@@ -236,7 +196,7 @@ updateMassProperties ({ mass } as body_) =
         }
 
 
-updateInertiaWorld : Bool -> Body -> Body
+updateInertiaWorld : Bool -> Body data -> Body data
 updateInertiaWorld force ({ invInertia, quaternion } as body_) =
     if not force && Vec3.getX invInertia == Vec3.getY invInertia && Vec3.getY invInertia == Vec3.getZ invInertia then
         body_
@@ -254,12 +214,12 @@ updateInertiaWorld force ({ invInertia, quaternion } as body_) =
         }
 
 
-computeAABB : Body -> AABB
+computeAABB : Body data -> AABB
 computeAABB body_ =
-    Dict.foldl
-        (\shapeId shape ->
-            shapeWorldTransform shapeId body_
-                |> Shape.aabbClosure shape
+    List.foldl
+        (\shape ->
+            shapeWorldTransform shape body_
+                |> Shape.aabbClosure shape.kind
                 |> AABB.extend
         )
         AABB.impossible

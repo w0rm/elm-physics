@@ -1,82 +1,63 @@
 module Common.Bodies exposing
-    ( DemoBody(..)
-    , getBody
-    , getMesh
-    , getWireframe
+    ( DemoBody
+    , box
+    , compound
+    , plane
+    , sphere
     )
 
 import Common.Meshes as Meshes exposing (Attributes)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics
-import WebGL exposing (Entity, Mesh, Shader)
+import Physics.Body as Body exposing (Body)
+import Physics.Shape as Shape exposing (Shape)
+import WebGL exposing (Mesh)
 
 
-type DemoBody
-    = DemoBox
-    | DemoSphere
+type alias DemoBody =
+    { mesh : Mesh Attributes
+    , wireframe : Mesh Attributes
+    }
 
 
-getBody : DemoBody -> (Physics.Body -> Physics.Body) -> ( DemoBody, Physics.Body )
-getBody demoBody fn =
-    case demoBody of
-        DemoBox ->
-            ( DemoBox, fn box )
-
-        DemoSphere ->
-            ( DemoSphere, fn sphere )
+fromTriangles : List ( Attributes, Attributes, Attributes ) -> DemoBody
+fromTriangles triangles =
+    { mesh = Meshes.toMesh triangles
+    , wireframe = Meshes.toWireframe triangles
+    }
 
 
-getMesh : DemoBody -> Mesh Attributes
-getMesh demoBody =
-    case demoBody of
-        DemoBox ->
-            boxMesh
-
-        DemoSphere ->
-            sphereMesh
-
-
-getWireframe : DemoBody -> Mesh Attributes
-getWireframe demoBody =
-    case demoBody of
-        DemoBox ->
-            boxWireframe
-
-        DemoSphere ->
-            sphereWireframe
-
-
-
--- BOX
-
-
-boxHalfExtends : { x : Float, y : Float, z : Float }
-boxHalfExtends =
-    { x = 1, y = 1, z = 1 }
-
-
-boxMesh : Mesh Attributes
-boxMesh =
-    Meshes.makeBox boxHalfExtends
-
-
-boxWireframe : Mesh Attributes
-boxWireframe =
-    Meshes.makeBoxWireframe boxHalfExtends
-
-
-{-| A constant cube-shaped body with unit sides and mass of 5
+{-| A plane-shaped body
 -}
-box : Physics.Body
+plane : Body DemoBody
+plane =
+    []
+        |> fromTriangles
+        |> Body.plane
+
+
+{-| A cube with sides of 2 and mass of 5
+-}
+box : Body DemoBody
 box =
-    Physics.body
-        |> Physics.setMass 5
-        |> Physics.addShape (Physics.box boxHalfExtends)
-        |> Tuple.first
+    Meshes.box boxDimensions
+        |> fromTriangles
+        |> Body.box boxDimensions
+        |> Body.setMass 5
 
 
+boxDimensions : { x : Float, y : Float, z : Float }
+boxDimensions =
+    { x = 2, y = 2, z = 2 }
 
--- SPHERE
+
+{-| A sphere with radius of 1.2 and mass of 5
+-}
+sphere : Body DemoBody
+sphere =
+    Meshes.sphere 2 sphereRadius
+        |> fromTriangles
+        |> Body.sphere sphereRadius
+        |> Body.setMass 5
 
 
 sphereRadius : Float
@@ -84,21 +65,26 @@ sphereRadius =
     1.2
 
 
-sphereMesh : Mesh Attributes
-sphereMesh =
-    Meshes.makeSphere 2 sphereRadius
-
-
-sphereWireframe : Mesh Attributes
-sphereWireframe =
-    Meshes.makeSphereWireframe 2 sphereRadius
-
-
-{-| A constant cube-shaped body with unit sides and mass of 5
+{-| A compound body made of three boxes
 -}
-sphere : Physics.Body
-sphere =
-    Physics.body
-        |> Physics.setMass 5
-        |> Physics.addShape (Physics.sphere sphereRadius)
-        |> Tuple.first
+compound : Body DemoBody
+compound =
+    let
+        boxTriangles =
+            Meshes.box boxDimensions
+
+        boxShape =
+            Shape.box boxDimensions
+    in
+    [ Meshes.moveBy { x = -1, y = 0, z = -1 } boxTriangles
+    , Meshes.moveBy { x = -1, y = 0, z = 1 } boxTriangles
+    , Meshes.moveBy { x = 1, y = 0, z = 1 } boxTriangles
+    ]
+        |> List.concat
+        |> fromTriangles
+        |> Body.compound
+            [ Shape.moveBy { x = -1, y = 0, z = -1 } boxShape
+            , Shape.moveBy { x = -1, y = 0, z = 1 } boxShape
+            , Shape.moveBy { x = 1, y = 0, z = 1 } boxShape
+            ]
+        |> Body.setMass 5

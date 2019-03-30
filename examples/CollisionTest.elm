@@ -1,9 +1,9 @@
 module CollisionTest exposing (main)
 
-import Common.Bodies as Bodies exposing (DemoBody(..))
+import Common.Bodies as Bodies exposing (DemoBody)
 import Common.Demo as Demo exposing (Demo, DemoProgram)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics
+import Physics.Body as Body exposing (Body)
 
 
 main : DemoProgram
@@ -13,30 +13,27 @@ main =
         |> Demo.run
 
 
-initialBodies : List ( DemoBody, Physics.Body )
+initialBodies : List (Body DemoBody)
 initialBodies =
     [ -- corner:
-      Bodies.getBody DemoSphere (Physics.setMass 0)
-    , Bodies.getBody DemoBox
-        (Physics.offsetBy { x = 0, y = 0, z = 10 }
-            >> Physics.rotateBy { x = 1, y = 1, z = 0 } (pi / 3)
-        )
+      Bodies.sphere
+        |> Body.setMass 0
+    , Bodies.box
+        |> Body.moveBy { x = 0, y = 0, z = 10 }
+        |> Body.rotateBy (pi / 3) { x = 1, y = 1, z = 0 }
 
     -- edge:
-    , Bodies.getBody DemoSphere
-        (Physics.setMass 0
-            >> Physics.offsetBy { x = 4, y = 0, z = 0 }
-        )
-    , Bodies.getBody DemoBox
-        (Physics.offsetBy { x = 4, y = 0, z = 10 }
-            >> Physics.rotateBy { x = 1, y = 0, z = 0 } (pi / 3)
-        )
+    , Bodies.sphere
+        |> Body.setMass 0
+        |> Body.moveBy { x = 4, y = 0, z = 0 }
+    , Bodies.box
+        |> Body.moveBy { x = 4, y = 0, z = 10 }
+        |> Body.rotateBy (pi / 3) { x = 1, y = 0, z = 0 }
 
     -- face:
-    , Bodies.getBody DemoSphere
-        (Physics.setMass 0
-            >> Physics.offsetBy { x = -4, y = 0, z = 0 }
-        )
-    , Bodies.getBody DemoBox
-        (Physics.offsetBy { x = -4, y = 0, z = 10 })
+    , Bodies.sphere
+        |> Body.setMass 0
+        |> Body.moveBy { x = -4, y = 0, z = 0 }
+    , Bodies.box
+        |> Body.moveBy { x = -4, y = 0, z = 10 }
     ]

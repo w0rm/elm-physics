@@ -5,6 +5,7 @@ import Expect exposing (Expectation)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Shape)
 import Test exposing (..)
 
@@ -14,24 +15,20 @@ boundingSphereRadius =
     describe "Body.boundingSphereRadius"
         [ test "is set to zero by default" <|
             \_ ->
-                Expect.equal 0 (Body.body |> .boundingSphereRadius)
+                Expect.equal 0 (Body.compound [] () |> .boundingSphereRadius)
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
-                Body.body
-                    |> Body.addShape (box (vec3 1 1 1))
+                Body.compound [ box (vec3 1 1 1) ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length (vec3 1 1 1))
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
-                Body.body
-                    |> Body.addShape (box (vec3 1 1 1))
-                    |> Body.addShape (box (vec3 2 2 2))
+                Body.compound [ box (vec3 1 1 1), box (vec3 2 2 2) ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length (vec3 2 2 2))
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
             \_ ->
-                Body.body
-                    |> Body.addShape Shape.Plane
+                Body.compound [ plane ] ()
                     |> .boundingSphereRadius
                     |> Expect.atLeast Const.maxNumber
         ]
@@ -39,4 +36,15 @@ boundingSphereRadius =
 
 box : Vec3 -> Shape
 box halfExtends =
-    Shape.Convex (ConvexPolyhedron.fromBox halfExtends)
+    { position = vec3 0 0 0
+    , orientation = Quaternion.identity
+    , kind = Shape.Convex (ConvexPolyhedron.fromBox halfExtends)
+    }
+
+
+plane : Shape
+plane =
+    { position = vec3 0 0 0
+    , orientation = Quaternion.identity
+    , kind = Shape.Plane
+    }

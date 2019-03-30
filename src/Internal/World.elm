@@ -1,12 +1,10 @@
 module Internal.World exposing
-    ( World
-    , addBody
+    ( Protected(..)
+    , World
     , addGravityForces
-    , getNextBodyId
+    , empty
     , getPairs
-    , setGravity
     , tick
-    , world
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -15,70 +13,54 @@ import Internal.Body as Body exposing (Body, BodyId)
 import Set exposing (Set)
 
 
-type alias World =
-    { bodies : Dict BodyId Body
+type Protected data
+    = Protected (World data)
+
+
+type alias World data =
+    { bodies : List (Body data)
     , nextBodyId : BodyId
     , gravity : Vec3
     }
 
 
-world : World
-world =
-    { bodies = Dict.empty
+empty : World data
+empty =
+    { bodies = []
     , nextBodyId = 0
     , gravity = vec3 0 0 0
     }
 
 
-setGravity : Vec3 -> World -> World
-setGravity gravity world_ =
-    { world_ | gravity = gravity }
-
-
-addGravityForces : World -> World
+addGravityForces : World data -> World data
 addGravityForces world_ =
     { world_
-        | bodies = Dict.map (\_ -> Body.addGravity world_.gravity) world_.bodies
+        | bodies = List.map (Body.addGravity world_.gravity) world_.bodies
     }
 
 
-tick : Float -> World -> World
+tick : Float -> World data -> World data
 tick dt world_ =
     { world_
         | bodies =
-            Dict.map
-                (\_ -> Body.tick dt >> Body.clearForces)
+            List.map
+                (Body.tick dt >> Body.clearForces)
                 world_.bodies
     }
 
 
-{-| Predict the body id of the next body to be added
--}
-getNextBodyId : World -> BodyId
-getNextBodyId =
-    .nextBodyId
-
-
-addBody : Body -> World -> World
-addBody body world_ =
-    { world_
-        | bodies = Dict.insert world_.nextBodyId body world_.bodies
-        , nextBodyId = world_.nextBodyId + 1
-    }
-
-
-getPairs : World -> List ( BodyId, BodyId )
+getPairs : World data -> List ( Body data, Body data )
 getPairs { bodies } =
-    Dict.foldl
-        (\id1 body1 acc1 ->
-            Dict.foldl
-                (\id2 body2 ->
+    List.foldl
+        (\body1 acc1 ->
+            List.foldl
+                (\body2 ->
                     if
-                        (id1 > id2)
+                        (body1.id > body2.id)
                             && Vec3.distance body1.position body2.position
                             < (body1.boundingSphereRadius + body2.boundingSphereRadius)
                     then
-                        (::) ( id2, id1 )
+                        (::) ( body2, body1 )
 
                     else
                         identity

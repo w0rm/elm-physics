@@ -37,6 +37,9 @@ module Physics.Body exposing
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
 import AltMath.Vector3 as Vec3 exposing (Vec3)
 import AltMath.Vector4 as Vec4 exposing (Vec4)
+import Internal.Body as Internal exposing (Protected(..))
+import Internal.Quaternion as Quaternion
+import Internal.Shape as InternalShape
 import Physics.Shape as Shape exposing (Shape)
 
 
@@ -57,8 +60,8 @@ The supported bodies are:
 For complex bodies check [compound](#compound).
 
 -}
-type Body data
-    = Body data
+type alias Body data =
+    Protected data
 
 
 {-| A box is defined by its dimensions.
@@ -69,13 +72,7 @@ To create a 1x1 box, call this:
 -}
 box : Vec3 -> data -> Body data
 box dimensions =
-    compound
-        [ Shape.box
-            { dimensions = dimensions
-            , position = { x = 0, y = 0, z = 0 }
-            , orientation = { x = 0, y = 0, z = 0, w = 1 }
-            }
-        ]
+    compound [ Shape.box dimensions ]
 
 
 {-| A plane with the normal that points
@@ -83,44 +80,31 @@ in the direction of the z axis.
 
 A plane is collidable in the direction of the normal.
 
-TODO: no mass for plane?
-TODO: no plane in compound shapes?
-
 -}
 plane : data -> Body data
 plane =
-    compound
-        [ Shape.plane
-            { normal = { x = 0, y = 0, z = 1 }
-            , position = { x = 0, y = 0, z = 0 }
-            }
-        ]
+    compound [ Shape.plane ]
 
 
 {-| A sphere is defined by its radius.
 -}
 sphere : Float -> data -> Body data
 sphere radius =
-    compound
-        [ Shape.sphere
-            { radius = radius
-            , position = { x = 0, y = 0, z = 0 }
-            }
-        ]
+    compound [ Shape.sphere radius ]
 
 
 {-| Set the body mass. Bodies with zero mass don’t move!
 -}
 setMass : Float -> Body data -> Body data
-setMass _ =
-    identity
+setMass mass (Protected body) =
+    Protected (Internal.updateMassProperties { body | mass = mass })
 
 
 {-| Set the absolute position of the body in the world.
 -}
 setPosition : Vec3 -> Body data -> Body data
-setPosition _ =
-    identity
+setPosition position (Protected body) =
+    Protected (Internal.updateMassProperties { body | position = position })
 
 
 {-| Get the position and the orientation of the body in a single matrix.
@@ -129,56 +113,70 @@ To use this with WebGL, pass the result to [`Math.Matrix4.fromRecord`](https://p
 
 -}
 getTransformation : Body data -> Mat4
-getTransformation _ =
-    Mat4.identity
+getTransformation (Protected { position, quaternion }) =
+    Mat4.mul (Mat4.makeTranslate position) (Quaternion.toMat4 quaternion)
 
 
 {-| Move the body by a vector offset from the current position.
 -}
 moveBy : Vec3 -> Body data -> Body data
-moveBy _ =
-    identity
+moveBy offset (Protected body) =
+    Protected
+        (Internal.updateMassProperties
+            { body | position = Vec3.add offset body.position }
+        )
 
 
 {-| -}
 getPosition : Body data -> Vec3
-getPosition _ =
-    { x = 0, y = 0, z = 0 }
+getPosition (Protected { position }) =
+    position
 
 
 {-| Rotates the body by a specific angle around the axis
 from the current orientation.
 -}
 rotateBy : Float -> Vec3 -> Body data -> Body data
-rotateBy _ _ =
-    identity
+rotateBy angle axis (Protected body) =
+    Protected
+        (Internal.updateMassProperties
+            { body
+                | quaternion =
+                    Quaternion.mul
+                        (Quaternion.fromAngleAxis angle axis)
+                        body.quaternion
+            }
+        )
 
 
 {-| Sets the body orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
 -}
 setOrientation : Vec4 -> Body data -> Body data
-setOrientation _ =
-    identity
+setOrientation orientation (Protected body) =
+    Protected
+        (Internal.updateMassProperties
+            { body | quaternion = orientation }
+        )
 
 
 {-| Gets orientation as a quaternion.
 -}
 getOrientation : Body data -> Vec4
-getOrientation _ =
-    { x = 0, y = 0, z = 0, w = 1 }
+getOrientation (Protected { quaternion }) =
+    quaternion
 
 
 {-| Sets the user-defined data.
 -}
 setData : data -> Body data -> Body data
-setData data _ =
-    Body data
+setData data (Protected body) =
+    Protected { body | data = data }
 
 
 {-| Gets the user-defined data.
 -}
 getData : Body data -> data
-getData (Body data) =
+getData (Protected { data }) =
     data
 
 
@@ -187,28 +185,25 @@ getData (Body data) =
 For example, the [sphere](#sphere) from above can be defined like this:
 
     sphere radius data =
-        compound
-            [ Shape.sphere
-                { radius = radius
-                , position = { x = 0, y = 0, z = 0 }
-                }
-            ]
-            data
+        compound [ Shape.sphere radius ] data
 
 -}
 compound : List Shape -> data -> Body data
-compound _ =
-    Body
+compound shapes data =
+    let
+        unprotectedShapes =
+            List.map (\(InternalShape.Protected shape) -> shape) shapes
+    in
+    Protected (Internal.compound unprotectedShapes data)
 
 
 
--- Future
+{- Future
 
+   type Material
+       = Material
 
-type Material
-    = Material
-
-
-setMaterial : Material -> Body data -> Body data
-setMaterial _ =
-    identity
+   setMaterial : Material -> Body data -> Body data
+   setMaterial _ =
+       identity
+-}

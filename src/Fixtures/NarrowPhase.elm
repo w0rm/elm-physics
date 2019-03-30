@@ -1,11 +1,33 @@
-module Fixtures.NarrowPhase exposing (completeSphereContactEquation, sphereContactBoxPositions, sphereContactOctohedronPositions)
+module Fixtures.NarrowPhase exposing
+    ( body1
+    , body2
+    , completeSphereContactEquation
+    , sphereContactBoxPositions
+    , sphereContactOctohedronPositions
+    )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 
 
-sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List ContactEquation )
+emptyBody : Body ()
+emptyBody =
+    Body.compound [] ()
+
+
+body1 : Body ()
+body1 =
+    { emptyBody | id = 0 }
+
+
+body2 : Body ()
+body2 =
+    { emptyBody | id = 1 }
+
+
+sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List (ContactEquation ()) )
 sphereContactBoxPositions center radius boxHalfExtent =
     let
         delta =
@@ -174,7 +196,7 @@ sphereContactBoxPositions center radius boxHalfExtent =
     ]
 
 
-sphereContactOctohedronPositions : Vec3 -> Float -> Float -> List ( Vec3, List ContactEquation )
+sphereContactOctohedronPositions : Vec3 -> Float -> Float -> List ( Vec3, List (ContactEquation ()) )
 sphereContactOctohedronPositions center radius octoHalfExtent =
     let
         delta =
@@ -318,10 +340,10 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
     ]
 
 
-completeSphereContactEquation : Float -> { ni : Vec3, rj : Vec3 } -> List ContactEquation
+completeSphereContactEquation : Float -> { ni : Vec3, rj : Vec3 } -> List (ContactEquation ())
 completeSphereContactEquation radius { ni, rj } =
-    [ { bodyId1 = 0
-      , bodyId2 = 1
+    [ { body1 = body1
+      , body2 = body2
       , ni = ni
       , ri = Vec3.scale radius ni
       , rj = rj

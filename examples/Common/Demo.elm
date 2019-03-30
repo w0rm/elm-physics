@@ -21,7 +21,9 @@ import Html.Events exposing (onCheck, onClick)
 import Json.Decode exposing (Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics exposing (World)
+import Physics.Body as Body exposing (Body)
+import Physics.Debug as Debug
+import Physics.World as World exposing (World)
 import Random
 import Task
 import WebGL exposing (Entity, Mesh, Shader)
@@ -40,10 +42,8 @@ type alias Model =
     , showSettings : Bool
     , screenWidth : Float
     , screenHeight : Float
-    , initialWorld : World
-    , initialBodies : Dict Int DemoBody
-    , world : World
-    , bodies : Dict Int DemoBody
+    , initialWorld : World DemoBody
+    , world : World DemoBody
     , dt : List Float
     }
 
@@ -63,7 +63,7 @@ type Msg
     | Resize Float Float
     | ResetClick
     | SceneClick
-    | AddBody ( DemoBody, Physics.Body )
+    | AddBody (Body DemoBody)
 
 
 
@@ -77,10 +77,14 @@ type Demo
 
 
 type alias DemoConfig =
-    { world : World
-    , randomBody : Maybe (Random.Generator ( DemoBody, Physics.Body ))
-    , bodies : Dict Int DemoBody
+    { world : World DemoBody
+    , randomBody : Maybe (Random.Generator (Body DemoBody))
     }
+
+
+planeOffset : { x : Float, y : Float, z : Float }
+planeOffset =
+    { x = 0, y = 0, z = -1 }
 
 
 {-| Initial demo configuration
@@ -89,53 +93,25 @@ demo : Demo
 demo =
     Demo
         { world =
-            Physics.world
-                |> Physics.setGravity { x = 0, y = 0, z = -10 }
-                |> Physics.addBody plane
-                |> Tuple.first
-        , bodies = Dict.empty
+            World.empty
+                |> World.setGravity { x = 0, y = 0, z = -10 }
+                |> World.add (Body.moveBy planeOffset Bodies.plane)
         , randomBody = Nothing
         }
 
 
-planeOffset : { x : Float, y : Float, z : Float }
-planeOffset =
-    { x = 0, y = 0, z = -1 }
-
-
-plane : Physics.Body
-plane =
-    Physics.body
-        |> Physics.addShape Physics.plane
-        |> Tuple.first
-        |> Physics.offsetBy planeOffset
-
-
 {-| Allow to drop random bodies on click
 -}
-dropOnClick : Random.Generator ( DemoBody, Physics.Body ) -> Demo -> Demo
+dropOnClick : Random.Generator (Body DemoBody) -> Demo -> Demo
 dropOnClick randomBody (Demo demo_) =
     Demo { demo_ | randomBody = Just randomBody }
 
 
 {-| Add initial bodies for the scene
 -}
-addBodies : List ( DemoBody, Physics.Body ) -> Demo -> Demo
+addBodies : List (Body DemoBody) -> Demo -> Demo
 addBodies bodiesWithMeshes (Demo demo_) =
-    Demo
-        (List.foldl addBodyWithMesh demo_ bodiesWithMeshes)
-
-
-addBodyWithMesh : ( DemoBody, Physics.Body ) -> { a | world : World, bodies : Dict Int DemoBody } -> { a | world : World, bodies : Dict Int DemoBody }
-addBodyWithMesh ( mesh, body ) demo_ =
-    let
-        ( world, bodyId ) =
-            Physics.addBody body demo_.world
-    in
-    { demo_
-        | world = world
-        , bodies = Dict.insert bodyId mesh demo_.bodies
-    }
+    Demo { demo_ | world = List.foldl World.add demo_.world bodiesWithMeshes }
 
 
 type alias DemoProgram =
@@ -167,16 +143,14 @@ init demo_ =
       , screenWidth = 1
       , screenHeight = 1
       , initialWorld = demo_.world
-      , initialBodies = demo_.bodies
       , world = demo_.world
-      , bodies = demo_.bodies
       , dt = [ 16 ]
       }
     , Task.perform (\{ viewport } -> Resize viewport.width viewport.height) getViewport
     )
 
 
-update : Maybe (Random.Generator ( DemoBody, Physics.Body )) -> Msg -> Model -> ( Model, Cmd Msg )
+update : Maybe (Random.Generator (Body DemoBody)) -> Msg -> Model -> ( Model, Cmd Msg )
 update randomBody msg model =
     case msg of
         ToggleSettings ->
@@ -207,7 +181,7 @@ update randomBody msg model =
 
         Tick dt ->
             ( { model
-                | world = Physics.step (1 / 60) model.world
+                | world = World.simulate (1000 / 60) model.world
                 , dt = List.take 50 (dt :: model.dt)
               }
             , Cmd.none
@@ -222,15 +196,12 @@ update randomBody msg model =
                     ( model, Random.generate AddBody body_ )
 
         ResetClick ->
-            ( { model
-                | world = model.initialWorld
-                , bodies = model.initialBodies
-              }
+            ( { model | world = model.initialWorld }
             , Cmd.none
             )
 
-        AddBody bodyAndMesh ->
-            ( addBodyWithMesh bodyAndMesh model
+        AddBody body ->
+            ( { model | world = World.add body model.world }
             , Cmd.none
             )
 
@@ -247,8 +218,9 @@ type alias SceneParams =
     { lightDirection : Vec3
     , camera : Mat4
     , perspective : Mat4
-    , bodies : Dict Int DemoBody
     , debugWireframes : Bool
+    , debugNormals : Bool
+    , debugEdges : Bool
     }
 
 
@@ -266,7 +238,7 @@ view model =
 
 
 fpsMeter : Model -> Html Msg
-fpsMeter { showFpsMeter, dt, bodies } =
+fpsMeter { showFpsMeter, dt, world } =
     let
         average currentWeight sumOfWeights weightedSum list =
             case list of
@@ -281,7 +253,7 @@ fpsMeter { showFpsMeter, dt, bodies } =
                         rest
 
         numBodies =
-            Dict.size bodies
+            List.length (World.getBodies world)
     in
     Html.div
         [ style "position" "fixed"
@@ -369,7 +341,20 @@ checkbox msg value label =
 
 
 webGL : Model -> Html Msg
-webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, debugEdges, debugWireframes } =
+webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdges, debugWireframes } =
+    let
+        aspectRatio =
+            screenWidth / screenHeight
+
+        sceneParams =
+            { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
+            , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
+            , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
+            , debugWireframes = debugWireframes
+            , debugNormals = debugNormals
+            , debugEdges = debugEdges
+            }
+    in
     WebGL.toHtmlWith
         [ WebGL.depth 1
         , WebGL.alpha True
@@ -381,86 +366,91 @@ webGL { screenWidth, screenHeight, world, bodies, debugContacts, debugNormals, d
         , style "display" "block"
         , onClick SceneClick
         ]
-        (let
-            aspectRatio =
-                screenWidth / screenHeight
-
-            sceneParams =
-                { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
-                , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
-                , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
-                , bodies = bodies
-                , debugWireframes = debugWireframes
-                }
-         in
-         [ ( True, Physics.fold (addShape sceneParams) )
+        ([ ( True
+           , \entities -> List.foldl (addBodyEntities sceneParams) entities (World.getBodies world)
+           )
          , ( debugContacts
-           , Physics.foldContacts (addContactIndicator sceneParams)
-           )
-         , ( debugNormals
-           , Physics.foldFaceNormals (addNormalIndicator sceneParams)
-           )
-         , ( debugEdges
-           , Physics.foldUniqueEdges (addEdgeIndicator sceneParams)
+           , \entities -> List.foldl (addContactIndicator sceneParams) entities (Debug.getContacts world)
            )
          ]
             |> List.filter Tuple.first
             |> List.map Tuple.second
-            |> List.foldl (\fn entities -> fn entities world) []
+            |> List.foldl (<|) []
         )
 
 
-addShape : SceneParams -> { transform : { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float }, bodyId : Int, shapeId : Int } -> List Entity -> List Entity
-addShape { lightDirection, bodies, camera, perspective, debugWireframes } { transform, bodyId } tail =
-    case ( Dict.get bodyId bodies, debugWireframes ) of
-        ( Nothing, _ ) ->
-            tail
+addBodyEntities : SceneParams -> Body DemoBody -> List Entity -> List Entity
+addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals } as sceneParams) body entities =
+    let
+        transform =
+            Mat4.fromRecord (Body.getTransformation body)
 
-        ( Just demoBody, True ) ->
-            WebGL.entity
+        addEdges acc =
+            if debugEdges then
+                List.foldl (addEdgeIndicator sceneParams transform)
+                    acc
+                    (Debug.getUniqueEdges body)
+
+            else
+                acc
+
+        addNormals acc =
+            if debugNormals then
+                List.foldl (addNormalIndicator sceneParams transform)
+                    acc
+                    (Debug.getFaceNormals body)
+
+            else
+                acc
+
+        newEntities =
+            entities |> addEdges |> addNormals
+    in
+    if debugWireframes then
+        WebGL.entity
+            Shaders.vertex
+            Shaders.fragment
+            (Body.getData body |> .wireframe)
+            { camera = camera
+            , color = vec3 0.9 0.9 0.9
+            , lightDirection = lightDirection
+            , perspective = perspective
+            , transform = transform
+            }
+            :: newEntities
+
+    else
+        -- Draw a shadow
+        WebGL.entity
+            Shaders.vertex
+            Shaders.shadowFragment
+            (Body.getData body |> .mesh)
+            { camera = camera
+            , color = vec3 0.25 0.25 0.25
+            , lightDirection = lightDirection
+            , perspective = perspective
+            , transform =
+                transform
+                    -- project on the floor
+                    |> Mat4.mul
+                        (Math.makeShadow
+                            (Vec3.fromRecord planeOffset)
+                            Vec3.k
+                            lightDirection
+                        )
+            }
+            -- Draw a mesh
+            :: WebGL.entity
                 Shaders.vertex
                 Shaders.fragment
-                (Bodies.getWireframe demoBody)
+                (Body.getData body |> .mesh)
                 { camera = camera
                 , color = vec3 0.9 0.9 0.9
                 , lightDirection = lightDirection
                 , perspective = perspective
-                , transform = Mat4.fromRecord transform
+                , transform = transform
                 }
-                :: tail
-
-        ( Just demoBody, False ) ->
-            -- Draw a shadow
-            WebGL.entity
-                Shaders.vertex
-                Shaders.shadowFragment
-                (Bodies.getMesh demoBody)
-                { camera = camera
-                , color = vec3 0.25 0.25 0.25
-                , lightDirection = lightDirection
-                , perspective = perspective
-                , transform =
-                    Mat4.fromRecord transform
-                        -- project on the floor
-                        |> Mat4.mul
-                            (Math.makeShadow
-                                (Vec3.fromRecord planeOffset)
-                                Vec3.k
-                                lightDirection
-                            )
-                }
-                -- Draw a mesh
-                :: WebGL.entity
-                    Shaders.vertex
-                    Shaders.fragment
-                    (Bodies.getMesh demoBody)
-                    { camera = camera
-                    , color = vec3 0.9 0.9 0.9
-                    , lightDirection = lightDirection
-                    , perspective = perspective
-                    , transform = Mat4.fromRecord transform
-                    }
-                :: tail
+            :: newEntities
 
 
 {-| Render collision point for the purpose of debugging
@@ -475,16 +465,15 @@ addContactIndicator { lightDirection, camera, perspective } { x, y, z } tail =
         , perspective = perspective
         , color = vec3 1 0 0
         , lightDirection = lightDirection
-        , transform =
-            Mat4.makeTranslate3 x y z
+        , transform = Mat4.makeTranslate3 x y z
         }
         :: tail
 
 
 {-| Render shape face normals for the purpose of debugging
 -}
-addNormalIndicator : SceneParams -> { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float } -> { x : Float, y : Float, z : Float } -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
-addNormalIndicator { lightDirection, camera, perspective } transform normal facePoint tail =
+addNormalIndicator : SceneParams -> Mat4 -> { normal : { x : Float, y : Float, z : Float }, point : { x : Float, y : Float, z : Float } } -> List Entity -> List Entity
+addNormalIndicator { lightDirection, camera, perspective } transform { normal, point } tail =
     WebGL.entity
         Shaders.vertex
         Shaders.fragment
@@ -496,9 +485,9 @@ addNormalIndicator { lightDirection, camera, perspective } transform normal face
         , transform =
             Math.makeRotateKTo (Vec3.fromRecord normal)
                 |> Mat4.mul
-                    (Vec3.fromRecord facePoint
+                    (Vec3.fromRecord point
                         |> Mat4.makeTranslate
-                        |> Mat4.mul (Mat4.fromRecord transform)
+                        |> Mat4.mul transform
                     )
         }
         :: tail
@@ -506,8 +495,8 @@ addNormalIndicator { lightDirection, camera, perspective } transform normal face
 
 {-| Render shapes' unique edge for the purpose of debugging
 -}
-addEdgeIndicator : SceneParams -> { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float } -> { x : Float, y : Float, z : Float } -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
-addEdgeIndicator { lightDirection, camera, perspective } transform edge origin tail =
+addEdgeIndicator : SceneParams -> Mat4 -> { direction : { x : Float, y : Float, z : Float }, point : { x : Float, y : Float, z : Float } } -> List Entity -> List Entity
+addEdgeIndicator { lightDirection, camera, perspective } transform { direction, point } tail =
     WebGL.entity
         Shaders.vertex
         Shaders.fragment
@@ -517,11 +506,11 @@ addEdgeIndicator { lightDirection, camera, perspective } transform edge origin t
         , color = vec3 0 1 0
         , perspective = perspective
         , transform =
-            Math.makeRotateKTo (Vec3.fromRecord edge)
+            Math.makeRotateKTo (Vec3.fromRecord direction)
                 |> Mat4.mul
-                    (Vec3.fromRecord origin
+                    (Vec3.fromRecord point
                         |> Mat4.makeTranslate
-                        |> Mat4.mul (Mat4.fromRecord transform)
+                        |> Mat4.mul transform
                     )
         }
         :: tail
@@ -533,14 +522,14 @@ addEdgeIndicator { lightDirection, camera, perspective } transform edge origin t
 
 normalMesh : Mesh Attributes
 normalMesh =
-    Meshes.makePyramid 0.05 0.05
+    Meshes.toMesh (Meshes.pyramid 0.05 0.05)
 
 
 edgeMesh : Mesh Attributes
 edgeMesh =
-    Meshes.makePyramid 0.1 0.5
+    Meshes.toMesh (Meshes.pyramid 0.1 0.5)
 
 
 contactMesh : Mesh Attributes
 contactMesh =
-    Meshes.makeSphere 2 0.07
+    Meshes.toMesh (Meshes.sphere 2 0.07)

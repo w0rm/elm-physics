@@ -1,30 +1,39 @@
 module Internal.Shape exposing
-    ( Shape(..)
-    , ShapeId
+    ( Kind(..)
+    , Protected(..)
+    , Shape
     , aabbClosure
     , expandBoundingSphereRadius
     )
 
-import AltMath.Vector3 as Vec3
+import AltMath.Vector3 as Vec3 exposing (Vec3)
+import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Transform as Transform exposing (Transform)
 
 
-type alias ShapeId =
-    Int
+type Protected
+    = Protected Shape
 
 
-type Shape
+type alias Shape =
+    { position : Vec3
+    , orientation : Vec4
+    , kind : Kind
+    }
+
+
+type Kind
     = Convex ConvexPolyhedron
     | Plane
     | Sphere Float
 
 
-aabbClosure : Shape -> Transform -> AABB.AABB
-aabbClosure shape =
-    case shape of
+aabbClosure : Kind -> Transform -> AABB.AABB
+aabbClosure kind =
+    case kind of
         Convex convexPolyhedron ->
             AABB.convexPolyhedron convexPolyhedron
 
@@ -35,18 +44,18 @@ aabbClosure shape =
             AABB.sphere radius
 
 
-expandBoundingSphereRadius : Transform -> Shape -> Float -> Float
-expandBoundingSphereRadius shapeTransform shape boundingSphereRadius =
-    case shape of
+expandBoundingSphereRadius : Shape -> Float -> Float
+expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius =
+    case kind of
         Convex convexPolyhedron ->
             ConvexPolyhedron.expandBoundingSphereRadius
-                shapeTransform
+                { position = position, quaternion = orientation }
                 convexPolyhedron
                 boundingSphereRadius
 
         Sphere radius ->
             Const.zero3
-                |> Transform.pointToWorldFrame shapeTransform
+                |> Transform.pointToWorldFrame { position = position, quaternion = orientation }
                 |> Vec3.length
                 |> (+) radius
                 |> max boundingSphereRadius
