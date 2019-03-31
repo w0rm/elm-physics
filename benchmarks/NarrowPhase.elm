@@ -13,7 +13,6 @@ module NarrowPhase exposing (main)
 -}
 {- import Physics.OriginalNarrowPhase as OriginalNarrowPhase -}
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Fixtures.ConvexPolyhedron as HullFixtures
@@ -22,6 +21,7 @@ import Internal.Body as Body exposing (Body)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 emptyBody : Body ()
@@ -100,7 +100,7 @@ suite =
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 originalBoxHull
                                 body2
@@ -114,12 +114,12 @@ suite =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 boxHull
                                 body2
@@ -135,12 +135,12 @@ suite =
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 originalBoxHull
                                 body2
@@ -154,12 +154,12 @@ suite =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 boxHull
                                 body2
@@ -175,12 +175,12 @@ suite =
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 originalOctoHull
                                 body2
@@ -194,12 +194,12 @@ suite =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 octoHull
                                 body2
@@ -215,12 +215,12 @@ suite =
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 originalOctoHull
                                 body2
@@ -234,12 +234,12 @@ suite =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 octoHull
                                 body2

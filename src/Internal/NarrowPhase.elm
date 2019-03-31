@@ -5,7 +5,6 @@ module Internal.NarrowPhase exposing
 
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)
@@ -15,6 +14,7 @@ import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Kind(..), Shape)
 import Internal.Transform as Transform exposing (Transform)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as World exposing (World)
 import Set exposing (Set)
 
@@ -137,7 +137,7 @@ addPlaneConvexContacts : Transform -> Body data -> Transform -> ConvexPolyhedron
 addPlaneConvexContacts planeTransform planeBody convexTransform convexPolyhedron convexBody contactEquations =
     let
         worldNormal =
-            Quaternion.rotate planeTransform.quaternion Vec3.k
+            Quaternion.rotate planeTransform.orientation Vec3.k
     in
     Array.foldl
         (\vertex currentContactEquations ->
@@ -213,7 +213,7 @@ addPlaneSphereContacts : Transform -> Body data -> Transform -> Float -> Body da
 addPlaneSphereContacts planeTransform body1 t2 radius body2 contactEquations =
     let
         worldPlaneNormal =
-            Quaternion.rotate planeTransform.quaternion Vec3.k
+            Quaternion.rotate planeTransform.orientation Vec3.k
 
         worldVertex =
             worldPlaneNormal

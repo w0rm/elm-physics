@@ -12,7 +12,6 @@ module ConvexPolyhedronTest exposing
     , testSepAxis
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron
@@ -20,6 +19,7 @@ import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 
 
@@ -91,7 +91,7 @@ clipFaceAgainstHull =
                     -- only 0.05 units of the box will be below plane z=0
                     transform =
                         { position = vec3 0 0 0.45
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
 
                     -- points in the plane z
@@ -147,12 +147,12 @@ clipAgainstHull =
 
                     t1 =
                         { position = vec3 0 0 2.1 -- going slightly into another box
-                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
                         }
 
                     t2 =
                         { position = vec3 0 0 4
-                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
                         }
                 in
                 {-
@@ -188,12 +188,12 @@ clipAgainstHull =
 
                     t1 =
                         { position = vec3 -0.5 0 0
-                        , quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 0 0 1)
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 0 1)
                         }
 
                     t2 =
                         { position = vec3 0.5 0 0
-                        , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
                 in
                 {-
@@ -220,12 +220,12 @@ clipAgainstHull =
 
                     t1 =
                         { position = vec3 -2.9496035986031215 -0.059705884468658266 0.05803282809897854
-                        , quaternion = { x = -0.022809298766761247, y = 0.006783793446053796, z = 0.002763745916207627, w = 0.9997129976872166 }
+                        , orientation = { x = -0.022809298766761247, y = 0.006783793446053796, z = 0.002763745916207627, w = 0.9997129976872166 }
                         }
 
                     t2 =
                         { position = vec3 -1.7732501140437167 -0.23893989356833145 1.9746722038817583
-                        , quaternion = { x = -0.14987379072976215, y = 0.5294480629310288, z = 0.19937553795533458, w = -0.8108464653532712 }
+                        , orientation = { x = -0.14987379072976215, y = 0.5294480629310288, z = 0.19937553795533458, w = -0.8108464653532712 }
                         }
 
                     maybeSeparatingAxis =
@@ -255,11 +255,11 @@ testSepAxis =
                 Expect.equal
                     (ConvexPolyhedron.testSepAxis
                         { position = vec3 -0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         { position = vec3 0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         (vec3 1 0 0)
@@ -270,11 +270,11 @@ testSepAxis =
                 Expect.equal
                     (ConvexPolyhedron.testSepAxis
                         { position = vec3 -5.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         { position = vec3 0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         (vec3 1 0 0)
@@ -285,11 +285,11 @@ testSepAxis =
                 case
                     ConvexPolyhedron.testSepAxis
                         { position = vec3 1 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         { position = vec3 0.2 0 0
-                        , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
                         (boxHull 0.5)
                         (vec3 1 0 0)
@@ -310,11 +310,11 @@ findSeparatingAxis =
                 Expect.equal
                     (ConvexPolyhedron.findSeparatingAxis
                         { position = vec3 -0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         { position = vec3 0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                     )
@@ -324,11 +324,11 @@ findSeparatingAxis =
                 Expect.equal
                     (ConvexPolyhedron.findSeparatingAxis
                         { position = vec3 -0.2 0 0
-                        , quaternion = Quaternion.identity
+                        , orientation = Quaternion.identity
                         }
                         (boxHull 0.5)
                         { position = vec3 0.2 0 0
-                        , quaternion = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
                         }
                         (boxHull 0.5)
                     )
@@ -370,7 +370,7 @@ project =
             \_ ->
                 Expect.equal
                     (ConvexPolyhedron.project
-                        { quaternion = Quaternion.identity
+                        { orientation = Quaternion.identity
                         , position = vec3 0 1 0
                         }
                         (boxHull 0.5)
@@ -380,7 +380,7 @@ project =
         , test "works for the rotation and offset" <|
             \_ ->
                 ConvexPolyhedron.project
-                    { quaternion = Quaternion.fromAngleAxis (pi / 2) (vec3 1 0 0)
+                    { orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 1 0 0)
                     , position = vec3 0 1 0
                     }
                     (boxHull 0.5)

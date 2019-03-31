@@ -34,11 +34,11 @@ module Physics.Body exposing
 
 -}
 
-import Internal.Matrix4 as Mat4 exposing (Mat4)
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as Internal exposing (Protected(..))
+import Internal.Matrix4 as Mat4 exposing (Mat4)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as InternalShape
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Shape as Shape exposing (Shape)
 
 
@@ -112,8 +112,8 @@ To use this with WebGL, pass the result to [`Math.Matrix4.fromRecord`](https://p
 
 -}
 getTransformation : Body data -> Mat4
-getTransformation (Protected { position, quaternion }) =
-    Mat4.mul (Mat4.makeTranslate position) (Quaternion.toMat4 quaternion)
+getTransformation (Protected { position, orientation }) =
+    Mat4.mul (Mat4.makeTranslate position) (Quaternion.toMat4 orientation)
 
 
 {-| Move the body by a vector offset from the current position.
@@ -140,10 +140,10 @@ rotateBy angle axis (Protected body) =
     Protected
         (Internal.updateMassProperties
             { body
-                | quaternion =
+                | orientation =
                     Quaternion.mul
                         (Quaternion.fromAngleAxis angle axis)
-                        body.quaternion
+                        body.orientation
             }
         )
 
@@ -154,15 +154,15 @@ setOrientation : Quaternion -> Body data -> Body data
 setOrientation orientation (Protected body) =
     Protected
         (Internal.updateMassProperties
-            { body | quaternion = orientation }
+            { body | orientation = orientation }
         )
 
 
 {-| Gets orientation as a quaternion.
 -}
 getOrientation : Body data -> Quaternion
-getOrientation (Protected { quaternion }) =
-    quaternion
+getOrientation (Protected { orientation }) =
+    orientation
 
 
 {-| Sets the user-defined data.

@@ -1,6 +1,5 @@
 module NarrowPhaseTest exposing (addSphereConvexContacts)
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase exposing (body1, body2)
@@ -9,6 +8,7 @@ import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 
 
@@ -69,12 +69,12 @@ addSphereConvexContacts =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 boxHull
                                 body2
@@ -93,12 +93,12 @@ addSphereConvexContacts =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 boxHull
                                 body2
@@ -112,12 +112,12 @@ addSphereConvexContacts =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 octoHull
                                 body2
@@ -136,12 +136,12 @@ addSphereConvexContacts =
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
                                 { position = center
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 radius
                                 body1
                                 { position = position
-                                , quaternion = Quaternion.identity
+                                , orientation = Quaternion.identity
                                 }
                                 octoHull
                                 body2
