@@ -10,14 +10,14 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import Internal.Matrix4 as Mat4 exposing (Mat4)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
+import Internal.Matrix4 as Mat4 exposing (Mat4)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 type alias BodyId =
@@ -34,7 +34,7 @@ type alias Body data =
     , position : Vec3
     , velocity : Vec3
     , angularVelocity : Vec3
-    , quaternion : Quaternion
+    , orientation : Quaternion
     , mass : Float
     , shapes : List Shape
     , force : Vec3
@@ -57,7 +57,7 @@ compound shapes data =
         , position = Const.zero3
         , velocity = Const.zero3
         , angularVelocity = Const.zero3
-        , quaternion = Quaternion.identity
+        , orientation = Quaternion.identity
         , mass = 0
         , shapes = shapes
         , force = Const.zero3
@@ -91,11 +91,11 @@ clearForces body_ =
 
 
 shapeWorldTransform : Shape -> Body data -> Transform
-shapeWorldTransform shape { position, quaternion } =
-    { quaternion =
-        Quaternion.mul quaternion shape.orientation
+shapeWorldTransform shape { position, orientation } =
+    { orientation =
+        Quaternion.mul orientation shape.orientation
     , position =
-        Vec3.add position (Quaternion.rotate quaternion shape.position)
+        Vec3.add position (Quaternion.rotate orientation shape.position)
     }
 
 
@@ -128,8 +128,8 @@ tick dt body_ =
                 newVelocity
                     |> Vec3.scale dt
                     |> Vec3.add body_.position
-            , quaternion =
-                body_.quaternion
+            , orientation =
+                body_.orientation
                     |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                     |> Quaternion.normalize
         }
@@ -194,14 +194,14 @@ updateMassProperties ({ mass } as body_) =
 
 
 updateInertiaWorld : Bool -> Body data -> Body data
-updateInertiaWorld force ({ invInertia, quaternion } as body_) =
+updateInertiaWorld force ({ invInertia, orientation } as body_) =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         body_
 
     else
         let
             m =
-                Quaternion.toMat4 quaternion
+                Quaternion.toMat4 orientation
         in
         { body_
             | invInertiaWorld =

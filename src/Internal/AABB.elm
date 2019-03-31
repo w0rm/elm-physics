@@ -8,12 +8,12 @@ module Internal.AABB exposing
     , toHalfExtends
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 type alias AABB =
@@ -109,10 +109,10 @@ type T3
 
 
 plane : Transform -> AABB
-plane { position, quaternion } =
+plane { position, orientation } =
     let
         { x, y, z } =
-            Quaternion.rotate quaternion Vec3.k
+            Quaternion.rotate orientation Vec3.k
     in
     if abs x == 1 then
         { maximum | upperBound = vec3 position.x (x * Const.maxNumber) (x * Const.maxNumber) }

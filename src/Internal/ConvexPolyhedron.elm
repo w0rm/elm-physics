@@ -20,12 +20,12 @@ module Internal.ConvexPolyhedron exposing
     , testSepAxis
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Dict
 import Internal.Const as Const
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Set
 
 
@@ -320,7 +320,7 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                      )
 
                 planeNormalWS =
-                    Quaternion.rotate t1.quaternion normal
+                    Quaternion.rotate t1.orientation normal
 
                 planeEqWS =
                     localPlaneEq - Vec3.dot planeNormalWS t1.position
@@ -348,7 +348,7 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                                 -(Vec3.dot otherFaceVertex otherFaceNormal)
 
                             planeNormalWS_ =
-                                Quaternion.rotate t1.quaternion otherFaceNormal
+                                Quaternion.rotate t1.orientation otherFaceNormal
 
                             planeEqWS_ =
                                 localPlaneEq_ - Vec3.dot planeNormalWS_ t1.position
@@ -431,7 +431,7 @@ bestFace comparator transform faces separatingNormal =
                 let
                     faceDistance =
                         face.normal
-                            |> Quaternion.rotate transform.quaternion
+                            |> Quaternion.rotate transform.orientation
                             |> Vec3.dot separatingNormal
                 in
                 if compareFunc faceDistance bestDistance then
@@ -551,8 +551,8 @@ findSeparatingAxis t1 hull1 t2 hull2 =
                                     restFaces
     in
     { dmin = Const.maxNumber, target = Const.zero3 }
-        |> bestFaceNormal t1.quaternion (Array.toList hull1.faces)
-        |> Maybe.andThen (bestFaceNormal t2.quaternion (Array.toList hull2.faces))
+        |> bestFaceNormal t1.orientation (Array.toList hull1.faces)
+        |> Maybe.andThen (bestFaceNormal t2.orientation (Array.toList hull2.faces))
         |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
         |> Maybe.map
             (\{ target } ->
@@ -571,13 +571,13 @@ testEdges t1 hull1 t2 hull2 context =
         (\edge1 acc1 ->
             let
                 worldEdge1 =
-                    Quaternion.rotate t1.quaternion edge1
+                    Quaternion.rotate t1.orientation edge1
             in
             List.foldl
                 (\edge2 acc2 ->
                     let
                         worldEdge2 =
-                            Quaternion.rotate t2.quaternion edge2
+                            Quaternion.rotate t2.orientation edge2
 
                         cross =
                             Vec3.cross worldEdge1 worldEdge2
@@ -744,7 +744,7 @@ sphereContact center radius t2 { vertices, faces } =
                             QualifiedEdges acc ->
                                 sphereTestFace
                                     radius
-                                    (Quaternion.rotate t2.quaternion normal)
+                                    (Quaternion.rotate t2.orientation normal)
                                     reframedVertices
                                     vertexIndices
                                     acc

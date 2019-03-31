@@ -6,12 +6,12 @@ module Internal.Transform exposing
     , vectorToLocalFrame
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 type alias Transform =
-    { quaternion : Quaternion
+    { orientation : Quaternion
     , position : Vec3
     }
 
@@ -19,26 +19,26 @@ type alias Transform =
 identity : Transform
 identity =
     { position = vec3 0 0 0
-    , quaternion = Quaternion.identity
+    , orientation = Quaternion.identity
     }
 
 
 pointToWorldFrame : Transform -> Vec3 -> Vec3
-pointToWorldFrame { position, quaternion } localPoint =
+pointToWorldFrame { position, orientation } localPoint =
     localPoint
-        |> Quaternion.rotate quaternion
+        |> Quaternion.rotate orientation
         |> Vec3.add position
 
 
 vectorToLocalFrame : Transform -> Vec3 -> Vec3
-vectorToLocalFrame { quaternion } worldVector =
+vectorToLocalFrame { orientation } worldVector =
     Quaternion.rotate
-        { quaternion | w = -1 * quaternion.w }
+        { orientation | w = -1 * orientation.w }
         worldVector
 
 
 pointToLocalFrame : Transform -> Vec3 -> Vec3
-pointToLocalFrame { position, quaternion } worldPoint =
+pointToLocalFrame { position, orientation } worldPoint =
     Quaternion.rotate
-        { quaternion | w = -1 * quaternion.w }
+        { orientation | w = -1 * orientation.w }
         (Vec3.sub worldPoint position)

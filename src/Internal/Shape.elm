@@ -6,12 +6,12 @@ module Internal.Shape exposing
     , expandBoundingSphereRadius
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type Protected
@@ -49,13 +49,13 @@ expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius 
     case kind of
         Convex convexPolyhedron ->
             ConvexPolyhedron.expandBoundingSphereRadius
-                { position = position, quaternion = orientation }
+                { position = position, orientation = orientation }
                 convexPolyhedron
                 boundingSphereRadius
 
         Sphere radius ->
             Const.zero3
-                |> Transform.pointToWorldFrame { position = position, quaternion = orientation }
+                |> Transform.pointToWorldFrame { position = position, orientation = orientation }
                 |> Vec3.length
                 |> (+) radius
                 |> max boundingSphereRadius
