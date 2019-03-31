@@ -10,8 +10,8 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const

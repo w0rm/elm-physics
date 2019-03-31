@@ -34,8 +34,8 @@ module Physics.Body exposing
 
 -}
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as Internal exposing (Protected(..))
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as InternalShape

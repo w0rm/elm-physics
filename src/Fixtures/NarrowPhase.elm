@@ -6,7 +6,7 @@ module Fixtures.NarrowPhase exposing
     , sphereContactOctohedronPositions
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)

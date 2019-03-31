@@ -7,7 +7,7 @@ module Internal.World exposing
     , tick
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)
 import Set exposing (Set)

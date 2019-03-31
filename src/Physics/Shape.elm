@@ -14,7 +14,7 @@ they can be moved and rotated just like bodies in the world.
 
 -}
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron

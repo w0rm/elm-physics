@@ -6,7 +6,7 @@ module Internal.Transform exposing
     , vectorToLocalFrame
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 
 

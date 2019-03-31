@@ -1,4 +1,4 @@
-module AltMath.Matrix4 exposing
+module Internal.Matrix4 exposing
     ( Mat4
     , identity
     , makeTranslate
@@ -8,7 +8,7 @@ module AltMath.Matrix4 exposing
     , transpose
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 {-| 4x4 matrix type

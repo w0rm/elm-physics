@@ -1,4 +1,4 @@
-module AltMath.Vector3 exposing
+module Internal.Vector3 exposing
     ( Vec3, vec3, i, j, k
     , add, sub, negate, scale, dot, cross, normalize, direction
     , length, lengthSquared, distance, distanceSquared

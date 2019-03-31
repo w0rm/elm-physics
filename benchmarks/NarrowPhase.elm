@@ -13,7 +13,7 @@ module NarrowPhase exposing (main)
 -}
 {- import Physics.OriginalNarrowPhase as OriginalNarrowPhase -}
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Fixtures.ConvexPolyhedron as HullFixtures

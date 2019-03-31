@@ -6,7 +6,7 @@ module Internal.Shape exposing
     , expandBoundingSphereRadius
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)

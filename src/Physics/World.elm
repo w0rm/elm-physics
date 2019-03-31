@@ -14,7 +14,7 @@ module Physics.World exposing
 
 -}
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as InternalBody
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Solver as Solver
