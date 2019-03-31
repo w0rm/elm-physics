@@ -21,11 +21,10 @@ module Internal.ConvexPolyhedron exposing
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Array exposing (Array)
 import Dict
 import Internal.Const as Const
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Set
 
@@ -525,7 +524,7 @@ lerp t v1 v2 =
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
 findSeparatingAxis t1 hull1 t2 hull2 =
     let
-        bestFaceNormal : Vec4 -> List Face -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
+        bestFaceNormal : Quaternion -> List Face -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
         bestFaceNormal quat faces bestSoFar =
             case faces of
                 [] ->

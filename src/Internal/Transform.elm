@@ -7,12 +7,11 @@ module Internal.Transform exposing
     )
 
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 
 
 type alias Transform =
-    { quaternion : Vec4
+    { quaternion : Quaternion
     , position : Vec3
     }
 
@@ -34,12 +33,12 @@ pointToWorldFrame { position, quaternion } localPoint =
 vectorToLocalFrame : Transform -> Vec3 -> Vec3
 vectorToLocalFrame { quaternion } worldVector =
     Quaternion.rotate
-        (Vec4.setW (-1 * Vec4.getW quaternion) quaternion)
+        { quaternion | w = -1 * quaternion.w }
         worldVector
 
 
 pointToLocalFrame : Transform -> Vec3 -> Vec3
 pointToLocalFrame { position, quaternion } worldPoint =
-    position
-        |> Vec3.sub worldPoint
-        |> Quaternion.rotate (Quaternion.conjugate quaternion)
+    Quaternion.rotate
+        { quaternion | w = -1 * quaternion.w }
+        (Vec3.sub worldPoint position)

@@ -6,7 +6,6 @@ module Internal.SolverBody exposing
 
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)

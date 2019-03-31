@@ -15,11 +15,10 @@ they can be moved and rotated just like bodies in the world.
 -}
 
 import AltMath.Vector3 as Vec3 exposing (Vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Internal exposing (Protected(..))
 
 
@@ -105,7 +104,7 @@ setPosition position (Protected shape) =
 
 {-| Sets the local shape orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
 -}
-setOrientation : Vec4 -> Shape -> Shape
+setOrientation : Quaternion -> Shape -> Shape
 setOrientation orientation (Protected shape) =
     Protected { shape | orientation = orientation }
 

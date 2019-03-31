@@ -12,11 +12,10 @@ module Internal.Body exposing
 
 import AltMath.Matrix4 as Mat4 exposing (Mat4)
 import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
 import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
 
@@ -35,7 +34,7 @@ type alias Body data =
     , position : Vec3
     , velocity : Vec3
     , angularVelocity : Vec3
-    , quaternion : Vec4
+    , quaternion : Quaternion
     , mass : Float
     , shapes : List Shape
     , force : Vec3
@@ -134,7 +133,7 @@ tick dt body_ =
             , quaternion =
                 body_.quaternion
                     |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                    |> Vec4.normalize
+                    |> Quaternion.normalize
         }
 
 
