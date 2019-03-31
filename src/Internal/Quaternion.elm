@@ -6,10 +6,10 @@ module Internal.Quaternion exposing
     , normalize
     , rotate
     , rotateBy
-    , toMat4
+    , toMat3
     )
 
-import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
@@ -40,24 +40,17 @@ fromAngleAxis angle axis =
     { x = x * s, y = y * s, z = z * s, w = c }
 
 
-toMat4 : Quaternion -> Mat4
-toMat4 { x, y, z, w } =
+toMat3 : Quaternion -> Mat3
+toMat3 { x, y, z, w } =
     { m11 = 1 - 2 * y * y - 2 * z * z
     , m12 = 2 * x * y - 2 * w * z
     , m13 = 2 * x * z + 2 * w * y
-    , m14 = 0
     , m21 = 2 * x * y + 2 * w * z
     , m22 = 1 - 2 * x * x - 2 * z * z
     , m23 = 2 * y * z - 2 * w * x
-    , m24 = 0
     , m31 = 2 * x * z - 2 * w * y
     , m32 = 2 * y * z + 2 * w * x
     , m33 = 1 - 2 * x * x - 2 * y * y
-    , m34 = 0
-    , m41 = 0
-    , m42 = 0
-    , m43 = 0
-    , m44 = 1
     }
 
 

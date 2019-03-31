@@ -13,7 +13,7 @@ module Internal.Body exposing
 import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
-import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
@@ -45,7 +45,7 @@ type alias Body data =
     , invMass : Float
     , inertia : Vec3
     , invInertia : Vec3
-    , invInertiaWorld : Mat4
+    , invInertiaWorld : Mat3
     }
 
 
@@ -68,7 +68,7 @@ compound shapes data =
         , invMass = 0
         , inertia = Const.zero3
         , invInertia = Const.zero3
-        , invInertiaWorld = Mat4.identity
+        , invInertiaWorld = Mat3.identity
         }
 
 
@@ -116,7 +116,7 @@ tick dt body_ =
 
         newAngularVelocity =
             body_.torque
-                |> Mat4.transform body_.invInertiaWorld
+                |> Mat3.transform body_.invInertiaWorld
                 |> Vec3.scale dt
                 |> Vec3.add body_.angularVelocity
     in
@@ -201,13 +201,13 @@ updateInertiaWorld force ({ invInertia, orientation } as body_) =
     else
         let
             m =
-                Quaternion.toMat4 orientation
+                Quaternion.toMat3 orientation
         in
         { body_
             | invInertiaWorld =
-                Mat4.mul
-                    (Mat4.transpose m)
-                    (Mat4.scale invInertia m)
+                Mat3.mul
+                    (Mat3.transpose m)
+                    (Mat3.scale invInertia m)
         }
 
 

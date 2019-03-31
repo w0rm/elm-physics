@@ -4,11 +4,11 @@ module Internal.SolverBody exposing
     , fromBody
     )
 
-import Internal.Matrix4 as Mat4 exposing (Mat4)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
+import Internal.Matrix3 as Mat3
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 type alias SolverBody data =
@@ -35,7 +35,7 @@ addToWlambda deltalambda { spatial, rotational } { body, vlambda, wlambda } =
             |> Vec3.add vlambda
     , wlambda =
         rotational
-            |> Mat4.transform body.invInertiaWorld
+            |> Mat3.transform body.invInertiaWorld
             |> Vec3.scale deltalambda
             |> Vec3.add wlambda
     }
