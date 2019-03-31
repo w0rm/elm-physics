@@ -13,11 +13,11 @@ module ConvexPolyhedron exposing (main)
 -}
 {- import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron -}
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Internal.ConvexPolyhedron as ConvexPolyhedron
 import Internal.Quaternion as Quaternion
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 main : BenchmarkProgram
@@ -47,7 +47,7 @@ suite =
         -- only 0.05 units of the box will be below plane z=0
         transform =
             { position = vec3 0 0 0.45
-            , quaternion = Quaternion.identity
+            , orientation = Quaternion.identity
             }
 
         -- points in the plane z
