@@ -12,8 +12,7 @@ module ConvexPolyhedronTest exposing
     , testSepAxis
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4, vec4)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron
@@ -221,12 +220,12 @@ clipAgainstHull =
 
                     t1 =
                         { position = vec3 -2.9496035986031215 -0.059705884468658266 0.05803282809897854
-                        , quaternion = vec4 -0.022809298766761247 0.006783793446053796 0.002763745916207627 0.9997129976872166
+                        , quaternion = { x = -0.022809298766761247, y = 0.006783793446053796, z = 0.002763745916207627, w = 0.9997129976872166 }
                         }
 
                     t2 =
                         { position = vec3 -1.7732501140437167 -0.23893989356833145 1.9746722038817583
-                        , quaternion = vec4 -0.14987379072976215 0.5294480629310288 0.19937553795533458 -0.8108464653532712
+                        , quaternion = { x = -0.14987379072976215, y = 0.5294480629310288, z = 0.19937553795533458, w = -0.8108464653532712 }
                         }
 
                     maybeSeparatingAxis =

@@ -1,6 +1,6 @@
 module BodyTest exposing (boundingSphereRadius, box)
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const

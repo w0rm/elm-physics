@@ -1,6 +1,6 @@
 module Internal.Solver exposing (solve)
 
-import AltMath.Vector3 as Vec3
+import Internal.Vector3 as Vec3
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const

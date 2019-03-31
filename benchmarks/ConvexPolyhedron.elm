@@ -13,7 +13,7 @@ module ConvexPolyhedron exposing (main)
 -}
 {- import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron -}
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Internal.ConvexPolyhedron as ConvexPolyhedron

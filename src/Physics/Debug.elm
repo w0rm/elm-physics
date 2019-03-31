@@ -6,7 +6,7 @@ module Physics.Debug exposing (getContacts, getFaceNormals, getUniqueEdges)
 
 -}
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as InternalBody
 import Internal.ConvexPolyhedron as ConvexPolyhedron
 import Internal.NarrowPhase as NarrowPhase

@@ -5,7 +5,7 @@ module Internal.NarrowPhase exposing
 
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Array exposing (Array)
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)

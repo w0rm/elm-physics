@@ -1,6 +1,6 @@
 module NarrowPhaseTest exposing (addSphereConvexContacts)
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase exposing (body1, body2)

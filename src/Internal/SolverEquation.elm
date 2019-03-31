@@ -5,8 +5,8 @@ module Internal.SolverEquation exposing
     , computeGWlambda
     )
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body exposing (BodyId)
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
@@ -313,7 +313,7 @@ tangents vec =
                 Vec3.normalize vec
 
             v =
-                if abs (Vec3.getX normalized) < 0.9 then
+                if abs normalized.x < 0.9 then
                     Vec3.cross normalized Vec3.i
 
                 else

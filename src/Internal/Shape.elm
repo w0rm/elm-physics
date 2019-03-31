@@ -6,11 +6,11 @@ module Internal.Shape exposing
     , expandBoundingSphereRadius
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 
 
@@ -20,7 +20,7 @@ type Protected
 
 type alias Shape =
     { position : Vec3
-    , orientation : Vec4
+    , orientation : Quaternion
     , kind : Kind
     }
 

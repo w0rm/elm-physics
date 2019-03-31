@@ -10,13 +10,12 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
 
@@ -35,7 +34,7 @@ type alias Body data =
     , position : Vec3
     , velocity : Vec3
     , angularVelocity : Vec3
-    , quaternion : Vec4
+    , quaternion : Quaternion
     , mass : Float
     , shapes : List Shape
     , force : Vec3
@@ -63,8 +62,6 @@ compound shapes data =
         , shapes = shapes
         , force = Const.zero3
         , torque = Const.zero3
-
-        -- TODO: support shape's position and rotation
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 shapes
 
         -- mass props
@@ -134,7 +131,7 @@ tick dt body_ =
             , quaternion =
                 body_.quaternion
                     |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                    |> Vec4.normalize
+                    |> Quaternion.normalize
         }
 
 
@@ -198,7 +195,7 @@ updateMassProperties ({ mass } as body_) =
 
 updateInertiaWorld : Bool -> Body data -> Body data
 updateInertiaWorld force ({ invInertia, quaternion } as body_) =
-    if not force && Vec3.getX invInertia == Vec3.getY invInertia && Vec3.getY invInertia == Vec3.getZ invInertia then
+    if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         body_
 
     else

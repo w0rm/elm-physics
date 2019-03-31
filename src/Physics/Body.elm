@@ -34,11 +34,10 @@ module Physics.Body exposing
 
 -}
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as Internal exposing (Protected(..))
-import Internal.Quaternion as Quaternion
+import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as InternalShape
 import Physics.Shape as Shape exposing (Shape)
 
@@ -151,7 +150,7 @@ rotateBy angle axis (Protected body) =
 
 {-| Sets the body orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
 -}
-setOrientation : Vec4 -> Body data -> Body data
+setOrientation : Quaternion -> Body data -> Body data
 setOrientation orientation (Protected body) =
     Protected
         (Internal.updateMassProperties
@@ -161,7 +160,7 @@ setOrientation orientation (Protected body) =
 
 {-| Gets orientation as a quaternion.
 -}
-getOrientation : Body data -> Vec4
+getOrientation : Body data -> Quaternion
 getOrientation (Protected { quaternion }) =
     quaternion
 

@@ -1,24 +1,28 @@
 module Internal.Quaternion exposing
-    ( conjugate
+    ( Quaternion
     , fromAngleAxis
     , identity
     , mul
+    , normalize
     , rotate
     , rotateBy
     , toMat4
     )
 
-import AltMath.Matrix4 as Mat4 exposing (Mat4)
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
-import AltMath.Vector4 as Vec4 exposing (Vec4, vec4)
+import Internal.Matrix4 as Mat4 exposing (Mat4)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
-identity : Vec4
+type alias Quaternion =
+    { x : Float, y : Float, z : Float, w : Float }
+
+
+identity : Quaternion
 identity =
-    vec4 0 0 0 1
+    { x = 0, y = 0, z = 0, w = 1 }
 
 
-fromAngleAxis : Float -> Vec3 -> Vec4
+fromAngleAxis : Float -> Vec3 -> Quaternion
 fromAngleAxis angle axis =
     let
         { x, y, z } =
@@ -33,10 +37,10 @@ fromAngleAxis angle axis =
         s =
             sin theta
     in
-    vec4 (x * s) (y * s) (z * s) c
+    { x = x * s, y = y * s, z = z * s, w = c }
 
 
-toMat4 : Vec4 -> Mat4
+toMat4 : Quaternion -> Mat4
 toMat4 { x, y, z, w } =
     { m11 = 1 - 2 * y * y - 2 * z * z
     , m12 = 2 * x * y - 2 * w * z
@@ -57,23 +61,18 @@ toMat4 { x, y, z, w } =
     }
 
 
-mul : Vec4 -> Vec4 -> Vec4
+mul : Quaternion -> Quaternion -> Quaternion
 mul q1 q2 =
-    vec4
-        (q1.x * q2.w + q1.y * q2.z - q1.z * q2.y + q1.w * q2.x)
-        (-q1.x * q2.z + q1.y * q2.w + q1.z * q2.x + q1.w * q2.y)
-        (q1.x * q2.y - q1.y * q2.x + q1.z * q2.w + q1.w * q2.z)
-        (-q1.x * q2.x - q1.y * q2.y - q1.z * q2.z + q1.w * q2.w)
-
-
-conjugate : Vec4 -> Vec4
-conjugate { x, y, z, w } =
-    vec4 -x -y -z w
+    { x = q1.x * q2.w + q1.y * q2.z - q1.z * q2.y + q1.w * q2.x
+    , y = -q1.x * q2.z + q1.y * q2.w + q1.z * q2.x + q1.w * q2.y
+    , z = q1.x * q2.y - q1.y * q2.x + q1.z * q2.w + q1.w * q2.z
+    , w = -q1.x * q2.x - q1.y * q2.y - q1.z * q2.z + q1.w * q2.w
+    }
 
 
 {-| angularDistance = angularVelocity \* dt / 2
 -}
-rotateBy : Vec3 -> Vec4 -> Vec4
+rotateBy : Vec3 -> Quaternion -> Quaternion
 rotateBy angularDistance quaternion =
     let
         a =
@@ -82,14 +81,14 @@ rotateBy angularDistance quaternion =
         b =
             quaternion
     in
-    vec4
-        (b.x + (a.x * b.w + a.y * b.z - a.z * b.y))
-        (b.y + (a.y * b.w + a.z * b.x - a.x * b.z))
-        (b.z + (a.z * b.w + a.x * b.y - a.y * b.x))
-        (b.w + (-a.x * b.x - a.y * b.y - a.z * b.z))
+    { x = b.x + (a.x * b.w + a.y * b.z - a.z * b.y)
+    , y = b.y + (a.y * b.w + a.z * b.x - a.x * b.z)
+    , z = b.z + (a.z * b.w + a.x * b.y - a.y * b.x)
+    , w = b.w + (-a.x * b.x - a.y * b.y - a.z * b.z)
+    }
 
 
-rotate : Vec4 -> Vec3 -> Vec3
+rotate : Quaternion -> Vec3 -> Vec3
 rotate q { x, y, z } =
     let
         ix =
@@ -108,3 +107,25 @@ rotate q { x, y, z } =
         (ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y)
         (iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z)
         (iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x)
+
+
+{-| A unit vector with the same direction as the given vector: a / |a|
+-}
+normalize : Quaternion -> Quaternion
+normalize v4 =
+    let
+        len =
+            length v4
+    in
+    { x = v4.x / len
+    , y = v4.y / len
+    , z = v4.z / len
+    , w = v4.w / len
+    }
+
+
+{-| The length of the given vector: |a|
+-}
+length : Quaternion -> Float
+length { x, y, z, w } =
+    sqrt (x * x + y * y + z * z + w * w)

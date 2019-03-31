@@ -8,7 +8,7 @@ module Internal.AABB exposing
     , toHalfExtends
     )
 
-import AltMath.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
@@ -115,13 +115,13 @@ plane { position, quaternion } =
             Quaternion.rotate quaternion Vec3.k
     in
     if abs x == 1 then
-        { maximum | upperBound = vec3 (Vec3.getX position) (x * Const.maxNumber) (x * Const.maxNumber) }
+        { maximum | upperBound = vec3 position.x (x * Const.maxNumber) (x * Const.maxNumber) }
 
     else if abs y == 1 then
-        { maximum | lowerBound = vec3 (y * Const.maxNumber) (Vec3.getY position) (y * Const.maxNumber) }
+        { maximum | lowerBound = vec3 (y * Const.maxNumber) position.y (y * Const.maxNumber) }
 
     else if abs z == 1 then
-        { maximum | lowerBound = vec3 (z * Const.maxNumber) (z * Const.maxNumber) (Vec3.getZ position) }
+        { maximum | lowerBound = vec3 (z * Const.maxNumber) (z * Const.maxNumber) position.z }
 
     else
         maximum
