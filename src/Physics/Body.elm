@@ -35,7 +35,6 @@ module Physics.Body exposing
 -}
 
 import Internal.Body as Internal exposing (Protected(..))
-import Internal.Matrix4 as Mat4 exposing (Mat4)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as InternalShape
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -113,7 +112,33 @@ To use this with WebGL, pass the result to [`Math.Matrix4.fromRecord`](https://p
 -}
 getTransformation : Body data -> Mat4
 getTransformation (Protected { position, orientation }) =
-    Mat4.mul (Mat4.makeTranslate position) (Quaternion.toMat4 orientation)
+    let
+        { x, y, z, w } =
+            orientation
+    in
+    { m11 = 1 - 2 * y * y - 2 * z * z
+    , m21 = 2 * x * y + 2 * w * z
+    , m31 = 2 * x * z - 2 * w * y
+    , m41 = 0
+    , m12 = 2 * x * y - 2 * w * z
+    , m22 = 1 - 2 * x * x - 2 * z * z
+    , m32 = 2 * y * z + 2 * w * x
+    , m42 = 0
+    , m13 = 2 * x * z + 2 * w * y
+    , m23 = 2 * y * z - 2 * w * x
+    , m33 = 1 - 2 * x * x - 2 * y * y
+    , m43 = 0
+    , m14 = position.x
+    , m24 = position.y
+    , m34 = position.z
+    , m44 = 1
+    }
+
+
+{-| 4x4 matrix type
+-}
+type alias Mat4 =
+    { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float }
 
 
 {-| Move the body by a vector offset from the current position.
