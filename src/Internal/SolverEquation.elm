@@ -313,7 +313,7 @@ tangents vec =
                 Vec3.normalize vec
 
             v =
-                if abs (Vec3.getX normalized) < 0.9 then
+                if abs normalized.x < 0.9 then
                     Vec3.cross normalized Vec3.i
 
                 else

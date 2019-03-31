@@ -1,9 +1,7 @@
 module AltMath.Vector3 exposing
     ( Vec3, vec3, i, j, k
-    , getX, getY, getZ, setX, setY, setZ
     , add, sub, negate, scale, dot, cross, normalize, direction
     , length, lengthSquared, distance, distanceSquared
-    , toRecord, fromRecord
     )
 
 {-| A high performance linear algebra library using native JS arrays. Geared
@@ -19,7 +17,7 @@ towards 3D graphics and use with `Graphics.WebGL`. All vectors are immutable.
 
 The set functions create a new copy of the vector, updating a single field.
 
-@docs getX, getY, getZ, setX, setY, setZ
+@docs setX, setY, setZ
 
 
 # Operations
@@ -67,62 +65,6 @@ j =
 k : Vec3
 k =
     Vec3 0 0 1
-
-
-{-| Extract the x component of a vector.
--}
-getX : Vec3 -> Float
-getX =
-    .x
-
-
-{-| Extract the y component of a vector.
--}
-getY : Vec3 -> Float
-getY =
-    .y
-
-
-{-| Extract the z component of a vector.
--}
-getZ : Vec3 -> Float
-getZ =
-    .z
-
-
-{-| Update the x component of a vector, returning a new vector.
--}
-setX : Float -> Vec3 -> Vec3
-setX x v3 =
-    { v3 | x = x }
-
-
-{-| Update the y component of a vector, returning a new vector.
--}
-setY : Float -> Vec3 -> Vec3
-setY y v3 =
-    { v3 | y = y }
-
-
-{-| Update the z component of a vector, returning a new vector.
--}
-setZ : Float -> Vec3 -> Vec3
-setZ z v3 =
-    { v3 | z = z }
-
-
-{-| Convert a vector to a record.
--}
-toRecord : Vec3 -> Vec3
-toRecord =
-    identity
-
-
-{-| Convert a record to a vector.
--}
-fromRecord : Vec3 -> Vec3
-fromRecord =
-    identity
 
 
 {-| Vector addition: a + b

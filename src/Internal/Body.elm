@@ -62,8 +62,6 @@ compound shapes data =
         , shapes = shapes
         , force = Const.zero3
         , torque = Const.zero3
-
-        -- TODO: support shape's position and rotation
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 shapes
 
         -- mass props
@@ -197,7 +195,7 @@ updateMassProperties ({ mass } as body_) =
 
 updateInertiaWorld : Bool -> Body data -> Body data
 updateInertiaWorld force ({ invInertia, quaternion } as body_) =
-    if not force && Vec3.getX invInertia == Vec3.getY invInertia && Vec3.getY invInertia == Vec3.getZ invInertia then
+    if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         body_
 
     else
