@@ -15,7 +15,6 @@ they can be moved and rotated just like bodies in the world.
 -}
 
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron
 import Internal.Quaternion as Quaternion exposing (Quaternion)
@@ -107,16 +106,3 @@ setPosition position (Protected shape) =
 setOrientation : Quaternion -> Shape -> Shape
 setOrientation orientation (Protected shape) =
     Protected { shape | orientation = orientation }
-
-
-
-{- Future
-
-   {-| Make a convex polyhedron out of an array of points
-   and a list of faces, where each face lists indices from
-   this array.
-   -}
-   convexPolyhedron : Array Vec3 -> List (List Int) -> Shape
-   convexPolyhedron _ _ =
-       Shape
--}

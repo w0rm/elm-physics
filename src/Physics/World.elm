@@ -14,10 +14,11 @@ module Physics.World exposing
 
 -}
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as InternalBody
+import Internal.Const as Const
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Solver as Solver
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as Internal exposing (Protected(..))
 import Physics.Body exposing (Body)
 
@@ -32,7 +33,11 @@ type alias World data =
 -}
 empty : World data
 empty =
-    Protected Internal.empty
+    Protected
+        { bodies = []
+        , nextBodyId = 0
+        , gravity = Const.zero3
+        }
 
 
 {-| Set the [gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:

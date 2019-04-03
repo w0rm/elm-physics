@@ -1,12 +1,12 @@
 module Internal.Solver exposing (solve)
 
-import Internal.Vector3 as Vec3
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.SolverEquation as SolverEquation exposing (SolverEquation)
+import Internal.Vector3 as Vec3
 import Internal.World as World exposing (World)
 
 

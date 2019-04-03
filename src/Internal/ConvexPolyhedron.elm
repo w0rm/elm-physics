@@ -1128,40 +1128,6 @@ listRingFoldStaggeredPairs fn resultSeed list =
             listFoldStaggeredPairs fn resultSeed last list
 
 
-{-| Crash-on-Nothing equivalent of Maybe.andThen for use in debugging.
-KEEP DISABLED in published production code.
--}
-maybeAndThenOrCrash : String -> (a -> Maybe b) -> Maybe a -> Maybe b
-maybeAndThenOrCrash message fn maybe =
-    {--enabled:
-    case maybe of
-        Just value ->
-            fn value
-
-        Nothing ->
-            --Debug.crash message
-    --}
-    -- disabled: KEEP DISABLED in published production code.
-    Maybe.andThen fn maybe
-
-
-{-| Crash-on-Nothing equivalent of Maybe.map for use in debugging.
-KEEP DISABLED in published production code.
--}
-maybeMapOrCrash : String -> (a -> b) -> Maybe a -> Maybe b
-maybeMapOrCrash message fn maybe =
-    {--enabled:
-    case maybe of
-        Just value ->
-            Just <| fn value
-
-        Nothing ->
-            --Debug.crash message
-    --}
-    -- disabled: KEEP DISABLED in published production code.
-    Maybe.map fn maybe
-
-
 {-| Crash-on-Nothing equivalent of Maybe.withDefault for use in debugging.
 KEEP DISABLED in published production code.
 -}

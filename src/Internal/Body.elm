@@ -10,7 +10,6 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import Dict exposing (Dict)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
 import Internal.Matrix3 as Mat3 exposing (Mat3)
@@ -73,18 +72,18 @@ compound shapes data =
 
 
 addGravity : Vec3 -> Body data -> Body data
-addGravity gravity body_ =
-    { body_
+addGravity gravity body =
+    { body
         | force =
             gravity
-                |> Vec3.scale body_.mass
-                |> Vec3.add body_.force
+                |> Vec3.scale body.mass
+                |> Vec3.add body.force
     }
 
 
 clearForces : Body data -> Body data
-clearForces body_ =
-    { body_
+clearForces body =
+    { body
         | force = Const.zero3
         , torque = Const.zero3
     }
@@ -100,36 +99,36 @@ shapeWorldTransform shape { position, orientation } =
 
 
 tick : Float -> Body data -> Body data
-tick dt body_ =
+tick dt body =
     let
         invMass =
-            if body_.mass == 0 then
+            if body.mass == 0 then
                 0
 
             else
-                1.0 / body_.mass
+                1.0 / body.mass
 
         newVelocity =
-            body_.force
+            body.force
                 |> Vec3.scale (invMass * dt)
-                |> Vec3.add body_.velocity
+                |> Vec3.add body.velocity
 
         newAngularVelocity =
-            body_.torque
-                |> Mat3.transform body_.invInertiaWorld
+            body.torque
+                |> Mat3.transform body.invInertiaWorld
                 |> Vec3.scale dt
-                |> Vec3.add body_.angularVelocity
+                |> Vec3.add body.angularVelocity
     in
     updateInertiaWorld False
-        { body_
+        { body
             | velocity = newVelocity
             , angularVelocity = newAngularVelocity
             , position =
                 newVelocity
                     |> Vec3.scale dt
-                    |> Vec3.add body_.position
+                    |> Vec3.add body.position
             , orientation =
-                body_.orientation
+                body.orientation
                     |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                     |> Quaternion.normalize
         }
@@ -138,7 +137,7 @@ tick dt body_ =
 {-| Should be called whenever you change the body shapes or mass.
 -}
 updateMassProperties : Body data -> Body data
-updateMassProperties ({ mass } as body_) =
+updateMassProperties ({ mass } as body) =
     let
         invMass =
             if mass == 0 then
@@ -148,7 +147,7 @@ updateMassProperties ({ mass } as body_) =
                 1.0 / mass
 
         e =
-            body_
+            body
                 |> computeAABB
                 |> AABB.toHalfExtends
 
@@ -186,7 +185,7 @@ updateMassProperties ({ mass } as body_) =
                 )
     in
     updateInertiaWorld True
-        { body_
+        { body
             | invMass = invMass
             , inertia = inertia
             , invInertia = invInertia
@@ -194,16 +193,16 @@ updateMassProperties ({ mass } as body_) =
 
 
 updateInertiaWorld : Bool -> Body data -> Body data
-updateInertiaWorld force ({ invInertia, orientation } as body_) =
+updateInertiaWorld force ({ invInertia, orientation } as body) =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
-        body_
+        body
 
     else
         let
             m =
                 Quaternion.toMat3 orientation
         in
-        { body_
+        { body
             | invInertiaWorld =
                 Mat3.mul
                     (Mat3.transpose m)
@@ -212,12 +211,12 @@ updateInertiaWorld force ({ invInertia, orientation } as body_) =
 
 
 computeAABB : Body data -> AABB
-computeAABB body_ =
+computeAABB body =
     List.foldl
         (\shape ->
-            shapeWorldTransform shape body_
+            shapeWorldTransform shape body
                 |> Shape.aabbClosure shape.kind
                 |> AABB.extend
         )
         AABB.impossible
-        body_.shapes
+        body.shapes
