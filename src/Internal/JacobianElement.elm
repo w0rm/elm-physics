@@ -1,11 +1,9 @@
 module Internal.JacobianElement exposing
     ( JacobianElement
-    , jacobianElement
     , mulVec
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
-import Internal.Const as Const
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias JacobianElement =
@@ -14,14 +12,7 @@ type alias JacobianElement =
     }
 
 
-jacobianElement : JacobianElement
-jacobianElement =
-    { spatial = Const.zero3
-    , rotational = Const.zero3
-    }
-
-
 mulVec : Vec3 -> Vec3 -> JacobianElement -> Float
-mulVec spatial rotational jacobianElement_ =
-    Vec3.dot jacobianElement_.spatial spatial
-        + Vec3.dot jacobianElement_.rotational rotational
+mulVec spatial rotational jacobianElement =
+    Vec3.dot jacobianElement.spatial spatial
+        + Vec3.dot jacobianElement.rotational rotational

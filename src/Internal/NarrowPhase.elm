@@ -6,7 +6,6 @@ module Internal.NarrowPhase exposing
     )
 
 import Array exposing (Array)
-import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
@@ -16,7 +15,6 @@ import Internal.Shape as Shape exposing (Kind(..), Shape)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as World exposing (World)
-import Set exposing (Set)
 
 
 getContacts : World data -> List (ContactEquation data)

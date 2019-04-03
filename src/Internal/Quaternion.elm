@@ -9,8 +9,8 @@ module Internal.Quaternion exposing
     , toMat3
     )
 
-import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Matrix3 exposing (Mat3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias Quaternion =
@@ -96,10 +96,10 @@ rotate q { x, y, z } =
         iw =
             -q.x * x - q.y * y - q.z * z
     in
-    vec3
-        (ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y)
-        (iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z)
-        (iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x)
+    { x = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y
+    , y = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z
+    , z = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x
+    }
 
 
 {-| A unit vector with the same direction as the given vector: a / |a|
