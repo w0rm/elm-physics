@@ -2,7 +2,6 @@ module Internal.World exposing
     ( Protected(..)
     , World
     , addGravityForces
-    , empty
     , getPairs
     , tick
     )
@@ -19,14 +18,6 @@ type alias World data =
     { bodies : List (Body data)
     , nextBodyId : BodyId
     , gravity : Vec3
-    }
-
-
-empty : World data
-empty =
-    { bodies = []
-    , nextBodyId = 0
-    , gravity = vec3 0 0 0
     }
 
 
