@@ -1,8 +1,6 @@
 module Internal.NarrowPhase exposing
     ( addSphereConvexContacts
-    ,  getContacts
-       -- exposed only for tests
-
+    , getContacts
     )
 
 import Array exposing (Array)

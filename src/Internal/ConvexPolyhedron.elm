@@ -14,9 +14,7 @@ module Internal.ConvexPolyhedron exposing
     , initFaceNormal
     , initUniqueEdges
     , project
-    ,  sphereContact
-       -- exposed only for tests
-
+    , sphereContact
     , testSepAxis
     )
 
