@@ -103,11 +103,11 @@ getShapeContacts shapeTransform1 shape1 body1 shapeTransform2 shape2 body2 conta
 
         ( Sphere radius, Plane ) ->
             addPlaneSphereContacts
-                shapeTransform1
-                body1
                 shapeTransform2
-                radius
                 body2
+                shapeTransform1
+                radius
+                body1
                 contactEquations
 
         ( Sphere radius, Convex convexPolyhedron ) ->
