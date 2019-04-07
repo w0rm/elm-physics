@@ -35,6 +35,7 @@ empty : World data
 empty =
     Protected
         { bodies = []
+        , freeIds = []
         , nextBodyId = 0
         , gravity = Const.zero3
         }
@@ -61,11 +62,20 @@ Check the [Physics.Body](Physics-Body) module for possible bodies.
 -}
 add : Body data -> World data -> World data
 add (InternalBody.Protected body) (Protected world) =
-    Protected
-        { world
-            | bodies = { body | id = world.nextBodyId } :: world.bodies
-            , nextBodyId = world.nextBodyId + 1
-        }
+    case world.freeIds of
+        [] ->
+            Protected
+                { world
+                    | bodies = { body | id = world.nextBodyId } :: world.bodies
+                    , nextBodyId = world.nextBodyId + 1
+                }
+
+        freeId :: restFreeIds ->
+            Protected
+                { world
+                    | bodies = { body | id = freeId } :: world.bodies
+                    , freeIds = restFreeIds
+                }
 
 
 {-| Simulate the world, given the number of milliseconds since the last frame.
@@ -101,7 +111,15 @@ getBodies (Protected { bodies }) =
 -}
 keepIf : (Body data -> Bool) -> World data -> World data
 keepIf fn (Protected world) =
-    Protected { world | bodies = List.filter (InternalBody.Protected >> fn) world.bodies }
+    let
+        ( keptBodies, removedBodies ) =
+            List.partition (InternalBody.Protected >> fn) world.bodies
+    in
+    Protected
+        { world
+            | bodies = keptBodies
+            , freeIds = List.foldl (.id >> (::)) world.freeIds removedBodies
+        }
 
 
 {-| Apply a function to every body in the world.
