@@ -1,6 +1,6 @@
 module Internal.Solver exposing (solve)
 
-import Dict exposing (Dict)
+import Array exposing (Array)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
@@ -42,7 +42,8 @@ updateVelocities { bodies, world } =
         | bodies =
             List.map
                 (\body ->
-                    Dict.get body.id bodies
+                    Array.get body.id bodies
+                        |> Maybe.andThen identity
                         |> Maybe.map
                             (\{ vlambda, wlambda } ->
                                 { body
@@ -101,19 +102,19 @@ solveStep context =
                         , equations = newEquation :: newContext.equations
                         , bodies =
                             newContext.bodies
-                                |> Dict.insert equation.bodyId1 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi)
-                                |> Dict.insert equation.bodyId2 (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj)
+                                |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi))
+                                |> Array.set equation.bodyId2 (Just (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj))
                         }
                     )
-                    (Dict.get equation.bodyId1 newContext.bodies)
-                    (Dict.get equation.bodyId2 newContext.bodies)
+                    (Array.get equation.bodyId1 newContext.bodies |> Maybe.andThen identity)
+                    (Array.get equation.bodyId2 newContext.bodies |> Maybe.andThen identity)
         )
         { context | equations = [], deltalambdaTot = 0 }
         context.equations
 
 
 type alias SolveContext data =
-    { bodies : Dict BodyId (SolverBody data)
+    { bodies : Array (Maybe (SolverBody data))
     , equations : List (SolverEquation data)
     , deltalambdaTot : Float
     , world : World data
@@ -125,8 +126,9 @@ solveContext dt contactEquations world =
     let
         solverBodies =
             world.bodies
-                |> List.map (\body -> ( body.id, SolverBody.fromBody body ))
-                |> Dict.fromList
+                |> List.foldl
+                    (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
+                    (Array.initialize world.nextBodyId (always Nothing))
     in
     { bodies = solverBodies
     , equations =
@@ -139,8 +141,8 @@ solveContext dt contactEquations world =
                                 |> SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
                                 |> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
                         )
-                        (Dict.get contactEquation.body1.id solverBodies)
-                        (Dict.get contactEquation.body2.id solverBodies)
+                        (Array.get contactEquation.body1.id solverBodies |> Maybe.andThen identity)
+                        (Array.get contactEquation.body2.id solverBodies |> Maybe.andThen identity)
             )
             []
             contactEquations

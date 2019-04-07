@@ -16,6 +16,7 @@ type Protected data
 
 type alias World data =
     { bodies : List (Body data)
+    , freeIds : List BodyId
     , nextBodyId : BodyId
     , gravity : Vec3
     }
