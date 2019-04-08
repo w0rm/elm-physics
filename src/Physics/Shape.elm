@@ -7,6 +7,9 @@ module Physics.Shape exposing
 
 @docs Shape, box, plane, sphere
 
+
+## Positioning and Orientation
+
 Shapes are positioned in the local body coordinate system,
 they can be moved and rotated just like bodies in the world.
 
@@ -14,11 +17,11 @@ they can be moved and rotated just like bodies in the world.
 
 -}
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron
-import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Quaternion as Quaternion
 import Internal.Shape as Internal exposing (Protected(..))
+import Internal.Vector3 as Vec3
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -37,9 +40,9 @@ type alias Shape =
     Internal.Protected
 
 
-{-| A box is defined by dimensions.
+{-| A box is defined by dimensions along the corresponding axes.
 -}
-box : Vec3 -> Shape
+box : { x : Float, y : Float, z : Float } -> Shape
 box dimensions =
     Protected
         { position = Const.zero3
@@ -74,16 +77,16 @@ sphere radius =
 {-| Move the shape in a body by a vector offset from
 the current local position.
 -}
-moveBy : Vec3 -> Shape -> Shape
+moveBy : { x : Float, y : Float, z : Float } -> Shape -> Shape
 moveBy offset (Protected shape) =
     Protected
         { shape | position = Vec3.add offset shape.position }
 
 
-{-| Rotates the shape in a body by a specific angle
+{-| Rotate the shape in a body by a specific angle
 around the axis from the current local orientation.
 -}
-rotateBy : Float -> Vec3 -> Shape -> Shape
+rotateBy : Float -> { x : Float, y : Float, z : Float } -> Shape -> Shape
 rotateBy angle axis (Protected shape) =
     Protected
         { shape
@@ -96,13 +99,13 @@ rotateBy angle axis (Protected shape) =
 
 {-| Set the local position of the shape in a body.
 -}
-setPosition : Vec3 -> Shape -> Shape
+setPosition : { x : Float, y : Float, z : Float } -> Shape -> Shape
 setPosition position (Protected shape) =
     Protected { shape | position = position }
 
 
-{-| Sets the local shape orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
+{-| Set the local shape orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
 -}
-setOrientation : Quaternion -> Shape -> Shape
+setOrientation : { x : Float, y : Float, z : Float, w : Float } -> Shape -> Shape
 setOrientation orientation (Protected shape) =
     Protected { shape | orientation = orientation }

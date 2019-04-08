@@ -1,17 +1,25 @@
-module Physics.Debug exposing (getContacts, getFaceNormals, getUniqueEdges)
+module Physics.Debug exposing
+    ( getContacts
+    , FaceNormal, getFaceNormals
+    , UniqueEdge, getUniqueEdges
+    )
 
-{-| List of utilities that may be useful for debugging.
+{-| A list of utilities that may be useful for debugging.
 
-@docs getContacts, getFaceNormals, getUniqueEdges
+@docs getContacts
+
+@docs FaceNormal, getFaceNormals
+
+@docs UniqueEdge, getUniqueEdges
 
 -}
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.Body as InternalBody
 import Internal.ConvexPolyhedron as ConvexPolyhedron
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Shape exposing (Kind(..), Shape)
+import Internal.Vector3 as Vec3
 import Internal.World exposing (Protected(..))
 import Physics.Body exposing (Body)
 import Physics.World exposing (World)
@@ -19,7 +27,7 @@ import Physics.World exposing (World)
 
 {-| Get the contact points in the world.
 -}
-getContacts : World data -> List Vec3
+getContacts : World data -> List { x : Float, y : Float, z : Float }
 getContacts (Protected world) =
     List.foldl
         (\{ body1, body2, ri, rj } acc ->
@@ -30,18 +38,26 @@ getContacts (Protected world) =
         (NarrowPhase.getContacts world)
 
 
-{-| Get the face normals of the body, where each face normal consists
-of a normal vector for a face and a reference point within the face.
+{-| A face normal consists of a normal vector for a face
+and a reference point on the face.
 
 These are both expressed within the local body coordinate system.
 
 -}
-getFaceNormals : Body data -> List { normal : Vec3, point : Vec3 }
+type alias FaceNormal =
+    { normal : { x : Float, y : Float, z : Float }
+    , point : { x : Float, y : Float, z : Float }
+    }
+
+
+{-| Get the face normals of the body.
+-}
+getFaceNormals : Body data -> List FaceNormal
 getFaceNormals (InternalBody.Protected { shapes }) =
     List.foldl addFaceNormals [] shapes
 
 
-addFaceNormals : Shape -> List { normal : Vec3, point : Vec3 } -> List { normal : Vec3, point : Vec3 }
+addFaceNormals : Shape -> List FaceNormal -> List FaceNormal
 addFaceNormals { kind, position, orientation } normals =
     case kind of
         Convex convex ->
@@ -62,20 +78,28 @@ addFaceNormals { kind, position, orientation } normals =
             normals
 
 
-{-| Get the unique edges of the body, where each unique edge consists
-of a unit direction vector that runs parallel to an edge of a face.
+{-| A unique edge consists of a unit direction vector
+that runs parallel to an edge of a face.
 
 A vertex point of the body is also provided for context.
 
 These are both expressed within the local body coordinate system.
 
 -}
-getUniqueEdges : Body data -> List { direction : Vec3, point : Vec3 }
+type alias UniqueEdge =
+    { direction : { x : Float, y : Float, z : Float }
+    , point : { x : Float, y : Float, z : Float }
+    }
+
+
+{-| Get the unique edges of the body.
+-}
+getUniqueEdges : Body data -> List UniqueEdge
 getUniqueEdges (InternalBody.Protected { shapes }) =
     List.foldl addUniqueEdges [] shapes
 
 
-addUniqueEdges : Shape -> List { direction : Vec3, point : Vec3 } -> List { direction : Vec3, point : Vec3 }
+addUniqueEdges : Shape -> List UniqueEdge -> List UniqueEdge
 addUniqueEdges { kind, position, orientation } edges =
     case kind of
         Convex convex ->

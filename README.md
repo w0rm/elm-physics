@@ -2,9 +2,7 @@
 
 ![Boxes & Spheres](https://raw.githubusercontent.com/w0rm/elm-physics/master/examples/spheres.gif)
 
-Highly experimental toy physics engine in [Elm](http://elm-lang.org/).
-
-The API is currently shaping up and will be most likely changed.
+A highly experimental toy physics engine in [Elm](http://elm-lang.org/).
 
 # Examples
 
