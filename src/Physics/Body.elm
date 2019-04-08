@@ -35,9 +35,9 @@ module Physics.Body exposing
 -}
 
 import Internal.Body as Internal exposing (Protected(..))
-import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Quaternion as Quaternion
 import Internal.Shape as InternalShape
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
 import Physics.Shape as Shape exposing (Shape)
 
 
@@ -62,13 +62,13 @@ type alias Body data =
     Protected data
 
 
-{-| A box is defined by its dimensions.
+{-| A box is defined by its dimensions along the corresponding axes.
 To create a 1x1 box, call this:
 
     box { x = 1, y = 1, z = 1 } data
 
 -}
-box : Vec3 -> data -> Body data
+box : { x : Float, y : Float, z : Float } -> data -> Body data
 box dimensions =
     compound [ Shape.box dimensions ]
 
@@ -100,17 +100,39 @@ setMass mass (Protected body) =
 
 {-| Set the absolute position of the body in the world.
 -}
-setPosition : Vec3 -> Body data -> Body data
+setPosition : { x : Float, y : Float, z : Float } -> Body data -> Body data
 setPosition position (Protected body) =
     Protected (Internal.updateMassProperties { body | position = position })
 
 
 {-| Get the position and the orientation of the body in a single matrix.
 
+Elements are given by their row and column indices, starting at 1,
+so `m23` means the element in the second row, third column.
+
 To use this with WebGL, pass the result to [`Math.Matrix4.fromRecord`](https://package.elm-lang.org/packages/elm-explorations/linear-algebra/latest/Math-Matrix4#fromRecord).
 
 -}
-getTransformation : Body data -> Mat4
+getTransformation :
+    Body data
+    ->
+        { m11 : Float
+        , m21 : Float
+        , m31 : Float
+        , m41 : Float
+        , m12 : Float
+        , m22 : Float
+        , m32 : Float
+        , m42 : Float
+        , m13 : Float
+        , m23 : Float
+        , m33 : Float
+        , m43 : Float
+        , m14 : Float
+        , m24 : Float
+        , m34 : Float
+        , m44 : Float
+        }
 getTransformation (Protected { position, orientation }) =
     let
         { x, y, z, w } =
@@ -135,15 +157,9 @@ getTransformation (Protected { position, orientation }) =
     }
 
 
-{-| 4x4 matrix type
--}
-type alias Mat4 =
-    { m11 : Float, m21 : Float, m31 : Float, m41 : Float, m12 : Float, m22 : Float, m32 : Float, m42 : Float, m13 : Float, m23 : Float, m33 : Float, m43 : Float, m14 : Float, m24 : Float, m34 : Float, m44 : Float }
-
-
 {-| Move the body by a vector offset from the current position.
 -}
-moveBy : Vec3 -> Body data -> Body data
+moveBy : { x : Float, y : Float, z : Float } -> Body data -> Body data
 moveBy offset (Protected body) =
     Protected
         (Internal.updateMassProperties
@@ -152,15 +168,15 @@ moveBy offset (Protected body) =
 
 
 {-| -}
-getPosition : Body data -> Vec3
+getPosition : Body data -> { x : Float, y : Float, z : Float }
 getPosition (Protected { position }) =
     position
 
 
-{-| Rotates the body by a specific angle around the axis
+{-| Rotate the body by a specific angle around the axis
 from the current orientation.
 -}
-rotateBy : Float -> Vec3 -> Body data -> Body data
+rotateBy : Float -> { x : Float, y : Float, z : Float } -> Body data -> Body data
 rotateBy angle axis (Protected body) =
     Protected
         (Internal.updateMassProperties
@@ -173,9 +189,9 @@ rotateBy angle axis (Protected body) =
         )
 
 
-{-| Sets the body orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
+{-| Set the body orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
 -}
-setOrientation : Quaternion -> Body data -> Body data
+setOrientation : { x : Float, y : Float, z : Float, w : Float } -> Body data -> Body data
 setOrientation orientation (Protected body) =
     Protected
         (Internal.updateMassProperties
@@ -183,28 +199,28 @@ setOrientation orientation (Protected body) =
         )
 
 
-{-| Gets orientation as a quaternion.
+{-| Get orientation as a unit quaternion.
 -}
-getOrientation : Body data -> Quaternion
+getOrientation : Body data -> { x : Float, y : Float, z : Float, w : Float }
 getOrientation (Protected { orientation }) =
     orientation
 
 
-{-| Sets the user-defined data.
+{-| Set user-defined data.
 -}
 setData : data -> Body data -> Body data
 setData data (Protected body) =
     Protected { body | data = data }
 
 
-{-| Gets the user-defined data.
+{-| Get user-defined data.
 -}
 getData : Body data -> data
 getData (Protected { data }) =
     data
 
 
-{-| Makes a compound body from a list of [shapes](Physics-Shape#Shape).
+{-| Make a compound body from a list of [shapes](Physics-Shape#Shape).
 
 For example, the [sphere](#sphere) from above can be defined like this:
 
@@ -219,15 +235,3 @@ compound shapes data =
             List.map (\(InternalShape.Protected shape) -> shape) shapes
     in
     Protected (Internal.compound unprotectedShapes data)
-
-
-
-{- Future
-
-   type Material
-       = Material
-
-   setMaterial : Material -> Body data -> Body data
-   setMaterial _ =
-       identity
--}

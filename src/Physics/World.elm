@@ -1,12 +1,12 @@
 module Physics.World exposing
-    ( World, empty, setGravity, add
+    ( World, empty, add, setGravity
     , simulate, getBodies
     , keepIf, update
     )
 
 {-|
 
-@docs World, empty, setGravity, add
+@docs World, empty, add, setGravity
 
 @docs simulate, getBodies
 
@@ -18,7 +18,7 @@ import Internal.Body as InternalBody
 import Internal.Const as Const
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Solver as Solver
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
 import Physics.Body exposing (Body)
 
@@ -39,17 +39,6 @@ empty =
         , nextBodyId = 0
         , gravity = Const.zero3
         }
-
-
-{-| Set the [gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:
-
-    planetEarth =
-        setGravity { x = 0, y = 0, z = -9.80665 } world
-
--}
-setGravity : Vec3 -> World data -> World data
-setGravity gravity (Protected world) =
-    Protected { world | gravity = gravity }
 
 
 {-| You can also add bodies to the world.
@@ -76,6 +65,17 @@ add (InternalBody.Protected body) (Protected world) =
                     | bodies = { body | id = freeId } :: world.bodies
                     , freeIds = restFreeIds
                 }
+
+
+{-| Set the [gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:
+
+    planetEarth =
+        setGravity { x = 0, y = 0, z = -9.80665 } world
+
+-}
+setGravity : { x : Float, y : Float, z : Float } -> World data -> World data
+setGravity gravity (Protected world) =
+    Protected { world | gravity = gravity }
 
 
 {-| Simulate the world, given the number of milliseconds since the last frame.
@@ -136,38 +136,3 @@ update fn (Protected world) =
             { updatedBody | id = body.id }
     in
     Protected { world | bodies = List.map internalUpdate world.bodies }
-
-
-
-{- Future
-
-   type Joint
-       = Joint
-
-   type Constraint
-       = Constraint
-
-   {-| Join two bodies with a constraint.
-   -}
-   join : Joint -> (Body data -> Bool) -> (Body data -> Bool) -> World data -> World data
-   join _ _ _ =
-       identity
-
-   {-| The opposite of join.
-   -}
-   detach : (Body data -> Bool) -> (Body data -> Bool) -> World data -> World data
-   detach _ _ =
-       identity
-
-
-   {-| Reset all joints in the world.
-   -}
-   setJoints : (Body data -> Body data -> Maybe Joint) -> World data -> World data
-   setJoints _ =
-       identity
-
-   {-| -}
-   addConstraint : (Body data -> Bool) -> Constraint -> World data -> World data
-   addConstraint _ _ =
-       identity
--}
