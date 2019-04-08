@@ -7,7 +7,6 @@ module Common.Bodies exposing
     )
 
 import Common.Meshes as Meshes exposing (Attributes)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body)
 import Physics.Shape as Shape exposing (Shape)
 import WebGL exposing (Mesh)

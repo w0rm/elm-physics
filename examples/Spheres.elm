@@ -2,7 +2,6 @@ module Spheres exposing (main)
 
 import Common.Bodies as Bodies exposing (DemoBody)
 import Common.Demo as Demo exposing (Demo, DemoProgram)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body)
 import Random
 
