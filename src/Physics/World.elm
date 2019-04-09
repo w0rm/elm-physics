@@ -41,7 +41,7 @@ empty =
         }
 
 
-{-| You can also add bodies to the world.
+{-| Adds a body to the world.
 
     worldWithFloor =
         add planeBody world
@@ -67,7 +67,7 @@ add (InternalBody.Protected body) (Protected world) =
                 }
 
 
-{-| Set the [gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:
+{-| Set the [standard gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:
 
     planetEarth =
         setGravity { x = 0, y = 0, z = -9.80665 } world

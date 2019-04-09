@@ -41,7 +41,7 @@ import Internal.Vector3 as Vec3
 import Physics.Shape as Shape exposing (Shape)
 
 
-{-| Represents a rigid body containing
+{-| Represents a physical body containing
 user defined data, like a WebGL mesh.
 
 By default a body is positioned in the center
@@ -174,7 +174,7 @@ getPosition (Protected { position }) =
 
 
 {-| Rotate the body by a specific angle around the axis
-from the current orientation.
+from the current orientation. Angle must be specified in radians.
 -}
 rotateBy : Float -> { x : Float, y : Float, z : Float } -> Body data -> Body data
 rotateBy angle axis (Protected body) =
@@ -226,6 +226,8 @@ For example, the [sphere](#sphere) from above can be defined like this:
 
     sphere radius data =
         compound [ Shape.sphere radius ] data
+
+We only support [rigid bodies](https://en.wikipedia.org/wiki/Rigid_body).
 
 -}
 compound : List Shape -> data -> Body data
