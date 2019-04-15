@@ -521,36 +521,9 @@ lerp t v1 v2 =
 
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
 findSeparatingAxis t1 hull1 t2 hull2 =
-    let
-        bestFaceNormal : Quaternion -> List Face -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
-        bestFaceNormal quat faces bestSoFar =
-            case faces of
-                [] ->
-                    Just bestSoFar
-
-                { normal } :: restFaces ->
-                    let
-                        rotatedNormal =
-                            Quaternion.rotate quat normal
-                    in
-                    case testSepAxis t1 hull1 t2 hull2 rotatedNormal of
-                        Nothing ->
-                            Nothing
-
-                        Just d ->
-                            (if d < bestSoFar.dmin then
-                                { dmin = d, target = rotatedNormal }
-
-                             else
-                                bestSoFar
-                            )
-                                |> bestFaceNormal
-                                    quat
-                                    restFaces
-    in
     { dmin = Const.maxNumber, target = Const.zero3 }
-        |> bestFaceNormal t1.orientation (Array.toList hull1.faces)
-        |> Maybe.andThen (bestFaceNormal t2.orientation (Array.toList hull2.faces))
+        |> testFaceNormals t1 hull1 t2 hull2 t1.orientation (Array.toList hull1.faces)
+        |> Maybe.andThen (testFaceNormals t1 hull1 t2 hull2 t2.orientation (Array.toList hull2.faces))
         |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
         |> Maybe.map
             (\{ target } ->
@@ -562,17 +535,48 @@ findSeparatingAxis t1 hull1 t2 hull2 =
             )
 
 
+testFaceNormals : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Quaternion -> List Face -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
+testFaceNormals t1 hull1 t2 hull2 quat faces bestSoFar =
+    case faces of
+        [] ->
+            Just bestSoFar
+
+        { normal } :: restFaces ->
+            let
+                rotatedNormal =
+                    Quaternion.rotate quat normal
+            in
+            case testSepAxis t1 hull1 t2 hull2 rotatedNormal of
+                Nothing ->
+                    Nothing
+
+                Just d ->
+                    testFaceNormals
+                        t1
+                        hull1
+                        t2
+                        hull2
+                        quat
+                        restFaces
+                        (if d < bestSoFar.dmin then
+                            { dmin = d, target = rotatedNormal }
+
+                         else
+                            bestSoFar
+                        )
+
+
 testEdges : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
-testEdges t1 hull1 t2 hull2 context =
+testEdges t1 hull1 t2 hull2 bestSoFar =
     -- TODO: short circuit the iteraions
     List.foldl
-        (\edge1 acc1 ->
+        (\edge1 bestSoFar1 ->
             let
                 worldEdge1 =
                     Quaternion.rotate t1.orientation edge1
             in
             List.foldl
-                (\edge2 acc2 ->
+                (\edge2 bestSoFar2 ->
                     let
                         worldEdge2 =
                             Quaternion.rotate t2.orientation edge2
@@ -581,21 +585,21 @@ testEdges t1 hull1 t2 hull2 context =
                             Vec3.cross worldEdge1 worldEdge2
                     in
                     if almostZero cross then
-                        acc2
+                        bestSoFar2
 
                     else
-                        case acc2 of
-                            Just ctx ->
+                        case bestSoFar2 of
+                            Just { dmin } ->
                                 case testSepAxis t1 hull1 t2 hull2 (Vec3.normalize cross) of
                                     Just dist ->
-                                        if dist < ctx.dmin then
+                                        if dist < dmin then
                                             Just
                                                 { dmin = dist
                                                 , target = Vec3.normalize cross
                                                 }
 
                                         else
-                                            acc2
+                                            bestSoFar2
 
                                     Nothing ->
                                         Nothing
@@ -603,10 +607,10 @@ testEdges t1 hull1 t2 hull2 context =
                             Nothing ->
                                 Nothing
                 )
-                acc1
+                bestSoFar1
                 hull2.edges
         )
-        (Just context)
+        (Just bestSoFar)
         hull1.edges
 
 
