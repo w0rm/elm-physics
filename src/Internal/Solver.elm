@@ -3,9 +3,8 @@ module Internal.Solver exposing (solve)
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
-import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.SolverEquation as SolverEquation exposing (SolverEquation)
+import Internal.SolverEquation as SolverEquation exposing (ContactEquation, SolverEquation, addSolverEquations)
 import Internal.Vector3 as Vec3
 import Internal.World as World exposing (World)
 
@@ -123,27 +122,14 @@ type alias SolveContext data =
 
 solveContext : Float -> List (ContactEquation data) -> World data -> SolveContext data
 solveContext dt contactEquations world =
-    let
-        solverBodies =
+    { bodies =
+        List.foldl
+            (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
+            (Array.initialize world.nextBodyId (always Nothing))
             world.bodies
-                |> List.foldl
-                    (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
-                    (Array.initialize world.nextBodyId (always Nothing))
-    in
-    { bodies = solverBodies
     , equations =
         List.foldl
-            (\contactEquation solverEquations ->
-                Maybe.withDefault solverEquations <|
-                    Maybe.map2
-                        (\bi bj ->
-                            solverEquations
-                                |> SolverEquation.addContactEquation dt world.gravity bi bj contactEquation
-                                |> SolverEquation.addFrictionEquations dt world.gravity bi bj contactEquation
-                        )
-                        (Array.get contactEquation.body1.id solverBodies |> Maybe.andThen identity)
-                        (Array.get contactEquation.body2.id solverBodies |> Maybe.andThen identity)
-            )
+            (addSolverEquations dt world.gravity)
             []
             contactEquations
     , deltalambdaTot = Const.maxNumber -- large number initially

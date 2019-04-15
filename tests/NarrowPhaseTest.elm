@@ -5,9 +5,9 @@ import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase exposing (body1, body2)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
+import Internal.SolverEquation exposing (ContactEquation)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 

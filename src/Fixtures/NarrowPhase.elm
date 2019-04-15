@@ -8,8 +8,8 @@ module Fixtures.NarrowPhase exposing
 
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.Material as Material
+import Internal.SolverEquation exposing (ContactEquation)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 

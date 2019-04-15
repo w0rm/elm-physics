@@ -6,11 +6,11 @@ module Internal.NarrowPhase exposing
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
-import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Material as Material
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Kind(..), Shape)
+import Internal.SolverEquation exposing (ContactEquation)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as World exposing (World)

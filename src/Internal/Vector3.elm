@@ -1,7 +1,7 @@
 module Internal.Vector3 exposing
     ( Vec3, vec3, i, j, k
     , add, sub, negate, scale, dot, cross, normalize, direction
-    , length, lengthSquared, distance, distanceSquared
+    , length, lengthSquared, distance, distanceSquared, tangents
     )
 
 {-| A high performance linear algebra library using native JS arrays. Geared
@@ -23,7 +23,7 @@ The set functions create a new copy of the vector, updating a single field.
 # Operations
 
 @docs add, sub, negate, scale, dot, cross, normalize, direction
-@docs length, lengthSquared, distance, distanceSquared
+@docs length, lengthSquared, distance, distanceSquared, tangents
 
 
 # Conversions
@@ -163,3 +163,25 @@ cross a b =
         (a.y * b.z - a.z * b.y)
         (a.z * b.x - a.x * b.z)
         (a.x * b.y - a.y * b.x)
+
+
+{-| Get normalized tangents
+-}
+tangents : Vec3 -> ( Vec3, Vec3 )
+tangents vec =
+    if lengthSquared vec > 0 then
+        let
+            normalized =
+                normalize vec
+
+            v =
+                if abs normalized.x < 0.9 then
+                    cross normalized i
+
+                else
+                    cross normalized j
+        in
+        ( v, cross normalized v )
+
+    else
+        ( i, j )
