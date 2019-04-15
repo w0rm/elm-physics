@@ -159,8 +159,7 @@ getTransformation (Protected { position, orientation }) =
     }
 
 
-{-| Set body material to controll friction and bounciness,
-see [Material](Physics-Material) how to define materials
+{-| Set the [material](Physics-Material) to controll friction and bounciness.
 -}
 setMaterial : Material -> Body data -> Body data
 setMaterial (InternalMaterial.Protected material) (Protected body) =

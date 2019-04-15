@@ -1,78 +1,44 @@
-module Physics.Material exposing
-    ( Material, default, custom
-    , average, minimum, multiply, maximum
-    )
+module Physics.Material exposing (Material, default, custom)
 
 {-|
 
 @docs Material, default, custom
-
-@docs customWithStrategy, Strategy
-@docs average, minimum, multiply, maximum
 
 -}
 
 import Internal.Material as Internal exposing (Protected(..))
 
 
-{-| -}
+{-| Materials allow to control friction and bounciness.
+You can change materials using [Body.setMaterial](Physics-Body#setMaterial).
+-}
 type alias Material =
     Protected
 
 
-{-| -}
+{-| All bodies initially use this material, it is defined like this:
+
+    default =
+        custom { friction = 0.3, bounciness = 0 }
+
+-}
 default : Material
 default =
     Protected Internal.default
 
 
-{-| -}
+{-| Creates a custom material, e.g.
+
+    slippery =
+        custom { friction = 0, bounciness = 0 }
+
+    bouncy =
+        custom { friction = 0.3, bounciness = 0.9 }
+
+When two materials collide, their properties are averaged
+and clamped between 0 and 1.
+
+-}
 custom : { friction : Float, bounciness : Float } -> Material
-custom { friction, bounciness } =
-    customWithStrategy
-        { friction = friction
-        , bounciness = bounciness
-        , frictionStrategy = average
-        , bouncinessStrategy = average
-        }
-
-
-{-| -}
-customWithStrategy :
-    { friction : Float
-    , bounciness : Float
-    , frictionStrategy : Strategy
-    , bouncinessStrategy : Strategy
-    }
-    -> Material
-customWithStrategy =
+custom =
     Protected
-
-
-{-| -}
-type alias Strategy =
-    Internal.Strategy
-
-
-{-| -}
-average : Strategy
-average =
-    Internal.average
-
-
-{-| -}
-minimum : Strategy
-minimum =
-    Internal.minimum
-
-
-{-| -}
-multiply : Strategy
-multiply =
-    Internal.multiply
-
-
-{-| -}
-maximum : Strategy
-maximum =
-    Internal.maximum
