@@ -9,25 +9,38 @@ import Random
 main : DemoProgram
 main =
     Demo.demo
-        |> Demo.addBodies initialBoxes
+        |> Demo.addBodies (range3 addBoxAt 4 2 [])
         |> Demo.dropOnClick randomlyRotatedBox
         |> Demo.run
 
 
-{-| Boxes in the initial scene
--}
-initialBoxes : List (Body DemoBody)
-initialBoxes =
-    [ Bodies.box
-        |> Body.moveBy { x = 0, y = 0, z = 2 }
-        |> Body.rotateBy (-pi / 5) { x = 0, y = 1, z = 0 }
-    , Bodies.box
-        |> Body.moveBy { x = -1.2, y = 0, z = 9 }
-        |> Body.rotateBy (-pi / 4) { x = 0, y = 1, z = 0 }
-    , Bodies.box
-        |> Body.moveBy { x = 1.3, y = 0, z = 6 }
-        |> Body.rotateBy (pi / 5) { x = 0, y = 1, z = 0 }
-    ]
+addBoxAt : Float -> Float -> Float -> List (Body DemoBody) -> List (Body DemoBody)
+addBoxAt x y z =
+    (::) (Body.moveBy { x = x, y = y + 3, z = z + 5 } Bodies.box)
+
+
+range3 : (Float -> Float -> Float -> a -> a) -> Int -> Float -> a -> a
+range3 fn size distance init =
+    List.foldl
+        (\x acc1 ->
+            List.foldl
+                (\y acc2 ->
+                    List.foldl
+                        (\z acc3 ->
+                            fn
+                                ((toFloat x - toFloat (size - 1) / 2) * distance)
+                                ((toFloat y - toFloat (size - 1) / 2) * distance)
+                                (toFloat z * distance)
+                                acc3
+                        )
+                        acc2
+                        (List.range 0 (size - 1))
+                )
+                acc1
+                (List.range 0 (size - 1))
+        )
+        init
+        (List.range 0 (size - 1))
 
 
 {-| A box raised above the plane and rotated to a random 3d angle
