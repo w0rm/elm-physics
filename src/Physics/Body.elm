@@ -1,6 +1,6 @@
 module Physics.Body exposing
     ( Body, box, plane, sphere
-    , setMass, setPosition, getTransformation
+    , setMass, setPosition, getTransformation, setMaterial
     , moveBy, getPosition
     , rotateBy, setOrientation, getOrientation
     , setData, getData
@@ -10,7 +10,7 @@ module Physics.Body exposing
 {-|
 
 @docs Body, box, plane, sphere
-@docs setMass, setPosition, getTransformation
+@docs setMass, setPosition, getTransformation, setMaterial
 
 
 ## Positioning
@@ -35,9 +35,11 @@ module Physics.Body exposing
 -}
 
 import Internal.Body as Internal exposing (Protected(..))
+import Internal.Material as InternalMaterial
 import Internal.Quaternion as Quaternion
 import Internal.Shape as InternalShape
 import Internal.Vector3 as Vec3
+import Physics.Material as Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 
 
@@ -155,6 +157,13 @@ getTransformation (Protected { position, orientation }) =
     , m34 = position.z
     , m44 = 1
     }
+
+
+{-| Set the [material](Physics-Material) to controll friction and bounciness.
+-}
+setMaterial : Material -> Body data -> Body data
+setMaterial (InternalMaterial.Protected material) (Protected body) =
+    Protected { body | material = material }
 
 
 {-| Move the body by a vector offset from the current position.

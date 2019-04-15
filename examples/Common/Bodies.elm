@@ -2,12 +2,14 @@ module Common.Bodies exposing
     ( DemoBody
     , box
     , compound
+    , domino
     , plane
     , sphere
     )
 
 import Common.Meshes as Meshes exposing (Attributes)
 import Physics.Body as Body exposing (Body)
+import Physics.Material as Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 import WebGL exposing (Mesh)
 
@@ -32,6 +34,30 @@ plane =
     []
         |> fromTriangles
         |> Body.plane
+
+
+{-| A domino piece
+-}
+domino : Body DemoBody
+domino =
+    Meshes.box dominoDimensions
+        |> fromTriangles
+        |> Body.box dominoDimensions
+        |> Body.setMass 0.01
+        |> Body.setMaterial slippy
+
+
+slippy : Material
+slippy =
+    Material.custom
+        { bounciness = 0
+        , friction = 0.01
+        }
+
+
+dominoDimensions : { x : Float, y : Float, z : Float }
+dominoDimensions =
+    { x = 0.1, y = 1, z = 2 }
 
 
 {-| A cube with sides of 2 and mass of 5
