@@ -7,6 +7,7 @@
     "exposed-modules": [
         "Physics.World",
         "Physics.Body",
+        "Physics.Material",
         "Physics.Shape",
         "Physics.Debug"
     ],

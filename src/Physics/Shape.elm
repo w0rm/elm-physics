@@ -37,7 +37,7 @@ The supported shapes are:
 
 -}
 type alias Shape =
-    Internal.Protected
+    Protected
 
 
 {-| A box is defined by dimensions along the corresponding axes.

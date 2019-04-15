@@ -1,7 +1,7 @@
 module Internal.ContactEquation exposing (ContactEquation)
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
+import Internal.Vector3 exposing (Vec3)
 
 
 type alias ContactEquation data =
@@ -10,5 +10,5 @@ type alias ContactEquation data =
     , ri : Vec3 -- vector from the center of body1 to the contact point
     , rj : Vec3 -- vector from body2 position to the contact point
     , ni : Vec3 -- contact normal, pointing out of body1
-    , restitution : Float -- "bounciness": u1 = -e*u0
+    , bounciness : Float -- u1 = -e*u0
     }

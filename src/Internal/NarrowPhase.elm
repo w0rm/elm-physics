@@ -8,6 +8,7 @@ import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Material as Material
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Kind(..), Shape)
 import Internal.Transform as Transform exposing (Transform)
@@ -158,7 +159,7 @@ addPlaneConvexContacts planeTransform planeBody convexTransform convexPolyhedron
                         )
                         planeBody.position
                 , rj = Vec3.sub worldVertex convexBody.position
-                , restitution = 0
+                , bounciness = Material.contactBounciness planeBody.material convexBody.material
                 }
                     :: currentContactEquations
 
@@ -195,7 +196,7 @@ addConvexConvexContacts shapeTransform1 convexPolyhedron1 body1 shapeTransform2 
                         , ni = Vec3.negate sepAxis
                         , ri = ri
                         , rj = rj
-                        , restitution = 0
+                        , bounciness = Material.contactBounciness body1.material body2.material
                         }
                             :: currentContactEquations
                     )
@@ -233,7 +234,7 @@ addPlaneSphereContacts planeTransform body1 t2 radius body2 contactEquations =
                 )
                 body1.position
         , rj = Vec3.sub worldVertex body2.position
-        , restitution = 0
+        , bounciness = Material.contactBounciness body1.material body2.material
         }
             :: contactEquations
 
@@ -258,7 +259,7 @@ addSphereConvexContacts { position } radius body1 t2 hull2 body2 contactEquation
             , ni = worldNormal
             , ri = Vec3.scale radius worldNormal
             , rj = Vec3.sub worldContact2 t2.position
-            , restitution = 0
+            , bounciness = Material.contactBounciness body1.material body2.material
             }
                 :: contactEquations
 
@@ -292,6 +293,6 @@ addSphereSphereContacts t1 radius1 body1 t2 radius2 body2 contactEquations =
         , ni = normal
         , ri = Vec3.scale radius1 normal
         , rj = Vec3.scale -radius2 normal
-        , restitution = 0
+        , bounciness = Material.contactBounciness body1.material body2.material
         }
             :: contactEquations

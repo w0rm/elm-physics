@@ -8,9 +8,30 @@ module Internal.SolverEquation exposing
 import Internal.Body exposing (BodyId)
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
+import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+
+
+contactEquationRelaxation : Float
+contactEquationRelaxation =
+    3
+
+
+contactEquationStiffness : Float
+contactEquationStiffness =
+    10000000
+
+
+frictionEquationRelaxation : Float
+frictionEquationRelaxation =
+    3
+
+
+frictionEquationStiffness : Float
+frictionEquationStiffness =
+    10000000
 
 
 type alias FrictionEquation =
@@ -71,7 +92,10 @@ addContactEquation dt gravity bi bj contactEquation =
         , rotational = rjxn
         }
     }
-        |> setSpookParams 1.0e7 4 dt
+        |> setSpookParams
+            contactEquationStiffness
+            contactEquationRelaxation
+            dt
         |> initSolverParams dt bi bj
         |> (::)
 
@@ -79,8 +103,11 @@ addContactEquation dt gravity bi bj contactEquation =
 addFrictionEquations : Float -> Vec3 -> SolverBody data -> SolverBody data -> ContactEquation data -> List (SolverEquation data) -> List (SolverEquation data)
 addFrictionEquations dt gravity bi bj contactEquation =
     let
-        mug =
-            defaultContactMaterial.friction * Vec3.length gravity
+        μg =
+            Material.contactFriction
+                bi.body.material
+                bj.body.material
+                * Vec3.length gravity
 
         reducedMass =
             if (bi.body.invMass + bj.body.invMass) > 0 then
@@ -120,8 +147,8 @@ addFrictionEquations dt gravity bi bj contactEquation =
         [ { bodyId1 = contactEquation.body1.id
           , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation1
-          , minForce = -mug * reducedMass
-          , maxForce = mug * reducedMass
+          , minForce = -μg * reducedMass
+          , maxForce = μg * reducedMass
           , solverLambda = 0
           , solverBs = 0
           , solverInvCs = 0
@@ -138,15 +165,15 @@ addFrictionEquations dt gravity bi bj contactEquation =
                 }
           }
             |> setSpookParams
-                defaultContactMaterial.frictionEquationStiffness
-                defaultContactMaterial.frictionEquationRelaxation
+                frictionEquationStiffness
+                frictionEquationRelaxation
                 dt
             |> initSolverParams dt bi bj
         , { bodyId1 = contactEquation.body1.id
           , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation2
-          , minForce = -mug * reducedMass
-          , maxForce = mug * reducedMass
+          , minForce = -μg * reducedMass
+          , maxForce = μg * reducedMass
           , solverLambda = 0
           , solverBs = 0
           , solverInvCs = 0
@@ -163,8 +190,8 @@ addFrictionEquations dt gravity bi bj contactEquation =
                 }
           }
             |> setSpookParams
-                defaultContactMaterial.frictionEquationStiffness
-                defaultContactMaterial.frictionEquationRelaxation
+                frictionEquationStiffness
+                frictionEquationRelaxation
                 dt
             |> initSolverParams dt bi bj
         ]
@@ -201,7 +228,7 @@ computeB dt bi bj solverEquation =
 
 
 computeContactB : Float -> SolverBody data -> SolverBody data -> SolverEquation data -> ContactEquation data -> Float
-computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, ri, rj, ni } =
+computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri, rj, ni } =
     let
         g =
             bj.body.position
@@ -211,7 +238,7 @@ computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { restitution, r
                 |> Vec3.dot ni
 
         gW =
-            (restitution + 1)
+            (bounciness + 1)
                 * (Vec3.dot bj.body.velocity ni - Vec3.dot bi.body.velocity ni)
                 + Vec3.dot bj.body.angularVelocity (Vec3.cross rj ni)
                 - Vec3.dot bi.body.angularVelocity (Vec3.cross ri ni)
@@ -280,29 +307,6 @@ computeGW : SolverBody data -> SolverBody data -> SolverEquation data -> Float
 computeGW bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.body.velocity bi.body.angularVelocity jacobianElementA
         + JacobianElement.mulVec bj.body.velocity bj.body.angularVelocity jacobianElementB
-
-
-type alias ContactMaterial =
-    { contactEquationRelaxation : Float
-    , contactEquationStiffness : Float
-    , friction : Float
-    , frictionEquationRelaxation : Float
-    , frictionEquationStiffness : Float
-    , restitution : Float
-
-    -- materials - todo?
-    }
-
-
-defaultContactMaterial : ContactMaterial
-defaultContactMaterial =
-    { contactEquationRelaxation = 5
-    , contactEquationStiffness = 10000000
-    , friction = 0.3
-    , frictionEquationRelaxation = 3
-    , frictionEquationStiffness = 10000000
-    , restitution = 0
-    }
 
 
 tangents : Vec3 -> ( Vec3, Vec3 )

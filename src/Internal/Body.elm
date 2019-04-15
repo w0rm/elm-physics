@@ -12,6 +12,7 @@ module Internal.Body exposing
 
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Const as Const
+import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
@@ -30,6 +31,7 @@ type Protected data
 type alias Body data =
     { id : BodyId
     , data : data
+    , material : Material
     , position : Vec3
     , velocity : Vec3
     , angularVelocity : Vec3
@@ -53,6 +55,7 @@ compound shapes data =
     updateMassProperties
         { id = -1
         , data = data
+        , material = Material.default
         , position = Const.zero3
         , velocity = Const.zero3
         , angularVelocity = Const.zero3

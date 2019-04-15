@@ -6,10 +6,11 @@ module Fixtures.NarrowPhase exposing
     , sphereContactOctohedronPositions
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ContactEquation as ContactEquation exposing (ContactEquation)
+import Internal.Material as Material
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 emptyBody : Body ()
@@ -347,6 +348,6 @@ completeSphereContactEquation radius { ni, rj } =
       , ni = ni
       , ri = Vec3.scale radius ni
       , rj = rj
-      , restitution = 0
+      , bounciness = 0
       }
     ]
