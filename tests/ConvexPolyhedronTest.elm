@@ -40,9 +40,9 @@ clipFaceAgainstPlane =
                     ]
                     |> Expect.equal
                         [ vec3 -0.2 -0.2 -1
-                        , vec3 -0.2 0.2 -1
-                        , vec3 0.2 0.2 -1
                         , vec3 0.2 -0.2 -1
+                        , vec3 0.2 0.2 -1
+                        , vec3 -0.2 0.2 -1
                         ]
         , test "should return no results" <|
             -- Lower the plane to z=-2
@@ -71,9 +71,9 @@ clipFaceAgainstPlane =
                     ]
                     |> Expect.equal
                         [ vec3 0 -2 0
-                        , vec3 0 2 0
-                        , vec3 2 2 -1
                         , vec3 2 -2 -1
+                        , vec3 2 2 -1
+                        , vec3 0 2 0
                         ]
         ]
 

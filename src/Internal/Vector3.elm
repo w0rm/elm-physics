@@ -1,7 +1,7 @@
 module Internal.Vector3 exposing
     ( Vec3, vec3, i, j, k
     , add, sub, negate, scale, dot, cross, normalize, direction
-    , length, lengthSquared, distance, distanceSquared, tangents
+    , length, lengthSquared, distance, distanceSquared, tangents, lerp
     )
 
 {-| A high performance linear algebra library using native JS arrays. Geared
@@ -23,7 +23,7 @@ The set functions create a new copy of the vector, updating a single field.
 # Operations
 
 @docs add, sub, negate, scale, dot, cross, normalize, direction
-@docs length, lengthSquared, distance, distanceSquared, tangents
+@docs length, lengthSquared, distance, distanceSquared, tangents, lerp
 
 
 # Conversions
@@ -185,3 +185,11 @@ tangents vec =
 
     else
         ( i, j )
+
+
+lerp : Float -> Vec3 -> Vec3 -> Vec3
+lerp t v1 v2 =
+    { x = v1.x + t * (v2.x - v1.x)
+    , y = v1.y + t * (v2.y - v1.y)
+    , z = v1.z + t * (v2.z - v1.z)
+    }

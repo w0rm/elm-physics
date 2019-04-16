@@ -360,16 +360,12 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                             depth =
                                 max minDist (Vec3.dot planeNormalWS point + planeEqWS)
                         in
-                        if depth <= maxDist then
-                            if depth <= 0 then
-                                { point = point
-                                , normal = planeNormalWS
-                                , depth = depth
-                                }
-                                    :: result
-
-                            else
-                                result
+                        if depth <= maxDist && depth <= 0 then
+                            { point = point
+                            , normal = planeNormalWS
+                            , depth = depth
+                            }
+                                :: result
 
                         else
                             result
@@ -448,18 +444,6 @@ clipFaceAgainstPlane planeNormal planeConstant vertices =
         -- guarantee at least two, keep the first to match with the last
         fst :: snd :: rest ->
             clipFaceAgainstPlaneHelp planeNormal planeConstant fst vertices []
-                |> (\l ->
-                        -- move the last element to be the first element
-                        -- TODO: not sure if this is needed
-                        let
-                            head =
-                                List.take 1 l
-
-                            tail =
-                                List.drop 1 l
-                        in
-                        head ++ List.reverse tail
-                   )
 
         _ ->
             []
@@ -502,21 +486,16 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
             next :: result
 
         else
-            lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
+            Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
                 :: result
 
     else if nDotNext < 0 then
         next
-            :: lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
+            :: Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
             :: result
 
     else
         result
-
-
-lerp : Float -> Vec3 -> Vec3 -> Vec3
-lerp t v1 v2 =
-    Vec3.add v1 (Vec3.scale t (Vec3.sub v2 v1))
 
 
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
@@ -653,11 +632,7 @@ project transform { vertices } axis =
         )
         ( -Const.maxNumber, Const.maxNumber )
         vertices
-        |> (\( maxVal, minVal ) ->
-                ( maxVal - add
-                , minVal - add
-                )
-           )
+        |> (\( maxVal, minVal ) -> ( maxVal - add, minVal - add ))
 
 
 {-| Encapsulated result of sphereTestFace
