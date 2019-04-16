@@ -39,20 +39,34 @@ updateVelocities : SolveContext data -> World data
 updateVelocities { bodies, world } =
     { world
         | bodies =
-            List.map
-                (\body ->
-                    Array.get body.id bodies
-                        |> Maybe.andThen identity
-                        |> Maybe.map
-                            (\{ vlambda, wlambda } ->
-                                { body
-                                    | velocity = Vec3.add body.velocity vlambda
-                                    , angularVelocity = Vec3.add body.angularVelocity wlambda
-                                }
-                            )
-                        |> Maybe.withDefault body
+            List.foldl
+                (\maybeSolverBody result ->
+                    case maybeSolverBody of
+                        Just { body, vlambda, wlambda } ->
+                            { id = body.id
+                            , data = body.data
+                            , material = body.material
+                            , position = body.position
+                            , velocity = Vec3.add body.velocity vlambda
+                            , angularVelocity = Vec3.add body.angularVelocity wlambda
+                            , orientation = body.orientation
+                            , mass = body.mass
+                            , shapes = body.shapes
+                            , force = body.force
+                            , torque = body.torque
+                            , boundingSphereRadius = body.boundingSphereRadius
+                            , invMass = body.invMass
+                            , inertia = body.inertia
+                            , invInertia = body.invInertia
+                            , invInertiaWorld = body.invInertiaWorld
+                            }
+                                :: result
+
+                        Nothing ->
+                            result
                 )
-                world.bodies
+                []
+                (Array.toList bodies)
     }
 
 
@@ -60,37 +74,41 @@ solveStep : SolveContext data -> SolveContext data
 solveStep context =
     List.foldl
         (\( equationSolverLambda, equation ) newContext ->
-            Maybe.withDefault newContext <|
-                Maybe.map2
-                    (\bi bj ->
-                        let
-                            gWlambda =
-                                SolverEquation.computeGWlambda bi bj equation
+            case Array.get equation.bodyId1 newContext.bodies of
+                Just (Just bi) ->
+                    case Array.get equation.bodyId2 newContext.bodies of
+                        Just (Just bj) ->
+                            let
+                                gWlambda =
+                                    SolverEquation.computeGWlambda bi bj equation
 
-                            deltalambdaPrev =
-                                equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equationSolverLambda)
+                                deltalambdaPrev =
+                                    equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equationSolverLambda)
 
-                            deltalambda =
-                                if equationSolverLambda + deltalambdaPrev < equation.minForce then
-                                    equation.minForce - equationSolverLambda
+                                deltalambda =
+                                    if equationSolverLambda + deltalambdaPrev < equation.minForce then
+                                        equation.minForce - equationSolverLambda
 
-                                else if equationSolverLambda + deltalambdaPrev > equation.maxForce then
-                                    equation.maxForce - equationSolverLambda
+                                    else if equationSolverLambda + deltalambdaPrev > equation.maxForce then
+                                        equation.maxForce - equationSolverLambda
 
-                                else
-                                    deltalambdaPrev
-                        in
-                        { world = newContext.world
-                        , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
-                        , equations = ( equationSolverLambda, equation ) :: newContext.equations
-                        , bodies =
-                            newContext.bodies
-                                |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementA bi))
-                                |> Array.set equation.bodyId2 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementB bj))
-                        }
-                    )
-                    (Array.get equation.bodyId1 newContext.bodies |> Maybe.andThen identity)
-                    (Array.get equation.bodyId2 newContext.bodies |> Maybe.andThen identity)
+                                    else
+                                        deltalambdaPrev
+                            in
+                            { world = newContext.world
+                            , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
+                            , equations = ( equationSolverLambda, equation ) :: newContext.equations
+                            , bodies =
+                                newContext.bodies
+                                    |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementA bi))
+                                    |> Array.set equation.bodyId2 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementB bj))
+                            }
+
+                        _ ->
+                            newContext
+
+                _ ->
+                    newContext
         )
         { context | equations = [], deltalambdaTot = 0 }
         context.equations
