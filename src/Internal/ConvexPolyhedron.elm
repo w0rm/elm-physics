@@ -44,6 +44,7 @@ type alias Face =
 type alias ConvexPolyhedron =
     { faces : Array Face
     , vertices : Array Vec3
+    , verticesList : List Vec3 -- cached for performance
     , edges : List Vec3
     }
 
@@ -52,6 +53,7 @@ init : List (List Int) -> Array Vec3 -> ConvexPolyhedron
 init faceVertexLists vertices =
     { faces = initFaces faceVertexLists vertices
     , vertices = vertices
+    , verticesList = Array.toList vertices
     , edges = initUniqueEdges faceVertexLists vertices
     }
 
@@ -152,6 +154,16 @@ fromBox { x, y, z } =
             , vec3 x y z
             , vec3 -x y z
             ]
+    , verticesList =
+        [ vec3 -x -y -z
+        , vec3 x -y -z
+        , vec3 x y -z
+        , vec3 -x y -z
+        , vec3 -x -y z
+        , vec3 x -y z
+        , vec3 x y z
+        , vec3 -x y z
+        ]
     , edges = boxUniqueEdges
     }
 
@@ -612,8 +624,9 @@ testSepAxis t1 hull1 t2 hull2 axis =
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.
 -}
 project : Transform -> ConvexPolyhedron -> Vec3 -> ( Float, Float )
-project transform { vertices } axis =
+project transform { verticesList } axis =
     let
+        -- TODO: consider inlining all the operations here, this is a very HOT path
         localAxis =
             Transform.vectorToLocalFrame transform axis
 
@@ -622,7 +635,7 @@ project transform { vertices } axis =
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
     in
-    Array.foldl
+    List.foldl
         (\vec ( maxVal, minVal ) ->
             let
                 val =
@@ -631,7 +644,7 @@ project transform { vertices } axis =
             ( max maxVal val, min minVal val )
         )
         ( -Const.maxNumber, Const.maxNumber )
-        vertices
+        verticesList
         |> (\( maxVal, minVal ) -> ( maxVal - add, minVal - add ))
 
 

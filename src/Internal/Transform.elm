@@ -25,20 +25,14 @@ identity =
 
 pointToWorldFrame : Transform -> Vec3 -> Vec3
 pointToWorldFrame { position, orientation } localPoint =
-    localPoint
-        |> Quaternion.rotate orientation
-        |> Vec3.add position
+    Vec3.add position (Quaternion.rotate orientation localPoint)
 
 
 vectorToLocalFrame : Transform -> Vec3 -> Vec3
 vectorToLocalFrame { orientation } worldVector =
-    Quaternion.rotate
-        { orientation | w = -1 * orientation.w }
-        worldVector
+    Quaternion.derotate orientation worldVector
 
 
 pointToLocalFrame : Transform -> Vec3 -> Vec3
 pointToLocalFrame { position, orientation } worldPoint =
-    Quaternion.rotate
-        { orientation | w = -1 * orientation.w }
-        (Vec3.sub worldPoint position)
+    Quaternion.derotate orientation (Vec3.sub worldPoint position)

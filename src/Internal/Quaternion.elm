@@ -1,5 +1,6 @@
 module Internal.Quaternion exposing
     ( Quaternion
+    , derotate
     , fromAngleAxis
     , identity
     , mul
@@ -99,6 +100,27 @@ rotate q { x, y, z } =
     { x = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y
     , y = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z
     , z = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x
+    }
+
+
+derotate : Quaternion -> Vec3 -> Vec3
+derotate q { x, y, z } =
+    let
+        ix =
+            -q.w * x + q.y * z - q.z * y
+
+        iy =
+            -q.w * y + q.z * x - q.x * z
+
+        iz =
+            -q.w * z + q.x * y - q.y * x
+
+        iw =
+            -q.x * x - q.y * y - q.z * z
+    in
+    { x = ix * -q.w + iw * -q.x + iy * -q.z - iz * -q.y
+    , y = iy * -q.w + iw * -q.y + iz * -q.x - ix * -q.z
+    , z = iz * -q.w + iw * -q.z + ix * -q.y - iy * -q.x
     }
 
 
