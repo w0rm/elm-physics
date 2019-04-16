@@ -41,7 +41,6 @@ type alias SolverEquation data =
     , bodyId2 : BodyId
     , minForce : Float
     , maxForce : Float
-    , solverLambda : Float
     , solverBs : Float
     , solverInvCs : Float
     , spookA : Float
@@ -100,6 +99,15 @@ addSolverEquations dt gravity contactEquation =
 
         rjxt2 =
             Vec3.cross contactEquation.rj t2
+
+        spookA =
+            4.0 / (dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
     (++)
         [ { bodyId1 = contactEquation.body1.id
@@ -107,12 +115,11 @@ addSolverEquations dt gravity contactEquation =
           , kind = Contact contactEquation
           , minForce = 0
           , maxForce = 1000000
-          , solverLambda = 0
           , solverBs = 0
           , solverInvCs = 0
-          , spookA = 0
-          , spookB = 0
-          , spookEps = 0
+          , spookA = spookA
+          , spookB = spookB
+          , spookEps = spookEps
           , jacobianElementA =
                 { spatial = Vec3.negate contactEquation.ni
                 , rotational = Vec3.negate rixn
@@ -122,19 +129,17 @@ addSolverEquations dt gravity contactEquation =
                 , rotational = rjxn
                 }
           }
-            |> setSpookParams dt
             |> initSolverParams dt contactEquation.body1 contactEquation.body2
         , { bodyId1 = contactEquation.body1.id
           , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation1
           , minForce = -μg * reducedMass
           , maxForce = μg * reducedMass
-          , solverLambda = 0
           , solverBs = 0
           , solverInvCs = 0
-          , spookA = 0
-          , spookB = 0
-          , spookEps = 0
+          , spookA = spookA
+          , spookB = spookB
+          , spookEps = spookEps
           , jacobianElementA =
                 { spatial = Vec3.negate t1
                 , rotational = Vec3.negate rixt1
@@ -144,19 +149,17 @@ addSolverEquations dt gravity contactEquation =
                 , rotational = rjxt1
                 }
           }
-            |> setSpookParams dt
             |> initSolverParams dt contactEquation.body1 contactEquation.body2
         , { bodyId1 = contactEquation.body1.id
           , bodyId2 = contactEquation.body2.id
           , kind = Friction frictionEquation2
           , minForce = -μg * reducedMass
           , maxForce = μg * reducedMass
-          , solverLambda = 0
           , solverBs = 0
           , solverInvCs = 0
-          , spookA = 0
-          , spookB = 0
-          , spookEps = 0
+          , spookA = spookA
+          , spookB = spookB
+          , spookEps = spookEps
           , jacobianElementA =
                 { spatial = Vec3.negate t2
                 , rotational = Vec3.negate rixt2
@@ -166,7 +169,6 @@ addSolverEquations dt gravity contactEquation =
                 , rotational = rjxt2
                 }
           }
-            |> setSpookParams dt
             |> initSolverParams dt contactEquation.body1 contactEquation.body2
         ]
 
@@ -181,21 +183,20 @@ defaultStiffness =
     10000000
 
 
-setSpookParams : Float -> SolverEquation data -> SolverEquation data
-setSpookParams timeStep solverEquation =
-    { solverEquation
-        | spookA = 4.0 / (timeStep * (1 + 4 * defaultRelaxation))
-        , spookB = (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-        , spookEps = 4.0 / (timeStep * timeStep * defaultStiffness * (1 + 4 * defaultRelaxation))
-    }
-
-
 initSolverParams : Float -> Body data -> Body data -> SolverEquation data -> SolverEquation data
 initSolverParams dt bi bj solverEquation =
-    { solverEquation
-        | solverLambda = 0
-        , solverBs = computeB dt bi bj solverEquation
-        , solverInvCs = 1 / computeC bi bj solverEquation
+    { kind = solverEquation.kind
+    , bodyId1 = solverEquation.bodyId1
+    , bodyId2 = solverEquation.bodyId2
+    , minForce = solverEquation.minForce
+    , maxForce = solverEquation.maxForce
+    , solverBs = computeB dt bi bj solverEquation
+    , solverInvCs = 1 / computeC bi bj solverEquation
+    , spookA = solverEquation.spookA
+    , spookB = solverEquation.spookB
+    , spookEps = solverEquation.spookEps
+    , jacobianElementA = solverEquation.jacobianElementA
+    , jacobianElementB = solverEquation.jacobianElementB
     }
 
 

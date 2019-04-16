@@ -59,7 +59,7 @@ updateVelocities { bodies, world } =
 solveStep : SolveContext data -> SolveContext data
 solveStep context =
     List.foldl
-        (\equation newContext ->
+        (\( equationSolverLambda, equation ) newContext ->
             Maybe.withDefault newContext <|
                 Maybe.map2
                     (\bi bj ->
@@ -68,41 +68,25 @@ solveStep context =
                                 SolverEquation.computeGWlambda bi bj equation
 
                             deltalambdaPrev =
-                                equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equation.solverLambda)
+                                equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * equationSolverLambda)
 
                             deltalambda =
-                                if equation.solverLambda + deltalambdaPrev < equation.minForce then
-                                    equation.minForce - equation.solverLambda
+                                if equationSolverLambda + deltalambdaPrev < equation.minForce then
+                                    equation.minForce - equationSolverLambda
 
-                                else if equation.solverLambda + deltalambdaPrev > equation.maxForce then
-                                    equation.maxForce - equation.solverLambda
+                                else if equationSolverLambda + deltalambdaPrev > equation.maxForce then
+                                    equation.maxForce - equationSolverLambda
 
                                 else
                                     deltalambdaPrev
-
-                            newEquation =
-                                { kind = equation.kind
-                                , bodyId1 = equation.bodyId1
-                                , bodyId2 = equation.bodyId2
-                                , minForce = equation.minForce
-                                , maxForce = equation.maxForce
-                                , solverLambda = equation.solverLambda + deltalambda
-                                , solverBs = equation.solverBs
-                                , solverInvCs = equation.solverInvCs
-                                , spookA = equation.spookA
-                                , spookB = equation.spookB
-                                , spookEps = equation.spookEps
-                                , jacobianElementA = equation.jacobianElementA
-                                , jacobianElementB = equation.jacobianElementB
-                                }
                         in
                         { world = newContext.world
                         , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
-                        , equations = newEquation :: newContext.equations
+                        , equations = ( equationSolverLambda, equation ) :: newContext.equations
                         , bodies =
                             newContext.bodies
-                                |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda newEquation.jacobianElementA bi))
-                                |> Array.set equation.bodyId2 (Just (SolverBody.addToWlambda deltalambda newEquation.jacobianElementB bj))
+                                |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementA bi))
+                                |> Array.set equation.bodyId2 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementB bj))
                         }
                     )
                     (Array.get equation.bodyId1 newContext.bodies |> Maybe.andThen identity)
@@ -114,7 +98,7 @@ solveStep context =
 
 type alias SolveContext data =
     { bodies : Array (Maybe (SolverBody data))
-    , equations : List (SolverEquation data)
+    , equations : List ( Float, SolverEquation data )
     , deltalambdaTot : Float
     , world : World data
     }
@@ -132,6 +116,7 @@ solveContext dt contactEquations world =
             (addSolverEquations dt world.gravity)
             []
             contactEquations
+            |> List.map (Tuple.pair 0)
     , deltalambdaTot = Const.maxNumber -- large number initially
     , world = world
     }
