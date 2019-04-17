@@ -97,7 +97,7 @@ solveStep context =
                             in
                             { world = newContext.world
                             , deltalambdaTot = newContext.deltalambdaTot + abs deltalambda
-                            , equations = ( equationSolverLambda, equation ) :: newContext.equations
+                            , equations = ( equationSolverLambda + deltalambda, equation ) :: newContext.equations
                             , bodies =
                                 newContext.bodies
                                     |> Array.set equation.bodyId1 (Just (SolverBody.addToWlambda deltalambda equation.jacobianElementA bi))
@@ -130,10 +130,8 @@ solveContext dt contactEquations world =
             (Array.initialize world.nextBodyId (always Nothing))
             world.bodies
     , equations =
-        List.foldl
-            (addSolverEquations dt world.gravity)
-            []
-            contactEquations
+        contactEquations
+            |> List.foldl (addSolverEquations dt world.gravity) []
             |> List.map (Tuple.pair 0)
     , deltalambdaTot = Const.maxNumber -- large number initially
     , world = world
