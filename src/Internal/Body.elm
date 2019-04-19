@@ -3,7 +3,6 @@ module Internal.Body exposing
     , BodyId
     , Protected(..)
     , addGravity
-    , clearForces
     , compound
     , shapeWorldTransform
     , tick
@@ -84,14 +83,6 @@ addGravity gravity body =
     }
 
 
-clearForces : Body data -> Body data
-clearForces body =
-    { body
-        | force = Const.zero3
-        , torque = Const.zero3
-    }
-
-
 shapeWorldTransform : Shape -> Body data -> Transform
 shapeWorldTransform shape { position, orientation } =
     { orientation =
@@ -134,6 +125,10 @@ tick dt body =
                 body.orientation
                     |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
                     |> Quaternion.normalize
+
+            -- clear forces
+            , force = Const.zero3
+            , torque = Const.zero3
         }
 
 

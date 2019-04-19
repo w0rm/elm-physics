@@ -32,10 +32,7 @@ addGravityForces world =
 tick : Float -> World data -> World data
 tick dt world =
     { world
-        | bodies =
-            List.map
-                (Body.tick dt >> Body.clearForces)
-                world.bodies
+        | bodies = List.map (Body.tick dt) world.bodies
     }
 
 
