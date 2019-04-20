@@ -4,6 +4,7 @@ module Internal.Body exposing
     , Protected(..)
     , addGravity
     , compound
+    , raycast
     , shapeWorldTransform
     , tick
     , updateMassProperties
@@ -217,4 +218,31 @@ computeAABB body =
                 |> AABB.extend
         )
         AABB.impossible
+        body.shapes
+
+
+raycast :
+    { from : Vec3, direction : Vec3 }
+    -> Body data
+    -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast ray body =
+    List.foldl
+        (\shape maybeClosestRaycastResult ->
+            case Shape.raycast ray (shapeWorldTransform shape body) shape of
+                Just raycastResult ->
+                    case maybeClosestRaycastResult of
+                        Just closestRaycastResult ->
+                            if raycastResult.distance < closestRaycastResult.distance then
+                                Just raycastResult
+
+                            else
+                                maybeClosestRaycastResult
+
+                        Nothing ->
+                            Just raycastResult
+
+                Nothing ->
+                    maybeClosestRaycastResult
+        )
+        Nothing
         body.shapes

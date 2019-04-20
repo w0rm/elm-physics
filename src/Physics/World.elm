@@ -1,6 +1,6 @@
 module Physics.World exposing
     ( World, empty, add, setGravity
-    , simulate, getBodies
+    , simulate, getBodies, raycast, RaycastResult
     , keepIf, update
     )
 
@@ -8,7 +8,7 @@ module Physics.World exposing
 
 @docs World, empty, add, setGravity
 
-@docs simulate, getBodies
+@docs simulate, getBodies, raycast, RaycastResult
 
 @docs keepIf, update
 
@@ -101,6 +101,39 @@ e.g. WebGL entities.
 getBodies : World data -> List (Body data)
 getBodies (Protected { bodies }) =
     List.map InternalBody.Protected bodies
+
+
+{-| Find the closest intersection of a ray against
+all the bodies in the world.
+-}
+raycast :
+    { from : { x : Float, y : Float, z : Float }
+    , direction : { x : Float, y : Float, z : Float }
+    }
+    -> World data
+    -> Maybe (RaycastResult data)
+raycast ray (Protected world) =
+    case Internal.raycast { ray | direction = Vec3.normalize ray.direction } world of
+        Just { body, point, normal } ->
+            Just
+                { body = InternalBody.Protected body
+                , point = point
+                , normal = normal
+                }
+
+        Nothing ->
+            Nothing
+
+
+{-| The Raycast result includes the intersected body,
+intersection point and normal vector on the face,
+expressed within the world coordinate system.
+-}
+type alias RaycastResult data =
+    { body : Body data
+    , point : { x : Float, y : Float, z : Float }
+    , normal : { x : Float, y : Float, z : Float }
+    }
 
 
 

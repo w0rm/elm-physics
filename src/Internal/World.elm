@@ -3,6 +3,7 @@ module Internal.World exposing
     , World
     , addGravityForces
     , getPairs
+    , raycast
     , tick
     )
 
@@ -66,3 +67,40 @@ bodiesMayOverlap : Body data -> Body data -> Bool
 bodiesMayOverlap body1 body2 =
     (body1.boundingSphereRadius + body2.boundingSphereRadius)
         > Vec3.distance body1.position body2.position
+
+
+raycast :
+    { from : Vec3, direction : Vec3 }
+    -> World data
+    -> Maybe { distance : Float, point : Vec3, normal : Vec3, body : Body data }
+raycast ray { bodies } =
+    List.foldl
+        (\body maybeClosestRaycastResult ->
+            case Body.raycast ray body of
+                Just raycastResult ->
+                    case maybeClosestRaycastResult of
+                        Just closestRaycastResult ->
+                            if raycastResult.distance < closestRaycastResult.distance then
+                                Just
+                                    { body = body
+                                    , distance = raycastResult.distance
+                                    , normal = raycastResult.normal
+                                    , point = raycastResult.point
+                                    }
+
+                            else
+                                maybeClosestRaycastResult
+
+                        Nothing ->
+                            Just
+                                { body = body
+                                , distance = raycastResult.distance
+                                , normal = raycastResult.normal
+                                , point = raycastResult.point
+                                }
+
+                Nothing ->
+                    maybeClosestRaycastResult
+        )
+        Nothing
+        bodies
