@@ -4,7 +4,7 @@ module Physics.Body exposing
     , moveBy, getPosition
     , rotateBy, setOrientation, getOrientation
     , setData, getData
-    , compound
+    , is, compound
     )
 
 {-|
@@ -30,7 +30,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs compound
+@docs is, compound
 
 -}
 
@@ -227,6 +227,13 @@ setData data (Protected body) =
 getData : Body data -> data
 getData (Protected { data }) =
     data
+
+
+{-| Check if this is the same body.
+-}
+is : Body data -> Body data -> Bool
+is (Protected b1) (Protected b2) =
+    b1.id == b2.id && b1.id /= -1
 
 
 {-| Make a compound body from a list of [shapes](Physics-Shape#Shape).

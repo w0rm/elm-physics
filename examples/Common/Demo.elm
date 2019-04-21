@@ -17,13 +17,13 @@ import Common.Shaders as Shaders
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes exposing (checked, height, style, type_, width)
-import Html.Events exposing (onCheck, onClick)
+import Html.Events exposing (on, onCheck, onClick)
 import Json.Decode exposing (Value)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Body as Body exposing (Body)
 import Physics.Debug as Debug
-import Physics.World as World exposing (World)
+import Physics.World as World exposing (RaycastResult, World)
 import Random
 import Task
 import WebGL exposing (Entity, Mesh, Shader)
@@ -45,6 +45,7 @@ type alias Model =
     , initialWorld : World DemoBody
     , world : World DemoBody
     , dt : List Float
+    , raycastResult : Maybe (RaycastResult DemoBody)
     }
 
 
@@ -62,7 +63,7 @@ type Msg
     | ToggleSettings
     | Resize Float Float
     | ResetClick
-    | SceneClick
+    | SceneClick (Maybe (RaycastResult DemoBody))
     | AddBody (Body DemoBody)
 
 
@@ -145,6 +146,7 @@ init demo_ =
       , initialWorld = demo_.world
       , world = demo_.world
       , dt = [ 16 ]
+      , raycastResult = Nothing
       }
     , Task.perform (\{ viewport } -> Resize viewport.width viewport.height) getViewport
     )
@@ -187,13 +189,16 @@ update randomBody msg model =
             , Cmd.none
             )
 
-        SceneClick ->
-            case randomBody of
-                Nothing ->
-                    ( model, Cmd.none )
+        SceneClick raycastResult ->
+            case ( raycastResult, randomBody ) of
+                ( Just result, _ ) ->
+                    ( { model | raycastResult = raycastResult }, Cmd.none )
 
-                Just body_ ->
-                    ( model, Random.generate AddBody body_ )
+                ( Nothing, Just body_ ) ->
+                    ( { model | raycastResult = raycastResult }, Random.generate AddBody body_ )
+
+                _ ->
+                    ( model, Cmd.none )
 
         ResetClick ->
             ( { model | world = model.initialWorld }
@@ -221,6 +226,7 @@ type alias SceneParams =
     , debugWireframes : Bool
     , debugNormals : Bool
     , debugEdges : Bool
+    , raycastResult : Maybe (RaycastResult DemoBody)
     }
 
 
@@ -340,20 +346,54 @@ checkbox msg value label =
         ]
 
 
+onMouseClick : (Float -> Float -> Msg) -> Html.Attribute Msg
+onMouseClick tagger =
+    on "click"
+        (Json.Decode.map2
+            tagger
+            (Json.Decode.field "pageX" Json.Decode.float)
+            (Json.Decode.field "pageY" Json.Decode.float)
+        )
+
+
 webGL : Model -> Html Msg
-webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdges, debugWireframes } =
+webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdges, debugWireframes, raycastResult } =
     let
         aspectRatio =
             screenWidth / screenHeight
 
+        camera =
+            Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
+
+        perspective =
+            Mat4.makePerspective 24 aspectRatio 5 2000
+
         sceneParams =
             { lightDirection = Vec3.normalize (vec3 -1 -1 -1)
-            , camera = Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
-            , perspective = Mat4.makePerspective 24 aspectRatio 5 2000
+            , camera = camera
+            , perspective = perspective
             , debugWireframes = debugWireframes
             , debugNormals = debugNormals
             , debugEdges = debugEdges
+            , raycastResult = raycastResult
             }
+
+        sceneClick x y =
+            SceneClick
+                (World.raycast
+                    { from = { x = 0, y = 30, z = 20 }
+                    , direction =
+                        Math.mouseDirection
+                            { camera = camera
+                            , screenWidth = screenWidth
+                            , screenHeight = screenHeight
+                            , perspective = perspective
+                            , x = x
+                            , y = y
+                            }
+                    }
+                    world
+                )
     in
     WebGL.toHtmlWith
         [ WebGL.depth 1
@@ -364,7 +404,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
         [ width (round screenWidth)
         , height (round screenHeight)
         , style "display" "block"
-        , onClick SceneClick
+        , onMouseClick sceneClick
         ]
         ([ ( True
            , \entities -> List.foldl (addBodyEntities sceneParams) entities (World.getBodies world)
@@ -380,7 +420,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
 
 
 addBodyEntities : SceneParams -> Body DemoBody -> List Entity -> List Entity
-addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals } as sceneParams) body entities =
+addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
             Mat4.fromRecord (Body.getTransformation body)
@@ -394,11 +434,23 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
             else
                 acc
 
+        ( color, normals ) =
+            case raycastResult of
+                Just res ->
+                    if Body.is res.body body then
+                        ( vec3 1 0.2 0.2, [ { normal = res.normal, point = res.point } ] )
+
+                    else
+                        ( vec3 0.9 0.9 0.9, [] )
+
+                Nothing ->
+                    ( vec3 0.9 0.9 0.9, [] )
+
         addNormals acc =
             if debugNormals then
                 List.foldl (addNormalIndicator sceneParams transform)
                     acc
-                    (Debug.getFaceNormals body)
+                    (normals ++ Debug.getFaceNormals body)
 
             else
                 acc
@@ -412,7 +464,7 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
             Shaders.fragment
             (Body.getData body |> .wireframe)
             { camera = camera
-            , color = vec3 0.9 0.9 0.9
+            , color = color
             , lightDirection = lightDirection
             , perspective = perspective
             , transform = transform
@@ -445,7 +497,7 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
                 Shaders.fragment
                 (Body.getData body |> .mesh)
                 { camera = camera
-                , color = vec3 0.9 0.9 0.9
+                , color = color
                 , lightDirection = lightDirection
                 , perspective = perspective
                 , transform = transform

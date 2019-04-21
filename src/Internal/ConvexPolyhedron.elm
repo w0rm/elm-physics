@@ -14,6 +14,7 @@ module Internal.ConvexPolyhedron exposing
     , initFaceNormal
     , initUniqueEdges
     , project
+    , raycast
     , sphereContact
     , testSepAxis
     )
@@ -991,7 +992,108 @@ expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
         |> sqrt
 
 
+raycast : { from : Vec3, direction : Vec3 } -> Transform -> ConvexPolyhedron -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast { direction, from } transform convex =
+    Array.foldl
+        (\face maybeHit ->
+            let
+                faceNormalWS =
+                    Quaternion.rotate transform.orientation face.normal
 
+                dot =
+                    Vec3.dot direction faceNormalWS
+
+                -- TODO: maybe cache the first point of face?
+                maybePointOnFace =
+                    case List.head face.vertexIndices of
+                        Just index ->
+                            Array.get index convex.vertices
+
+                        Nothing ->
+                            Nothing
+            in
+            if dot < 0 then
+                case maybePointOnFace of
+                    Just pointOnFace ->
+                        let
+                            pointOnFaceWS =
+                                Transform.pointToWorldFrame transform pointOnFace
+
+                            pointToFrom =
+                                Vec3.sub pointOnFaceWS from
+
+                            scalar =
+                                Vec3.dot faceNormalWS pointToFrom / dot
+                        in
+                        if scalar >= 0 then
+                            let
+                                intersectionPoint =
+                                    { x = direction.x * scalar + from.x
+                                    , y = direction.y * scalar + from.y
+                                    , z = direction.z * scalar + from.z
+                                    }
+
+                                isInsidePolygon =
+                                    face.vertexIndices
+                                        |> List.foldl
+                                            (\index acc1 ->
+                                                case Array.get index convex.vertices of
+                                                    Just p ->
+                                                        Transform.pointToWorldFrame transform p :: acc1
+
+                                                    Nothing ->
+                                                        acc1
+                                            )
+                                            []
+                                        |> listRingFoldStaggeredPairs
+                                            (\p1 p2 result ->
+                                                result
+                                                    && (Vec3.dot
+                                                            (Vec3.sub intersectionPoint p1)
+                                                            (Vec3.sub p2 p1)
+                                                            > 0
+                                                       )
+                                            )
+                                            True
+                            in
+                            if isInsidePolygon then
+                                case maybeHit of
+                                    Just { distance } ->
+                                        if scalar < distance then
+                                            Just
+                                                { distance = scalar
+                                                , point = intersectionPoint
+                                                , normal = faceNormalWS
+                                                }
+
+                                        else
+                                            maybeHit
+
+                                    Nothing ->
+                                        Just
+                                            { distance = scalar
+                                            , point = intersectionPoint
+                                            , normal = faceNormalWS
+                                            }
+
+                            else
+                                maybeHit
+
+                        else
+                            maybeHit
+
+                    Nothing ->
+                        maybeHit
+
+            else
+                maybeHit
+        )
+        Nothing
+        convex.faces
+
+
+
+{- raycastFace : { from : Vec3, direction : Vec3 } -}
 -- Generic utilities, listed alphabetically.
 -- TODO: Consider migrating these to one or more utility modules
 -- if they are found useful elsewhere.
