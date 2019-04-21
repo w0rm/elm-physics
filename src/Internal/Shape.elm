@@ -74,8 +74,8 @@ raycast ray transform { kind } =
         Sphere radius ->
             raycastSphere ray transform.position radius
 
-        Convex _ ->
-            Nothing
+        Convex convex ->
+            ConvexPolyhedron.raycast ray transform convex
 
 
 raycastSphere : { from : Vec3, direction : Vec3 } -> Vec3 -> Float -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
