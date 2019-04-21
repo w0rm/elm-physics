@@ -226,6 +226,7 @@ type alias SceneParams =
     , debugWireframes : Bool
     , debugNormals : Bool
     , debugEdges : Bool
+    , raycastResult : Maybe (RaycastResult DemoBody)
     }
 
 
@@ -374,6 +375,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
             , debugWireframes = debugWireframes
             , debugNormals = debugNormals
             , debugEdges = debugEdges
+            , raycastResult = raycastResult
             }
 
         sceneClick x y =
@@ -410,17 +412,6 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
          , ( debugContacts
            , \entities -> List.foldl (addContactIndicator sceneParams) entities (Debug.getContacts world)
            )
-         , ( True
-           , \entities ->
-                case raycastResult of
-                    Just { normal, point, body } ->
-                        entities
-                            |> addBodyEntities sceneParams body
-                            |> addNormalIndicator sceneParams Mat4.identity { normal = normal, point = point }
-
-                    Nothing ->
-                        entities
-           )
          ]
             |> List.filter Tuple.first
             |> List.map Tuple.second
@@ -429,7 +420,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
 
 
 addBodyEntities : SceneParams -> Body DemoBody -> List Entity -> List Entity
-addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals } as sceneParams) body entities =
+addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
             Mat4.fromRecord (Body.getTransformation body)
@@ -443,11 +434,23 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
             else
                 acc
 
+        ( color, normals ) =
+            case raycastResult of
+                Just res ->
+                    if Body.is res.body body then
+                        ( vec3 1 0.2 0.2, [ { normal = res.normal, point = res.point } ] )
+
+                    else
+                        ( vec3 0.9 0.9 0.9, [] )
+
+                Nothing ->
+                    ( vec3 0.9 0.9 0.9, [] )
+
         addNormals acc =
             if debugNormals then
                 List.foldl (addNormalIndicator sceneParams transform)
                     acc
-                    (Debug.getFaceNormals body)
+                    (normals ++ Debug.getFaceNormals body)
 
             else
                 acc
@@ -461,7 +464,7 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
             Shaders.fragment
             (Body.getData body |> .wireframe)
             { camera = camera
-            , color = vec3 0.9 0.9 0.9
+            , color = color
             , lightDirection = lightDirection
             , perspective = perspective
             , transform = transform
@@ -494,7 +497,7 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
                 Shaders.fragment
                 (Body.getData body |> .mesh)
                 { camera = camera
-                , color = vec3 0.9 0.9 0.9
+                , color = color
                 , lightDirection = lightDirection
                 , perspective = perspective
                 , transform = transform

@@ -17,6 +17,7 @@ module Physics.World exposing
 import Internal.Body as InternalBody
 import Internal.Const as Const
 import Internal.NarrowPhase as NarrowPhase
+import Internal.Quaternion as Quaternion
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
@@ -117,8 +118,10 @@ raycast ray (Protected world) =
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body
-                , point = point
-                , normal = normal
+
+                -- convert into the local body coordinate system:
+                , point = Quaternion.derotate body.orientation (Vec3.sub point body.position)
+                , normal = Quaternion.derotate body.orientation normal
                 }
 
         Nothing ->
@@ -127,7 +130,7 @@ raycast ray (Protected world) =
 
 {-| The Raycast result includes the intersected body,
 intersection point and normal vector on the face,
-expressed within the world coordinate system.
+expressed within the local body coordinate system.
 -}
 type alias RaycastResult data =
     { body : Body data
