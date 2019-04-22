@@ -42,10 +42,18 @@ type alias Model =
     , showSettings : Bool
     , screenWidth : Float
     , screenHeight : Float
-    , initialWorld : World DemoBody
-    , world : World DemoBody
+    , initialWorld : World DemoBodyWithId
+    , world : World DemoBodyWithId
     , dt : List Float
-    , raycastResult : Maybe (RaycastResult DemoBody)
+    , raycastResult : Maybe (RaycastResult DemoBodyWithId)
+    , lastId : Int
+    }
+
+
+type alias DemoBodyWithId =
+    { id : Int
+    , mesh : Mesh Attributes
+    , wireframe : Mesh Attributes
     }
 
 
@@ -63,7 +71,7 @@ type Msg
     | ToggleSettings
     | Resize Float Float
     | ResetClick
-    | SceneClick (Maybe (RaycastResult DemoBody))
+    | SceneClick (Maybe (RaycastResult DemoBodyWithId))
     | AddBody (Body DemoBody)
 
 
@@ -78,7 +86,7 @@ type Demo
 
 
 type alias DemoConfig =
-    { world : World DemoBody
+    { bodies : List (Body DemoBody)
     , randomBody : Maybe (Random.Generator (Body DemoBody))
     }
 
@@ -93,10 +101,7 @@ planeOffset =
 demo : Demo
 demo =
     Demo
-        { world =
-            World.empty
-                |> World.setGravity { x = 0, y = 0, z = -10 }
-                |> World.add (Body.moveBy planeOffset Bodies.plane)
+        { bodies = [ Body.moveBy planeOffset Bodies.plane ]
         , randomBody = Nothing
         }
 
@@ -112,7 +117,7 @@ dropOnClick randomBody (Demo demo_) =
 -}
 addBodies : List (Body DemoBody) -> Demo -> Demo
 addBodies bodiesWithMeshes (Demo demo_) =
-    Demo { demo_ | world = List.foldl World.add demo_.world bodiesWithMeshes }
+    Demo { demo_ | bodies = List.foldl (::) demo_.bodies bodiesWithMeshes }
 
 
 type alias DemoProgram =
@@ -133,6 +138,22 @@ run (Demo demo_) =
 
 init : DemoConfig -> ( Model, Cmd Msg )
 init demo_ =
+    let
+        ( initialWorld, lastId ) =
+            List.foldl
+                (\body ( currentWorld, currentLastId ) ->
+                    let
+                        { mesh, wireframe } =
+                            Body.getData body
+
+                        bodyWithId =
+                            Body.setData { id = currentLastId, mesh = mesh, wireframe = wireframe } body
+                    in
+                    ( World.add bodyWithId currentWorld, currentLastId + 1 )
+                )
+                ( World.setGravity { x = 0, y = 0, z = -10 } World.empty, 0 )
+                demo_.bodies
+    in
     ( { debugContacts = False
       , debugNormals = False
       , debugEdges = False
@@ -143,10 +164,11 @@ init demo_ =
       -- replaced by resize, including the initial resize
       , screenWidth = 1
       , screenHeight = 1
-      , initialWorld = demo_.world
-      , world = demo_.world
+      , initialWorld = initialWorld
+      , world = initialWorld
       , dt = [ 16 ]
       , raycastResult = Nothing
+      , lastId = lastId
       }
     , Task.perform (\{ viewport } -> Resize viewport.width viewport.height) getViewport
     )
@@ -201,12 +223,19 @@ update randomBody msg model =
                     ( model, Cmd.none )
 
         ResetClick ->
-            ( { model | world = model.initialWorld }
+            ( { model | world = model.initialWorld, raycastResult = Nothing, lastId = 0 }
             , Cmd.none
             )
 
         AddBody body ->
-            ( { model | world = World.add body model.world }
+            let
+                { mesh, wireframe } =
+                    Body.getData body
+
+                bodyWithId =
+                    Body.setData { id = model.lastId, mesh = mesh, wireframe = wireframe } body
+            in
+            ( { model | world = World.add bodyWithId model.world, lastId = model.lastId + 1 }
             , Cmd.none
             )
 
@@ -226,7 +255,7 @@ type alias SceneParams =
     , debugWireframes : Bool
     , debugNormals : Bool
     , debugEdges : Bool
-    , raycastResult : Maybe (RaycastResult DemoBody)
+    , raycastResult : Maybe (RaycastResult DemoBodyWithId)
     }
 
 
@@ -419,7 +448,7 @@ webGL { screenWidth, screenHeight, world, debugContacts, debugNormals, debugEdge
         )
 
 
-addBodyEntities : SceneParams -> Body DemoBody -> List Entity -> List Entity
+addBodyEntities : SceneParams -> Body DemoBodyWithId -> List Entity -> List Entity
 addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
@@ -437,7 +466,7 @@ addBodyEntities ({ lightDirection, camera, perspective, debugWireframes, debugEd
         ( color, normals ) =
             case raycastResult of
                 Just res ->
-                    if Body.is res.body body then
+                    if (Body.getData res.body).id == (Body.getData body).id then
                         ( vec3 1 0.2 0.2, [ { normal = res.normal, point = res.point } ] )
 
                     else
