@@ -4,7 +4,7 @@ module Physics.Body exposing
     , moveBy, getPosition
     , rotateBy, setOrientation, getOrientation
     , setData, getData
-    , is, compound
+    , compound
     )
 
 {-|
@@ -30,7 +30,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs is, compound
+@docs compound
 
 -}
 
@@ -217,9 +217,26 @@ getOrientation (Protected { orientation }) =
 
 {-| Set user-defined data.
 -}
-setData : data -> Body data -> Body data
+setData : data -> Body a -> Body data
 setData data (Protected body) =
-    Protected { body | data = data }
+    Protected
+        { id = body.id
+        , data = data
+        , material = body.material
+        , position = body.position
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , orientation = body.orientation
+        , mass = body.mass
+        , shapes = body.shapes
+        , force = body.force
+        , torque = body.torque
+        , boundingSphereRadius = body.boundingSphereRadius
+        , invMass = body.invMass
+        , inertia = body.inertia
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        }
 
 
 {-| Get user-defined data.
