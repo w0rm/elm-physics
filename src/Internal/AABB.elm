@@ -85,7 +85,7 @@ overlaps aabb1 aabb2 =
 
 convexPolyhedron : ConvexPolyhedron -> Transform -> AABB
 convexPolyhedron { vertices } transform =
-    Array.foldl
+    List.foldl
         (\point ->
             let
                 p =
