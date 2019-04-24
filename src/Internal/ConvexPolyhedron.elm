@@ -692,10 +692,11 @@ sphereContact center radius t2 { vertices, faces } =
                     sphereBoundaryContact localContact distanceSq
 
         reframedVertices faceVertices =
-            List.map
-                (\vertex ->
-                    Vec3.sub (Transform.pointToWorldFrame t2 vertex) center
+            List.foldl
+                (\vertex acc ->
+                    Vec3.sub (Transform.pointToWorldFrame t2 vertex) center :: acc
                 )
+                []
                 faceVertices
 
         -- Find the details of the closest faces.
