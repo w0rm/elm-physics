@@ -274,12 +274,6 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
             []
 
 
-getIndexedVertex : Array Vec3 -> Int -> Vec3
-getIndexedVertex vertices i =
-    Array.get i vertices
-        |> Maybe.withDefault Const.zero3
-
-
 getIndexedFace : Array Face -> Int -> Face
 getIndexedFace faces i =
     Array.get i faces
