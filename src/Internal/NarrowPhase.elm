@@ -136,7 +136,7 @@ addPlaneConvexContacts planeTransform planeBody convexTransform convexPolyhedron
         worldNormal =
             Quaternion.rotate planeTransform.orientation Vec3.k
     in
-    Array.foldl
+    List.foldl
         (\vertex currentContactEquations ->
             let
                 worldVertex =

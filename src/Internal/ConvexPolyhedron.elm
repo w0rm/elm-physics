@@ -36,7 +36,7 @@ almostZero { x, y, z } =
 
 
 type alias Face =
-    { vertexIndices : List Int
+    { vertices : List Vec3
     , normal : Vec3
     , adjacentFaces : List Int
     }
@@ -44,18 +44,20 @@ type alias Face =
 
 type alias ConvexPolyhedron =
     { faces : Array Face
-    , vertices : Array Vec3
-    , verticesList : List Vec3 -- cached for performance
+    , vertices : List Vec3 -- cached for performance
     , edges : List Vec3
     }
 
 
 init : List (List Int) -> Array Vec3 -> ConvexPolyhedron
 init faceVertexLists vertices =
+    let
+        faces =
+            initFaces faceVertexLists vertices
+    in
     { faces = initFaces faceVertexLists vertices
-    , vertices = vertices
-    , verticesList = Array.toList vertices
-    , edges = initUniqueEdges faceVertexLists vertices
+    , vertices = Array.toList vertices
+    , edges = initUniqueEdges faces
     }
 
 
@@ -67,7 +69,7 @@ initFaces faceVertexLists vertices =
     in
     List.map2
         (\vertexIndices adjacentFaces ->
-            { vertexIndices = vertexIndices
+            { vertices = List.filterMap (\i -> Array.get i vertices) vertexIndices
             , normal = initFaceNormal vertexIndices vertices
             , adjacentFaces = adjacentFaces
             }
@@ -143,9 +145,8 @@ faceAdjacency faceVertexLists =
 
 fromBox : Vec3 -> ConvexPolyhedron
 fromBox { x, y, z } =
-    { faces = boxFaces
-    , vertices =
-        Array.fromList
+    let
+        vertices =
             [ vec3 -x -y -z
             , vec3 x -y -z
             , vec3 x y -z
@@ -155,29 +156,22 @@ fromBox { x, y, z } =
             , vec3 x y z
             , vec3 -x y z
             ]
-    , verticesList =
-        [ vec3 -x -y -z
-        , vec3 x -y -z
-        , vec3 x y -z
-        , vec3 -x y -z
-        , vec3 -x -y z
-        , vec3 x -y z
-        , vec3 x y z
-        , vec3 -x y z
-        ]
+    in
+    { faces = boxFaces (Array.fromList vertices)
+    , vertices = vertices
     , edges = boxUniqueEdges
     }
 
 
-boxFaces : Array Face
-boxFaces =
+boxFaces : Array Vec3 -> Array Face
+boxFaces vertices =
     Array.fromList
-        [ { vertexIndices = [ 3, 2, 1, 0 ], normal = vec3 0 0 -1, adjacentFaces = [ 2, 3, 4, 5 ] }
-        , { vertexIndices = [ 4, 5, 6, 7 ], normal = vec3 0 0 1, adjacentFaces = [ 2, 3, 4, 5 ] }
-        , { vertexIndices = [ 5, 4, 0, 1 ], normal = vec3 0 -1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-        , { vertexIndices = [ 2, 3, 7, 6 ], normal = vec3 0 1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-        , { vertexIndices = [ 0, 4, 7, 3 ], normal = vec3 -1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
-        , { vertexIndices = [ 1, 2, 6, 5 ], normal = vec3 1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
+        [ { vertices = List.filterMap (\i -> Array.get i vertices) [ 3, 2, 1, 0 ], normal = vec3 0 0 -1, adjacentFaces = [ 2, 3, 4, 5 ] }
+        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 4, 5, 6, 7 ], normal = vec3 0 0 1, adjacentFaces = [ 2, 3, 4, 5 ] }
+        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 5, 4, 0, 1 ], normal = vec3 0 -1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
+        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 2, 3, 7, 6 ], normal = vec3 0 1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
+        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 0, 4, 7, 3 ], normal = vec3 -1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
+        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 1, 2, 6, 5 ], normal = vec3 1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
         ]
 
 
@@ -207,44 +201,32 @@ initFaceNormal indices vertices =
                 Const.zero3
 
 
-initUniqueEdges : List (List Int) -> Array Vec3 -> List Vec3
-initUniqueEdges faceVertexLists vertices =
-    faceVertexLists
-        |> List.foldl (addFaceEdges vertices) []
+initUniqueEdges : Array Face -> List Vec3
+initUniqueEdges faces =
+    Array.foldl addFaceEdges [] faces
 
 
-addFaceEdges : Array Vec3 -> List Int -> List Vec3 -> List Vec3
-addFaceEdges vertices vertexIndices edges =
-    vertexIndices
-        |> listRingFoldStaggeredPairs
-            (\prev current acc ->
-                addEdgeIfDistinct
-                    (Array.get prev vertices)
-                    (Array.get current vertices)
-                    acc
-            )
-            edges
+addFaceEdges : Face -> List Vec3 -> List Vec3
+addFaceEdges { vertices } edges =
+    listRingFoldStaggeredPairs
+        addEdgeIfDistinct
+        edges
+        vertices
 
 
 {-| Add a candidate edge between two vertices to a set if it is not a
 near duplicate or near opposite of an edge already in the set.
 -}
-addEdgeIfDistinct : Maybe Vec3 -> Maybe Vec3 -> List Vec3 -> List Vec3
+addEdgeIfDistinct : Vec3 -> Vec3 -> List Vec3 -> List Vec3
 addEdgeIfDistinct prevVertex currentVertex uniques =
     let
         candidateEdge =
-            Maybe.map2
-                Vec3.direction
-                prevVertex
-                currentVertex
+            Vec3.direction prevVertex currentVertex
     in
     uniques
         |> List.foldl
-            (\member candidate ->
-                candidate
-                    |> Maybe.andThen (distinctOrNothing member)
-            )
-            candidateEdge
+            (\member -> Maybe.andThen (distinctOrNothing member))
+            (Just candidateEdge)
         |> listMaybeAdd uniques
 
 
@@ -279,28 +261,17 @@ type alias ClipResult =
 clipAgainstHull : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Float -> Float -> List ClipResult
 clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
     case bestFace Farthest t2 hull2.faces separatingNormal of
-        Just { vertexIndices } ->
+        Just { vertices } ->
             clipFaceAgainstHull
                 t1
                 hull1
                 separatingNormal
-                (vertexIndices
-                    |> List.map
-                        (getIndexedVertex hull2.vertices
-                            >> Transform.pointToWorldFrame t2
-                        )
-                )
+                (List.map (Transform.pointToWorldFrame t2) vertices)
                 minDist
                 maxDist
 
         Nothing ->
             []
-
-
-getIndexedVertex : Array Vec3 -> Int -> Vec3
-getIndexedVertex vertices i =
-    Array.get i vertices
-        |> Maybe.withDefault Const.zero3
 
 
 getIndexedFace : Array Face -> Int -> Face
@@ -310,7 +281,7 @@ getIndexedFace faces i =
         -- It is type-correct but intentionally invalid for most purposes
         -- in the hopes that it is detected and handled ASAP downstream.
         |> Maybe.withDefault
-            { vertexIndices = []
+            { vertices = []
             , normal = Const.zero3
             , adjacentFaces = []
             }
@@ -319,14 +290,13 @@ getIndexedFace faces i =
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
 clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
     case bestFace Nearest t1 hull1.faces separatingNormal of
-        Just { vertexIndices, normal, adjacentFaces } ->
+        Just { vertices, normal, adjacentFaces } ->
             let
                 localPlaneEq =
-                    -(List.head vertexIndices
+                    -(List.head vertices
                         |> maybeWithDefaultOrCrash
                             "empty face vertexIndices"
-                            -1
-                        |> getIndexedVertex hull1.vertices
+                            Const.zero3
                         |> Vec3.dot normal
                      )
 
@@ -340,11 +310,10 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                 otherFaceDetails otherFaceIndex =
                     getIndexedFace hull1.faces otherFaceIndex
                         |> (\otherFace ->
-                                List.head otherFace.vertexIndices
+                                List.head otherFace.vertices
                                     |> maybeWithDefaultOrCrash
                                         "vertexIndices is empty for face"
-                                        -1
-                                    |> getIndexedVertex hull1.vertices
+                                        Const.zero3
                                     |> (\b -> ( otherFace.normal, b ))
                            )
             in
@@ -625,7 +594,7 @@ testSepAxis t1 hull1 t2 hull2 axis =
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.
 -}
 project : Transform -> ConvexPolyhedron -> Vec3 -> ( Float, Float )
-project transform { verticesList } axis =
+project transform { vertices } axis =
     let
         -- TODO: consider inlining all the operations here, this is a very HOT path
         localAxis =
@@ -645,7 +614,7 @@ project transform { verticesList } axis =
             ( max maxVal val, min minVal val )
         )
         ( -Const.maxNumber, Const.maxNumber )
-        verticesList
+        vertices
         |> (\( maxVal, minVal ) -> ( maxVal - add, minVal - add ))
 
 
@@ -716,28 +685,26 @@ sphereContact center radius t2 { vertices, faces } =
                 EdgeContact ( localContact, distanceSq ) ->
                     sphereBoundaryContact localContact distanceSq
 
-        reframedVertices =
-            vertices
-                |> Array.map
-                    (\vertex ->
-                        Vec3.sub
-                            (Transform.pointToWorldFrame t2 vertex)
-                            center
-                    )
+        reframedVertices faceVertices =
+            List.foldl
+                (\vertex acc ->
+                    Vec3.sub (Transform.pointToWorldFrame t2 vertex) center :: acc
+                )
+                []
+                faceVertices
 
         -- Find the details of the closest faces.
         testFaceResult =
             faces
                 |> arrayRecurseUntil
                     isAFaceContact
-                    (\{ vertexIndices, normal } statusQuo ->
+                    (\face statusQuo ->
                         case statusQuo of
                             QualifiedEdges acc ->
                                 sphereTestFace
                                     radius
-                                    (Quaternion.rotate t2.orientation normal)
-                                    reframedVertices
-                                    vertexIndices
+                                    (Quaternion.rotate t2.orientation face.normal)
+                                    (reframedVertices face.vertices)
                                     acc
 
                             FaceContact _ _ ->
@@ -760,55 +727,36 @@ sphereContact center radius t2 { vertices, faces } =
 with a sphere, or otherwise a list of the face's edges that may contain an
 edge or vertex contact.
 -}
-sphereTestFace : Float -> Vec3 -> Array Vec3 -> List Int -> List (List ( Vec3, Vec3 )) -> TestFaceResult
-sphereTestFace radius normal vertices vertexIndices acc =
+sphereTestFace : Float -> Vec3 -> List Vec3 -> List (List ( Vec3, Vec3 )) -> TestFaceResult
+sphereTestFace radius normal vertices acc =
     let
         -- Use an arbitrary vertex from the face to measure the distance to
         -- the origin (sphere center) along the face normal.
         faceDistance =
-            List.head vertexIndices
-                |> Maybe.andThen (\i -> Array.get i vertices)
+            List.head vertices
                 |> Maybe.map
                     (\point ->
                         -(Vec3.dot normal point)
                     )
                 -- a negative value prevents a face or edge contact match
                 |> Maybe.withDefault -1
-
-        faceVertices =
-            if faceDistance < radius && faceDistance > 0.0 then
-                -- Sphere intersects the face plane.
-                -- Check that all the vertices are valid.
-                vertexIndices
-                    |> List.foldl
-                        (\index acc1 ->
-                            Maybe.map2
-                                (::)
-                                (Array.get index vertices)
-                                acc1
-                        )
-                        (Just [])
-
-            else
-                Nothing
     in
-    case faceVertices of
-        -- Require 3 or more valid vertices to proceed
-        Just ((_ :: _ :: _ :: _) as validVertices) ->
-            -- If vertices are valid, check if the sphere center
-            -- projects onto the face plane INSIDE the face polygon.
-            case originProjection validVertices normal of
-                [] ->
-                    -- The projection falls within all the face's edges.
-                    FaceContact normal faceDistance
+    if faceDistance < radius && faceDistance > 0.0 then
+        -- Sphere intersects the face plane.
+        -- Assume 3 or more valid vertices to proceed
+        -- Check if the sphere center projects onto the face plane INSIDE the face polygon.
+        case originProjection vertices normal of
+            [] ->
+                -- The projection falls within all the face's edges.
+                FaceContact normal faceDistance
 
-                separatingEdges ->
-                    -- These origin-excluding edges are candidates for
-                    -- having an edge or vertex contact.
-                    QualifiedEdges <| separatingEdges :: acc
+            separatingEdges ->
+                -- These origin-excluding edges are candidates for
+                -- having an edge or vertex contact.
+                QualifiedEdges <| separatingEdges :: acc
 
-        _ ->
-            QualifiedEdges acc
+    else
+        QualifiedEdges acc
 
 
 {-| The edge or vertex contact point and its distance (squared), if any,
@@ -943,22 +891,16 @@ originProjection vertices normal =
 
 
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
-foldFaceNormals fn acc { vertices, faces } =
+foldFaceNormals fn acc { faces } =
     faces
         |> Array.foldl
-            (\{ vertexIndices, normal } acc1 ->
+            (\{ vertices, normal } acc1 ->
                 let
                     vsum =
-                        vertexIndices
-                            |> List.foldl
-                                (\index acc2 ->
-                                    getIndexedVertex vertices index
-                                        |> Vec3.add acc2
-                                )
-                                Const.zero3
+                        List.foldl Vec3.add Const.zero3 vertices
 
                     vcount =
-                        List.length vertexIndices
+                        List.length vertices
                 in
                 fn normal (Vec3.scale (1.0 / toFloat vcount) vsum) acc1
             )
@@ -967,21 +909,18 @@ foldFaceNormals fn acc { vertices, faces } =
 
 foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
 foldUniqueEdges fn acc { vertices, edges } =
-    case Array.get 0 vertices of
-        Nothing ->
-            acc
+    case vertices of
+        vertex0 :: _ ->
+            List.foldl (\edge -> fn edge vertex0) acc edges
 
-        Just vertex0 ->
-            edges
-                |> List.foldl
-                    (\edge -> fn edge vertex0)
-                    acc
+        [] ->
+            acc
 
 
 expandBoundingSphereRadius : Transform -> ConvexPolyhedron -> Float -> Float
 expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
     vertices
-        |> Array.foldl
+        |> List.foldl
             (\vertex ->
                 vertex
                     |> Transform.pointToWorldFrame shapeTransform
@@ -1005,12 +944,7 @@ raycast { direction, from } transform convex =
 
                 -- TODO: maybe cache the first point of face?
                 maybePointOnFace =
-                    case List.head face.vertexIndices of
-                        Just index ->
-                            Array.get index convex.vertices
-
-                        Nothing ->
-                            Nothing
+                    List.head face.vertices
             in
             if dot < 0 then
                 case maybePointOnFace of
@@ -1034,15 +968,10 @@ raycast { direction, from } transform convex =
                                     }
 
                                 isInsidePolygon =
-                                    face.vertexIndices
+                                    face.vertices
                                         |> List.foldl
-                                            (\index acc1 ->
-                                                case Array.get index convex.vertices of
-                                                    Just p ->
-                                                        Transform.pointToWorldFrame transform p :: acc1
-
-                                                    Nothing ->
-                                                        acc1
+                                            (\p acc1 ->
+                                                Transform.pointToWorldFrame transform p :: acc1
                                             )
                                             []
                                         |> listRingFoldStaggeredPairs
@@ -1093,7 +1022,6 @@ raycast { direction, from } transform convex =
 
 
 
-{- raycastFace : { from : Vec3, direction : Vec3 } -}
 -- Generic utilities, listed alphabetically.
 -- TODO: Consider migrating these to one or more utility modules
 -- if they are found useful elsewhere.

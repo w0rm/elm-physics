@@ -504,12 +504,14 @@ initFaceNormal =
         [ test "works for the box" <|
             \_ ->
                 boxHull 1
-                    |> (\{ faces, vertices } ->
+                    |> (\{ faces } ->
                             faces
                                 |> Array.toList
                                 |> List.map
-                                    (\{ vertexIndices } ->
-                                        ConvexPolyhedron.initFaceNormal vertexIndices vertices
+                                    (\{ vertices } ->
+                                        ConvexPolyhedron.initFaceNormal
+                                            (List.range 0 (List.length vertices - 1))
+                                            (Array.fromList vertices)
                                     )
                        )
                     |> Expect.equal boxNormals
@@ -895,13 +897,8 @@ BEFORE that ConvexPolyhedron is fully initialized, because its result gets
 cached in ConvexPolyhedron.edges.
 -}
 uniqueEdgesOfConvexPolyhedron : ConvexPolyhedron -> List Vec3
-uniqueEdgesOfConvexPolyhedron { vertices, faces } =
-    faces
-        |> Array.toList
-        |> List.map .vertexIndices
-        |> (\faceVertexIndices ->
-                ConvexPolyhedron.initUniqueEdges faceVertexIndices vertices
-           )
+uniqueEdgesOfConvexPolyhedron { faces } =
+    ConvexPolyhedron.initUniqueEdges faces
 
 
 {-| This test helper function is intended as a more flexible variant of
@@ -913,13 +910,8 @@ These differences have no application in production.
 Keep this code in sync with any changes to ConvexPolyhedron.initUniqueEdges.
 -}
 addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
-addEdgesOfConvexPolyhedron seedEdges { vertices, faces } =
-    faces
-        |> Array.toList
-        |> List.map .vertexIndices
-        |> List.foldl
-            (ConvexPolyhedron.addFaceEdges vertices)
-            seedEdges
+addEdgesOfConvexPolyhedron seedEdges { faces } =
+    Array.foldl ConvexPolyhedron.addFaceEdges seedEdges faces
 
 
 {-| Useful variant of addEdgesOfConvexPolyhedron that abstracts out the count
