@@ -400,36 +400,10 @@ bestFace comparator transform faces separatingNormal =
 
 clipFaceAgainstPlane : Vec3 -> Float -> List Vec3 -> List Vec3
 clipFaceAgainstPlane planeNormal planeConstant vertices =
-    case vertices of
-        -- guarantee at least two, keep the first to match with the last
-        fst :: snd :: rest ->
-            clipFaceAgainstPlaneHelp planeNormal planeConstant fst vertices []
-
-        _ ->
-            []
-
-
-clipFaceAgainstPlaneHelp : Vec3 -> Float -> Vec3 -> List Vec3 -> List Vec3 -> List Vec3
-clipFaceAgainstPlaneHelp planeNormal planeConstant first vertices result =
-    case vertices of
-        [] ->
-            result
-
-        fst :: snd :: remaining ->
-            clipFaceAgainstPlaneHelp
-                planeNormal
-                planeConstant
-                first
-                (snd :: remaining)
-                (clipFaceAgainstPlaneAdd planeNormal planeConstant fst snd result)
-
-        last :: [] ->
-            clipFaceAgainstPlaneHelp
-                planeNormal
-                planeConstant
-                first
-                []
-                (clipFaceAgainstPlaneAdd planeNormal planeConstant last first result)
+    listRingFoldStaggeredPairs
+        (clipFaceAgainstPlaneAdd planeNormal planeConstant)
+        []
+        vertices
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
