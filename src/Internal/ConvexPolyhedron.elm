@@ -89,40 +89,39 @@ faceAdjacency faceVertexLists =
         -}
         faceIndexedLists : List (List ( Int, Int ))
         faceIndexedLists =
-            faceVertexLists
-                |> List.indexedMap
-                    (\face vertexList ->
-                        vertexList
-                            |> List.map (\b -> ( face, b ))
-                    )
+            List.indexedMap
+                (\face vertexList ->
+                    List.map (\b -> ( face, b )) vertexList
+                )
+                faceVertexLists
 
         {- Invert the collections of vertices listed by face into
            a collection of faces indexed by vertex
         -}
         vertexToFacesMap : Dict.Dict Int (List Int)
         vertexToFacesMap =
-            faceIndexedLists
-                |> List.foldl
-                    (\indexedList acc ->
-                        indexedList
-                            |> List.foldl
-                                (\( face, vertex ) acc1 ->
-                                    Dict.insert
-                                        vertex
-                                        (face
-                                            :: (case Dict.get vertex acc1 of
-                                                    Nothing ->
-                                                        []
+            List.foldl
+                (\indexedList acc ->
+                    List.foldl
+                        (\( face, vertex ) acc1 ->
+                            Dict.insert
+                                vertex
+                                (face
+                                    :: (case Dict.get vertex acc1 of
+                                            Nothing ->
+                                                []
 
-                                                    Just existingList ->
-                                                        existingList
-                                               )
-                                        )
-                                        acc1
+                                            Just existingList ->
+                                                existingList
+                                       )
                                 )
-                                acc
-                    )
-                    Dict.empty
+                                acc1
+                        )
+                        acc
+                        indexedList
+                )
+                Dict.empty
+                faceIndexedLists
 
         {- Merge each listed vertex's containing faces into a set,
            excluding the self-references to the current face.
@@ -131,9 +130,7 @@ faceAdjacency faceVertexLists =
         addUniqueContainingFaces ( face, vertex ) acc =
             Dict.get vertex vertexToFacesMap
                 |> Maybe.withDefault []
-                |> List.foldl
-                    Set.insert
-                    acc
+                |> List.foldl Set.insert acc
                 |> Set.remove face
     in
     List.map
@@ -272,16 +269,16 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
 
 getIndexedFace : Array Face -> Int -> Face
 getIndexedFace faces i =
-    Array.get i faces
-        -- This default should never get triggered in production.
-        -- It is type-correct but intentionally invalid for most purposes
-        -- in the hopes that it is detected and handled ASAP downstream.
-        |> Maybe.withDefault
-            { vertices = []
-            , normal = Const.zero3
-            , point = Const.zero3
-            , adjacentFaces = []
-            }
+    -- This default should never get triggered in production.
+    -- It is type-correct but intentionally invalid for most purposes
+    -- in the hopes that it is detected and handled ASAP downstream.
+    Maybe.withDefault
+        { vertices = []
+        , normal = Const.zero3
+        , point = Const.zero3
+        , adjacentFaces = []
+        }
+        (Array.get i faces)
 
 
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
@@ -642,15 +639,13 @@ sphereContact center radius t2 { vertices, faces } =
             -- The world frame contact is located distance away from
             -- the world frame sphere center in the OPPOSITE direction of
             -- the normal.
-            ( Just <|
-                Vec3.sub center <|
-                    Vec3.scale distance normal
+            ( Just (Vec3.sub center (Vec3.scale distance normal))
             , radius - distance
             )
 
         sphereBoundaryContact : Vec3 -> Float -> ( Maybe Vec3, Float )
         sphereBoundaryContact localContact distanceSq =
-            ( Just <| Vec3.add localContact center
+            ( Just (Vec3.add localContact center)
             , radius - sqrt distanceSq
             )
 
@@ -676,24 +671,24 @@ sphereContact center radius t2 { vertices, faces } =
 
         -- Find the details of the closest faces.
         testFaceResult =
-            faces
-                |> arrayRecurseUntil
-                    isAFaceContact
-                    (\face statusQuo ->
-                        case statusQuo of
-                            QualifiedEdges acc ->
-                                sphereTestFace
-                                    radius
-                                    (Quaternion.rotate t2.orientation face.normal)
-                                    (reframedVertices face.vertices)
-                                    acc
+            arrayRecurseUntil
+                isAFaceContact
+                (\face statusQuo ->
+                    case statusQuo of
+                        QualifiedEdges acc ->
+                            sphereTestFace
+                                radius
+                                (Quaternion.rotate t2.orientation face.normal)
+                                (reframedVertices face.vertices)
+                                acc
 
-                            FaceContact _ _ ->
-                                -- Since a FaceContact short circuits the
-                                -- recursion, this case is not expected.
-                                statusQuo
-                    )
-                    (QualifiedEdges [])
+                        FaceContact _ _ ->
+                            -- Since a FaceContact short circuits the
+                            -- recursion, this case is not expected.
+                            statusQuo
+                )
+                (QualifiedEdges [])
+                faces
     in
     case testFaceResult of
         QualifiedEdges faceEdgeList ->
@@ -734,7 +729,7 @@ sphereTestFace radius normal vertices acc =
             separatingEdges ->
                 -- These origin-excluding edges are candidates for
                 -- having an edge or vertex contact.
-                QualifiedEdges <| separatingEdges :: acc
+                QualifiedEdges (separatingEdges :: acc)
 
     else
         QualifiedEdges acc
@@ -746,10 +741,10 @@ list of edges per face.
 -}
 sphereTestBoundaries : Float -> List (List ( Vec3, Vec3 )) -> TestBoundaryResult
 sphereTestBoundaries radius faceEdgeList =
-    faceEdgeList
-        |> List.foldl
-            sphereTestBoundary
-            (PossibleVertexContact ( Nothing, radius ^ 2 ))
+    List.foldl
+        sphereTestBoundary
+        (PossibleVertexContact ( Nothing, radius * radius ))
+        faceEdgeList
 
 
 {-| The edge or possible vertex contact point and its distance (squared),
@@ -757,20 +752,20 @@ if any, of a ConvexPolyhedron face's pre-qualified edges with a sphere.
 -}
 sphereTestBoundary : List ( Vec3, Vec3 ) -> TestBoundaryResult -> TestBoundaryResult
 sphereTestBoundary faceEdges statusQuo =
-    faceEdges
-        |> listRecurseUntil
-            isAnEdgeContact
-            (\( prevVertex, vertex ) statusQuo1 ->
-                case statusQuo1 of
-                    PossibleVertexContact soFar ->
-                        sphereTestEdge prevVertex vertex soFar
+    listRecurseUntil
+        isAnEdgeContact
+        (\( prevVertex, vertex ) statusQuo1 ->
+            case statusQuo1 of
+                PossibleVertexContact soFar ->
+                    sphereTestEdge prevVertex vertex soFar
 
-                    EdgeContact _ ->
-                        -- Since an EdgeContact stops the recursion,
-                        -- this case is not expected.
-                        statusQuo1
-            )
-            statusQuo
+                EdgeContact _ ->
+                    -- Since an EdgeContact stops the recursion,
+                    -- this case is not expected.
+                    statusQuo1
+        )
+        statusQuo
+        faceEdges
 
 
 {-| The edge or possible vertex contact point and its distance (squared),
@@ -813,19 +808,18 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
         -- prevVertex is closest in this edge,
         -- but there may be a closer edge or
         -- no contact.
-        PossibleVertexContact <| betterVertexContact prevVertex
+        PossibleVertexContact (betterVertexContact prevVertex)
 
-    else if offset ^ 2 > Vec3.lengthSquared edge then
+    else if offset * offset > Vec3.lengthSquared edge then
         -- vertex is closest in this edge,
         -- but there may be a closer edge or
         -- no contact.
-        PossibleVertexContact <| betterVertexContact vertex
+        PossibleVertexContact (betterVertexContact vertex)
 
     else
         let
             edgeContact =
-                Vec3.add prevVertex <|
-                    Vec3.scale offset edgeUnit
+                Vec3.add prevVertex (Vec3.scale offset edgeUnit)
 
             edgeDistanceSq =
                 Vec3.lengthSquared edgeContact
@@ -846,46 +840,45 @@ If the list is empty, the projection is within the polygon.
 -}
 originProjection : List Vec3 -> Vec3 -> List ( Vec3, Vec3 )
 originProjection vertices normal =
-    vertices
-        |> listRingFoldStaggeredPairs
-            (\prevVertex vertex acc ->
-                let
-                    edge_x_normal =
-                        Vec3.sub vertex prevVertex
-                            |> Vec3.cross normal
-                in
-                -- The sign of this dot product determines on which
-                -- side of the directed edge the projected point lies,
-                -- left or right, within the face plane.
-                -- For the projection to be within the face, the sign
-                -- must always be non-negative when circling from vertex
-                -- to vertex in the listed (counter-clockwise) direction.
-                -- Retain any edge that tests negative as a candidate
-                -- for an edge or vertex contact.
-                if Vec3.dot edge_x_normal prevVertex < 0 then
-                    ( prevVertex, vertex ) :: acc
+    listRingFoldStaggeredPairs
+        (\prevVertex vertex acc ->
+            let
+                edge_x_normal =
+                    Vec3.cross normal (Vec3.sub vertex prevVertex)
+            in
+            -- The sign of this dot product determines on which
+            -- side of the directed edge the projected point lies,
+            -- left or right, within the face plane.
+            -- For the projection to be within the face, the sign
+            -- must always be non-negative when circling from vertex
+            -- to vertex in the listed (counter-clockwise) direction.
+            -- Retain any edge that tests negative as a candidate
+            -- for an edge or vertex contact.
+            if Vec3.dot edge_x_normal prevVertex < 0 then
+                ( prevVertex, vertex ) :: acc
 
-                else
-                    acc
-            )
-            []
+            else
+                acc
+        )
+        []
+        vertices
 
 
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
 foldFaceNormals fn acc { faces } =
-    faces
-        |> Array.foldl
-            (\{ vertices, normal } acc1 ->
-                let
-                    vsum =
-                        List.foldl Vec3.add Const.zero3 vertices
+    Array.foldl
+        (\{ vertices, normal } acc1 ->
+            let
+                vsum =
+                    List.foldl Vec3.add Const.zero3 vertices
 
-                    vcount =
-                        List.length vertices
-                in
-                fn normal (Vec3.scale (1.0 / toFloat vcount) vsum) acc1
-            )
-            acc
+                vcount =
+                    List.length vertices
+            in
+            fn normal (Vec3.scale (1.0 / toFloat vcount) vsum) acc1
+        )
+        acc
+        faces
 
 
 foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
@@ -1009,8 +1002,7 @@ arrayRecurseUntil test fn seed array =
                         acc
 
                     else
-                        fn element acc
-                            |> recurse (index + 1)
+                        recurse (index + 1) (fn element acc)
 
                 Nothing ->
                     acc
