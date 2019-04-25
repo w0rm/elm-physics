@@ -1042,24 +1042,6 @@ listFoldStaggeredPairs fn seed resultSeed list =
             resultSeed
 
 
-{-| A generic List/Maybe-related utility.
-For "Just x", add x to the list; for "Nothing", do nothing.
-Examples:
-listMaybeAdd [] (Just 1) === [ 1 ]
-listMaybeAdd [] Nothing === []
-listMaybeAdd [ 2, 1 ] (Just 3) === [ 3, 2, 1 ]
-listMaybeAdd [ 2, 1 ] Nothing === [ 2, 1 ]
--}
-listMaybeAdd : List a -> Maybe a -> List a
-listMaybeAdd list maybe =
-    case maybe of
-        Nothing ->
-            list
-
-        Just head ->
-            head :: list
-
-
 {-| Recursively "foldl" the function over the elements of the list,
 until the result passes a test. Using recursion in the place of a true
 fold allows a short-circuit return as soon as the test passes.
