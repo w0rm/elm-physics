@@ -104,7 +104,7 @@ addUniqueEdges { kind, position, orientation } edges =
     case kind of
         Convex convex ->
             ConvexPolyhedron.foldUniqueEdges
-                (\direction point ->
+                (\point direction ->
                     (::)
                         { direction = Quaternion.rotate orientation direction
                         , point =

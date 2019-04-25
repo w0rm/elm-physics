@@ -222,27 +222,20 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
     let
         candidateEdge =
             Vec3.direction prevVertex currentVertex
+
+        alreadyInTheSet =
+            List.any
+                (\member ->
+                    (Vec3.sub member candidateEdge |> almostZero)
+                        || (Vec3.add member candidateEdge |> almostZero)
+                )
+                uniques
     in
-    uniques
-        |> List.foldl
-            (\member -> Maybe.andThen (distinctOrNothing member))
-            (Just candidateEdge)
-        |> listMaybeAdd uniques
-
-
-{-| Eliminate a candidate that is a near duplicate or near
-opposite of an edge that is already a member of a set.
--}
-distinctOrNothing : Vec3 -> Vec3 -> Maybe Vec3
-distinctOrNothing member candidate =
-    if
-        (Vec3.sub member candidate |> almostZero)
-            || (Vec3.add member candidate |> almostZero)
-    then
-        Nothing
+    if alreadyInTheSet then
+        uniques
 
     else
-        Just candidate
+        candidateEdge :: uniques
 
 
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
@@ -911,7 +904,7 @@ foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
 foldUniqueEdges fn acc { vertices, edges } =
     case vertices of
         vertex0 :: _ ->
-            List.foldl (\edge -> fn edge vertex0) acc edges
+            List.foldl (fn vertex0) acc edges
 
         [] ->
             acc
@@ -1057,37 +1050,25 @@ identityOrCrash message value =
 
 
 {-| Fold the function over pairs of consecutive elements in the list,
-starting with the pair (seed, first), then (first, second), and so on.
+starting with the pair (first, second), and so on until (last, seed).
 -}
-listFoldStaggeredPairs : (a -> a -> b -> b) -> b -> a -> List a -> b
-listFoldStaggeredPairs fn resultSeed seed list =
-    list
-        |> List.foldl
-            (\current ( acc, staggered ) ->
-                case staggered of
-                    prev :: tail ->
-                        ( fn prev current acc
-                        , tail
-                        )
+listFoldStaggeredPairs : (a -> a -> b -> b) -> a -> b -> List a -> b
+listFoldStaggeredPairs fn seed resultSeed list =
+    case list of
+        el1 :: rest1 ->
+            case rest1 of
+                [] ->
+                    fn el1 seed resultSeed
 
-                    _ ->
-                        -- Since the original list should run out of elements
-                        -- one iteration before the staggered list does,
-                        -- this case is not expected.
-                        ( acc, [] )
-            )
-            ( resultSeed, seed :: list )
-        |> Tuple.first
+                el2 :: rest2 ->
+                    listFoldStaggeredPairs
+                        fn
+                        seed
+                        (fn el1 el2 resultSeed)
+                        rest1
 
-
-{-| Just the last element of a list, or Nothing for an empty list.
-Equivalent to elm-community/list-extra/7.1.0/List-Extra last.
--}
-listLast : List a -> Maybe a
-listLast list =
-    list
-        |> List.drop (List.length list - 1)
-        |> List.head
+        [] ->
+            resultSeed
 
 
 {-| A generic List/Maybe-related utility.
@@ -1135,17 +1116,17 @@ listRecurseUntil test fn resultSoFar list =
 
 
 {-| Map the function to pairs of consecutive elements in the ring list,
-starting with the pair (last, first), then (first, second), and so on.
+starting with the pair (first, second), and so on, until (last, first).
 -}
 listRingFoldStaggeredPairs : (a -> a -> b -> b) -> b -> List a -> b
 listRingFoldStaggeredPairs fn resultSeed list =
-    case listLast list of
-        Nothing ->
-            -- The ring is empty.
-            resultSeed
+    case list of
+        first :: _ :: rest ->
+            listFoldStaggeredPairs fn first resultSeed list
 
-        Just last ->
-            listFoldStaggeredPairs fn resultSeed last list
+        _ ->
+            -- The list is empty or contains one element.
+            resultSeed
 
 
 {-| Crash-on-Nothing equivalent of Maybe.withDefault for use in debugging.
