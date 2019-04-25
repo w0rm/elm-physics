@@ -501,18 +501,26 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
 findSeparatingAxis t1 hull1 t2 hull2 =
-    { dmin = Const.maxNumber, target = Const.zero3 }
-        |> testFaceNormals t1 hull1 t2 hull2 t1.orientation hull1.faces
-        |> Maybe.andThen (testFaceNormals t1 hull1 t2 hull2 t2.orientation hull2.faces)
-        |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
-        |> Maybe.map
-            (\{ target } ->
-                if Vec3.dot (Vec3.sub t2.position t1.position) target > 0 then
-                    Vec3.negate target
+    case testFaceNormals t1 hull1 t2 hull2 t1.orientation hull1.faces { dmin = Const.maxNumber, target = Const.zero3 } of
+        Nothing ->
+            Nothing
 
-                else
-                    target
-            )
+        Just bestSoFar1 ->
+            case testFaceNormals t1 hull1 t2 hull2 t2.orientation hull2.faces bestSoFar1 of
+                Nothing ->
+                    Nothing
+
+                Just bestSoFar2 ->
+                    case testEdges t1 hull1 t2 hull2 bestSoFar2 of
+                        Nothing ->
+                            Nothing
+
+                        Just { target } ->
+                            if Vec3.dot (Vec3.sub t2.position t1.position) target > 0 then
+                                Just (Vec3.negate target)
+
+                            else
+                                Just target
 
 
 testFaceNormals : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Quaternion -> List Face -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
@@ -548,14 +556,13 @@ testFaceNormals t1 hull1 t2 hull2 quat faces bestSoFar =
 
 testEdges : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> { target : Vec3, dmin : Float } -> Maybe { target : Vec3, dmin : Float }
 testEdges t1 hull1 t2 hull2 bestSoFar =
-    -- TODO: short circuit the iteraions
-    List.foldl
+    listRecurseUntil ((==) Nothing)
         (\edge1 bestSoFar1 ->
             let
                 worldEdge1 =
                     Quaternion.rotate t1.orientation edge1
             in
-            List.foldl
+            listRecurseUntil ((==) Nothing)
                 (\edge2 bestSoFar2 ->
                     let
                         worldEdge2 =
