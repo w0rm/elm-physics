@@ -499,6 +499,15 @@ initFaceNormal =
                         |> rightTriangle
                         |> Array.fromList
                 )
+
+        -- TODO: test the public api of ConvexPolyhedron.init instead
+        legacyInitFaceNormal : List Int -> Array Vec3 -> Vec3
+        legacyInitFaceNormal indices vertices =
+            ConvexPolyhedron.init [ indices ] vertices
+                |> .faces
+                |> Array.get 0
+                |> Maybe.map .normal
+                |> Maybe.withDefault Const.zero3
     in
     describe "ConvexPolyhedron.initFaceNormal"
         [ test "works for the box" <|
@@ -509,7 +518,7 @@ initFaceNormal =
                                 |> Array.toList
                                 |> List.map
                                     (\{ vertices } ->
-                                        ConvexPolyhedron.initFaceNormal
+                                        legacyInitFaceNormal
                                             (List.range 0 (List.length vertices - 1))
                                             (Array.fromList vertices)
                                     )
@@ -527,7 +536,7 @@ initFaceNormal =
                 xRotationRingSequence
                     |> toRightTriangles xyRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                        (legacyInitFaceNormal faceIndices)
                     |> expectListVec3WithinPrecision
                         xNormalRingSequence
         , test "works for a left-handed triangle flipped around the x axis" <|
@@ -535,7 +544,7 @@ initFaceNormal =
                 xRotationRingSequence
                     |> toRightTriangles xyRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                        (legacyInitFaceNormal backFaceIndices)
                     |> expectListVec3WithinPrecision
                         xAntiNormalRingSequence
         , test "works for a right-handed triangle flipped around the y axis" <|
@@ -543,7 +552,7 @@ initFaceNormal =
                 yRotationRingSequence
                     |> toRightTriangles yzRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                        (legacyInitFaceNormal faceIndices)
                     |> expectListVec3WithinPrecision
                         yNormalRingSequence
         , test "works for a left-handed triangle flipped around the y axis" <|
@@ -551,7 +560,7 @@ initFaceNormal =
                 yRotationRingSequence
                     |> toRightTriangles yzRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                        (legacyInitFaceNormal backFaceIndices)
                     |> expectListVec3WithinPrecision
                         yAntiNormalRingSequence
         , test "works for a right-handed triangle flipped around the z axis" <|
@@ -559,7 +568,7 @@ initFaceNormal =
                 zRotationRingSequence
                     |> toRightTriangles zxRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal faceIndices)
+                        (legacyInitFaceNormal faceIndices)
                     |> expectListVec3WithinPrecision
                         zNormalRingSequence
         , test "works for a left-handed triangle flipped around the z axis" <|
@@ -567,7 +576,7 @@ initFaceNormal =
                 zRotationRingSequence
                     |> toRightTriangles zxRightTriangle
                     |> List.map
-                        (ConvexPolyhedron.initFaceNormal backFaceIndices)
+                        (legacyInitFaceNormal backFaceIndices)
                     |> expectListVec3WithinPrecision
                         zAntiNormalRingSequence
         ]

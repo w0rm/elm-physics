@@ -11,7 +11,6 @@ module Internal.ConvexPolyhedron exposing
     , foldUniqueEdges
     , fromBox
     , init
-    , initFaceNormal
     , initUniqueEdges
     , project
     , raycast
@@ -63,22 +62,39 @@ init faceVertexLists vertices =
 
 
 initFaces : List (List Int) -> Array Vec3 -> Array Face
-initFaces faceVertexLists vertices =
+initFaces faceVertexLists convexVertices =
     let
         adjacents =
             faceAdjacency faceVertexLists
     in
     List.map2
         (\vertexIndices adjacentFaces ->
-            { vertices = List.filterMap (\i -> Array.get i vertices) vertexIndices
-            , normal = initFaceNormal vertexIndices vertices
-            , point = maybeWithDefaultOrCrash "Empty vertices" Const.zero3 (Array.get 0 vertices)
+            let
+                vertices =
+                    List.filterMap (\i -> Array.get i convexVertices) vertexIndices
+
+                ( point, normal ) =
+                    case vertices of
+                        v1 :: v2 :: v3 :: _ ->
+                            ( v1, computeNormal v1 v2 v3 )
+
+                        _ ->
+                            identityOrCrash "Needs at least three vertices" ( Const.zero3, Const.zero3 )
+            in
+            { vertices = vertices
+            , normal = normal
+            , point = point
             , adjacentFaces = adjacentFaces
             }
         )
         faceVertexLists
         adjacents
         |> Array.fromList
+
+
+computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
+computeNormal v1 v2 v3 =
+    Vec3.normalize (Vec3.cross (Vec3.sub v3 v2) (Vec3.sub v1 v2))
 
 
 faceAdjacency : List (List Int) -> List (List Int)
@@ -183,24 +199,6 @@ fromBox { x, y, z } =
     }
 
 
-initFaceNormal : List Int -> Array Vec3 -> Vec3
-initFaceNormal indices vertices =
-    case indices of
-        i1 :: i2 :: i3 :: _ ->
-            Maybe.map3 computeNormal
-                (Array.get i1 vertices)
-                (Array.get i2 vertices)
-                (Array.get i3 vertices)
-                |> maybeWithDefaultOrCrash
-                    "Couldn't compute normal with invalid vertex index"
-                    Const.zero3
-
-        _ ->
-            identityOrCrash
-                "Couldn't compute normal with < 3 vertices"
-                Const.zero3
-
-
 initUniqueEdges : Array Face -> List Vec3
 initUniqueEdges faces =
     Array.foldl addFaceEdges [] faces
@@ -236,12 +234,6 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
 
     else
         candidateEdge :: uniques
-
-
-computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
-computeNormal v0 v1 v2 =
-    Vec3.cross (Vec3.sub v2 v1) (Vec3.sub v0 v1)
-        |> Vec3.normalize
 
 
 type alias ClipResult =
