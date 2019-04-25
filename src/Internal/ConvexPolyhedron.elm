@@ -38,6 +38,7 @@ almostZero { x, y, z } =
 type alias Face =
     { vertices : List Vec3
     , normal : Vec3
+    , point : Vec3 -- the first point on the face
     , adjacentFaces : List Int
     }
 
@@ -71,6 +72,7 @@ initFaces faceVertexLists vertices =
         (\vertexIndices adjacentFaces ->
             { vertices = List.filterMap (\i -> Array.get i vertices) vertexIndices
             , normal = initFaceNormal vertexIndices vertices
+            , point = maybeWithDefaultOrCrash "Empty vertices" Const.zero3 (Array.get 0 vertices)
             , adjacentFaces = adjacentFaces
             }
         )
@@ -146,41 +148,42 @@ faceAdjacency faceVertexLists =
 fromBox : Vec3 -> ConvexPolyhedron
 fromBox { x, y, z } =
     let
-        vertices =
-            [ vec3 -x -y -z
-            , vec3 x -y -z
-            , vec3 x y -z
-            , vec3 -x y -z
-            , vec3 -x -y z
-            , vec3 x -y z
-            , vec3 x y z
-            , vec3 -x y z
-            ]
+        v0 =
+            vec3 -x -y -z
+
+        v1 =
+            vec3 x -y -z
+
+        v2 =
+            vec3 x y -z
+
+        v3 =
+            vec3 -x y -z
+
+        v4 =
+            vec3 -x -y z
+
+        v5 =
+            vec3 x -y z
+
+        v6 =
+            vec3 x y z
+
+        v7 =
+            vec3 -x y z
     in
-    { faces = boxFaces (Array.fromList vertices)
-    , vertices = vertices
-    , edges = boxUniqueEdges
+    { faces =
+        Array.fromList
+            [ { vertices = [ v3, v2, v1, v0 ], point = v3, normal = vec3 0 0 -1, adjacentFaces = [ 2, 3, 4, 5 ] }
+            , { vertices = [ v4, v5, v6, v7 ], point = v4, normal = vec3 0 0 1, adjacentFaces = [ 2, 3, 4, 5 ] }
+            , { vertices = [ v5, v4, v0, v1 ], point = v5, normal = vec3 0 -1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
+            , { vertices = [ v2, v3, v7, v6 ], point = v2, normal = vec3 0 1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
+            , { vertices = [ v0, v4, v7, v3 ], point = v0, normal = vec3 -1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
+            , { vertices = [ v1, v2, v6, v5 ], point = v1, normal = vec3 1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
+            ]
+    , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
+    , edges = [ Vec3.i, Vec3.j, Vec3.k ]
     }
-
-
-boxFaces : Array Vec3 -> Array Face
-boxFaces vertices =
-    Array.fromList
-        [ { vertices = List.filterMap (\i -> Array.get i vertices) [ 3, 2, 1, 0 ], normal = vec3 0 0 -1, adjacentFaces = [ 2, 3, 4, 5 ] }
-        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 4, 5, 6, 7 ], normal = vec3 0 0 1, adjacentFaces = [ 2, 3, 4, 5 ] }
-        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 5, 4, 0, 1 ], normal = vec3 0 -1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 2, 3, 7, 6 ], normal = vec3 0 1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 0, 4, 7, 3 ], normal = vec3 -1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
-        , { vertices = List.filterMap (\i -> Array.get i vertices) [ 1, 2, 6, 5 ], normal = vec3 1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
-        ]
-
-
-boxUniqueEdges : List Vec3
-boxUniqueEdges =
-    [ Vec3.i
-    , Vec3.j
-    , Vec3.k
-    ]
 
 
 initFaceNormal : List Int -> Array Vec3 -> Vec3
@@ -276,6 +279,7 @@ getIndexedFace faces i =
         |> Maybe.withDefault
             { vertices = []
             , normal = Const.zero3
+            , point = Const.zero3
             , adjacentFaces = []
             }
 
@@ -283,45 +287,29 @@ getIndexedFace faces i =
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
 clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
     case bestFace Nearest t1 hull1.faces separatingNormal of
-        Just { vertices, normal, adjacentFaces } ->
+        Just { vertices, point, normal, adjacentFaces } ->
             let
                 localPlaneEq =
-                    -(List.head vertices
-                        |> maybeWithDefaultOrCrash
-                            "empty face vertexIndices"
-                            Const.zero3
-                        |> Vec3.dot normal
-                     )
+                    -(Vec3.dot normal point)
 
                 planeNormalWS =
                     Quaternion.rotate t1.orientation normal
 
                 planeEqWS =
                     localPlaneEq - Vec3.dot planeNormalWS t1.position
-
-                otherFaceDetails : Int -> ( Vec3, Vec3 )
-                otherFaceDetails otherFaceIndex =
-                    getIndexedFace hull1.faces otherFaceIndex
-                        |> (\otherFace ->
-                                List.head otherFace.vertices
-                                    |> maybeWithDefaultOrCrash
-                                        "vertexIndices is empty for face"
-                                        Const.zero3
-                                    |> (\b -> ( otherFace.normal, b ))
-                           )
             in
             adjacentFaces
                 |> List.foldl
                     (\otherFaceIndex ->
                         let
-                            ( otherFaceNormal, otherFaceVertex ) =
-                                otherFaceDetails otherFaceIndex
+                            otherFace =
+                                getIndexedFace hull1.faces otherFaceIndex
 
                             localPlaneEq_ =
-                                -(Vec3.dot otherFaceVertex otherFaceNormal)
+                                -(Vec3.dot otherFace.point otherFace.normal)
 
                             planeNormalWS_ =
-                                Quaternion.rotate t1.orientation otherFaceNormal
+                                Quaternion.rotate t1.orientation otherFace.normal
 
                             planeEqWS_ =
                                 localPlaneEq_ - Vec3.dot planeNormalWS_ t1.position
@@ -330,13 +318,13 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
                     )
                     worldVertsB
                 |> List.foldl
-                    (\point result ->
+                    (\vertex result ->
                         let
                             depth =
-                                max minDist (Vec3.dot planeNormalWS point + planeEqWS)
+                                max minDist (Vec3.dot planeNormalWS vertex + planeEqWS)
                         in
                         if depth <= maxDist && depth <= 0 then
-                            { point = point
+                            { point = vertex
                             , normal = planeNormalWS
                             , depth = depth
                             }
@@ -726,13 +714,13 @@ sphereTestFace radius normal vertices acc =
         -- Use an arbitrary vertex from the face to measure the distance to
         -- the origin (sphere center) along the face normal.
         faceDistance =
-            List.head vertices
-                |> Maybe.map
-                    (\point ->
-                        -(Vec3.dot normal point)
-                    )
-                -- a negative value prevents a face or edge contact match
-                |> Maybe.withDefault -1
+            case vertices of
+                point :: _ ->
+                    -(Vec3.dot normal point)
+
+                [] ->
+                    -- a negative value prevents a face or edge contact match
+                    -1
     in
     if faceDistance < radius && faceDistance > 0.0 then
         -- Sphere intersects the face plane.
@@ -934,78 +922,69 @@ raycast { direction, from } transform convex =
 
                 dot =
                     Vec3.dot direction faceNormalWS
-
-                -- TODO: maybe cache the first point of face?
-                maybePointOnFace =
-                    List.head face.vertices
             in
             if dot < 0 then
-                case maybePointOnFace of
-                    Just pointOnFace ->
-                        let
-                            pointOnFaceWS =
-                                Transform.pointToWorldFrame transform pointOnFace
+                let
+                    pointOnFaceWS =
+                        Transform.pointToWorldFrame transform face.point
 
-                            pointToFrom =
-                                Vec3.sub pointOnFaceWS from
+                    pointToFrom =
+                        Vec3.sub pointOnFaceWS from
 
-                            scalar =
-                                Vec3.dot faceNormalWS pointToFrom / dot
-                        in
-                        if scalar >= 0 then
-                            let
-                                intersectionPoint =
-                                    { x = direction.x * scalar + from.x
-                                    , y = direction.y * scalar + from.y
-                                    , z = direction.z * scalar + from.z
+                    scalar =
+                        Vec3.dot faceNormalWS pointToFrom / dot
+                in
+                if scalar >= 0 then
+                    let
+                        intersectionPoint =
+                            { x = direction.x * scalar + from.x
+                            , y = direction.y * scalar + from.y
+                            , z = direction.z * scalar + from.z
+                            }
+
+                        isInsidePolygon =
+                            face.vertices
+                                |> List.foldl
+                                    (\p acc1 ->
+                                        Transform.pointToWorldFrame transform p :: acc1
+                                    )
+                                    []
+                                |> listRingFoldStaggeredPairs
+                                    (\p1 p2 result ->
+                                        result
+                                            && (Vec3.dot
+                                                    (Vec3.sub intersectionPoint p1)
+                                                    (Vec3.sub p2 p1)
+                                                    > 0
+                                               )
+                                    )
+                                    True
+                    in
+                    if isInsidePolygon then
+                        case maybeHit of
+                            Just { distance } ->
+                                if scalar < distance then
+                                    Just
+                                        { distance = scalar
+                                        , point = intersectionPoint
+                                        , normal = faceNormalWS
+                                        }
+
+                                else
+                                    maybeHit
+
+                            Nothing ->
+                                Just
+                                    { distance = scalar
+                                    , point = intersectionPoint
+                                    , normal = faceNormalWS
                                     }
 
-                                isInsidePolygon =
-                                    face.vertices
-                                        |> List.foldl
-                                            (\p acc1 ->
-                                                Transform.pointToWorldFrame transform p :: acc1
-                                            )
-                                            []
-                                        |> listRingFoldStaggeredPairs
-                                            (\p1 p2 result ->
-                                                result
-                                                    && (Vec3.dot
-                                                            (Vec3.sub intersectionPoint p1)
-                                                            (Vec3.sub p2 p1)
-                                                            > 0
-                                                       )
-                                            )
-                                            True
-                            in
-                            if isInsidePolygon then
-                                case maybeHit of
-                                    Just { distance } ->
-                                        if scalar < distance then
-                                            Just
-                                                { distance = scalar
-                                                , point = intersectionPoint
-                                                , normal = faceNormalWS
-                                                }
-
-                                        else
-                                            maybeHit
-
-                                    Nothing ->
-                                        Just
-                                            { distance = scalar
-                                            , point = intersectionPoint
-                                            , normal = faceNormalWS
-                                            }
-
-                            else
-                                maybeHit
-
-                        else
-                            maybeHit
-
-                    Nothing ->
+                    else
                         maybeHit
+
+                else
+                    maybeHit
 
             else
                 maybeHit
