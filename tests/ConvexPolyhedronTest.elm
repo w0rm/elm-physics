@@ -505,7 +505,7 @@ initFaceNormal =
         legacyInitFaceNormal indices vertices =
             ConvexPolyhedron.init [ indices ] vertices
                 |> .faces
-                |> Array.get 0
+                |> List.head
                 |> Maybe.map .normal
                 |> Maybe.withDefault Const.zero3
     in
@@ -514,21 +514,19 @@ initFaceNormal =
             \_ ->
                 boxHull 1
                     |> (\{ faces } ->
-                            faces
-                                |> Array.toList
-                                |> List.map
-                                    (\{ vertices } ->
-                                        legacyInitFaceNormal
-                                            (List.range 0 (List.length vertices - 1))
-                                            (Array.fromList vertices)
-                                    )
+                            List.map
+                                (\{ vertices } ->
+                                    legacyInitFaceNormal
+                                        (List.range 0 (List.length vertices - 1))
+                                        (Array.fromList vertices)
+                                )
+                                faces
                        )
                     |> Expect.equal boxNormals
         , test "box-specific bypass optimization works identically" <|
             \_ ->
                 boxHull 1
                     |> .faces
-                    |> Array.toList
                     |> List.map .normal
                     |> Expect.equal boxNormals
         , test "works for a right-handed triangle flipped around the x axis" <|
@@ -920,7 +918,7 @@ Keep this code in sync with any changes to ConvexPolyhedron.initUniqueEdges.
 -}
 addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
 addEdgesOfConvexPolyhedron seedEdges { faces } =
-    Array.foldl ConvexPolyhedron.addFaceEdges seedEdges faces
+    List.foldl ConvexPolyhedron.addFaceEdges seedEdges faces
 
 
 {-| Useful variant of addEdgesOfConvexPolyhedron that abstracts out the count

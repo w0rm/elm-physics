@@ -38,12 +38,12 @@ type alias Face =
     { vertices : List Vec3
     , normal : Vec3
     , point : Vec3 -- the first point on the face
-    , adjacentFaces : List Int
+    , adjacentFaces : List { point : Vec3, normal : Vec3 }
     }
 
 
 type alias ConvexPolyhedron =
-    { faces : Array Face
+    { faces : List Face
     , vertices : List Vec3 -- cached for performance
     , edges : List Vec3
     }
@@ -61,35 +61,57 @@ init faceVertexLists vertices =
     }
 
 
-initFaces : List (List Int) -> Array Vec3 -> Array Face
+initFaces : List (List Int) -> Array Vec3 -> List Face
 initFaces faceVertexLists convexVertices =
     let
         adjacents =
             faceAdjacency faceVertexLists
+
+        facesWithoutAdjacentFaces =
+            List.map
+                (\vertexIndices ->
+                    let
+                        vertices =
+                            List.filterMap (\i -> Array.get i convexVertices) vertexIndices
+
+                        ( point, normal ) =
+                            case vertices of
+                                v1 :: v2 :: v3 :: _ ->
+                                    ( v1, computeNormal v1 v2 v3 )
+
+                                _ ->
+                                    identityOrCrash "Needs at least three vertices" ( Const.zero3, Const.zero3 )
+                    in
+                    { vertices = vertices
+                    , normal = normal
+                    , point = point
+                    , adjacentFaces = []
+                    }
+                )
+                faceVertexLists
+
+        facesWithoutAdjacentFacesArray =
+            Array.fromList facesWithoutAdjacentFaces
     in
     List.map2
-        (\vertexIndices adjacentFaces ->
-            let
-                vertices =
-                    List.filterMap (\i -> Array.get i convexVertices) vertexIndices
+        (\face adjacentIndices ->
+            { face
+                | adjacentFaces =
+                    List.foldl
+                        (\index ->
+                            case Array.get index facesWithoutAdjacentFacesArray of
+                                Just { point, normal } ->
+                                    (::) { point = point, normal = normal }
 
-                ( point, normal ) =
-                    case vertices of
-                        v1 :: v2 :: v3 :: _ ->
-                            ( v1, computeNormal v1 v2 v3 )
-
-                        _ ->
-                            identityOrCrash "Needs at least three vertices" ( Const.zero3, Const.zero3 )
-            in
-            { vertices = vertices
-            , normal = normal
-            , point = point
-            , adjacentFaces = adjacentFaces
+                                Nothing ->
+                                    identity
+                        )
+                        []
+                        adjacentIndices
             }
         )
-        faceVertexLists
+        facesWithoutAdjacentFaces
         adjacents
-        |> Array.fromList
 
 
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
@@ -184,24 +206,94 @@ fromBox { x, y, z } =
 
         v7 =
             vec3 -x y z
+
+        p0 =
+            v3
+
+        n0 =
+            vec3 0 0 -1
+
+        p1 =
+            v4
+
+        n1 =
+            vec3 0 0 1
+
+        p2 =
+            v5
+
+        n2 =
+            vec3 0 -1 0
+
+        p3 =
+            v2
+
+        n3 =
+            vec3 0 1 0
+
+        p4 =
+            v0
+
+        n4 =
+            vec3 -1 0 0
+
+        p5 =
+            v1
+
+        n5 =
+            vec3 1 0 0
     in
     { faces =
-        Array.fromList
-            [ { vertices = [ v3, v2, v1, v0 ], point = v3, normal = vec3 0 0 -1, adjacentFaces = [ 2, 3, 4, 5 ] }
-            , { vertices = [ v4, v5, v6, v7 ], point = v4, normal = vec3 0 0 1, adjacentFaces = [ 2, 3, 4, 5 ] }
-            , { vertices = [ v5, v4, v0, v1 ], point = v5, normal = vec3 0 -1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-            , { vertices = [ v2, v3, v7, v6 ], point = v2, normal = vec3 0 1 0, adjacentFaces = [ 0, 1, 4, 5 ] }
-            , { vertices = [ v0, v4, v7, v3 ], point = v0, normal = vec3 -1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
-            , { vertices = [ v1, v2, v6, v5 ], point = v1, normal = vec3 1 0 0, adjacentFaces = [ 0, 1, 2, 3 ] }
-            ]
+        [ -- face 0
+          { vertices = [ v3, v2, v1, v0 ]
+          , point = p0
+          , normal = n0
+          , adjacentFaces = [ { point = p2, normal = n2 }, { point = p3, normal = n3 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
+          }
+
+        -- face 1
+        , { vertices = [ v4, v5, v6, v7 ]
+          , point = p1
+          , normal = n1
+          , adjacentFaces = [ { point = p2, normal = n2 }, { point = p3, normal = n3 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
+          }
+
+        -- face 2
+        , { vertices = [ v5, v4, v0, v1 ]
+          , point = p2
+          , normal = n2
+          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
+          }
+
+        -- face 3
+        , { vertices = [ v2, v3, v7, v6 ]
+          , point = p3
+          , normal = n3
+          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
+          }
+
+        -- face 4
+        , { vertices = [ v0, v4, v7, v3 ]
+          , point = p4
+          , normal = n4
+          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p2, normal = n2 }, { point = p3, normal = n3 } ]
+          }
+
+        -- face 5
+        , { vertices = [ v1, v2, v6, v5 ]
+          , point = p5
+          , normal = n5
+          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p2, normal = n2 }, { point = p3, normal = n3 } ]
+          }
+        ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
     , edges = [ Vec3.i, Vec3.j, Vec3.k ]
     }
 
 
-initUniqueEdges : Array Face -> List Vec3
+initUniqueEdges : List Face -> List Vec3
 initUniqueEdges faces =
-    Array.foldl addFaceEdges [] faces
+    List.foldl addFaceEdges [] faces
 
 
 addFaceEdges : Face -> List Vec3 -> List Vec3
@@ -259,20 +351,6 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
             []
 
 
-getIndexedFace : Array Face -> Int -> Face
-getIndexedFace faces i =
-    -- This default should never get triggered in production.
-    -- It is type-correct but intentionally invalid for most purposes
-    -- in the hopes that it is detected and handled ASAP downstream.
-    Maybe.withDefault
-        { vertices = []
-        , normal = Const.zero3
-        , point = Const.zero3
-        , adjacentFaces = []
-        }
-        (Array.get i faces)
-
-
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
 clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
     case bestFace Nearest t1 hull1.faces separatingNormal of
@@ -289,11 +367,8 @@ clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
             in
             adjacentFaces
                 |> List.foldl
-                    (\otherFaceIndex ->
+                    (\otherFace ->
                         let
-                            otherFace =
-                                getIndexedFace hull1.faces otherFaceIndex
-
                             localPlaneEq_ =
                                 -(Vec3.dot otherFace.point otherFace.normal)
 
@@ -362,7 +437,7 @@ worstValue dc =
             -Const.maxNumber
 
 
-bestFace : DistanceCriterion -> Transform -> Array Face -> Vec3 -> Maybe Face
+bestFace : DistanceCriterion -> Transform -> List Face -> Vec3 -> Maybe Face
 bestFace comparator transform faces separatingNormal =
     let
         worstDistance =
@@ -372,7 +447,7 @@ bestFace comparator transform faces separatingNormal =
             compareOp comparator
     in
     faces
-        |> Array.foldl
+        |> List.foldl
             (\face (( _, bestDistance ) as bestPair) ->
                 let
                     faceDistance =
@@ -427,8 +502,8 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
 findSeparatingAxis t1 hull1 t2 hull2 =
     { dmin = Const.maxNumber, target = Const.zero3 }
-        |> testFaceNormals t1 hull1 t2 hull2 t1.orientation (Array.toList hull1.faces)
-        |> Maybe.andThen (testFaceNormals t1 hull1 t2 hull2 t2.orientation (Array.toList hull2.faces))
+        |> testFaceNormals t1 hull1 t2 hull2 t1.orientation hull1.faces
+        |> Maybe.andThen (testFaceNormals t1 hull1 t2 hull2 t2.orientation hull2.faces)
         |> Maybe.andThen (testEdges t1 hull1 t2 hull2)
         |> Maybe.map
             (\{ target } ->
@@ -637,7 +712,7 @@ sphereContact center radius t2 { vertices, faces } =
 
         -- Find the details of the closest faces.
         testFaceResult =
-            arrayRecurseUntil
+            listRecurseUntil
                 isAFaceContact
                 (\face statusQuo ->
                     case statusQuo of
@@ -832,7 +907,7 @@ originProjection vertices normal =
 
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
 foldFaceNormals fn acc { faces } =
-    Array.foldl
+    List.foldl
         (\{ vertices, normal } acc1 ->
             let
                 vsum =
@@ -873,7 +948,7 @@ expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
 
 raycast : { from : Vec3, direction : Vec3 } -> Transform -> ConvexPolyhedron -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } transform convex =
-    Array.foldl
+    List.foldl
         (\face maybeHit ->
             let
                 faceNormalWS =
@@ -958,24 +1033,6 @@ raycast { direction, from } transform convex =
 -- if they are found useful elsewhere.
 
 
-arrayRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> Array a -> b
-arrayRecurseUntil test fn seed array =
-    let
-        recurse index acc =
-            case Array.get index array of
-                Just element ->
-                    if test acc then
-                        acc
-
-                    else
-                        recurse (index + 1) (fn element acc)
-
-                Nothing ->
-                    acc
-    in
-    recurse 0 seed
-
-
 {-| Easily disabled wrapper for Debug.crash.
 KEEP DISABLED in published production code.
 -}
@@ -1053,13 +1110,10 @@ KEEP DISABLED in published production code.
 -}
 maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
 maybeWithDefaultOrCrash message default maybe =
-    {--enabled:
     case maybe of
         Just value ->
             value
 
         Nothing ->
             --Debug.crash message
-    --}
-    -- disabled: KEEP DISABLED in published production code.
-    Maybe.withDefault default maybe
+            default
