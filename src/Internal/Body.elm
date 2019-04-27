@@ -146,18 +146,16 @@ updateMassProperties ({ mass } as body) =
                 1.0 / mass
 
         e =
-            body
-                |> computeAABB
-                |> AABB.toHalfExtends
+            AABB.dimesions (computeAABB body)
 
         ix =
-            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.z * 2 * e.z)
+            1.0 / 12.0 * mass * (e.y * e.y + e.z * e.z)
 
         iy =
-            1.0 / 12.0 * mass * (2 * e.x * 2 * e.x + 2 * e.z * 2 * e.z)
+            1.0 / 12.0 * mass * (e.x * e.x + e.z * e.z)
 
         iz =
-            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.x * 2 * e.x)
+            1.0 / 12.0 * mass * (e.y * e.y + e.x * e.x)
 
         inertia =
             vec3 ix iy iz
