@@ -18,25 +18,10 @@ import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Body as Body exposing (Body)
-import Internal.NarrowPhase as NarrowPhase
+import Internal.NarrowPhase as NarrowPhase exposing (Order(..))
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
-
-
-emptyBody : Body ()
-emptyBody =
-    Body.compound [] ()
-
-
-body1 : Body ()
-body1 =
-    { emptyBody | id = 0 }
-
-
-body2 : Body ()
-body2 =
-    { emptyBody | id = 1 }
 
 
 main : BenchmarkProgram
@@ -96,14 +81,13 @@ suite =
                         (\position ->
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 Transform.identity
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 originalBoxHull
-                                body2
                                 []
                         )
             )
@@ -113,16 +97,15 @@ suite =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 boxHull
-                                body2
                                 []
                         )
             )
@@ -134,16 +117,15 @@ suite =
                         (\position ->
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 originalBoxHull
-                                body2
                                 []
                         )
             )
@@ -153,16 +135,15 @@ suite =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 boxHull
-                                body2
                                 []
                         )
             )
@@ -174,16 +155,15 @@ suite =
                         (\position ->
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 originalOctoHull
-                                body2
                                 []
                         )
             )
@@ -193,16 +173,15 @@ suite =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 octoHull
-                                body2
                                 []
                         )
             )
@@ -214,16 +193,15 @@ suite =
                         (\position ->
                             {- OriginalNarrowPhase.addSphereConvexContacts -}
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 originalOctoHull
-                                body2
                                 []
                         )
             )
@@ -233,16 +211,15 @@ suite =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 octoHull
-                                body2
                                 []
                         )
             )

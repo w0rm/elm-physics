@@ -2,12 +2,11 @@ module NarrowPhaseTest exposing (addSphereConvexContacts)
 
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
-import Fixtures.NarrowPhase exposing (body1, body2)
+import Fixtures.NarrowPhase
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.NarrowPhase as NarrowPhase
+import Internal.NarrowPhase as NarrowPhase exposing (Contact, Order(..))
 import Internal.Quaternion as Quaternion
-import Internal.SolverEquation exposing (ContactEquation)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 
@@ -68,16 +67,15 @@ addSphereConvexContacts =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 boxHull
-                                body2
                                 []
                         )
                     |> expectNormalizedEqual
@@ -92,16 +90,15 @@ addSphereConvexContacts =
                     |> List.concatMap
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 boxHull
-                                body2
                                 []
                         )
                     |> Expect.equal []
@@ -111,16 +108,15 @@ addSphereConvexContacts =
                     |> List.map
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 octoHull
-                                body2
                                 []
                         )
                     |> expectNormalizedEqual
@@ -135,16 +131,15 @@ addSphereConvexContacts =
                     |> List.concatMap
                         (\position ->
                             NarrowPhase.addSphereConvexContacts
+                                ASC
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
                                 radius
-                                body1
                                 { position = position
                                 , orientation = Quaternion.identity
                                 }
                                 octoHull
-                                body2
                                 []
                         )
                     |> Expect.equal []
@@ -177,23 +172,22 @@ normalizeListTowards normalizeElementTowards expected actual =
         actual
 
 
-normalizeContactTowards : ContactEquation () -> ContactEquation () -> ContactEquation ()
+normalizeContactTowards : Contact -> Contact -> Contact
 normalizeContactTowards expected actual =
     -- optimize common case
     if actual == expected then
         actual
 
     else
-        { actual
-            | ni = normalizeVec3Towards expected.ni actual.ni
-            , ri = normalizeVec3Towards expected.ri actual.ri
-            , rj = normalizeVec3Towards expected.rj actual.rj
+        { ni = normalizeVec3Towards expected.ni actual.ni
+        , pi = normalizeVec3Towards expected.pi actual.pi
+        , pj = normalizeVec3Towards expected.pj actual.pj
         }
 
 
 normalizeVec3Towards : Vec3 -> Vec3 -> Vec3
 normalizeVec3Towards expected actual =
-    if Vec3.distanceSquared expected actual < Const.precision then
+    if Vec3.distanceSquared expected actual - Const.precision < 0 then
         -- ignore any negligible difference.
         expected
 
