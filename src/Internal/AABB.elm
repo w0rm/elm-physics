@@ -8,7 +8,6 @@ module Internal.AABB exposing
     , toHalfExtends
     )
 
-import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
@@ -102,10 +101,6 @@ toHalfExtends { lowerBound, upperBound } =
     lowerBound
         |> Vec3.sub upperBound
         |> Vec3.scale 0.5
-
-
-type T3
-    = T3 Float Float Float
 
 
 plane : Transform -> AABB

@@ -4,8 +4,7 @@ module Internal.Vector3 exposing
     , length, lengthSquared, distance, distanceSquared, tangents, lerp
     )
 
-{-| A high performance linear algebra library using native JS arrays. Geared
-towards 3D graphics and use with `Graphics.WebGL`. All vectors are immutable.
+{-|
 
 
 # Create
