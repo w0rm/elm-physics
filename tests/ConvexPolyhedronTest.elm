@@ -590,7 +590,8 @@ normalizeVec3Towards approximation canonical =
             || ((Vec3.sub approximation canonical
                     |> Vec3.lengthSquared
                 )
-                    < Const.precision
+                    - Const.precision
+                    < 0
                )
     then
         canonical

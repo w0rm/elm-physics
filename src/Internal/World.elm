@@ -66,7 +66,8 @@ getPairsHelp list result =
 bodiesMayOverlap : Body data -> Body data -> Bool
 bodiesMayOverlap body1 body2 =
     (body1.boundingSphereRadius + body2.boundingSphereRadius)
-        > Vec3.distance body1.position body2.position
+        - Vec3.distance body1.position body2.position
+        > 0
 
 
 raycast :
@@ -80,7 +81,7 @@ raycast ray { bodies } =
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
-                            if raycastResult.distance < closestRaycastResult.distance then
+                            if raycastResult.distance - closestRaycastResult.distance < 0 then
                                 Just
                                     { body = body
                                     , distance = raycastResult.distance

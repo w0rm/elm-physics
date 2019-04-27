@@ -29,7 +29,7 @@ solve dt contactEquations world =
 
 solveHelp : Int -> SolveContext data -> SolveContext data
 solveHelp number context =
-    if number == 0 || context.deltalambdaTot < Const.precision then
+    if number == 0 || context.deltalambdaTot - Const.precision < 0 then
         context
 
     else
@@ -98,10 +98,10 @@ solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentSolverEqua
                     solverEquation.solverInvCs * (solverEquation.solverBs - gWlambda - solverEquation.spookEps * equationSolverLambda)
 
                 deltalambda =
-                    if equationSolverLambda + deltalambdaPrev < solverEquation.minForce then
+                    if equationSolverLambda + deltalambdaPrev - solverEquation.minForce < 0 then
                         solverEquation.minForce - equationSolverLambda
 
-                    else if equationSolverLambda + deltalambdaPrev > solverEquation.maxForce then
+                    else if equationSolverLambda + deltalambdaPrev - solverEquation.maxForce > 0 then
                         solverEquation.maxForce - equationSolverLambda
 
                     else

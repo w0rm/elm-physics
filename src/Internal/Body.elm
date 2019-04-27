@@ -232,7 +232,7 @@ raycast ray body =
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
-                            if raycastResult.distance < closestRaycastResult.distance then
+                            if raycastResult.distance - closestRaycastResult.distance < 0 then
                                 Just raycastResult
 
                             else
