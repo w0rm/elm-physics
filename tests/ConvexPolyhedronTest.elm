@@ -507,7 +507,7 @@ initFaceNormal =
                 |> .faces
                 |> List.head
                 |> Maybe.map .normal
-                |> Maybe.withDefault Const.zero3
+                |> Maybe.withDefault Vec3.zero
     in
     describe "ConvexPolyhedron.initFaceNormal"
         [ test "works for the box" <|

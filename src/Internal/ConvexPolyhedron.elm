@@ -80,7 +80,7 @@ initFaces faceVertexLists convexVertices =
                                     ( v1, computeNormal v1 v2 v3 )
 
                                 _ ->
-                                    identityOrCrash "Needs at least three vertices" ( Const.zero3, Const.zero3 )
+                                    identityOrCrash "Needs at least three vertices" ( Vec3.zero, Vec3.zero )
                     in
                     { vertices = vertices
                     , normal = normal
@@ -501,7 +501,7 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 
 findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
 findSeparatingAxis t1 hull1 t2 hull2 =
-    case testFaceNormals t1 hull1 t2 hull2 t1.orientation hull1.faces { dmin = Const.maxNumber, target = Const.zero3 } of
+    case testFaceNormals t1 hull1 t2 hull2 t1.orientation hull1.faces { dmin = Const.maxNumber, target = Vec3.zero } of
         Nothing ->
             Nothing
 
@@ -627,7 +627,7 @@ project transform { vertices } axis =
             Transform.vectorToLocalFrame transform axis
 
         add =
-            Const.zero3
+            Vec3.zero
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
     in
@@ -918,7 +918,7 @@ foldFaceNormals fn acc { faces } =
         (\{ vertices, normal } acc1 ->
             let
                 vsum =
-                    List.foldl Vec3.add Const.zero3 vertices
+                    List.foldl Vec3.add Vec3.zero vertices
 
                 vcount =
                     List.length vertices

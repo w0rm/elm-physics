@@ -21,8 +21,8 @@ type alias SolverBody data =
 fromBody : Body data -> SolverBody data
 fromBody body =
     { body = body
-    , vlambda = Const.zero3
-    , wlambda = Const.zero3
+    , vlambda = Vec3.zero
+    , wlambda = Vec3.zero
     }
 
 

@@ -271,10 +271,10 @@ addSphereSphereContacts : Transform -> Float -> Body data -> Transform -> Float 
 addSphereSphereContacts t1 radius1 body1 t2 radius2 body2 contactEquations =
     let
         center1 =
-            Transform.pointToWorldFrame t1 Const.zero3
+            Transform.pointToWorldFrame t1 Vec3.zero
 
         center2 =
-            Transform.pointToWorldFrame t2 Const.zero3
+            Transform.pointToWorldFrame t2 Vec3.zero
 
         distance =
             Vec3.distance center2 center1

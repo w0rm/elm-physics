@@ -38,7 +38,7 @@ empty =
         { bodies = []
         , freeIds = []
         , nextBodyId = 0
-        , gravity = Const.zero3
+        , gravity = Vec3.zero
         }
 
 

@@ -24,8 +24,8 @@ type alias AABB =
 
 zero : AABB
 zero =
-    { lowerBound = Const.zero3
-    , upperBound = Const.zero3
+    { lowerBound = Vec3.zero
+    , upperBound = Vec3.zero
     }
 
 

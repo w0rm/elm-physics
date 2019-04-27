@@ -56,20 +56,20 @@ compound shapes data =
         { id = -1
         , data = data
         , material = Material.default
-        , position = Const.zero3
-        , velocity = Const.zero3
-        , angularVelocity = Const.zero3
+        , position = Vec3.zero
+        , velocity = Vec3.zero
+        , angularVelocity = Vec3.zero
         , orientation = Quaternion.identity
         , mass = 0
         , shapes = shapes
-        , force = Const.zero3
-        , torque = Const.zero3
+        , force = Vec3.zero
+        , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 shapes
 
         -- mass props
         , invMass = 0
-        , inertia = Const.zero3
-        , invInertia = Const.zero3
+        , inertia = Vec3.zero
+        , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.identity
         }
 
@@ -128,8 +128,8 @@ tick dt body =
                     |> Quaternion.normalize
 
             -- clear forces
-            , force = Const.zero3
-            , torque = Const.zero3
+            , force = Vec3.zero
+            , torque = Vec3.zero
         }
 
 

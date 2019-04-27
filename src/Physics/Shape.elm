@@ -45,7 +45,7 @@ type alias Shape =
 box : { x : Float, y : Float, z : Float } -> Shape
 box dimensions =
     Protected
-        { position = Const.zero3
+        { position = Vec3.zero
         , orientation = Quaternion.identity
         , kind = Internal.Convex (ConvexPolyhedron.fromBox (Vec3.scale 0.5 dimensions))
         }
@@ -57,7 +57,7 @@ direction of the z axis.
 plane : Shape
 plane =
     Protected
-        { position = Const.zero3
+        { position = Vec3.zero
         , orientation = Quaternion.identity
         , kind = Internal.Plane
         }
@@ -68,7 +68,7 @@ plane =
 sphere : Float -> Shape
 sphere radius =
     Protected
-        { position = Const.zero3
+        { position = Vec3.zero
         , orientation = Quaternion.identity
         , kind = Internal.Sphere radius
         }

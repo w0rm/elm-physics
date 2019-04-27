@@ -1,5 +1,5 @@
 module Internal.Vector3 exposing
-    ( Vec3, vec3, i, j, k
+    ( Vec3, vec3, zero, i, j, k
     , add, sub, negate, scale, dot, cross, normalize, direction
     , length, lengthSquared, distance, distanceSquared, tangents, lerp
     )
@@ -10,7 +10,7 @@ towards 3D graphics and use with `Graphics.WebGL`. All vectors are immutable.
 
 # Create
 
-@docs Vec3, vec3, i, j, k
+@docs Vec3, vec3, zero, i, j, k
 
 
 # Get and Set
@@ -46,25 +46,32 @@ vec3 =
     Vec3
 
 
+{-| The zero verctor
+-}
+zero : Vec3
+zero =
+    { x = 0, y = 0, z = 0 }
+
+
 {-| The unit vector &icirc; which points in the x direction: `vec3 1 0 0`
 -}
 i : Vec3
 i =
-    Vec3 1 0 0
+    { x = 1, y = 0, z = 0 }
 
 
 {-| The unit vector &jcirc; which points in the y direction: `vec3 0 1 0`
 -}
 j : Vec3
 j =
-    Vec3 0 1 0
+    { x = 0, y = 1, z = 0 }
 
 
 {-| The unit vector k&#0770; which points in the z direction: `vec3 0 0 1`
 -}
 k : Vec3
 k =
-    Vec3 0 0 1
+    { x = 0, y = 0, z = 1 }
 
 
 {-| Vector addition: a + b

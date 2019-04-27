@@ -55,7 +55,7 @@ expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius 
                 boundingSphereRadius
 
         Sphere radius ->
-            Const.zero3
+            Vec3.zero
                 |> Transform.pointToWorldFrame { position = position, orientation = orientation }
                 |> Vec3.length
                 |> (+) radius
