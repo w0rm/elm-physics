@@ -169,47 +169,6 @@ solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentEquations 
                 remainingEquations
 
 
-solveStep : SolveContext data -> SolveContext data
-solveStep context =
-    List.foldl
-        (\{ bodyId1, bodyId2, solverEquations } newContext ->
-            case Array.get bodyId1 newContext.bodies of
-                Just (Just body1) ->
-                    case Array.get bodyId2 newContext.bodies of
-                        Just (Just body2) ->
-                            let
-                                groupContext =
-                                    solveEquationsGroup
-                                        body1
-                                        body2
-                                        []
-                                        newContext.deltalambdaTot
-                                        solverEquations
-                            in
-                            { world = newContext.world
-                            , deltalambdaTot = groupContext.deltalambdaTot
-                            , equationsGroups =
-                                { bodyId1 = bodyId1
-                                , bodyId2 = bodyId2
-                                , solverEquations = groupContext.solverEquations
-                                }
-                                    :: newContext.equationsGroups
-                            , bodies =
-                                newContext.bodies
-                                    |> Array.set bodyId1 (Just groupContext.body1)
-                                    |> Array.set bodyId2 (Just groupContext.body2)
-                            }
-
-                        _ ->
-                            newContext
-
-                _ ->
-                    newContext
-        )
-        { context | equationsGroups = [], deltalambdaTot = 0 }
-        context.equationsGroups
-
-
 type alias SolveContext data =
     { bodies : Array (Maybe (SolverBody data))
     , equationsGroups : List EquationsGroup

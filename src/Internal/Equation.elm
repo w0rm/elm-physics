@@ -8,7 +8,7 @@ import Internal.Body exposing (Body, BodyId)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.NarrowPhase exposing (Contact, ContactGroup)
+import Internal.NarrowPhase exposing (Contact)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
