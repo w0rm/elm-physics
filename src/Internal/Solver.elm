@@ -1,7 +1,7 @@
 module Internal.Solver exposing (solve)
 
 import Array exposing (Array)
-import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.Equation as Equation exposing (Equation, addEquations)
 import Internal.NarrowPhase exposing (Contact, ContactGroup)
@@ -181,8 +181,8 @@ type alias SolveContext data =
 
 
 type alias EquationsGroup =
-    { bodyId1 : BodyId
-    , bodyId2 : BodyId
+    { bodyId1 : Int
+    , bodyId2 : Int
     , solverEquations : List ( Float, Equation )
     }
 

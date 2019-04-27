@@ -6,7 +6,7 @@ module Internal.NarrowPhase exposing
     , getContacts
     )
 
-import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Material as Material

@@ -1,6 +1,5 @@
 module Internal.Body exposing
     ( Body
-    , BodyId
     , Protected(..)
     , addGravity
     , compound
@@ -20,16 +19,12 @@ import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
-type alias BodyId =
-    Int
-
-
 type Protected data
     = Protected (Body data)
 
 
 type alias Body data =
-    { id : BodyId
+    { id : Int
     , data : data
     , material : Material
     , position : Vec3

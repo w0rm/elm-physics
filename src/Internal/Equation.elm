@@ -4,7 +4,7 @@ module Internal.Equation exposing
     , computeGWlambda
     )
 
-import Internal.Body exposing (Body, BodyId)
+import Internal.Body exposing (Body)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
@@ -35,8 +35,8 @@ type EquationKind
 
 type alias Equation =
     { kind : EquationKind
-    , bodyId1 : BodyId
-    , bodyId2 : BodyId
+    , bodyId1 : Int
+    , bodyId2 : Int
     , minForce : Float
     , maxForce : Float
     , solverBs : Float

@@ -7,7 +7,7 @@ module Internal.World exposing
     , tick
     )
 
-import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Body as Body exposing (Body)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
@@ -17,8 +17,8 @@ type Protected data
 
 type alias World data =
     { bodies : List (Body data)
-    , freeIds : List BodyId
-    , nextBodyId : BodyId
+    , freeIds : List Int
+    , nextBodyId : Int
     , gravity : Vec3
     }
 
