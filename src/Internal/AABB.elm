@@ -1,14 +1,13 @@
 module Internal.AABB exposing
     ( AABB
     , convexPolyhedron
+    , dimesions
     , extend
     , impossible
     , plane
     , sphere
-    , toHalfExtends
     )
 
-import Array exposing (Array)
 import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
 import Internal.Quaternion as Quaternion
@@ -97,15 +96,9 @@ convexPolyhedron { vertices } transform =
         vertices
 
 
-toHalfExtends : AABB -> Vec3
-toHalfExtends { lowerBound, upperBound } =
-    lowerBound
-        |> Vec3.sub upperBound
-        |> Vec3.scale 0.5
-
-
-type T3
-    = T3 Float Float Float
+dimesions : AABB -> Vec3
+dimesions { lowerBound, upperBound } =
+    Vec3.sub upperBound lowerBound
 
 
 plane : Transform -> AABB

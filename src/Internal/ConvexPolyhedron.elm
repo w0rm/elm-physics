@@ -546,7 +546,7 @@ testFaceNormals t1 hull1 t2 hull2 quat faces bestSoFar =
                         hull2
                         quat
                         restFaces
-                        (if d < bestSoFar.dmin then
+                        (if d - bestSoFar.dmin < 0 then
                             { dmin = d, target = rotatedNormal }
 
                          else
@@ -579,7 +579,7 @@ testEdges t1 hull1 t2 hull2 bestSoFar =
                             Just { dmin } ->
                                 case testSepAxis t1 hull1 t2 hull2 (Vec3.normalize cross) of
                                     Just dist ->
-                                        if dist < dmin then
+                                        if dist - dmin < 0 then
                                             Just
                                                 { dmin = dist
                                                 , target = Vec3.normalize cross
@@ -610,7 +610,7 @@ testSepAxis t1 hull1 t2 hull2 axis =
         ( max2, min2 ) =
             project t2 hull2 axis
     in
-    if max1 < min2 || max2 < min1 then
+    if max1 - min2 < 0 || max2 - min1 < 0 then
         Nothing
 
     else
@@ -630,18 +630,50 @@ project transform { vertices } axis =
             Vec3.zero
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
+
+        ( maxVal, minVal ) =
+            projectHelp localAxis -Const.maxNumber Const.maxNumber vertices
     in
-    List.foldl
-        (\vec ( maxVal, minVal ) ->
+    ( maxVal - add, minVal - add )
+
+
+projectHelp : Vec3 -> Float -> Float -> List Vec3 -> ( Float, Float )
+projectHelp localAxis maxVal minVal currentVertices =
+    case currentVertices of
+        [] ->
+            ( maxVal, minVal )
+
+        vec :: remainingVertices ->
             let
+                {- val =
+                   Vec3.dot vec localAxis
+                -}
                 val =
-                    Vec3.dot vec localAxis
+                    vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
             in
-            ( max maxVal val, min minVal val )
-        )
-        ( -Const.maxNumber, Const.maxNumber )
-        vertices
-        |> (\( maxVal, minVal ) -> ( maxVal - add, minVal - add ))
+            projectHelp
+                localAxis
+                (max maxVal val)
+                (min minVal val)
+                remainingVertices
+
+
+max : Float -> Float -> Float
+max a b =
+    if a - b > 0 then
+        a
+
+    else
+        b
+
+
+min : Float -> Float -> Float
+min a b =
+    if b - a > 0 then
+        a
+
+    else
+        b
 
 
 {-| Encapsulated result of sphereTestFace
@@ -765,7 +797,7 @@ sphereTestFace radius normal vertices acc =
                     -- a negative value prevents a face or edge contact match
                     -1
     in
-    if faceDistance < radius && faceDistance > 0.0 then
+    if faceDistance - radius < 0 && faceDistance > 0.0 then
         -- Sphere intersects the face plane.
         -- Assume 3 or more valid vertices to proceed
         -- Check if the sphere center projects onto the face plane INSIDE the face polygon.
@@ -830,7 +862,7 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
                 vertexLengthSq =
                     Vec3.lengthSquared candidate
             in
-            if vertexLengthSq < minDistanceSq then
+            if vertexLengthSq - minDistanceSq < 0 then
                 ( Just candidate, vertexLengthSq )
 
             else
@@ -858,7 +890,7 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
         -- no contact.
         PossibleVertexContact (betterVertexContact prevVertex)
 
-    else if offset * offset > Vec3.lengthSquared edge then
+    else if offset * offset - Vec3.lengthSquared edge > 0 then
         -- vertex is closest in this edge,
         -- but there may be a closer edge or
         -- no contact.
@@ -872,7 +904,7 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
             edgeDistanceSq =
                 Vec3.lengthSquared edgeContact
         in
-        if edgeDistanceSq < minDistanceSq then
+        if edgeDistanceSq - minDistanceSq < 0 then
             EdgeContact ( edgeContact, edgeDistanceSq )
 
         else
@@ -1004,7 +1036,7 @@ raycast { direction, from } transform convex =
                     if isInsidePolygon then
                         case maybeHit of
                             Just { distance } ->
-                                if scalar < distance then
+                                if scalar - distance < 0 then
                                     Just
                                         { distance = scalar
                                         , point = intersectionPoint

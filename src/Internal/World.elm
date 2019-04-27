@@ -7,7 +7,7 @@ module Internal.World exposing
     , tick
     )
 
-import Internal.Body as Body exposing (Body, BodyId)
+import Internal.Body as Body exposing (Body)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
@@ -17,8 +17,8 @@ type Protected data
 
 type alias World data =
     { bodies : List (Body data)
-    , freeIds : List BodyId
-    , nextBodyId : BodyId
+    , freeIds : List Int
+    , nextBodyId : Int
     , gravity : Vec3
     }
 
@@ -66,7 +66,8 @@ getPairsHelp list result =
 bodiesMayOverlap : Body data -> Body data -> Bool
 bodiesMayOverlap body1 body2 =
     (body1.boundingSphereRadius + body2.boundingSphereRadius)
-        > Vec3.distance body1.position body2.position
+        - Vec3.distance body1.position body2.position
+        > 0
 
 
 raycast :
@@ -80,7 +81,7 @@ raycast ray { bodies } =
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
-                            if raycastResult.distance < closestRaycastResult.distance then
+                            if raycastResult.distance - closestRaycastResult.distance < 0 then
                                 Just
                                     { body = body
                                     , distance = raycastResult.distance

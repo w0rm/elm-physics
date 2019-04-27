@@ -30,8 +30,11 @@ import Physics.World exposing (World)
 getContacts : World data -> List { x : Float, y : Float, z : Float }
 getContacts (Protected world) =
     List.foldl
-        (\{ body1, body2, ri, rj } acc ->
-            Vec3.add body1.position ri :: Vec3.add body2.position rj :: acc
+        (\{ contacts } acc1 ->
+            List.foldl
+                (\{ pi, pj } acc2 -> pi :: pj :: acc2)
+                acc1
+                contacts
         )
         []
         -- TODO: maybe cache the previous contacts in the world

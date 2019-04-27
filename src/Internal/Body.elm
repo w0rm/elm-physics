@@ -1,6 +1,5 @@
 module Internal.Body exposing
     ( Body
-    , BodyId
     , Protected(..)
     , addGravity
     , compound
@@ -20,16 +19,12 @@ import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
-type alias BodyId =
-    Int
-
-
 type Protected data
     = Protected (Body data)
 
 
 type alias Body data =
-    { id : BodyId
+    { id : Int
     , data : data
     , material : Material
     , position : Vec3
@@ -146,18 +141,16 @@ updateMassProperties ({ mass } as body) =
                 1.0 / mass
 
         e =
-            body
-                |> computeAABB
-                |> AABB.toHalfExtends
+            AABB.dimesions (computeAABB body)
 
         ix =
-            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.z * 2 * e.z)
+            1.0 / 12.0 * mass * (e.y * e.y + e.z * e.z)
 
         iy =
-            1.0 / 12.0 * mass * (2 * e.x * 2 * e.x + 2 * e.z * 2 * e.z)
+            1.0 / 12.0 * mass * (e.x * e.x + e.z * e.z)
 
         iz =
-            1.0 / 12.0 * mass * (2 * e.y * 2 * e.y + 2 * e.x * 2 * e.x)
+            1.0 / 12.0 * mass * (e.y * e.y + e.x * e.x)
 
         inertia =
             vec3 ix iy iz
@@ -232,7 +225,7 @@ raycast ray body =
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
-                            if raycastResult.distance < closestRaycastResult.distance then
+                            if raycastResult.distance - closestRaycastResult.distance < 0 then
                                 Just raycastResult
 
                             else
