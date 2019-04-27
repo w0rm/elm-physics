@@ -3,9 +3,9 @@ module Internal.Solver exposing (solve)
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body, BodyId)
 import Internal.Const as Const
+import Internal.Equation as Equation exposing (Equation, addEquations)
 import Internal.NarrowPhase exposing (Contact, ContactGroup)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.SolverEquation as SolverEquation exposing (ContactEquation, SolverEquation, addSolverEquations)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as World exposing (World)
 
@@ -16,28 +16,82 @@ maxIterations =
 
 
 solve : Float -> List (ContactGroup data) -> World data -> World data
-solve dt contactEquations world =
-    if contactEquations == [] then
-        world
+solve dt contactGroups world =
+    let
+        solverBodies =
+            List.foldl
+                (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
+                (Array.initialize world.nextBodyId (always Nothing))
+                world.bodies
 
-    else
-        world
-            |> solveContext dt contactEquations
-            |> solveHelp maxIterations
-            |> updateVelocities
+        equationsGroups =
+            List.map
+                (solverEquationsGroup dt world.gravity)
+                contactGroups
+
+        solvedBodies =
+            step maxIterations 0 [] equationsGroups solverBodies
+    in
+    updateVelocities solvedBodies world
 
 
-solveHelp : Int -> SolveContext data -> SolveContext data
-solveHelp number context =
-    if number == 0 || context.deltalambdaTot - Const.precision < 0 then
-        context
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (Maybe (SolverBody data)) -> Array (Maybe (SolverBody data))
+step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
+    case currentEquationsGroups of
+        [] ->
+            if number == 0 || deltalambdaTot - Const.precision < 0 then
+                solverBodies
 
-    else
-        solveHelp (number - 1) (solveStep context)
+            else
+                step (number - 1) 0 [] equationsGroups solverBodies
+
+        { bodyId1, bodyId2, solverEquations } :: remainingEquationsGroups ->
+            case Array.get bodyId1 solverBodies of
+                Just (Just body1) ->
+                    case Array.get bodyId2 solverBodies of
+                        Just (Just body2) ->
+                            let
+                                groupContext =
+                                    solveEquationsGroup
+                                        body1
+                                        body2
+                                        []
+                                        deltalambdaTot
+                                        solverEquations
+                            in
+                            step number
+                                groupContext.deltalambdaTot
+                                ({ bodyId1 = bodyId1
+                                 , bodyId2 = bodyId2
+                                 , solverEquations = groupContext.solverEquations
+                                 }
+                                    :: equationsGroups
+                                )
+                                remainingEquationsGroups
+                                (solverBodies
+                                    |> Array.set bodyId1 (Just groupContext.body1)
+                                    |> Array.set bodyId2 (Just groupContext.body2)
+                                )
+
+                        _ ->
+                            -- Should never happen
+                            step number
+                                deltalambdaTot
+                                equationsGroups
+                                remainingEquationsGroups
+                                solverBodies
+
+                _ ->
+                    -- Should never happen
+                    step number
+                        deltalambdaTot
+                        equationsGroups
+                        remainingEquationsGroups
+                        solverBodies
 
 
-updateVelocities : SolveContext data -> World data
-updateVelocities { bodies, world } =
+updateVelocities : Array (Maybe (SolverBody data)) -> World data -> World data
+updateVelocities bodies world =
     { world
         | bodies =
             List.foldl
@@ -74,14 +128,14 @@ updateVelocities { bodies, world } =
 type alias GroupContext data =
     { body1 : SolverBody data
     , body2 : SolverBody data
-    , solverEquations : List ( Float, SolverEquation )
+    , solverEquations : List ( Float, Equation )
     , deltalambdaTot : Float
     }
 
 
-solveEquationsGroup : SolverBody data -> SolverBody data -> List ( Float, SolverEquation ) -> Float -> List ( Float, SolverEquation ) -> GroupContext data
-solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentSolverEquations =
-    case currentSolverEquations of
+solveEquationsGroup : SolverBody data -> SolverBody data -> List ( Float, Equation ) -> Float -> List ( Float, Equation ) -> GroupContext data
+solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentEquations =
+    case currentEquations of
         [] ->
             { body1 = body1
             , body2 = body2
@@ -89,10 +143,10 @@ solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentSolverEqua
             , deltalambdaTot = deltalambdaTot
             }
 
-        ( equationSolverLambda, solverEquation ) :: remainingSolverEquations ->
+        ( equationSolverLambda, solverEquation ) :: remainingEquations ->
             let
                 gWlambda =
-                    SolverEquation.computeGWlambda body1 body2 solverEquation
+                    Equation.computeGWlambda body1 body2 solverEquation
 
                 deltalambdaPrev =
                     solverEquation.solverInvCs * (solverEquation.solverBs - gWlambda - solverEquation.spookEps * equationSolverLambda)
@@ -112,7 +166,7 @@ solveEquationsGroup body1 body2 solverEquations deltalambdaTot currentSolverEqua
                 (SolverBody.addToWlambda deltalambda solverEquation.jacobianElementB body2)
                 (( equationSolverLambda + deltalambda, solverEquation ) :: solverEquations)
                 (deltalambdaTot + abs deltalambda)
-                remainingSolverEquations
+                remainingEquations
 
 
 solveStep : SolveContext data -> SolveContext data
@@ -134,12 +188,12 @@ solveStep context =
                             in
                             { world = newContext.world
                             , deltalambdaTot = groupContext.deltalambdaTot
-                            , solverEquationsGroups =
+                            , equationsGroups =
                                 { bodyId1 = bodyId1
                                 , bodyId2 = bodyId2
                                 , solverEquations = groupContext.solverEquations
                                 }
-                                    :: newContext.solverEquationsGroups
+                                    :: newContext.equationsGroups
                             , bodies =
                                 newContext.bodies
                                     |> Array.set bodyId1 (Just groupContext.body1)
@@ -152,44 +206,31 @@ solveStep context =
                 _ ->
                     newContext
         )
-        { context | solverEquationsGroups = [], deltalambdaTot = 0 }
-        context.solverEquationsGroups
+        { context | equationsGroups = [], deltalambdaTot = 0 }
+        context.equationsGroups
 
 
 type alias SolveContext data =
     { bodies : Array (Maybe (SolverBody data))
-    , solverEquationsGroups : List SolverEquationsGroup
+    , equationsGroups : List EquationsGroup
     , deltalambdaTot : Float
     , world : World data
     }
 
 
-solveContext : Float -> List (ContactGroup data) -> World data -> SolveContext data
-solveContext dt contactGroups world =
-    { bodies =
-        List.foldl
-            (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
-            (Array.initialize world.nextBodyId (always Nothing))
-            world.bodies
-    , solverEquationsGroups = List.map (solverEquationsGroup dt world.gravity) contactGroups
-    , deltalambdaTot = Const.maxNumber -- large number initially
-    , world = world
-    }
-
-
-type alias SolverEquationsGroup =
+type alias EquationsGroup =
     { bodyId1 : BodyId
     , bodyId2 : BodyId
-    , solverEquations : List ( Float, SolverEquation )
+    , solverEquations : List ( Float, Equation )
     }
 
 
-solverEquationsGroup : Float -> Vec3 -> ContactGroup data -> SolverEquationsGroup
+solverEquationsGroup : Float -> Vec3 -> ContactGroup data -> EquationsGroup
 solverEquationsGroup dt gravity { body1, body2, contacts } =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
     , solverEquations =
         contacts
-            |> List.foldl (addSolverEquations dt gravity body1 body2) []
+            |> List.foldl (addEquations dt gravity body1 body2) []
             |> List.map (Tuple.pair 0)
     }
