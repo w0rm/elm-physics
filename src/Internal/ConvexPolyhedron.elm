@@ -630,18 +630,47 @@ project transform { vertices } axis =
             Vec3.zero
                 |> Transform.pointToLocalFrame transform
                 |> Vec3.dot localAxis
+
+        ( maxVal, minVal ) =
+            projectHelp localAxis -Const.maxNumber Const.maxNumber vertices
     in
-    List.foldl
-        (\vec ( maxVal, minVal ) ->
+    ( maxVal - add, minVal - add )
+
+
+projectHelp : Vec3 -> Float -> Float -> List Vec3 -> ( Float, Float )
+projectHelp localAxis maxVal minVal currentVertices =
+    case currentVertices of
+        [] ->
+            ( maxVal, minVal )
+
+        vec :: remainingVertices ->
             let
                 val =
                     Vec3.dot vec localAxis
             in
-            ( max maxVal val, min minVal val )
-        )
-        ( -Const.maxNumber, Const.maxNumber )
-        vertices
-        |> (\( maxVal, minVal ) -> ( maxVal - add, minVal - add ))
+            projectHelp
+                localAxis
+                (max maxVal val)
+                (min minVal val)
+                remainingVertices
+
+
+max : Float -> Float -> Float
+max a b =
+    if a - b > 0 then
+        a
+
+    else
+        b
+
+
+min : Float -> Float -> Float
+min a b =
+    if b - a > 0 then
+        a
+
+    else
+        b
 
 
 {-| Encapsulated result of sphereTestFace
