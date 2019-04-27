@@ -645,8 +645,11 @@ projectHelp localAxis maxVal minVal currentVertices =
 
         vec :: remainingVertices ->
             let
+                {- val =
+                   Vec3.dot vec localAxis
+                -}
                 val =
-                    Vec3.dot vec localAxis
+                    vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
             in
             projectHelp
                 localAxis

@@ -284,8 +284,14 @@ computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
 -}
 computeGWlambda : SolverBody data -> SolverBody data -> Equation -> Float
 computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
-    JacobianElement.mulVec bi.vlambda bi.wlambda jacobianElementA
-        + JacobianElement.mulVec bj.vlambda bj.wlambda jacobianElementB
+    {-
+       JacobianElement.mulVec bi.vlambda bi.wlambda jacobianElementA
+           + JacobianElement.mulVec bj.vlambda bj.wlambda jacobianElementB
+    -}
+    (jacobianElementA.spatial.x * bi.vlambda.x + jacobianElementA.spatial.y * bi.vlambda.y + jacobianElementA.spatial.z * bi.vlambda.z)
+        + (jacobianElementA.rotational.x * bi.wlambda.x + jacobianElementA.rotational.y * bi.wlambda.y + jacobianElementA.rotational.z * bi.wlambda.z)
+        + (jacobianElementB.spatial.x * bj.vlambda.x + jacobianElementB.spatial.y * bj.vlambda.y + jacobianElementB.spatial.z * bj.vlambda.z)
+        + (jacobianElementB.rotational.x * bj.wlambda.x + jacobianElementB.rotational.y * bj.wlambda.y + jacobianElementB.rotational.z * bj.wlambda.z)
 
 
 {-| Computes G\*W, where W are the body velocities

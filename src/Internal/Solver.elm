@@ -25,8 +25,11 @@ solve dt contactGroups world =
                 world.bodies
 
         equationsGroups =
-            List.map
-                (solverEquationsGroup dt world.gravity)
+            List.foldl
+                (\contactGroup ->
+                    (::) (solverEquationsGroup dt world.gravity contactGroup)
+                )
+                []
                 contactGroups
 
         solvedBodies =
