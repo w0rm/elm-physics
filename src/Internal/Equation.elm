@@ -1,7 +1,6 @@
-module Internal.SolverEquation exposing
-    ( ContactEquation
-    , SolverEquation
-    , addSolverEquations
+module Internal.Equation exposing
+    ( Equation
+    , addEquations
     , computeGWlambda
     )
 
@@ -34,7 +33,7 @@ type EquationKind
     | Friction FrictionEquation
 
 
-type alias SolverEquation =
+type alias Equation =
     { kind : EquationKind
     , bodyId1 : BodyId
     , bodyId2 : BodyId
@@ -50,8 +49,8 @@ type alias SolverEquation =
     }
 
 
-addSolverEquations : Float -> Vec3 -> Body data -> Body data -> Contact -> List SolverEquation -> List SolverEquation
-addSolverEquations dt gravity body1 body2 contact =
+addEquations : Float -> Vec3 -> Body data -> Body data -> Contact -> List Equation -> List Equation
+addEquations dt gravity body1 body2 contact =
     let
         μg =
             Material.contactFriction
@@ -186,7 +185,7 @@ defaultStiffness =
     10000000
 
 
-initSolverParams : Float -> Body data -> Body data -> SolverEquation -> SolverEquation
+initSolverParams : Float -> Body data -> Body data -> Equation -> Equation
 initSolverParams dt bi bj solverEquation =
     { kind = solverEquation.kind
     , bodyId1 = solverEquation.bodyId1
@@ -205,7 +204,7 @@ initSolverParams dt bi bj solverEquation =
 
 {-| Computes the RHS of the SPOOK equation
 -}
-computeB : Float -> Body data -> Body data -> SolverEquation -> Float
+computeB : Float -> Body data -> Body data -> Equation -> Float
 computeB dt bi bj solverEquation =
     case solverEquation.kind of
         Contact contactEquation ->
@@ -215,7 +214,7 @@ computeB dt bi bj solverEquation =
             computeFrictionB dt bi bj solverEquation frictionEquation
 
 
-computeContactB : Float -> Body data -> Body data -> SolverEquation -> ContactEquation -> Float
+computeContactB : Float -> Body data -> Body data -> Equation -> ContactEquation -> Float
 computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri, rj, ni } =
     let
         g =
@@ -237,7 +236,7 @@ computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri
     -g * spookA - gW * spookB - dt * giMf
 
 
-computeFrictionB : Float -> Body data -> Body data -> SolverEquation -> FrictionEquation -> Float
+computeFrictionB : Float -> Body data -> Body data -> Equation -> FrictionEquation -> Float
 computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
     let
         gW =
@@ -255,7 +254,7 @@ computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
   - f are the forces on the bodies
 
 -}
-computeGiMf : Body data -> Body data -> SolverEquation -> Float
+computeGiMf : Body data -> Body data -> Equation -> Float
 computeGiMf bi bj { jacobianElementA, jacobianElementB } =
     (+)
         (JacobianElement.mulVec
@@ -272,7 +271,7 @@ computeGiMf bi bj { jacobianElementA, jacobianElementB } =
 
 {-| Compute G\_inv(M)\_G' + eps, the denominator part of the SPOOK equation:
 -}
-computeC : Body data -> Body data -> SolverEquation -> Float
+computeC : Body data -> Body data -> Equation -> Float
 computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
     bi.invMass
         + bj.invMass
@@ -283,7 +282,7 @@ computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
 
 {-| Computes G\*Wlambda, where W are the body velocities
 -}
-computeGWlambda : SolverBody data -> SolverBody data -> SolverEquation -> Float
+computeGWlambda : SolverBody data -> SolverBody data -> Equation -> Float
 computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.vlambda bi.wlambda jacobianElementA
         + JacobianElement.mulVec bj.vlambda bj.wlambda jacobianElementB
@@ -291,7 +290,7 @@ computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
 
 {-| Computes G\*W, where W are the body velocities
 -}
-computeGW : Body data -> Body data -> SolverEquation -> Float
+computeGW : Body data -> Body data -> Equation -> Float
 computeGW bi bj { jacobianElementA, jacobianElementB } =
     JacobianElement.mulVec bi.velocity bi.angularVelocity jacobianElementA
         + JacobianElement.mulVec bj.velocity bj.angularVelocity jacobianElementB
