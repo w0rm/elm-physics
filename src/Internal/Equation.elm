@@ -1,14 +1,15 @@
 module Internal.Equation exposing
     ( Equation
-    , addEquations
+    , EquationsGroup
     , computeGWlambda
+    , equationsGroup
     )
 
 import Internal.Body exposing (Body)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.NarrowPhase exposing (Contact)
+import Internal.NarrowPhase exposing (Contact, ContactGroup)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -49,8 +50,15 @@ type alias Equation =
     }
 
 
-addEquations : Float -> Vec3 -> Body data -> Body data -> Contact -> List Equation -> List Equation
-addEquations dt gravity body1 body2 contact =
+type alias EquationsGroup =
+    { bodyId1 : Int
+    , bodyId2 : Int
+    , equations : List ( Float, Equation )
+    }
+
+
+equationsGroup : Float -> Vec3 -> ContactGroup data -> EquationsGroup
+equationsGroup dt gravity { body1, body2, contacts } =
     let
         μg =
             Material.contactFriction
@@ -58,6 +66,23 @@ addEquations dt gravity body1 body2 contact =
                 body2.material
                 * Vec3.length gravity
 
+        bounciness =
+            Material.contactBounciness
+                body1.material
+                body2.material
+    in
+    { bodyId1 = body1.id
+    , bodyId2 = body2.id
+    , equations =
+        contacts
+            |> List.foldl (addEquations dt μg bounciness body1 body2) []
+            |> List.map (Tuple.pair 0)
+    }
+
+
+addEquations : Float -> Float -> Float -> Body data -> Body data -> Contact -> List Equation -> List Equation
+addEquations dt μg bounciness body1 body2 contact =
+    let
         reducedMass =
             if (body1.invMass + body2.invMass) > 0 then
                 1 / (body1.invMass + body2.invMass)
@@ -75,10 +100,7 @@ addEquations dt gravity body1 body2 contact =
             { ri = ri
             , rj = rj
             , ni = contact.ni
-            , bounciness =
-                Material.contactBounciness
-                    body1.material
-                    body2.material
+            , bounciness = bounciness
             }
 
         ( t1, t2 ) =
