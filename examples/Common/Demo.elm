@@ -43,6 +43,7 @@ type alias Model =
     , screenWidth : Float
     , screenHeight : Float
     , initialWorld : World DemoBodyWithId
+    , initialLastId : Int
     , world : World DemoBodyWithId
     , dt : List Float
     , raycastResult : Maybe (RaycastResult DemoBodyWithId)
@@ -165,6 +166,7 @@ init demo_ =
       , screenWidth = 1
       , screenHeight = 1
       , initialWorld = initialWorld
+      , initialLastId = lastId
       , world = initialWorld
       , dt = [ 16 ]
       , raycastResult = Nothing
@@ -223,7 +225,7 @@ update randomBody msg model =
                     ( model, Cmd.none )
 
         ResetClick ->
-            ( { model | world = model.initialWorld, raycastResult = Nothing, lastId = 0 }
+            ( { model | world = model.initialWorld, raycastResult = Nothing, lastId = model.initialLastId }
             , Cmd.none
             )
 
