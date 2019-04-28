@@ -223,10 +223,10 @@ constrainIf test fn (Protected world) =
                 (\body -> test (InternalBody.Protected body))
                 world.bodies
 
-        -- Cleanup old constraints
+        -- Keep untouched constraints
         filteredConstraints =
             List.filter
-                (\{ bodyId1, bodyId2 } -> List.any (\body -> body.id == bodyId1 || body.id == bodyId2) filteredBodies)
+                (\{ bodyId1, bodyId2 } -> not (List.any (\body -> body.id == bodyId1 || body.id == bodyId2) filteredBodies))
                 world.constraints
 
         -- Add constraints for two bodies

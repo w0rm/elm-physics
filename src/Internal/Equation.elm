@@ -2,14 +2,17 @@ module Internal.Equation exposing
     ( Equation
     , EquationsGroup
     , computeGWlambda
+    , constraintEquationsGroup
     , equationsGroup
     )
 
 import Internal.Body exposing (Body)
+import Internal.Constraint as Constraint exposing (Constraint(..), ConstraintGroup)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.NarrowPhase exposing (Contact, ContactGroup)
+import Internal.Quaternion as Quaternion
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -36,8 +39,6 @@ type EquationKind
 
 type alias Equation =
     { kind : EquationKind
-    , bodyId1 : Int
-    , bodyId2 : Int
     , minForce : Float
     , maxForce : Float
     , solverBs : Float
@@ -54,6 +55,17 @@ type alias EquationsGroup =
     { bodyId1 : Int
     , bodyId2 : Int
     , equations : List ( Float, Equation )
+    }
+
+
+constraintEquationsGroup : Float -> Body data -> Body data -> List Constraint -> EquationsGroup
+constraintEquationsGroup dt body1 body2 constraints =
+    { bodyId1 = body1.id
+    , bodyId2 = body2.id
+    , equations =
+        constraints
+            |> List.foldl (addConstraintEquations dt body1 body2) []
+            |> List.map (Tuple.pair 0)
     }
 
 
@@ -78,6 +90,69 @@ equationsGroup dt gravity { body1, body2, contacts } =
             |> List.foldl (addEquations dt μg bounciness body1 body2) []
             |> List.map (Tuple.pair 0)
     }
+
+
+axes : List Vec3
+axes =
+    [ Vec3.i, Vec3.j, Vec3.k ]
+
+
+addConstraintEquations : Float -> Body data -> Body data -> Constraint -> List Equation -> List Equation
+addConstraintEquations dt body1 body2 (PointToPoint { pivot1, pivot2 }) equations =
+    let
+        bounciness =
+            Material.contactBounciness
+                body1.material
+                body2.material
+
+        ri =
+            Quaternion.rotate body1.orientation pivot1
+
+        rj =
+            Quaternion.rotate body2.orientation pivot2
+
+        spookA =
+            4.0 / (dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+    in
+    List.foldl
+        (\ni ->
+            (::)
+                (initSolverParams dt
+                    body1
+                    body2
+                    { kind =
+                        Contact
+                            { ri = ri
+                            , rj = rj
+                            , ni = ni
+                            , bounciness = bounciness
+                            }
+                    , minForce = -1000000
+                    , maxForce = 1000000
+                    , solverBs = 0
+                    , solverInvCs = 0
+                    , spookA = spookA
+                    , spookB = spookB
+                    , spookEps = spookEps
+                    , jacobianElementA =
+                        { spatial = Vec3.negate ni
+                        , rotational = Vec3.negate (Vec3.cross ri ni)
+                        }
+                    , jacobianElementB =
+                        { spatial = ni
+                        , rotational = Vec3.cross rj ni
+                        }
+                    }
+                )
+        )
+        equations
+        axes
 
 
 addEquations : Float -> Float -> Float -> Body data -> Body data -> Contact -> List Equation -> List Equation
@@ -134,9 +209,7 @@ addEquations dt μg bounciness body1 body2 contact =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
     (++)
-        [ { bodyId1 = body1.id
-          , bodyId2 = body2.id
-          , kind = Contact contactEquation
+        [ { kind = Contact contactEquation
           , minForce = 0
           , maxForce = 1000000
           , solverBs = 0
@@ -154,9 +227,7 @@ addEquations dt μg bounciness body1 body2 contact =
                 }
           }
             |> initSolverParams dt body1 body2
-        , { bodyId1 = body1.id
-          , bodyId2 = body2.id
-          , kind = Friction { ri = ri, rj = rj, t = t1 }
+        , { kind = Friction { ri = ri, rj = rj, t = t1 }
           , minForce = -μg * reducedMass
           , maxForce = μg * reducedMass
           , solverBs = 0
@@ -174,9 +245,7 @@ addEquations dt μg bounciness body1 body2 contact =
                 }
           }
             |> initSolverParams dt body1 body2
-        , { bodyId1 = body1.id
-          , bodyId2 = body2.id
-          , kind = Friction { ri = ri, rj = rj, t = t2 }
+        , { kind = Friction { ri = ri, rj = rj, t = t2 }
           , minForce = -μg * reducedMass
           , maxForce = μg * reducedMass
           , solverBs = 0
@@ -210,8 +279,6 @@ defaultStiffness =
 initSolverParams : Float -> Body data -> Body data -> Equation -> Equation
 initSolverParams dt bi bj solverEquation =
     { kind = solverEquation.kind
-    , bodyId1 = solverEquation.bodyId1
-    , bodyId2 = solverEquation.bodyId2
     , minForce = solverEquation.minForce
     , maxForce = solverEquation.maxForce
     , solverBs = computeB dt bi bj solverEquation

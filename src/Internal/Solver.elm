@@ -42,11 +42,35 @@ solve dt contactGroups world =
         solverBodies =
             makeSolverBodies world.nextBodyId world.bodies
 
-        equationsGroups =
+        conactEquationsGroups =
             List.foldl
                 (\contactGroup -> (::) (Equation.equationsGroup dt world.gravity contactGroup))
                 []
                 contactGroups
+
+        equationsGroups =
+            List.foldl
+                (\{ bodyId1, bodyId2, constraints } ->
+                    case Array.get bodyId1 solverBodies of
+                        Nothing ->
+                            identity
+
+                        Just body1 ->
+                            case Array.get bodyId2 solverBodies of
+                                Nothing ->
+                                    identity
+
+                                Just body2 ->
+                                    (::)
+                                        (Equation.constraintEquationsGroup
+                                            dt
+                                            body1.body
+                                            body2.body
+                                            constraints
+                                        )
+                )
+                conactEquationsGroups
+                world.constraints
 
         solvedBodies =
             step maxIterations 0 [] equationsGroups solverBodies
