@@ -2,6 +2,7 @@ module Physics.World exposing
     ( World, empty, add, setGravity
     , simulate, getBodies, raycast, RaycastResult
     , keepIf, update
+    , constrain, constrainIf
     )
 
 {-|
@@ -12,10 +13,13 @@ module Physics.World exposing
 
 @docs keepIf, update
 
+@docs constrain, constrainIf
+
 -}
 
 import Internal.Body as InternalBody
 import Internal.Const as Const
+import Internal.Constraint exposing (ConstraintGroup)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Solver as Solver
@@ -37,6 +41,7 @@ empty : World data
 empty =
     Protected
         { bodies = []
+        , constraints = []
         , freeIds = []
         , nextBodyId = 0
         , gravity = Vec3.zero
@@ -210,5 +215,54 @@ constrain =
 
 -}
 constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
-constrainIf test fn world =
-    world
+constrainIf test fn (Protected world) =
+    let
+        -- Filter the bodies for permutations
+        filteredBodies =
+            List.filter
+                (\body -> test (InternalBody.Protected body))
+                world.bodies
+
+        -- Cleanup old constraints
+        filteredConstraints =
+            List.filter
+                (\{ bodyId1, bodyId2 } -> List.any (\body -> body.id == bodyId1 || body.id == bodyId2) filteredBodies)
+                world.constraints
+
+        -- Add constraints for two bodies
+        addFor : InternalBody.Body data -> InternalBody.Body data -> List ConstraintGroup -> List ConstraintGroup
+        addFor body1 body2 constraintGroup =
+            case fn (InternalBody.Protected body1) (InternalBody.Protected body2) of
+                [] ->
+                    constraintGroup
+
+                constraints ->
+                    { bodyId1 = body1.id
+                    , bodyId2 = body2.id
+                    , constraints = constraints
+                    }
+                        :: constraintGroup
+
+        -- Add constraints for all combinations of bodies
+        addConstraintsHelp : List (InternalBody.Body data) -> List ConstraintGroup -> List ConstraintGroup
+        addConstraintsHelp list result =
+            case list of
+                body1 :: rest ->
+                    addConstraintsHelp rest
+                        (List.foldl
+                            (\body2 constraints ->
+                                constraints
+                                    |> addFor body1 body2
+                                    |> addFor body2 body1
+                            )
+                            result
+                            rest
+                        )
+
+                [] ->
+                    result
+    in
+    Protected
+        { world
+            | constraints = addConstraintsHelp filteredBodies filteredConstraints
+        }
