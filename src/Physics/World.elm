@@ -22,6 +22,7 @@ import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
 import Physics.Body exposing (Body)
+import Physics.Constraint exposing (Constraint)
 
 
 {-| Physical world is our abstract playground for physical simulations.
@@ -139,10 +140,6 @@ type alias RaycastResult data =
     }
 
 
-
--- Extra
-
-
 {-| Keep bodies that satisfy the test.
 -}
 keepIf : (Body data -> Bool) -> World data -> World data
@@ -172,3 +169,46 @@ update fn (Protected world) =
             { updatedBody | id = body.id }
     in
     Protected { world | bodies = List.map internalUpdate world.bodies }
+
+
+{-| Configure constraints between pairs of bodies.
+
+Check the [Physics.Constraint](Physics-Constraint) module for possible constraints.
+
+    worldWithACar : World { part : String }
+    worldWithACar =
+        constrain
+            (\b1 b2 ->
+                case ( (Body.getData b1).part, (Body.getData b2).part ) of
+                    ( "wheel1", "base" ) ->
+                        [ hingeConstraint1 ]
+
+                    ( "wheel2", "base" ) ->
+                        [ hingeConstraint2 ]
+
+                    ( "wheel3", "base" ) ->
+                        [ hingeConstraint3 ]
+
+                    ( "wheel4", "base" ) ->
+                        [ hingeConstraint4 ]
+
+                    _ ->
+                        []
+            )
+            worldWithCarParts
+
+-}
+constrain : (Body data -> Body data -> List Constraint) -> World data -> World data
+constrain =
+    constrainIf (always True)
+
+
+{-| Configure constraints for a subset of bodies that satisfy the test. This may be useful when the total amount of bodies is too big.
+
+    constrain =
+        constrainIf (always True)
+
+-}
+constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
+constrainIf test fn world =
+    world
