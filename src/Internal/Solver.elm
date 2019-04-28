@@ -15,14 +15,32 @@ maxIterations =
     20
 
 
+makeSolverBodies : Int -> List (Body data) -> Array (SolverBody data)
+makeSolverBodies nextBodyId bodies =
+    case bodies of
+        [] ->
+            Array.empty
+
+        firstBody :: _ ->
+            let
+                -- a hack to use an empty body to fill the gaps
+                -- in the array and avoid an extra boxing (Array (Maybe (SolverBody data)))
+                allBodies =
+                    { firstBody | id = -1 }
+                        |> SolverBody.fromBody
+                        |> Array.repeat nextBodyId
+            in
+            List.foldl
+                (\body -> Array.set body.id (SolverBody.fromBody body))
+                allBodies
+                bodies
+
+
 solve : Float -> List (ContactGroup data) -> World data -> World data
 solve dt contactGroups world =
     let
         solverBodies =
-            List.foldl
-                (\body -> Array.set body.id (Just (SolverBody.fromBody body)))
-                (Array.initialize world.nextBodyId (always Nothing))
-                world.bodies
+            makeSolverBodies world.nextBodyId world.bodies
 
         equationsGroups =
             List.foldl
@@ -36,7 +54,7 @@ solve dt contactGroups world =
     updateVelocities solvedBodies world
 
 
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (Maybe (SolverBody data)) -> Array (Maybe (SolverBody data))
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (SolverBody data) -> Array (SolverBody data)
 step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
     case currentEquationsGroups of
         [] ->
@@ -48,9 +66,9 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             case Array.get bodyId1 solverBodies of
-                Just (Just body1) ->
+                Just body1 ->
                     case Array.get bodyId2 solverBodies of
-                        Just (Just body2) ->
+                        Just body2 ->
                             let
                                 groupContext =
                                     solveEquationsGroup
@@ -70,8 +88,8 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
                                 )
                                 remainingEquationsGroups
                                 (solverBodies
-                                    |> Array.set bodyId1 (Just groupContext.body1)
-                                    |> Array.set bodyId2 (Just groupContext.body2)
+                                    |> Array.set bodyId1 groupContext.body1
+                                    |> Array.set bodyId2 groupContext.body2
                                 )
 
                         _ ->
@@ -135,35 +153,39 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 remainingEquations
 
 
-updateVelocities : Array (Maybe (SolverBody data)) -> World data -> World data
+updateVelocities : Array (SolverBody data) -> World data -> World data
 updateVelocities bodies world =
     { world
         | bodies =
             List.foldl
-                (\maybeSolverBody result ->
-                    case maybeSolverBody of
-                        Just { body, vlambda, wlambda } ->
-                            { id = body.id
-                            , data = body.data
-                            , material = body.material
-                            , position = body.position
-                            , velocity = Vec3.add body.velocity vlambda
-                            , angularVelocity = Vec3.add body.angularVelocity wlambda
-                            , orientation = body.orientation
-                            , mass = body.mass
-                            , shapes = body.shapes
-                            , force = body.force
-                            , torque = body.torque
-                            , boundingSphereRadius = body.boundingSphereRadius
-                            , invMass = body.invMass
-                            , inertia = body.inertia
-                            , invInertia = body.invInertia
-                            , invInertiaWorld = body.invInertiaWorld
-                            }
-                                :: result
+                (\solverBody result ->
+                    -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
+                    if solverBody.body.id + 1 > 0 then
+                        let
+                            { body, vlambda, wlambda } =
+                                solverBody
+                        in
+                        { id = body.id
+                        , data = body.data
+                        , material = body.material
+                        , position = body.position
+                        , velocity = Vec3.add body.velocity vlambda
+                        , angularVelocity = Vec3.add body.angularVelocity wlambda
+                        , orientation = body.orientation
+                        , mass = body.mass
+                        , shapes = body.shapes
+                        , force = body.force
+                        , torque = body.torque
+                        , boundingSphereRadius = body.boundingSphereRadius
+                        , invMass = body.invMass
+                        , inertia = body.inertia
+                        , invInertia = body.invInertia
+                        , invInertiaWorld = body.invInertiaWorld
+                        }
+                            :: result
 
-                        Nothing ->
-                            result
+                    else
+                        result
                 )
                 []
                 (Array.toList bodies)
