@@ -2,6 +2,7 @@ module Physics.World exposing
     ( World, empty, add, setGravity
     , simulate, getBodies, raycast, RaycastResult
     , keepIf, update
+    , constrain, constrainIf
     )
 
 {-|
@@ -12,16 +13,20 @@ module Physics.World exposing
 
 @docs keepIf, update
 
+@docs constrain, constrainIf
+
 -}
 
 import Internal.Body as InternalBody
 import Internal.Const as Const
+import Internal.Constraint exposing (ConstraintGroup)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
 import Physics.Body exposing (Body)
+import Physics.Constraint exposing (Constraint)
 
 
 {-| Physical world is our abstract playground for physical simulations.
@@ -36,6 +41,7 @@ empty : World data
 empty =
     Protected
         { bodies = []
+        , constraints = []
         , freeIds = []
         , nextBodyId = 0
         , gravity = Vec3.zero
@@ -139,10 +145,6 @@ type alias RaycastResult data =
     }
 
 
-
--- Extra
-
-
 {-| Keep bodies that satisfy the test.
 -}
 keepIf : (Body data -> Bool) -> World data -> World data
@@ -172,3 +174,106 @@ update fn (Protected world) =
             { updatedBody | id = body.id }
     in
     Protected { world | bodies = List.map internalUpdate world.bodies }
+
+
+{-| Configure constraints between pairs of bodies. Constraints allow to limit the
+freedom of movement of two bodies with relation to each other.
+
+Check the [Physics.Constraint](Physics-Constraint) module for possible constraints.
+
+    worldWithACar : World { part : String }
+    worldWithACar =
+        constrain
+            (\b1 b2 ->
+                case ( (Body.getData b1).part, (Body.getData b2).part ) of
+                    ( "wheel1", "base" ) ->
+                        [ hingeConstraint1 ]
+
+                    ( "wheel2", "base" ) ->
+                        [ hingeConstraint2 ]
+
+                    ( "wheel3", "base" ) ->
+                        [ hingeConstraint3 ]
+
+                    ( "wheel4", "base" ) ->
+                        [ hingeConstraint4 ]
+
+                    _ ->
+                        []
+            )
+            worldWithCarParts
+
+Note that this example only works for a single car, otherwise it would
+connect wheels of one car with the base of another another. You might want
+to use `constrainIf` to apply constraints on a subset of bodies.
+
+    constrain =
+        constrainIf (always True)
+
+-}
+constrain : (Body data -> Body data -> List Constraint) -> World data -> World data
+constrain =
+    constrainIf (always True)
+
+
+{-| Configure constraints for a subset of bodies that satisfy the test.
+
+For the above example we can tag each part of a car with the `carId`,
+and preselect parts of a single car with:
+
+    constrainCar carId =
+        constrainIf (\body -> (Body.getData body).carId == carId)
+
+-}
+constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
+constrainIf test fn (Protected world) =
+    let
+        -- Filter the bodies for permutations
+        filteredBodies =
+            List.filter
+                (\body -> test (InternalBody.Protected body))
+                world.bodies
+
+        -- Keep untouched constraints
+        filteredConstraints =
+            List.filter
+                (\{ bodyId1, bodyId2 } -> not (List.any (\body -> body.id == bodyId1 || body.id == bodyId2) filteredBodies))
+                world.constraints
+
+        -- Add constraints for two bodies
+        addFor : InternalBody.Body data -> InternalBody.Body data -> List ConstraintGroup -> List ConstraintGroup
+        addFor body1 body2 constraintGroup =
+            case fn (InternalBody.Protected body1) (InternalBody.Protected body2) of
+                [] ->
+                    constraintGroup
+
+                constraints ->
+                    { bodyId1 = body1.id
+                    , bodyId2 = body2.id
+                    , constraints = constraints
+                    }
+                        :: constraintGroup
+
+        -- Add constraints for all combinations of bodies
+        addConstraintsHelp : List (InternalBody.Body data) -> List ConstraintGroup -> List ConstraintGroup
+        addConstraintsHelp list result =
+            case list of
+                body1 :: rest ->
+                    addConstraintsHelp rest
+                        (List.foldl
+                            (\body2 constraints ->
+                                constraints
+                                    |> addFor body1 body2
+                                    |> addFor body2 body1
+                            )
+                            result
+                            rest
+                        )
+
+                [] ->
+                    result
+    in
+    Protected
+        { world
+            | constraints = addConstraintsHelp filteredBodies filteredConstraints
+        }

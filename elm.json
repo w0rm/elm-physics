@@ -8,6 +8,7 @@
         "Physics.World",
         "Physics.Body",
         "Physics.Material",
+        "Physics.Constraint",
         "Physics.Shape",
         "Physics.Debug"
     ],
