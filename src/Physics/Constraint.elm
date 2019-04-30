@@ -3,7 +3,9 @@ module Physics.Constraint exposing (Constraint, pointToPoint)
 import Internal.Constraint as Internal
 
 
-{-| -}
+{-| Constraint allows to limit the freedom of movement
+of two bodies with relation to each other.
+-}
 type alias Constraint =
     Internal.Constraint
 

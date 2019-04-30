@@ -176,7 +176,8 @@ update fn (Protected world) =
     Protected { world | bodies = List.map internalUpdate world.bodies }
 
 
-{-| Configure constraints between pairs of bodies.
+{-| Configure constraints between pairs of bodies. Constraints allow to limit the
+freedom of movement of two bodies with relation to each other.
 
 Check the [Physics.Constraint](Physics-Constraint) module for possible constraints.
 
@@ -202,16 +203,26 @@ Check the [Physics.Constraint](Physics-Constraint) module for possible constrain
             )
             worldWithCarParts
 
+Note that this example only works for a single car, otherwise it would
+connect wheels of one car with the base of another another. You might want
+to use `constrainIf` to apply constraints on a subset of bodies.
+
+    constrain =
+        constrainIf (always True)
+
 -}
 constrain : (Body data -> Body data -> List Constraint) -> World data -> World data
 constrain =
     constrainIf (always True)
 
 
-{-| Configure constraints for a subset of bodies that satisfy the test. This may be useful when the total amount of bodies is too big.
+{-| Configure constraints for a subset of bodies that satisfy the test.
 
-    constrain =
-        constrainIf (always True)
+For the above example we can tag each part of a car with the `carId`,
+and preselect parts of a single car with:
+
+    constrainCar carId =
+        constrainIf (\body -> (Body.getData body).carId == carId)
 
 -}
 constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
