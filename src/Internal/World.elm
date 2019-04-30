@@ -4,7 +4,6 @@ module Internal.World exposing
     , addGravityForces
     , getPairs
     , raycast
-    , tick
     )
 
 import Internal.Body as Body exposing (Body)
@@ -29,13 +28,6 @@ addGravityForces : World data -> World data
 addGravityForces world =
     { world
         | bodies = List.map (Body.addGravity world.gravity) world.bodies
-    }
-
-
-tick : Float -> World data -> World data
-tick dt world =
-    { world
-        | bodies = List.map (Body.tick dt) world.bodies
     }
 
 

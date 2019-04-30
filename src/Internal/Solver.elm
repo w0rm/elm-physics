@@ -75,7 +75,7 @@ solve dt contactGroups world =
         solvedBodies =
             step maxIterations 0 [] equationsGroups solverBodies
     in
-    updateVelocities solvedBodies world
+    updateBodies dt solvedBodies world
 
 
 step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (SolverBody data) -> Array (SolverBody data)
@@ -177,35 +177,18 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 remainingEquations
 
 
-updateVelocities : Array (SolverBody data) -> World data -> World data
-updateVelocities bodies world =
+updateBodies : Float -> Array (SolverBody data) -> World data -> World data
+updateBodies dt bodies world =
     { world
         | bodies =
             List.foldl
                 (\solverBody result ->
                     -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
                     if solverBody.body.id + 1 > 0 then
-                        let
-                            { body, vlambda, wlambda } =
-                                solverBody
-                        in
-                        { id = body.id
-                        , data = body.data
-                        , material = body.material
-                        , position = body.position
-                        , velocity = Vec3.add body.velocity vlambda
-                        , angularVelocity = Vec3.add body.angularVelocity wlambda
-                        , orientation = body.orientation
-                        , mass = body.mass
-                        , shapes = body.shapes
-                        , force = body.force
-                        , torque = body.torque
-                        , boundingSphereRadius = body.boundingSphereRadius
-                        , invMass = body.invMass
-                        , inertia = body.inertia
-                        , invInertia = body.invInertia
-                        , invInertiaWorld = body.invInertiaWorld
-                        }
+                        Body.update dt
+                            solverBody.vlambda
+                            solverBody.wlambda
+                            solverBody.body
                             :: result
 
                     else

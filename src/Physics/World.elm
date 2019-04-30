@@ -95,7 +95,6 @@ simulate dt (Protected world) =
     world
         |> Internal.addGravityForces
         |> Solver.solve (dt / 1000) (NarrowPhase.getContacts world)
-        |> Internal.tick (dt / 1000)
         |> Protected
 
 

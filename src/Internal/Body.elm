@@ -5,7 +5,7 @@ module Internal.Body exposing
     , compound
     , raycast
     , shapeWorldTransform
-    , tick
+    , update
     , updateMassProperties
     )
 
@@ -88,44 +88,55 @@ shapeWorldTransform shape { position, orientation } =
     }
 
 
-tick : Float -> Body data -> Body data
-tick dt body =
+update : Float -> Vec3 -> Vec3 -> Body data -> Body data
+update dt vlambda wlambda body =
     let
-        invMass =
-            if body.mass == 0 then
-                0
-
-            else
-                1.0 / body.mass
-
         newVelocity =
             body.force
-                |> Vec3.scale (invMass * dt)
+                |> Vec3.scale (body.invMass * dt)
                 |> Vec3.add body.velocity
+                -- from the solver
+                |> Vec3.add vlambda
 
         newAngularVelocity =
             body.torque
                 |> Mat3.transform body.invInertiaWorld
                 |> Vec3.scale dt
                 |> Vec3.add body.angularVelocity
-    in
-    updateInertiaWorld False
-        { body
-            | velocity = newVelocity
-            , angularVelocity = newAngularVelocity
-            , position =
-                newVelocity
-                    |> Vec3.scale dt
-                    |> Vec3.add body.position
-            , orientation =
-                body.orientation
-                    |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                    |> Quaternion.normalize
+                -- from the solver
+                |> Vec3.add wlambda
 
-            -- clear forces
-            , force = Vec3.zero
-            , torque = Vec3.zero
-        }
+        newOrientation =
+            body.orientation
+                |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
+                |> Quaternion.normalize
+    in
+    { id = body.id
+    , data = body.data
+    , material = body.material
+    , velocity = newVelocity
+    , angularVelocity = newAngularVelocity
+    , position =
+        newVelocity
+            |> Vec3.scale dt
+            |> Vec3.add body.position
+    , orientation = newOrientation
+    , mass = body.mass
+    , shapes = body.shapes
+    , boundingSphereRadius = body.boundingSphereRadius
+    , invMass = body.invMass
+    , inertia = body.inertia
+    , invInertia = body.invInertia
+    , invInertiaWorld =
+        updateInvInertiaWorld False
+            body.invInertia
+            newOrientation
+            body.invInertiaWorld
+
+    -- clear forces
+    , force = Vec3.zero
+    , torque = Vec3.zero
+    }
 
 
 {-| Should be called whenever you change the body shapes or mass.
@@ -176,30 +187,31 @@ updateMassProperties ({ mass } as body) =
                     0
                 )
     in
-    updateInertiaWorld True
-        { body
-            | invMass = invMass
-            , inertia = inertia
-            , invInertia = invInertia
-        }
+    { body
+        | invMass = invMass
+        , inertia = inertia
+        , invInertia = invInertia
+        , invInertiaWorld =
+            updateInvInertiaWorld True
+                invInertia
+                body.orientation
+                body.invInertiaWorld
+    }
 
 
-updateInertiaWorld : Bool -> Body data -> Body data
-updateInertiaWorld force ({ invInertia, orientation } as body) =
+updateInvInertiaWorld : Bool -> Vec3 -> Quaternion -> Mat3 -> Mat3
+updateInvInertiaWorld force invInertia orientation invInertiaWorld =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
-        body
+        invInertiaWorld
 
     else
         let
             m =
                 Quaternion.toMat3 orientation
         in
-        { body
-            | invInertiaWorld =
-                Mat3.mul
-                    (Mat3.transpose m)
-                    (Mat3.scale invInertia m)
-        }
+        Mat3.mul
+            (Mat3.transpose m)
+            (Mat3.scale invInertia m)
 
 
 computeAABB : Body data -> AABB
