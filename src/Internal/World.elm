@@ -33,28 +33,40 @@ addGravityForces world =
 
 getPairs : World data -> List ( Body data, Body data )
 getPairs { bodies } =
-    getPairsHelp bodies []
+    case bodies of
+        body :: restBodies ->
+            getPairsHelp body restBodies restBodies []
+
+        [] ->
+            []
 
 
-getPairsHelp : List (Body data) -> List ( Body data, Body data ) -> List ( Body data, Body data )
-getPairsHelp list result =
-    case list of
-        body1 :: rest ->
-            getPairsHelp rest
-                (List.foldl
-                    (\body2 ->
-                        if bodiesMayOverlap body1 body2 then
-                            (::) ( body1, body2 )
+getPairsHelp : Body data -> List (Body data) -> List (Body data) -> List ( Body data, Body data ) -> List ( Body data, Body data )
+getPairsHelp body1 currentBodies restBodies result =
+    case restBodies of
+        body2 :: newRestBodies ->
+            getPairsHelp
+                body1
+                currentBodies
+                newRestBodies
+                (if bodiesMayOverlap body1 body2 then
+                    ( body1, body2 ) :: result
 
-                        else
-                            identity
-                    )
+                 else
                     result
-                    rest
                 )
 
         [] ->
-            result
+            case currentBodies of
+                newBody1 :: newRestBodies ->
+                    getPairsHelp
+                        newBody1
+                        newRestBodies
+                        newRestBodies
+                        result
+
+                [] ->
+                    result
 
 
 bodiesMayOverlap : Body data -> Body data -> Bool
