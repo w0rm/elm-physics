@@ -62,10 +62,7 @@ constraintEquationsGroup : Float -> Body data -> Body data -> List Constraint ->
 constraintEquationsGroup dt body1 body2 constraints =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
-    , equations =
-        constraints
-            |> List.foldl (addConstraintEquations dt body1 body2) []
-            |> List.map (Tuple.pair 0)
+    , equations = List.foldl (addConstraintEquations dt body1 body2) [] constraints
     }
 
 
@@ -85,10 +82,7 @@ equationsGroup dt gravity { body1, body2, contacts } =
     in
     { bodyId1 = body1.id
     , bodyId2 = body2.id
-    , equations =
-        contacts
-            |> List.foldl (addEquations dt μg bounciness body1 body2) []
-            |> List.map (Tuple.pair 0)
+    , equations = List.foldl (addContactEquations dt μg bounciness body1 body2) [] contacts
     }
 
 
@@ -97,7 +91,7 @@ axes =
     [ Vec3.i, Vec3.j, Vec3.k ]
 
 
-addConstraintEquations : Float -> Body data -> Body data -> Constraint -> List Equation -> List Equation
+addConstraintEquations : Float -> Body data -> Body data -> Constraint -> List ( Float, Equation ) -> List ( Float, Equation )
 addConstraintEquations dt body1 body2 (PointToPoint { pivot1, pivot2 }) equations =
     let
         bounciness =
@@ -123,7 +117,8 @@ addConstraintEquations dt body1 body2 (PointToPoint { pivot1, pivot2 }) equation
     List.foldl
         (\ni ->
             (::)
-                (initSolverParams dt
+                ( 0
+                , initSolverParams dt
                     body1
                     body2
                     { kind =
@@ -155,8 +150,8 @@ addConstraintEquations dt body1 body2 (PointToPoint { pivot1, pivot2 }) equation
         axes
 
 
-addEquations : Float -> Float -> Float -> Body data -> Body data -> Contact -> List Equation -> List Equation
-addEquations dt μg bounciness body1 body2 contact =
+addContactEquations : Float -> Float -> Float -> Body data -> Body data -> Contact -> List ( Float, Equation ) -> List ( Float, Equation )
+addContactEquations dt μg bounciness body1 body2 contact equations =
     let
         reducedMass =
             if (body1.invMass + body2.invMass) > 0 then
@@ -208,62 +203,73 @@ addEquations dt μg bounciness body1 body2 contact =
         spookEps =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
-    (++)
-        [ { kind = Contact contactEquation
-          , minForce = 0
-          , maxForce = 1000000
-          , solverBs = 0
-          , solverInvCs = 0
-          , spookA = spookA
-          , spookB = spookB
-          , spookEps = spookEps
-          , jacobianElementA =
-                { spatial = Vec3.negate contact.ni
-                , rotational = Vec3.negate rixn
+    ( 0
+    , initSolverParams dt
+        body1
+        body2
+        { kind = Contact contactEquation
+        , minForce = 0
+        , maxForce = 1000000
+        , solverBs = 0
+        , solverInvCs = 0
+        , spookA = spookA
+        , spookB = spookB
+        , spookEps = spookEps
+        , jacobianElementA =
+            { spatial = Vec3.negate contact.ni
+            , rotational = Vec3.negate rixn
+            }
+        , jacobianElementB =
+            { spatial = contact.ni
+            , rotational = rjxn
+            }
+        }
+    )
+        :: ( 0
+           , initSolverParams dt
+                body1
+                body2
+                { kind = Friction { ri = ri, rj = rj, t = t1 }
+                , minForce = -μg * reducedMass
+                , maxForce = μg * reducedMass
+                , solverBs = 0
+                , solverInvCs = 0
+                , spookA = spookA
+                , spookB = spookB
+                , spookEps = spookEps
+                , jacobianElementA =
+                    { spatial = Vec3.negate t1
+                    , rotational = Vec3.negate rixt1
+                    }
+                , jacobianElementB =
+                    { spatial = t1
+                    , rotational = rjxt1
+                    }
                 }
-          , jacobianElementB =
-                { spatial = contact.ni
-                , rotational = rjxn
+           )
+        :: ( 0
+           , initSolverParams dt
+                body1
+                body2
+                { kind = Friction { ri = ri, rj = rj, t = t2 }
+                , minForce = -μg * reducedMass
+                , maxForce = μg * reducedMass
+                , solverBs = 0
+                , solverInvCs = 0
+                , spookA = spookA
+                , spookB = spookB
+                , spookEps = spookEps
+                , jacobianElementA =
+                    { spatial = Vec3.negate t2
+                    , rotational = Vec3.negate rixt2
+                    }
+                , jacobianElementB =
+                    { spatial = t2
+                    , rotational = rjxt2
+                    }
                 }
-          }
-            |> initSolverParams dt body1 body2
-        , { kind = Friction { ri = ri, rj = rj, t = t1 }
-          , minForce = -μg * reducedMass
-          , maxForce = μg * reducedMass
-          , solverBs = 0
-          , solverInvCs = 0
-          , spookA = spookA
-          , spookB = spookB
-          , spookEps = spookEps
-          , jacobianElementA =
-                { spatial = Vec3.negate t1
-                , rotational = Vec3.negate rixt1
-                }
-          , jacobianElementB =
-                { spatial = t1
-                , rotational = rjxt1
-                }
-          }
-            |> initSolverParams dt body1 body2
-        , { kind = Friction { ri = ri, rj = rj, t = t2 }
-          , minForce = -μg * reducedMass
-          , maxForce = μg * reducedMass
-          , solverBs = 0
-          , solverInvCs = 0
-          , spookA = spookA
-          , spookB = spookB
-          , spookEps = spookEps
-          , jacobianElementA =
-                { spatial = Vec3.negate t2
-                , rotational = Vec3.negate rixt2
-                }
-          , jacobianElementB =
-                { spatial = t2
-                , rotational = rjxt2
-                }
-          }
-            |> initSolverParams dt body1 body2
-        ]
+           )
+        :: equations
 
 
 defaultRelaxation : Float
