@@ -73,18 +73,42 @@ addGravity : Vec3 -> Body data -> Body data
 addGravity gravity body =
     { body
         | force =
-            gravity
-                |> Vec3.scale body.mass
-                |> Vec3.add body.force
+            {- gravity
+               |> Vec3.scale body.mass
+               |> Vec3.add body.force
+            -}
+            { x = gravity.x * body.mass + body.force.x
+            , y = gravity.y * body.mass + body.force.y
+            , z = gravity.z * body.mass + body.force.z
+            }
     }
 
 
 shapeWorldTransform : Shape -> Body data -> Transform
 shapeWorldTransform shape { position, orientation } =
-    { orientation =
-        Quaternion.mul orientation shape.orientation
+    { orientation = Quaternion.mul orientation shape.orientation
     , position =
-        Vec3.add position (Quaternion.rotate orientation shape.position)
+        {- Vec3.add
+           position
+           (Quaternion.rotate orientation shape.position)
+        -}
+        let
+            ix =
+                orientation.w * shape.position.x + orientation.y * shape.position.z - orientation.z * shape.position.y
+
+            iy =
+                orientation.w * shape.position.y + orientation.z * shape.position.x - orientation.x * shape.position.z
+
+            iz =
+                orientation.w * shape.position.z + orientation.x * shape.position.y - orientation.y * shape.position.x
+
+            iw =
+                -orientation.x * shape.position.x - orientation.y * shape.position.y - orientation.z * shape.position.z
+        in
+        { x = ix * orientation.w + iw * -orientation.x + iy * -orientation.z - iz * -orientation.y + position.x
+        , y = iy * orientation.w + iw * -orientation.y + iz * -orientation.x - ix * -orientation.z + position.y
+        , z = iz * orientation.w + iw * -orientation.z + ix * -orientation.y - iy * -orientation.x + position.z
+        }
     }
 
 
@@ -92,34 +116,74 @@ update : Float -> Vec3 -> Vec3 -> Body data -> Body data
 update dt vlambda wlambda body =
     let
         newVelocity =
-            body.force
-                |> Vec3.scale (body.invMass * dt)
-                |> Vec3.add body.velocity
-                -- from the solver
-                |> Vec3.add vlambda
+            {- body.force
+               |> Vec3.scale (body.invMass * dt)
+               |> Vec3.add body.velocity
+               -- from the solver
+               |> Vec3.add vlambda
+            -}
+            { x = body.force.x * body.invMass * dt + body.velocity.x + vlambda.x
+            , y = body.force.y * body.invMass * dt + body.velocity.y + vlambda.y
+            , z = body.force.z * body.invMass * dt + body.velocity.z + vlambda.z
+            }
 
         newAngularVelocity =
-            body.torque
-                |> Mat3.transform body.invInertiaWorld
-                |> Vec3.scale dt
-                |> Vec3.add body.angularVelocity
-                -- from the solver
-                |> Vec3.add wlambda
+            {-
+               body.torque
+                   |> Mat3.transform body.invInertiaWorld
+                   |> Vec3.scale dt
+                   |> Vec3.add body.angularVelocity
+                   -- from the solver
+                   |> Vec3.add wlambda
+            -}
+            { x = (body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x + wlambda.x
+            , y = (body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y + wlambda.y
+            , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z + wlambda.z
+            }
+
+        newPosition =
+            {- newVelocity
+               |> Vec3.scale dt
+               |> Vec3.add body.position
+            -}
+            { x = newVelocity.x * dt + body.position.x
+            , y = newVelocity.y * dt + body.position.y
+            , z = newVelocity.z * dt + body.position.z
+            }
 
         newOrientation =
-            body.orientation
-                |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                |> Quaternion.normalize
+            {-
+               body.orientation
+                   |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
+                   |> Quaternion.normalize
+            -}
+            { x = x / len
+            , y = y / len
+            , z = z / len
+            , w = w / len
+            }
+
+        x =
+            body.orientation.x + (newAngularVelocity.x * body.orientation.w + newAngularVelocity.y * body.orientation.z - newAngularVelocity.z * body.orientation.y) * (dt / 2)
+
+        y =
+            body.orientation.y + (newAngularVelocity.y * body.orientation.w + newAngularVelocity.z * body.orientation.x - newAngularVelocity.x * body.orientation.z) * (dt / 2)
+
+        z =
+            body.orientation.z + (newAngularVelocity.z * body.orientation.w + newAngularVelocity.x * body.orientation.y - newAngularVelocity.y * body.orientation.x) * (dt / 2)
+
+        w =
+            body.orientation.w + (-newAngularVelocity.x * body.orientation.x - newAngularVelocity.y * body.orientation.y - newAngularVelocity.z * body.orientation.z) * (dt / 2)
+
+        len =
+            sqrt (x * x + y * y + z * z + w * w)
     in
     { id = body.id
     , data = body.data
     , material = body.material
     , velocity = newVelocity
     , angularVelocity = newAngularVelocity
-    , position =
-        newVelocity
-            |> Vec3.scale dt
-            |> Vec3.add body.position
+    , position = newPosition
     , orientation = newOrientation
     , mass = body.mass
     , shapes = body.shapes
@@ -205,13 +269,80 @@ updateInvInertiaWorld force invInertia orientation invInertiaWorld =
         invInertiaWorld
 
     else
+        {-
+           let
+               m =
+                   Quaternion.toMat3 orientation
+           in
+           Mat3.mul
+               (Mat3.transpose m)
+               (Mat3.scale invInertia m)
+        -}
         let
-            m =
-                Quaternion.toMat3 orientation
+            am11 =
+                1 - 2 * orientation.y * orientation.y - 2 * orientation.z * orientation.z
+
+            am21 =
+                2 * orientation.x * orientation.y - 2 * orientation.w * orientation.z
+
+            am31 =
+                2 * orientation.x * orientation.z + 2 * orientation.w * orientation.y
+
+            am12 =
+                2 * orientation.x * orientation.y + 2 * orientation.w * orientation.z
+
+            am22 =
+                1 - 2 * orientation.x * orientation.x - 2 * orientation.z * orientation.z
+
+            am32 =
+                2 * orientation.y * orientation.z - 2 * orientation.w * orientation.x
+
+            am13 =
+                2 * orientation.x * orientation.z - 2 * orientation.w * orientation.y
+
+            am23 =
+                2 * orientation.y * orientation.z + 2 * orientation.w * orientation.x
+
+            am33 =
+                1 - 2 * orientation.x * orientation.x - 2 * orientation.y * orientation.y
+
+            bm11 =
+                am11 * invInertia.x
+
+            bm21 =
+                am12 * invInertia.x
+
+            bm31 =
+                am13 * invInertia.x
+
+            bm12 =
+                am21 * invInertia.y
+
+            bm22 =
+                am22 * invInertia.y
+
+            bm32 =
+                am23 * invInertia.y
+
+            bm13 =
+                am31 * invInertia.z
+
+            bm23 =
+                am32 * invInertia.z
+
+            bm33 =
+                am33 * invInertia.z
         in
-        Mat3.mul
-            (Mat3.transpose m)
-            (Mat3.scale invInertia m)
+        { m11 = am11 * bm11 + am12 * bm21 + am13 * bm31
+        , m21 = am21 * bm11 + am22 * bm21 + am23 * bm31
+        , m31 = am31 * bm11 + am32 * bm21 + am33 * bm31
+        , m12 = am11 * bm12 + am12 * bm22 + am13 * bm32
+        , m22 = am21 * bm12 + am22 * bm22 + am23 * bm32
+        , m32 = am31 * bm12 + am32 * bm22 + am33 * bm32
+        , m13 = am11 * bm13 + am12 * bm23 + am13 * bm33
+        , m23 = am21 * bm13 + am22 * bm23 + am23 * bm33
+        , m33 = am31 * bm13 + am32 * bm23 + am33 * bm33
+        }
 
 
 computeAABB : Body data -> AABB
