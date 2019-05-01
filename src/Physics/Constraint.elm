@@ -1,4 +1,15 @@
-module Physics.Constraint exposing (Constraint, pointToPoint)
+module Physics.Constraint exposing
+    ( Constraint
+    , pointToPoint, hinge
+    )
+
+{-|
+
+@docs Constraint
+
+@docs pointToPoint, hinge
+
+-}
 
 import Internal.Constraint as Internal
 
@@ -20,3 +31,18 @@ pointToPoint :
     -> Constraint
 pointToPoint =
     Internal.PointToPoint
+
+
+{-| Keep two bodies connected with each other like pointToPoint,
+but also limit the freedom of rotation. Useful for e.g. connecting
+a window to a window frame.
+-}
+hinge :
+    { pivot1 : { x : Float, y : Float, z : Float }
+    , axis1 : { x : Float, y : Float, z : Float }
+    , pivot2 : { x : Float, y : Float, z : Float }
+    , axis2 : { x : Float, y : Float, z : Float }
+    }
+    -> Constraint
+hinge =
+    Internal.Hinge
