@@ -3,7 +3,7 @@ module Internal.Solver exposing (solve)
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.Equation as Equation exposing (Equation, EquationsGroup)
+import Internal.Equation as Equation exposing (Equation, EquationsGroup, SolverEquation)
 import Internal.NarrowPhase exposing (Contact, ContactGroup)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -24,7 +24,7 @@ makeSolverBodies nextBodyId bodies =
         firstBody :: _ ->
             let
                 -- a hack to use an empty body to fill the gaps
-                -- in the array and avoid an extra boxing (Array (Maybe (SolverBody data)))
+                -- in the array and avoid extra boxing (Array (Maybe (SolverBody data)))
                 allBodies =
                     { firstBody | id = -1 }
                         |> SolverBody.fromBody
@@ -44,7 +44,14 @@ solve dt contactGroups world =
 
         conactEquationsGroups =
             List.foldl
-                (\contactGroup -> (::) (Equation.equationsGroup dt world.gravity contactGroup))
+                (\contactGroup ->
+                    (::)
+                        (Equation.contactEquationsGroup
+                            dt
+                            world.gravity
+                            contactGroup
+                        )
+                )
                 []
                 contactGroups
 
@@ -136,12 +143,12 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
 type alias GroupSolveResult data =
     { body1 : SolverBody data
     , body2 : SolverBody data
-    , equations : List ( Float, Equation )
+    , equations : List SolverEquation
     , deltalambdaTot : Float
     }
 
 
-solveEquationsGroup : SolverBody data -> SolverBody data -> List ( Float, Equation ) -> Float -> List ( Float, Equation ) -> GroupSolveResult data
+solveEquationsGroup : SolverBody data -> SolverBody data -> List SolverEquation -> Float -> List SolverEquation -> GroupSolveResult data
 solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
     case currentEquations of
         [] ->
@@ -151,28 +158,32 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
             , deltalambdaTot = deltalambdaTot
             }
 
-        ( equationSolverLambda, solverEquation ) :: remainingEquations ->
+        { solverLambda, equation } :: remainingEquations ->
             let
                 gWlambda =
-                    Equation.computeGWlambda body1 body2 solverEquation
+                    Equation.computeGWlambda body1 body2 equation
 
                 deltalambdaPrev =
-                    solverEquation.solverInvCs * (solverEquation.solverBs - gWlambda - solverEquation.spookEps * equationSolverLambda)
+                    equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * solverLambda)
 
                 deltalambda =
-                    if equationSolverLambda + deltalambdaPrev - solverEquation.minForce < 0 then
-                        solverEquation.minForce - equationSolverLambda
+                    if solverLambda + deltalambdaPrev - equation.minForce < 0 then
+                        equation.minForce - solverLambda
 
-                    else if equationSolverLambda + deltalambdaPrev - solverEquation.maxForce > 0 then
-                        solverEquation.maxForce - equationSolverLambda
+                    else if solverLambda + deltalambdaPrev - equation.maxForce > 0 then
+                        equation.maxForce - solverLambda
 
                     else
                         deltalambdaPrev
             in
             solveEquationsGroup
-                (SolverBody.addToWlambda deltalambda solverEquation.jacobianElementA body1)
-                (SolverBody.addToWlambda deltalambda solverEquation.jacobianElementB body2)
-                (( equationSolverLambda + deltalambda, solverEquation ) :: equations)
+                (SolverBody.addToWlambda deltalambda equation.jacobianElementA body1)
+                (SolverBody.addToWlambda deltalambda equation.jacobianElementB body2)
+                ({ solverLambda = solverLambda + deltalambda
+                 , equation = equation
+                 }
+                    :: equations
+                )
                 (deltalambdaTot + abs deltalambda)
                 remainingEquations
 
