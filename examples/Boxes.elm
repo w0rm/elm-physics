@@ -9,38 +9,55 @@ import Random
 main : DemoProgram
 main =
     Demo.demo
-        |> Demo.addBodies (range3 addBoxAt 4 2 [])
+        |> Demo.addBodies (range3 boxesPerDimension boxSize)
         |> Demo.dropOnClick randomlyRotatedBox
         |> Demo.run
 
 
-addBoxAt : Float -> Float -> Float -> List (Body DemoBody) -> List (Body DemoBody)
-addBoxAt x y z =
-    (::) (Body.moveBy { x = x, y = y + 3, z = z + 5 } Bodies.box)
+boxesPerDimension : Int
+boxesPerDimension =
+    4
 
 
-range3 : (Float -> Float -> Float -> a -> a) -> Int -> Float -> a -> a
-range3 fn size distance init =
+boxSize : Float
+boxSize =
+    1
+
+
+range3 : Int -> Float -> List (Body DemoBody)
+range3 number distance =
     List.foldl
         (\x acc1 ->
             List.foldl
                 (\y acc2 ->
                     List.foldl
                         (\z acc3 ->
-                            fn
-                                ((toFloat x - toFloat (size - 1) / 2) * distance)
-                                ((toFloat y - toFloat (size - 1) / 2) * distance)
-                                (toFloat z * distance)
+                            addBoxAt
+                                ((toFloat x - toFloat (number - 1) / 2) * distance)
+                                ((toFloat y - toFloat (number - 1) / 2) * distance)
+                                ((toFloat z - toFloat (number - 1) / 2) * distance)
                                 acc3
                         )
                         acc2
-                        (List.range 0 (size - 1))
+                        (List.range 0 (number - 1))
                 )
                 acc1
-                (List.range 0 (size - 1))
+                (List.range 0 (number - 1))
         )
-        init
-        (List.range 0 (size - 1))
+        []
+        (List.range 0 (number - 1))
+
+
+addBoxAt : Float -> Float -> Float -> List (Body DemoBody) -> List (Body DemoBody)
+addBoxAt x y z =
+    (::)
+        (Body.moveBy
+            { x = x
+            , y = y
+            , z = z + toFloat boxesPerDimension * 1.5 * boxSize -- raise above the ground
+            }
+            box
+        )
 
 
 {-| A box raised above the plane and rotated to a random 3d angle
@@ -49,7 +66,7 @@ randomlyRotatedBox : Random.Generator (Body DemoBody)
 randomlyRotatedBox =
     Random.map4
         (\angle x y z ->
-            Bodies.box
+            box
                 |> Body.moveBy { x = 0, y = 0, z = 10 }
                 |> Body.rotateBy angle { x = x, y = y, z = z }
         )
@@ -57,3 +74,9 @@ randomlyRotatedBox =
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
+
+
+box : Body DemoBody
+box =
+    Bodies.box "box" { x = boxSize, y = boxSize, z = boxSize }
+        |> Body.setMass 1
