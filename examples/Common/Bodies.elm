@@ -1,8 +1,7 @@
 module Common.Bodies exposing
     ( DemoBody
     , box
-    , compound
-    , domino
+    , fromTriangles
     , plane
     , sphere
     )
@@ -17,13 +16,15 @@ import WebGL exposing (Mesh)
 type alias DemoBody =
     { mesh : Mesh Attributes
     , wireframe : Mesh Attributes
+    , name : String
     }
 
 
-fromTriangles : List ( Attributes, Attributes, Attributes ) -> DemoBody
-fromTriangles triangles =
+fromTriangles : String -> List ( Attributes, Attributes, Attributes ) -> DemoBody
+fromTriangles name triangles =
     { mesh = Meshes.toMesh triangles
     , wireframe = Meshes.toWireframe triangles
+    , name = name
     }
 
 
@@ -32,84 +33,29 @@ fromTriangles triangles =
 plane : Body DemoBody
 plane =
     []
-        |> fromTriangles
+        |> fromTriangles "plane"
         |> Body.plane
-
-
-{-| A domino piece
--}
-domino : Body DemoBody
-domino =
-    Meshes.box dominoDimensions
-        |> fromTriangles
-        |> Body.box dominoDimensions
-        |> Body.setMass 0.01
-        |> Body.setMaterial slippy
-
-
-slippy : Material
-slippy =
-    Material.custom
-        { bounciness = 0
-        , friction = 0.01
-        }
-
-
-dominoDimensions : { x : Float, y : Float, z : Float }
-dominoDimensions =
-    { x = 0.1, y = 1, z = 2 }
 
 
 {-| A cube with sides of 2 and mass of 5
 -}
-box : Body DemoBody
-box =
+box : String -> { x : Float, y : Float, z : Float } -> Body DemoBody
+box name boxDimensions =
     Meshes.box boxDimensions
-        |> fromTriangles
+        |> fromTriangles name
         |> Body.box boxDimensions
-        |> Body.setMass 5
-
-
-boxDimensions : { x : Float, y : Float, z : Float }
-boxDimensions =
-    { x = 2, y = 2, z = 2 }
 
 
 {-| A sphere with radius of 1.2 and mass of 5
 -}
-sphere : Body DemoBody
-sphere =
-    Meshes.sphere 2 sphereRadius
-        |> fromTriangles
-        |> Body.sphere sphereRadius
+sphere : String -> Float -> Body DemoBody
+sphere name radius =
+    Meshes.sphere 2 radius
+        |> fromTriangles name
+        |> Body.sphere radius
         |> Body.setMass 5
 
 
 sphereRadius : Float
 sphereRadius =
     1.2
-
-
-{-| A compound body made of three boxes
--}
-compound : Body DemoBody
-compound =
-    let
-        boxTriangles =
-            Meshes.box boxDimensions
-
-        boxShape =
-            Shape.box boxDimensions
-    in
-    [ Meshes.moveBy { x = -1, y = 0, z = -1 } boxTriangles
-    , Meshes.moveBy { x = -1, y = 0, z = 1 } boxTriangles
-    , Meshes.moveBy { x = 1, y = 0, z = 1 } boxTriangles
-    ]
-        |> List.concat
-        |> fromTriangles
-        |> Body.compound
-            [ Shape.moveBy { x = -1, y = 0, z = -1 } boxShape
-            , Shape.moveBy { x = -1, y = 0, z = 1 } boxShape
-            , Shape.moveBy { x = 1, y = 0, z = 1 } boxShape
-            ]
-        |> Body.setMass 5
