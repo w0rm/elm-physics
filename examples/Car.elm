@@ -55,7 +55,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { world = initialWorld
       , fps = []
-      , settings = { settings | showFpsMeter = True }
+      , settings = settings
       , width = 0
       , height = 0
       }
