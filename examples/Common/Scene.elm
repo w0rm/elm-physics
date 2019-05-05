@@ -121,7 +121,11 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, perspective, debugWir
         normals =
             case raycastResult of
                 Just res ->
-                    [ { normal = res.normal, point = res.point } ]
+                    if Body.getData res.body == Body.getData body then
+                        [ { normal = res.normal, point = res.point } ]
+
+                    else
+                        []
 
                 Nothing ->
                     []

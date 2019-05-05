@@ -1,4 +1,8 @@
-module Common.Math exposing (makeRotateKTo, makeShadow, mouseDirection)
+module Common.Math exposing
+    ( makeRotateKTo
+    , makeShadow
+    , mouseDirection
+    )
 
 {-| Some useful Math utilities.
 -}
@@ -10,11 +14,11 @@ import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 
 {-| Converts mouse coordinates into direction within within the world coordinate system.
 -}
-mouseDirection : { screenWidth : Float, screenHeight : Float, perspective : Mat4, camera : Mat4, x : Float, y : Float } -> { x : Float, y : Float, z : Float }
-mouseDirection { screenWidth, screenHeight, camera, perspective, x, y } =
+mouseDirection : { width : Float, height : Float, perspective : Mat4, camera : Mat4, x : Float, y : Float } -> { x : Float, y : Float, z : Float }
+mouseDirection { width, height, camera, perspective, x, y } =
     let
         homogeneousClipCoordinates =
-            vec4 (x * 2 / screenWidth - 1) (1 - y * 2 / screenHeight) -1 1
+            vec4 (x * 2 / width - 1) (1 - y * 2 / height) -1 1
 
         invertedProjectionMatrix =
             Maybe.withDefault Mat4.identity (Mat4.inverse perspective)
