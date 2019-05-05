@@ -1,7 +1,8 @@
-module Boxes exposing (main)
+module Dominoes exposing (main)
 
-{-| This demo is used to test performance. It drops 4×4×4 boxes.
-Try changing `boxesPerDimension` to drop even more!
+{-| This demo is used to show custom materials.
+Without the slippy material, dominoes would not slide along each other.
+Try to make the floor slippy too!
 -}
 
 import Browser
@@ -13,11 +14,8 @@ import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Physics.Body as Body exposing (Body)
+import Physics.Material as Material exposing (Material)
 import Physics.World as World exposing (World)
-
-
-boxesPerDimension =
-    4
 
 
 type alias Model =
@@ -123,40 +121,30 @@ initialWorld =
     World.empty
         |> World.setGravity { x = 0, y = 0, z = -10 }
         |> World.add floor
-        |> addBoxes
+        |> World.add
+            (domino
+                |> Body.rotateBy (pi / 8) { x = 0, y = 1, z = 0 }
+                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
+                |> Body.moveBy { x = -5.5, y = -5.5, z = 0 }
+            )
+        |> addDominos
 
 
-addBoxes : World Meshes -> World Meshes
-addBoxes world =
-    let
-        dimensions =
-            List.map toFloat (List.range 0 (boxesPerDimension - 1))
-
-        distance =
-            1
-    in
+addDominos : World Meshes -> World Meshes
+addDominos world =
     List.foldl
-        (\x world1 ->
-            List.foldl
-                (\y world2 ->
-                    List.foldl
-                        (\z ->
-                            box
-                                |> Body.moveBy
-                                    { x = (x - (boxesPerDimension - 1) / 2) * distance
-                                    , y = (y - (boxesPerDimension - 1) / 2) * distance
-                                    , z = (z + (2 * boxesPerDimension + 1) / 2) * distance
-                                    }
-                                |> World.add
-                        )
-                        world2
-                        dimensions
-                )
-                world1
-                dimensions
+        (\i ->
+            domino
+                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
+                |> Body.moveBy
+                    { x = toFloat (5 - i)
+                    , y = toFloat (5 - i)
+                    , z = 0
+                    }
+                |> World.add
         )
         world
-        dimensions
+        (List.range 0 10)
 
 
 {-| Shift the floor a little bit down
@@ -175,13 +163,24 @@ floor =
         |> Body.setPosition floorOffset
 
 
-box : Body Meshes
-box =
+{-| A domino piece
+-}
+domino : Body Meshes
+domino =
     let
         size =
-            { x = 1, y = 1, z = 1 }
+            { x = 0.1, y = 1, z = 2 }
     in
     Meshes.box size
         |> Meshes.fromTriangles
         |> Body.box size
         |> Body.setMass 5
+        |> Body.setMaterial slippy
+
+
+slippy : Material
+slippy =
+    Material.custom
+        { bounciness = 0
+        , friction = 0.001
+        }

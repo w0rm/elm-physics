@@ -1,7 +1,12 @@
 module Common.Meshes exposing
     ( Attributes
+    , Meshes
     , box
+    , contact
+    , edge
+    , fromTriangles
     , moveBy
+    , normal
     , pyramid
     , sphere
     , toMesh
@@ -18,6 +23,25 @@ type alias Attributes =
     }
 
 
+
+-- Meshes
+
+
+normal : Mesh Attributes
+normal =
+    toMesh (pyramid 0.05 0.05)
+
+
+edge : Mesh Attributes
+edge =
+    toMesh (pyramid 0.1 0.5)
+
+
+contact : Mesh Attributes
+contact =
+    toMesh (sphere 2 0.07)
+
+
 toMesh : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
 toMesh =
     WebGL.triangles
@@ -26,6 +50,19 @@ toMesh =
 toWireframe : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
 toWireframe =
     trianglesToLines >> WebGL.lines
+
+
+type alias Meshes =
+    { mesh : Mesh Attributes
+    , wireframe : Mesh Attributes
+    }
+
+
+fromTriangles : List ( Attributes, Attributes, Attributes ) -> Meshes
+fromTriangles triangles =
+    { mesh = toMesh triangles
+    , wireframe = toWireframe triangles
+    }
 
 
 moveBy : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
@@ -188,10 +225,10 @@ octahedron radius =
 facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
 facet a b c =
     let
-        normal =
+        n =
             Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
     in
-    ( Attributes a normal
-    , Attributes b normal
-    , Attributes c normal
+    ( Attributes a n
+    , Attributes b n
+    , Attributes c n
     )
