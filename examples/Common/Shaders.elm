@@ -1,4 +1,11 @@
-module Common.Shaders exposing (Uniforms, Varying, fragment, shadowFragment, vertex)
+module Common.Shaders exposing
+    ( Uniforms
+    , Varying
+    , fragment
+    , shadowFragment
+    , vertex
+    , wireframeFragment
+    )
 
 import Common.Meshes exposing (Attributes)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -48,6 +55,18 @@ fragment =
         varying float vlighting;
         void main () {
           gl_FragColor = vec4(vlighting * color, 1.0);
+        }
+    |]
+
+
+wireframeFragment : Shader {} Uniforms Varying
+wireframeFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        varying float vlighting;
+        void main () {
+          gl_FragColor = vec4(color, 1.0);
         }
     |]
 

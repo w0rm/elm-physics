@@ -1,7 +1,8 @@
-module CollisionTest exposing (main)
+module Dominoes exposing (main)
 
-{-| This tests collisions between boxes and spheres.
-Note that spheres don’t move, that’s because they have zero mass.
+{-| This demo is used to show custom materials.
+Without the slippy material, dominoes would not slide along each other.
+Try to make the floor slippy too!
 -}
 
 import Browser
@@ -13,6 +14,7 @@ import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Physics.Body as Body exposing (Body)
+import Physics.Material as Material exposing (Material)
 import Physics.World as World exposing (World)
 
 
@@ -119,23 +121,30 @@ initialWorld =
     World.empty
         |> World.setGravity { x = 0, y = 0, z = -10 }
         |> World.add floor
-        -- corner:
-        |> World.add sphere
         |> World.add
-            (box
-                |> Body.moveBy { x = 0, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 1, z = 0 }
+            (domino
+                |> Body.rotateBy (pi / 8) { x = 0, y = 1, z = 0 }
+                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
+                |> Body.moveBy { x = -5.5, y = -5.5, z = 0 }
             )
-        -- edge:
-        |> World.add (Body.moveBy { x = 4, y = 0, z = 0 } sphere)
-        |> World.add
-            (box
-                |> Body.moveBy { x = 4, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 0, z = 0 }
-            )
-        -- face:
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 0 } sphere)
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 10 } box)
+        |> addDominos
+
+
+addDominos : World Meshes -> World Meshes
+addDominos world =
+    List.foldl
+        (\i ->
+            domino
+                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
+                |> Body.moveBy
+                    { x = toFloat (5 - i)
+                    , y = toFloat (5 - i)
+                    , z = 0
+                    }
+                |> World.add
+        )
+        world
+        (List.range 0 10)
 
 
 {-| Shift the floor a little bit down
@@ -154,24 +163,24 @@ floor =
         |> Body.setPosition floorOffset
 
 
-box : Body Meshes
-box =
+{-| A domino piece
+-}
+domino : Body Meshes
+domino =
     let
         size =
-            { x = 2, y = 2, z = 2 }
+            { x = 0.1, y = 1, z = 2 }
     in
     Meshes.box size
         |> Meshes.fromTriangles
         |> Body.box size
         |> Body.setMass 5
+        |> Body.setMaterial slippy
 
 
-sphere : Body Meshes
-sphere =
-    let
-        radius =
-            1.2
-    in
-    Meshes.sphere 2 radius
-        |> Meshes.fromTriangles
-        |> Body.sphere radius
+slippy : Material
+slippy =
+    Material.custom
+        { bounciness = 0
+        , friction = 0.001
+        }

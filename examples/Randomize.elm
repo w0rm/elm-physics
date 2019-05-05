@@ -1,7 +1,8 @@
-module CollisionTest exposing (main)
+module Randomize exposing (main)
 
-{-| This tests collisions between boxes and spheres.
-Note that spheres don’t move, that’s because they have zero mass.
+{-| This demo drops random bodies.
+It also shows how to make a compound body out of multiple shapes.
+If you click too fast, the bodies may be spawned inside each other.
 -}
 
 import Browser
@@ -13,7 +14,9 @@ import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Physics.Body as Body exposing (Body)
+import Physics.Shape as Shape exposing (Shape)
 import Physics.World as World exposing (World)
+import Random
 
 
 type alias Model =
@@ -30,6 +33,8 @@ type Msg
     | Tick Float
     | Resize Float Float
     | Restart
+    | Random
+    | AddRandom (Body Meshes)
 
 
 main : Program () Model Msg
@@ -46,7 +51,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { world = initialWorld
       , fps = []
-      , settings = settings
+      , settings = { settings | showSettings = True }
       , width = 0
       , height = 0
       }
@@ -80,6 +85,12 @@ update msg model =
         Restart ->
             ( { model | world = initialWorld }, Cmd.none )
 
+        Random ->
+            ( model, Random.generate AddRandom randomBody )
+
+        AddRandom body ->
+            ( { model | world = World.add body model.world }, Cmd.none )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -103,7 +114,9 @@ view { settings, fps, world, width, height } =
             }
         , Settings.view ForSettings
             settings
-            [ Html.button [ onClick Restart ]
+            [ Html.button [ onClick Random ]
+                [ Html.text "Drop a random body" ]
+            , Html.button [ onClick Restart ]
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
@@ -119,23 +132,20 @@ initialWorld =
     World.empty
         |> World.setGravity { x = 0, y = 0, z = -10 }
         |> World.add floor
-        -- corner:
-        |> World.add sphere
         |> World.add
             (box
-                |> Body.moveBy { x = 0, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 1, z = 0 }
+                |> Body.moveBy { x = 0, y = 0, z = 2 }
+                |> Body.rotateBy (-pi / 5) { x = 0, y = 1, z = 0 }
             )
-        -- edge:
-        |> World.add (Body.moveBy { x = 4, y = 0, z = 0 } sphere)
         |> World.add
-            (box
-                |> Body.moveBy { x = 4, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 0, z = 0 }
+            (sphere
+                |> Body.moveBy { x = 0.5, y = 0, z = 8 }
             )
-        -- face:
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 0 } sphere)
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 10 } box)
+        |> World.add
+            (compound
+                |> Body.moveBy { x = -1.2, y = 0, z = 5 }
+                |> Body.rotateBy (pi / 5) { x = 1, y = 1, z = 0 }
+            )
 
 
 {-| Shift the floor a little bit down
@@ -175,3 +185,60 @@ sphere =
     Meshes.sphere 2 radius
         |> Meshes.fromTriangles
         |> Body.sphere radius
+        |> Body.setMass 5
+
+
+{-| A compound body made of three boxes
+-}
+compound : Body Meshes
+compound =
+    let
+        boxDimensions =
+            { x = 1, y = 1, z = 1 }
+
+        boxTriangles =
+            Meshes.box boxDimensions
+
+        boxShape =
+            Shape.box boxDimensions
+    in
+    [ Meshes.moveBy { x = -0.5, y = 0, z = -0.5 } boxTriangles
+    , Meshes.moveBy { x = -0.5, y = 0, z = 0.5 } boxTriangles
+    , Meshes.moveBy { x = 0.5, y = 0, z = 0.5 } boxTriangles
+    ]
+        |> List.concat
+        |> Meshes.fromTriangles
+        |> Body.compound
+            [ Shape.moveBy { x = -0.5, y = 0, z = -0.5 } boxShape
+            , Shape.moveBy { x = -0.5, y = 0, z = 0.5 } boxShape
+            , Shape.moveBy { x = 0.5, y = 0, z = 0.5 } boxShape
+            ]
+        |> Body.setMass 5
+
+
+{-| A random body raised above the plane, shifted or rotated to a random 3d angle
+-}
+randomBody : Random.Generator (Body Meshes)
+randomBody =
+    Random.map5
+        (\angle x y z body ->
+            case body of
+                0 ->
+                    box
+                        |> Body.moveBy { x = 0, y = 0, z = 10 }
+                        |> Body.rotateBy angle { x = x, y = y, z = z }
+
+                1 ->
+                    sphere
+                        |> Body.moveBy { x = x, y = y, z = z + 10 }
+
+                _ ->
+                    compound
+                        |> Body.moveBy { x = 0, y = 0, z = 10 }
+                        |> Body.rotateBy angle { x = x, y = y, z = z }
+        )
+        (Random.float (-pi / 2) (pi / 2))
+        (Random.float -1 1)
+        (Random.float -1 1)
+        (Random.float -1 1)
+        (Random.int 0 2)
