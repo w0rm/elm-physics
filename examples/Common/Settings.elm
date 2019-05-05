@@ -6,14 +6,14 @@ module Common.Settings exposing
     , view
     )
 
+{-| This module is used to render the settings panel.
+More controls can be injected with view’s extraContent.
+-}
+
 import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (checked, style, type_)
 import Html.Events exposing (on, onCheck, onClick)
-
-
-
--- Model
 
 
 type alias Settings =
@@ -24,10 +24,6 @@ type alias Settings =
     , showFpsMeter : Bool
     , showSettings : Bool
     }
-
-
-
--- Msg
 
 
 type SettingsMsg

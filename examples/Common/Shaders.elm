@@ -1,11 +1,14 @@
 module Common.Shaders exposing
     ( Uniforms
-    , Varying
     , fragment
     , shadowFragment
     , vertex
     , wireframeFragment
     )
+
+{-| This file contains shaders that are used in examples.
+Shaders support simple flat lighting.
+-}
 
 import Common.Meshes exposing (Attributes)
 import Math.Matrix4 as Mat4 exposing (Mat4)

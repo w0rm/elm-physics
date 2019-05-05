@@ -4,6 +4,10 @@ module Common.Events exposing
     , onResize
     )
 
+{-| Helpers for some common events,
+subscriptions and commands
+-}
+
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Task

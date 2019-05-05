@@ -59,25 +59,6 @@ view { settings, world, floorOffset, width, height, raycastResult, meshes } =
                     )
                     floorOffset
             }
-
-        {-
-           sceneClick x y =
-               SceneClick
-                   (World.raycast
-                       { from = { x = 0, y = 30, z = 20 }
-                       , direction =
-                           Math.mouseDirection
-                               { camera = camera
-                               , width = width
-                               , height = height
-                               , perspective = perspective
-                               , x = x
-                               , y = y
-                               }
-                       }
-                       world
-                   )
-        -}
     in
     WebGL.toHtmlWith
         [ WebGL.depth 1
@@ -188,8 +169,8 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, perspective, debugWir
                         }
                     )
            )
-        |> (case shadow of
-                Just shadowTransform ->
+        |> (case ( shadow, debugWireframes ) of
+                ( Just shadowTransform, False ) ->
                     (::)
                         (WebGL.entity
                             Shaders.vertex
@@ -203,7 +184,7 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, perspective, debugWir
                             }
                         )
 
-                Nothing ->
+                _ ->
                     identity
            )
 

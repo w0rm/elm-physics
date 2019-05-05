@@ -7,10 +7,7 @@ module Common.Meshes exposing
     , fromTriangles
     , moveBy
     , normal
-    , pyramid
     , sphere
-    , toMesh
-    , toWireframe
     )
 
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
