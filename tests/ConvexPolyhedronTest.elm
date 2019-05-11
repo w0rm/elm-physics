@@ -254,14 +254,17 @@ testSepAxis =
             \_ ->
                 Expect.equal
                     (ConvexPolyhedron.testSepAxis
-                        { position = vec3 -0.2 0 0
-                        , orientation = Quaternion.identity
+                        { t1 =
+                            { position = vec3 -0.2 0 0
+                            , orientation = Quaternion.identity
+                            }
+                        , hull1 = boxHull 0.5
+                        , t2 =
+                            { position = vec3 0.2 0 0
+                            , orientation = Quaternion.identity
+                            }
+                        , hull2 = boxHull 0.5
                         }
-                        (boxHull 0.5)
-                        { position = vec3 0.2 0 0
-                        , orientation = Quaternion.identity
-                        }
-                        (boxHull 0.5)
                         (vec3 1 0 0)
                     )
                     (Just 0.6)
@@ -269,14 +272,17 @@ testSepAxis =
             \_ ->
                 Expect.equal
                     (ConvexPolyhedron.testSepAxis
-                        { position = vec3 -5.2 0 0
-                        , orientation = Quaternion.identity
+                        { t1 =
+                            { position = vec3 -5.2 0 0
+                            , orientation = Quaternion.identity
+                            }
+                        , hull1 = boxHull 0.5
+                        , t2 =
+                            { position = vec3 0.2 0 0
+                            , orientation = Quaternion.identity
+                            }
+                        , hull2 = boxHull 0.5
                         }
-                        (boxHull 0.5)
-                        { position = vec3 0.2 0 0
-                        , orientation = Quaternion.identity
-                        }
-                        (boxHull 0.5)
                         (vec3 1 0 0)
                     )
                     Nothing
@@ -284,14 +290,17 @@ testSepAxis =
             \_ ->
                 case
                     ConvexPolyhedron.testSepAxis
-                        { position = vec3 1 0 0
-                        , orientation = Quaternion.identity
+                        { t1 =
+                            { position = vec3 1 0 0
+                            , orientation = Quaternion.identity
+                            }
+                        , hull1 = boxHull 0.5
+                        , t2 =
+                            { position = vec3 0.2 0 0
+                            , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                            }
+                        , hull2 = boxHull 0.5
                         }
-                        (boxHull 0.5)
-                        { position = vec3 0.2 0 0
-                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
-                        }
-                        (boxHull 0.5)
                         (vec3 1 0 0)
                 of
                     Nothing ->
