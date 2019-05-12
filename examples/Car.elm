@@ -168,14 +168,15 @@ addCar offset world =
 constrainCar : Body Data -> Body Data -> List Constraint
 constrainCar b1 b2 =
     let
-        a =
-            0 * pi / 8
+        -- TODO: implement steering
+        steeringAngle =
+            0
 
         dx =
-            cos a
+            cos steeringAngle
 
         dy =
-            sin a
+            sin steeringAngle
 
         hinge1 =
             Constraint.hinge
