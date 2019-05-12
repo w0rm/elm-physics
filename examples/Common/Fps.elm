@@ -3,6 +3,11 @@ module Common.Fps exposing
     , view
     )
 
+{-| This module is used to show the FPS meter.
+We keep the last 50 time deltas and show the
+weighted average.
+-}
+
 import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (style)
