@@ -104,13 +104,12 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, width, height } =
+view { settings, fps, world, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
             , world = world
-            , width = width
-            , height = height
+            , camera = camera
             , meshes = identity
             , raycastResult = Nothing
             , floorOffset = Just floorOffset
