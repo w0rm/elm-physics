@@ -11,6 +11,7 @@ module Drag exposing (main)
 -}
 
 import Browser
+import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
 import Common.Math as Math
@@ -45,8 +46,7 @@ type alias Model =
     { world : World Data
     , fps : List Float
     , settings : Settings
-    , width : Float
-    , height : Float
+    , camera : Camera
     , raycastResult : Maybe (RaycastResult Data)
     }
 
@@ -76,8 +76,11 @@ init _ =
     ( { world = initialWorld
       , fps = []
       , settings = settings
-      , width = 0
-      , height = 0
+      , camera =
+            Camera.camera
+                { from = { x = 0, y = 30, z = 20 }
+                , to = { x = 0, y = 0, z = 0 }
+                }
       , raycastResult = Nothing
       }
     , Events.measureSize Resize
@@ -105,7 +108,7 @@ update msg model =
             )
 
         Resize width height ->
-            ( { model | width = width, height = height }
+            ( { model | camera = Camera.resize width height model.camera }
             , Cmd.none
             )
 
@@ -201,45 +204,19 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, width, height, raycastResult } =
+view { settings, fps, world, camera, raycastResult } =
     let
-        camera =
-            Mat4.makeLookAt (Vec3.vec3 0 30 20) (Vec3.vec3 0 0 0) Vec3.k
-
-        lightDirection =
-            Vec3.normalize (Vec3.vec3 -1 -1 -1)
-
-        perspective =
-            Mat4.makePerspective 24 (width / height) 5 2000
-
         mouseDown x y =
             MouseDown
                 (World.raycast
                     { from = { x = 0, y = 30, z = 20 }
-                    , direction =
-                        Math.mouseDirection
-                            { camera = camera
-                            , width = width
-                            , height = height
-                            , perspective = perspective
-                            , x = x
-                            , y = y
-                            }
+                    , direction = Camera.mouseDirection { x = x, y = y } camera
                     }
                     world
                 )
 
         mouseMove x y =
-            MouseMove
-                (Math.mouseDirection
-                    { camera = camera
-                    , width = width
-                    , height = height
-                    , perspective = perspective
-                    , x = x
-                    , y = y
-                    }
-                )
+            MouseMove (Camera.mouseDirection { x = x, y = y } camera)
     in
     Html.div
         [ Events.onMouseDown mouseDown
@@ -249,8 +226,7 @@ view { settings, fps, world, width, height, raycastResult } =
         [ Scene.view
             { settings = settings
             , world = world
-            , width = width
-            , height = height
+            , camera = camera
             , meshes = .meshes
             , raycastResult = raycastResult
             , floorOffset = Just floorOffset

@@ -6,6 +6,7 @@ Try to make the floor slippy too!
 -}
 
 import Browser
+import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
@@ -22,8 +23,7 @@ type alias Model =
     { world : World Meshes
     , fps : List Float
     , settings : Settings
-    , width : Float
-    , height : Float
+    , camera : Camera
     }
 
 
@@ -49,8 +49,11 @@ init _ =
     ( { world = initialWorld
       , fps = []
       , settings = settings
-      , width = 0
-      , height = 0
+      , camera =
+            Camera.camera
+                { from = { x = 0, y = 30, z = 20 }
+                , to = { x = 0, y = 0, z = 0 }
+                }
       }
     , Events.measureSize Resize
     )
@@ -75,7 +78,7 @@ update msg model =
             )
 
         Resize width height ->
-            ( { model | width = width, height = height }
+            ( { model | camera = Camera.resize width height model.camera }
             , Cmd.none
             )
 
@@ -92,13 +95,12 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, width, height } =
+view { settings, fps, world, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
             , world = world
-            , width = width
-            , height = height
+            , camera = camera
             , meshes = identity
             , raycastResult = Nothing
             , floorOffset = Just floorOffset
