@@ -804,9 +804,8 @@ addFaceEdges =
                     -- test offsets.
                     invalidSeedSet =
                         [ vec3 1 1 0
-                        , vec3 (1 - Const.precision * 3.0) 0 0
-                        , vec3 0 0 (-1 - Const.precision * 3.0)
-                        , vec3 0 0 0
+                        , vec3 1 (Const.precision * 3.0) 0
+                        , vec3 1 0 (Const.precision * 3.0)
                         ]
                 in
                 boxHull 1
@@ -859,13 +858,12 @@ boxUniqueEdges =
     describe "ConvexPolyhedron.boxUniqueEdges"
         [ test "works for the box" <|
             \_ ->
-                boxHull 1
-                    |> .edges
-                    |> Expect.equal
-                        [ vec3 1 0 0
-                        , vec3 0 1 0
-                        , vec3 0 0 1
-                        ]
+                Expect.equal
+                    (boxHull 1).uniqueEdges
+                    [ vec3 1 0 0
+                    , vec3 0 1 0
+                    , vec3 0 0 1
+                    ]
         ]
 
 
