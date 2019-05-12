@@ -13,6 +13,7 @@ subscriptions and commands
 
 import Browser.Dom as Dom
 import Browser.Events as Events
+import Common.Camera as Camera exposing (Camera)
 import Common.Math as Math
 import Html exposing (Attribute)
 import Html.Events as Events
@@ -37,23 +38,24 @@ onAnimationFrameDelta =
     Events.onAnimationFrameDelta
 
 
-onMouseDown : (Float -> Float -> msg) -> Attribute msg
-onMouseDown fn =
-    Events.on "mousedown" (coordinates fn)
+onMouseDown : Camera -> ({ x : Float, y : Float, z : Float } -> msg) -> Attribute msg
+onMouseDown camera fn =
+    Events.on "mousedown" (coordinates camera fn)
 
 
-onMouseMove : (Float -> Float -> msg) -> Attribute msg
-onMouseMove fn =
-    Events.on "mousemove" (coordinates fn)
+onMouseMove : Camera -> ({ x : Float, y : Float, z : Float } -> msg) -> Attribute msg
+onMouseMove camera fn =
+    Events.on "mousemove" (coordinates camera fn)
 
 
-onMouseUp : (Float -> Float -> msg) -> Attribute msg
-onMouseUp fn =
-    Events.on "mouseup" (coordinates fn)
+onMouseUp : Camera -> ({ x : Float, y : Float, z : Float } -> msg) -> Attribute msg
+onMouseUp camera fn =
+    Events.on "mouseup" (coordinates camera fn)
 
 
-coordinates : (Float -> Float -> msg) -> Decoder msg
-coordinates fn =
-    Decode.map2 fn
+coordinates : Camera -> ({ x : Float, y : Float, z : Float } -> msg) -> Decoder msg
+coordinates camera fn =
+    Decode.map2
+        (\x y -> fn (Camera.mouseDirection camera x y))
         (Decode.field "pageX" Decode.float)
         (Decode.field "pageY" Decode.float)

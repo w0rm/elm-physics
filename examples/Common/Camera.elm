@@ -46,8 +46,8 @@ resize width height camera_ =
 
 {-| Converts mouse coordinates into direction within within the world coordinate system.
 -}
-mouseDirection : { x : Float, y : Float } -> Camera -> { x : Float, y : Float, z : Float }
-mouseDirection { x, y } { cameraTransform, perspectiveTransform, width, height } =
+mouseDirection : Camera -> Float -> Float -> { x : Float, y : Float, z : Float }
+mouseDirection { cameraTransform, perspectiveTransform, width, height } x y =
     let
         homogeneousClipCoordinates =
             Vec4.vec4 (x * 2 / width - 1) (1 - y * 2 / height) -1 1

@@ -47,7 +47,13 @@ type alias Model =
     , fps : List Float
     , settings : Settings
     , camera : Camera
-    , raycastResult : Maybe (RaycastResult Data)
+    , selection : Maybe Selection
+    }
+
+
+type alias Selection =
+    { raycastResult : RaycastResult Data
+    , direction : { x : Float, y : Float, z : Float }
     }
 
 
@@ -56,9 +62,9 @@ type Msg
     | Tick Float
     | Resize Float Float
     | Restart
-    | MouseDown (Maybe (RaycastResult Data))
+    | MouseDown { x : Float, y : Float, z : Float }
     | MouseMove { x : Float, y : Float, z : Float }
-    | MouseUp
+    | MouseUp { x : Float, y : Float, z : Float }
 
 
 main : Program () Model Msg
@@ -81,7 +87,7 @@ init _ =
                 { from = { x = 0, y = 30, z = 20 }
                 , to = { x = 0, y = 0, z = 0 }
                 }
-      , raycastResult = Nothing
+      , selection = Nothing
       }
     , Events.measureSize Resize
     )
@@ -115,29 +121,39 @@ update msg model =
         Restart ->
             ( { model | world = initialWorld }, Cmd.none )
 
-        MouseDown raycastResult ->
-            case raycastResult of
-                Just { point, body } ->
+        MouseDown direction ->
+            case
+                World.raycast
+                    { from = model.camera.from
+                    , direction = direction
+                    }
+                    model.world
+            of
+                Just raycastResult ->
                     -- create temporary body and constrain it
                     -- with selected body
                     let
                         worldPosition =
-                            point
+                            raycastResult.point
                                 |> Vec3.fromRecord
-                                |> Mat4.transform (Mat4.fromRecord (Body.getTransformation body))
+                                |> Mat4.transform (Mat4.fromRecord (Body.getTransformation raycastResult.body))
                                 |> Vec3.toRecord
                     in
                     ( { model
-                        | raycastResult = raycastResult
+                        | selection =
+                            Just
+                                { raycastResult = raycastResult
+                                , direction = direction
+                                }
                         , world =
                             model.world
                                 |> World.add (Body.setPosition worldPosition mouse)
                                 |> World.constrain
                                     (\b1 b2 ->
-                                        if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData body).id then
+                                        if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
                                             [ Constraint.pointToPoint
                                                 { pivot1 = { x = 0, y = 0, z = 0 }
-                                                , pivot2 = point
+                                                , pivot2 = raycastResult.point
                                                 }
                                             ]
 
@@ -151,25 +167,45 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        MouseMove direction ->
-            case model.raycastResult of
+        MouseMove newDirection ->
+            case model.selection of
                 -- move the mouse
-                Just { point } ->
+                Just { raycastResult, direction } ->
                     let
-                        distance =
-                            sqrt ((point.x - 0) ^ 2 + (point.y - 30) ^ 2 + (point.z - 20) ^ 2)
+                        -- the new position is an intersection
+                        -- of the newDirection from the camera and a plane,
+                        -- that is defined by a normal = previous mouse direction
+                        -- and a point from the raycastResult
+                        -- https://samsymons.com/blog/math-notes-ray-plane-intersection/
+                        r0 =
+                            model.camera.from
+
+                        p0 =
+                            -- Transform local point on body into world coordinates
+                            Mat4.transform
+                                (Mat4.fromRecord (Body.getTransformation raycastResult.body))
+                                (Vec3.fromRecord raycastResult.point)
+                                |> Vec3.toRecord
+
+                        n =
+                            direction
+
+                        t =
+                            ((n.x * (p0.x - r0.x)) + (n.y * (p0.y - r0.y)) + (n.z * (p0.z - r0.z)))
+                                / ((n.x * newDirection.x) + (n.y * newDirection.y) + (n.z * newDirection.z))
+
+                        intersection =
+                            { x = r0.x + newDirection.x * t
+                            , y = r0.y + newDirection.y * t
+                            , z = r0.z + newDirection.z * t
+                            }
                     in
                     ( { model
                         | world =
                             World.update
                                 (\b ->
                                     if (Body.getData b).id == Mouse then
-                                        Body.setPosition
-                                            { x = 0 + direction.x * distance
-                                            , y = 30 + direction.y * distance
-                                            , z = 20 + direction.z * distance
-                                            }
-                                            b
+                                        Body.setPosition intersection b
 
                                     else
                                         b
@@ -182,10 +218,10 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        MouseUp ->
+        MouseUp _ ->
             -- remove temporary body on mouse up
             ( { model
-                | raycastResult = Nothing
+                | selection = Nothing
                 , world =
                     World.keepIf
                         (Body.getData >> .id >> (/=) Mouse)
@@ -204,31 +240,18 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera, raycastResult } =
-    let
-        mouseDown x y =
-            MouseDown
-                (World.raycast
-                    { from = { x = 0, y = 30, z = 20 }
-                    , direction = Camera.mouseDirection { x = x, y = y } camera
-                    }
-                    world
-                )
-
-        mouseMove x y =
-            MouseMove (Camera.mouseDirection { x = x, y = y } camera)
-    in
+view { settings, fps, world, camera, selection } =
     Html.div
-        [ Events.onMouseDown mouseDown
-        , Events.onMouseMove mouseMove
-        , Events.onMouseUp (\_ _ -> MouseUp)
+        [ Events.onMouseDown camera MouseDown
+        , Events.onMouseMove camera MouseMove
+        , Events.onMouseUp camera MouseUp
         ]
         [ Scene.view
             { settings = settings
             , world = world
             , camera = camera
             , meshes = .meshes
-            , raycastResult = raycastResult
+            , raycastResult = Maybe.map .raycastResult selection
             , floorOffset = Just floorOffset
             }
         , Settings.view ForSettings
