@@ -45,7 +45,8 @@ type alias Face =
 type alias ConvexPolyhedron =
     { faces : List Face
     , vertices : List Vec3 -- cached for performance
-    , edges : List Vec3
+    , uniqueEdges : List Vec3 -- unique edges
+    , uniqueNormals : List Vec3 -- unique face normals
     }
 
 
@@ -57,7 +58,8 @@ init faceVertexLists vertices =
     in
     { faces = initFaces faceVertexLists vertices
     , vertices = Array.toList vertices
-    , edges = initUniqueEdges faces
+    , uniqueEdges = initUniqueEdges faces
+    , uniqueNormals = initUniqueNormals faces
     }
 
 
@@ -287,8 +289,28 @@ fromBox { x, y, z } =
           }
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
-    , edges = [ Vec3.i, Vec3.j, Vec3.k ]
+    , uniqueEdges = [ Vec3.i, Vec3.j, Vec3.k ]
+    , uniqueNormals = [ Vec3.i, Vec3.j, Vec3.k ]
     }
+
+
+initUniqueNormals : List Face -> List Vec3
+initUniqueNormals faces =
+    List.foldl (\{ normal } -> addNormalIfDistinct normal) [] faces
+
+
+alreadyInTheSet : Vec3 -> List Vec3 -> Bool
+alreadyInTheSet vec =
+    List.any (Vec3.cross vec >> almostZero)
+
+
+addNormalIfDistinct : Vec3 -> List Vec3 -> List Vec3
+addNormalIfDistinct currentNormal uniques =
+    if alreadyInTheSet currentNormal uniques then
+        uniques
+
+    else
+        currentNormal :: uniques
 
 
 initUniqueEdges : List Face -> List Vec3
@@ -312,16 +334,8 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
     let
         candidateEdge =
             Vec3.direction prevVertex currentVertex
-
-        alreadyInTheSet =
-            List.any
-                (\member ->
-                    (Vec3.sub member candidateEdge |> almostZero)
-                        || (Vec3.add member candidateEdge |> almostZero)
-                )
-                uniques
     in
-    if alreadyInTheSet then
+    if alreadyInTheSet candidateEdge uniques then
         uniques
 
     else
@@ -504,25 +518,25 @@ findSeparatingAxis t1 hull1 t2 hull2 =
     let
         ctx =
             TestContext t1 hull1 t2 hull2
+
+        worldNormals =
+            List.foldl (Quaternion.rotate t1.orientation >> (::))
+                (List.foldl (Quaternion.rotate t2.orientation >> (::)) [] hull2.uniqueNormals)
+                hull1.uniqueNormals
     in
-    testFaceNormals ctx
-        t1.orientation
-        hull1.faces
-        (testFaceNormals ctx
-            t2.orientation
-            hull2.faces
-            (let
+    case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
+        Nothing ->
+            Nothing
+
+        Just { target, dmin } ->
+            let
                 worldEdges1 =
-                    List.foldl (Quaternion.rotate ctx.t1.orientation >> (::)) [] ctx.hull1.edges
+                    List.foldl (Quaternion.rotate ctx.t1.orientation >> (::)) [] ctx.hull1.uniqueEdges
 
                 worldEdges2 =
-                    List.foldl (Quaternion.rotate ctx.t2.orientation >> (::)) [] ctx.hull2.edges
-             in
-             testEdges ctx worldEdges2 worldEdges1 worldEdges2
-            )
-        )
-        Vec3.zero
-        Const.maxNumber
+                    List.foldl (Quaternion.rotate ctx.t2.orientation >> (::)) [] ctx.hull2.uniqueEdges
+            in
+            testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
 
 
 type alias TestContext =
@@ -533,38 +547,27 @@ type alias TestContext =
     }
 
 
-testFaceNormals :
-    TestContext
-    -> Quaternion
-    -> List Face
-    -> (Vec3 -> Float -> Maybe Vec3)
-    -> Vec3
-    -> Float
-    -> Maybe Vec3
-testFaceNormals ctx quat faces fn target dmin =
-    case faces of
+testUniqueNormals : TestContext -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
+testUniqueNormals ctx normals target dmin =
+    case normals of
         [] ->
-            fn target dmin
+            Just { target = target, dmin = dmin }
 
-        { normal } :: restFaces ->
-            let
-                rotatedNormal =
-                    Quaternion.rotate quat normal
-            in
-            case testSepAxis ctx rotatedNormal of
+        normal :: restNormals ->
+            case testSepAxis ctx normal of
                 Nothing ->
                     Nothing
 
                 Just d ->
                     if d - dmin < 0 then
-                        testFaceNormals ctx quat restFaces fn rotatedNormal d
+                        testUniqueNormals ctx restNormals normal d
 
                     else
-                        testFaceNormals ctx quat restFaces fn target dmin
+                        testUniqueNormals ctx restNormals target dmin
 
 
-testEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testEdges ctx initEdges2 edges1 edges2 target dmin =
+testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
     case edges1 of
         [] ->
             if Vec3.dot (Vec3.sub ctx.t2.position ctx.t1.position) target > 0 then
@@ -577,7 +580,7 @@ testEdges ctx initEdges2 edges1 edges2 target dmin =
             case edges2 of
                 [] ->
                     -- requeue edges2
-                    testEdges ctx initEdges2 remainingEdges1 initEdges2 target dmin
+                    testUniqueEdges ctx initEdges2 remainingEdges1 initEdges2 target dmin
 
                 worldEdge2 :: remainingEdges2 ->
                     let
@@ -586,7 +589,7 @@ testEdges ctx initEdges2 edges1 edges2 target dmin =
                     in
                     if almostZero cross then
                         -- continue because edges are parallel
-                        testEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                        testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
 
                     else
                         let
@@ -601,11 +604,11 @@ testEdges ctx initEdges2 edges1 edges2 target dmin =
                             Just dist ->
                                 if dist - dmin < 0 then
                                     -- update target and dmin
-                                    testEdges ctx initEdges2 edges1 remainingEdges2 normalizedCross dist
+                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 normalizedCross dist
 
                                 else
                                     -- continue
-                                    testEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
 
 
 testSepAxis : TestContext -> Vec3 -> Maybe Float
@@ -969,10 +972,10 @@ foldFaceNormals fn acc { faces } =
 
 
 foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
-foldUniqueEdges fn acc { vertices, edges } =
+foldUniqueEdges fn acc { vertices, uniqueEdges } =
     case vertices of
         vertex0 :: _ ->
-            List.foldl (fn vertex0) acc edges
+            List.foldl (fn vertex0) acc uniqueEdges
 
         [] ->
             acc
