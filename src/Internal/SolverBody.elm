@@ -5,9 +5,7 @@ module Internal.SolverBody exposing
     )
 
 import Internal.Body as Body exposing (Body)
-import Internal.Const as Const
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
-import Internal.Matrix3 as Mat3
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 

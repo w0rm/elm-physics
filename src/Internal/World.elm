@@ -8,7 +8,7 @@ module Internal.World exposing
 
 import Internal.Body as Body exposing (Body)
 import Internal.Constraint as Constraint exposing (ConstraintGroup)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type Protected data

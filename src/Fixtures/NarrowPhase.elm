@@ -4,9 +4,7 @@ module Fixtures.NarrowPhase exposing
     , sphereContactOctohedronPositions
     )
 
-import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.Material as Material
 import Internal.NarrowPhase exposing (Contact)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
@@ -109,9 +107,6 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
     let
         delta =
             3 * Const.precision
-
-        nearEdgeOffset =
-            octoHalfExtent - delta
 
         -- Reposition the octohedron so that it contacts the sphere at each:
         -- vertex

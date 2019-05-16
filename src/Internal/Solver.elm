@@ -6,7 +6,6 @@ import Internal.Const as Const
 import Internal.Equation as Equation exposing (Equation, EquationsGroup, SolverEquation)
 import Internal.NarrowPhase exposing (Contact, ContactGroup)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World as World exposing (World)
 
 

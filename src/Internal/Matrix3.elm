@@ -4,7 +4,6 @@ module Internal.Matrix3 exposing
     , mul
     , scale
     , transform
-    , transpose
     )
 
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -62,21 +61,4 @@ scale { x, y, z } m =
     , m13 = m.m13 * z
     , m23 = m.m23 * z
     , m33 = m.m33 * z
-    }
-
-
-{-| "Flip" the matrix across the diagonal by swapping row index and column
-index.
--}
-transpose : Mat3 -> Mat3
-transpose m =
-    { m11 = m.m11
-    , m21 = m.m12
-    , m31 = m.m13
-    , m12 = m.m21
-    , m22 = m.m22
-    , m32 = m.m23
-    , m13 = m.m31
-    , m23 = m.m32
-    , m33 = m.m33
     }

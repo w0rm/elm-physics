@@ -7,9 +7,7 @@ module Internal.NarrowPhase exposing
     )
 
 import Internal.Body as Body exposing (Body)
-import Internal.Const as Const
 import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
-import Internal.Material as Material
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Kind(..), Shape)
 import Internal.Transform as Transform exposing (Transform)

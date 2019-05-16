@@ -7,10 +7,8 @@ module Internal.Quaternion exposing
     , normalize
     , rotate
     , rotateBy
-    , toMat3
     )
 
-import Internal.Matrix3 exposing (Mat3)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
@@ -39,20 +37,6 @@ fromAngleAxis angle axis =
             sin theta
     in
     { x = x * s, y = y * s, z = z * s, w = c }
-
-
-toMat3 : Quaternion -> Mat3
-toMat3 { x, y, z, w } =
-    { m11 = 1 - 2 * y * y - 2 * z * z
-    , m12 = 2 * x * y - 2 * w * z
-    , m13 = 2 * x * z + 2 * w * y
-    , m21 = 2 * x * y + 2 * w * z
-    , m22 = 1 - 2 * x * x - 2 * z * z
-    , m23 = 2 * y * z - 2 * w * x
-    , m31 = 2 * x * z - 2 * w * y
-    , m32 = 2 * y * z + 2 * w * x
-    , m33 = 1 - 2 * x * x - 2 * y * y
-    }
 
 
 mul : Quaternion -> Quaternion -> Quaternion

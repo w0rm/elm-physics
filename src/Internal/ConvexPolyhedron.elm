@@ -368,7 +368,7 @@ clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
 clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
 clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
     case bestFace Nearest t1 hull1.faces separatingNormal of
-        Just { vertices, point, normal, adjacentFaces } ->
+        Just { point, normal, adjacentFaces } ->
             let
                 localPlaneEq =
                     -(Vec3.dot normal point)
@@ -722,7 +722,7 @@ isAnEdgeContact testEdgeResult =
 the sphere's penetration into the ConvexPolyhedron beyond that contact.
 -}
 sphereContact : Vec3 -> Float -> Transform -> ConvexPolyhedron -> ( Maybe Vec3, Float )
-sphereContact center radius t2 { vertices, faces } =
+sphereContact center radius t2 { faces } =
     let
         sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
         sphereFaceContact normal distance =
@@ -1086,7 +1086,7 @@ raycast { direction, from } transform convex =
 KEEP DISABLED in published production code.
 -}
 identityOrCrash : String -> a -> a
-identityOrCrash message value =
+identityOrCrash _ value =
     -- enabled: Debug.crash message value
     -- disabled: KEEP DISABLED in published production code.
     value
@@ -1103,7 +1103,7 @@ listFoldStaggeredPairs fn seed resultSeed list =
                 [] ->
                     fn el1 seed resultSeed
 
-                el2 :: rest2 ->
+                el2 :: _ ->
                     listFoldStaggeredPairs
                         fn
                         seed
@@ -1146,23 +1146,9 @@ starting with the pair (first, second), and so on, until (last, first).
 listRingFoldStaggeredPairs : (a -> a -> b -> b) -> b -> List a -> b
 listRingFoldStaggeredPairs fn resultSeed list =
     case list of
-        first :: _ :: rest ->
+        first :: _ :: _ ->
             listFoldStaggeredPairs fn first resultSeed list
 
         _ ->
             -- The list is empty or contains one element.
             resultSeed
-
-
-{-| Crash-on-Nothing equivalent of Maybe.withDefault for use in debugging.
-KEEP DISABLED in published production code.
--}
-maybeWithDefaultOrCrash : String -> a -> Maybe a -> a
-maybeWithDefaultOrCrash message default maybe =
-    case maybe of
-        Just value ->
-            value
-
-        Nothing ->
-            --Debug.crash message
-            default
