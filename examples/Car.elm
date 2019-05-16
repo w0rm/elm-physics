@@ -14,7 +14,6 @@ import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
-import Physics.Material as Material exposing (Material)
 import Physics.World as World exposing (World)
 
 

@@ -3,7 +3,6 @@ module NarrowPhaseTest exposing (addSphereConvexContacts)
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
-import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.NarrowPhase as NarrowPhase exposing (Contact, Order(..))
 import Internal.Quaternion as Quaternion

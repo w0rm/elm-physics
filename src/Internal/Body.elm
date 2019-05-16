@@ -10,7 +10,6 @@ module Internal.Body exposing
     )
 
 import Internal.AABB as AABB exposing (AABB)
-import Internal.Const as Const
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
