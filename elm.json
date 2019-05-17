@@ -3,7 +3,7 @@
     "name": "w0rm/elm-physics",
     "summary": "Highly experimental toy physics engine",
     "license": "BSD-3-Clause",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "exposed-modules": [
         "Physics.World",
         "Physics.Body",
