@@ -217,7 +217,7 @@ getOrientation (Protected { orientation }) =
 
 {-| Set user-defined data.
 -}
-setData : data -> Body a -> Body data
+setData : data -> Body data -> Body data
 setData data (Protected body) =
     Protected
         { id = body.id
