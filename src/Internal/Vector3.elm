@@ -41,8 +41,8 @@ type alias Vec3 =
 {-| Creates a new 3-element vector with the given values.
 -}
 vec3 : Float -> Float -> Float -> Vec3
-vec3 =
-    Vec3
+vec3 x y z =
+    { x = x, y = y, z = z }
 
 
 {-| The zero verctor
@@ -77,21 +77,21 @@ k =
 -}
 add : Vec3 -> Vec3 -> Vec3
 add a b =
-    Vec3 (a.x + b.x) (a.y + b.y) (a.z + b.z)
+    { x = a.x + b.x, y = a.y + b.y, z = a.z + b.z }
 
 
 {-| Vector subtraction: a - b
 -}
 sub : Vec3 -> Vec3 -> Vec3
 sub a b =
-    Vec3 (a.x - b.x) (a.y - b.y) (a.z - b.z)
+    { x = a.x - b.x, y = a.y - b.y, z = a.z - b.z }
 
 
 {-| Vector negation: -a
 -}
 negate : Vec3 -> Vec3
 negate v3 =
-    Vec3 -v3.x -v3.y -v3.z
+    { x = -v3.x, y = -v3.y, z = -v3.z }
 
 
 {-| The normalized direction from b to a: (a - b) / |a - b|
@@ -105,7 +105,7 @@ direction a b =
         len =
             length c
     in
-    Vec3 (c.x / len) (c.y / len) (c.z / len)
+    { x = c.x / len, y = c.y / len, z = c.z / len }
 
 
 {-| The length of the given vector: |a|
@@ -144,14 +144,14 @@ normalize v3 =
         len =
             length v3
     in
-    Vec3 (v3.x / len) (v3.y / len) (v3.z / len)
+    { x = v3.x / len, y = v3.y / len, z = v3.z / len }
 
 
 {-| Multiply the vector by a scalar: s \* v
 -}
 scale : Float -> Vec3 -> Vec3
 scale s v3 =
-    Vec3 (s * v3.x) (s * v3.y) (s * v3.z)
+    { x = s * v3.x, y = s * v3.y, z = s * v3.z }
 
 
 {-| The dot product of a and b
@@ -165,10 +165,10 @@ dot a b =
 -}
 cross : Vec3 -> Vec3 -> Vec3
 cross a b =
-    Vec3
-        (a.y * b.z - a.z * b.y)
-        (a.z * b.x - a.x * b.z)
-        (a.x * b.y - a.y * b.x)
+    { x = a.y * b.z - a.z * b.y
+    , y = a.z * b.x - a.x * b.z
+    , z = a.x * b.y - a.y * b.x
+    }
 
 
 {-| Get normalized tangents

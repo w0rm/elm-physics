@@ -517,7 +517,7 @@ findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhed
 findSeparatingAxis t1 hull1 t2 hull2 =
     let
         ctx =
-            TestContext t1 hull1 t2 hull2
+            { t1 = t1, hull1 = hull1, t2 = t2, hull2 = hull2 }
 
         worldNormals =
             List.foldl (Quaternion.rotate t1.orientation >> (::))
