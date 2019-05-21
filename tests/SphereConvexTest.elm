@@ -1,17 +1,18 @@
-module NarrowPhaseTest exposing (addSphereConvexContacts)
+module SphereConvexTest exposing (addContacts)
 
+import Collision.SphereConvex
 import Expect exposing (Expectation)
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Const as Const
-import Internal.NarrowPhase as NarrowPhase exposing (Contact, Order(..))
+import Internal.Contact exposing (Contact)
 import Internal.Quaternion as Quaternion
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 
 
-addSphereConvexContacts : Test
-addSphereConvexContacts =
+addContacts : Test
+addContacts =
     let
         center =
             vec3 0 0 7
@@ -59,14 +60,14 @@ addSphereConvexContacts =
                 octoHalfExtent
                 |> List.map Tuple.first
     in
-    describe "NarrowPhase.addSphereConvexContacts"
+    describe "Collision.SphereConvex.addContacts"
         [ test "for a box" <|
             \_ ->
                 boxPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -88,8 +89,8 @@ addSphereConvexContacts =
                 boxFarPositions
                     |> List.concatMap
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -106,8 +107,8 @@ addSphereConvexContacts =
                 octoPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -129,8 +130,8 @@ addSphereConvexContacts =
                 octoFarPositions
                     |> List.concatMap
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }

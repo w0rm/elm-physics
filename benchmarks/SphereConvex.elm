@@ -1,24 +1,24 @@
-module NarrowPhase exposing (main)
+module SphereConvex exposing (main)
 
 {- For a useful benchmark,
-   copy and rename an older baseline version of Physics/NarrowPhase.elm
-   to Physics/OriginalNarrowPhase.elm and uncomment the import below,
+   copy and rename an older baseline version of Collision/SphereConvex.elm
+   to Collision/OriginalSphereConvex.elm and uncomment the import below,
    then toggle the usage in benchmarks.
 
-   Switching it back to use the (current) NarrowPhase.elm through the
-   OriginalNarrowPhase alias keeps obsolete or redundant code out of
+   Switching it back to use the (current) SphereConvex.elm through the
+   OriginalSphereConvex alias keeps obsolete or redundant code out of
    the repo while the comparison benchmarks continue to be maintained and
    built and run essentially as absolute non-comparison benchmarks until
    they are needed again in another round of performance work.
 -}
-{- import Physics.OriginalNarrowPhase as OriginalNarrowPhase -}
+{- import Collision.OriginalSphereConvex -}
 
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
+import Collision.SphereConvex
 import Fixtures.ConvexPolyhedron as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Body as Body exposing (Body)
-import Internal.NarrowPhase as NarrowPhase exposing (Order(..))
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -79,9 +79,9 @@ suite =
                 boxPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            {- Collision.OriginalSphereConvex.addContacts -}
+                            Collision.SphereConvex.addContacts
+                                identity
                                 Transform.identity
                                 radius
                                 { position = position
@@ -96,8 +96,8 @@ suite =
                 boxPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -115,9 +115,9 @@ suite =
                 boxFarPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            {- Collision.OriginalSphereConvex.addContacts -}
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -134,8 +134,8 @@ suite =
                 boxFarPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -153,9 +153,9 @@ suite =
                 octoPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            {- Collision.OriginalSphereConvex.addContacts -}
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -172,8 +172,8 @@ suite =
                 octoPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -191,9 +191,9 @@ suite =
                 octoFarPositions
                     |> List.map
                         (\position ->
-                            {- OriginalNarrowPhase.addSphereConvexContacts -}
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            {- Collision.OriginalSphereConvex.addContacts -}
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }
@@ -210,8 +210,8 @@ suite =
                 octoFarPositions
                     |> List.map
                         (\position ->
-                            NarrowPhase.addSphereConvexContacts
-                                ASC
+                            Collision.SphereConvex.addContacts
+                                identity
                                 { position = center
                                 , orientation = Quaternion.identity
                                 }

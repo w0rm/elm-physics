@@ -1,21 +1,16 @@
 module Internal.ConvexPolyhedron exposing
     ( ConvexPolyhedron
+    , Face
     , addFaceEdges
-    , clipAgainstHull
-    , clipFaceAgainstHull
-    , clipFaceAgainstPlane
     , expandBoundingSphereRadius
     , faceAdjacency
-    , findSeparatingAxis
+    , foldFaceEdges
     , foldFaceNormals
     , foldUniqueEdges
     , fromBox
     , init
     , initUniqueEdges
-    , project
     , raycast
-    , sphereContact
-    , testSepAxis
     )
 
 import Array exposing (Array)
@@ -25,13 +20,6 @@ import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Set
-
-
-almostZero : Vec3 -> Bool
-almostZero { x, y, z } =
-    (abs x <= Const.precision)
-        && (abs y <= Const.precision)
-        && (abs z <= Const.precision)
 
 
 type alias Face =
@@ -301,7 +289,7 @@ initUniqueNormals faces =
 
 alreadyInTheSet : Vec3 -> List Vec3 -> Bool
 alreadyInTheSet vec =
-    List.any (Vec3.cross vec >> almostZero)
+    List.any (Vec3.cross vec >> Vec3.almostZero)
 
 
 addNormalIfDistinct : Vec3 -> List Vec3 -> List Vec3
@@ -320,7 +308,7 @@ initUniqueEdges faces =
 
 addFaceEdges : Face -> List Vec3 -> List Vec3
 addFaceEdges { vertices } edges =
-    listRingFoldStaggeredPairs
+    foldFaceEdges
         addEdgeIfDistinct
         edges
         vertices
@@ -340,618 +328,6 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
 
     else
         candidateEdge :: uniques
-
-
-type alias ClipResult =
-    { point : Vec3
-    , normal : Vec3
-    , depth : Float
-    }
-
-
-clipAgainstHull : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Float -> Float -> List ClipResult
-clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
-    case bestFace Farthest t2 hull2.faces separatingNormal of
-        Just { vertices } ->
-            clipFaceAgainstHull
-                t1
-                hull1
-                separatingNormal
-                (List.map (Transform.pointToWorldFrame t2) vertices)
-                minDist
-                maxDist
-
-        Nothing ->
-            []
-
-
-clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
-clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
-    case bestFace Nearest t1 hull1.faces separatingNormal of
-        Just { point, normal, adjacentFaces } ->
-            let
-                localPlaneEq =
-                    -(Vec3.dot normal point)
-
-                planeNormalWS =
-                    Quaternion.rotate t1.orientation normal
-
-                planeEqWS =
-                    localPlaneEq - Vec3.dot planeNormalWS t1.position
-            in
-            adjacentFaces
-                |> List.foldl
-                    (\otherFace ->
-                        let
-                            localPlaneEq_ =
-                                -(Vec3.dot otherFace.point otherFace.normal)
-
-                            planeNormalWS_ =
-                                Quaternion.rotate t1.orientation otherFace.normal
-
-                            planeEqWS_ =
-                                localPlaneEq_ - Vec3.dot planeNormalWS_ t1.position
-                        in
-                        clipFaceAgainstPlane planeNormalWS_ planeEqWS_
-                    )
-                    worldVertsB
-                |> List.foldl
-                    (\vertex result ->
-                        let
-                            depth =
-                                max minDist (Vec3.dot planeNormalWS vertex + planeEqWS)
-                        in
-                        if depth <= maxDist && depth <= 0 then
-                            { point = vertex
-                            , normal = planeNormalWS
-                            , depth = depth
-                            }
-                                :: result
-
-                        else
-                            result
-                    )
-                    []
-
-        Nothing ->
-            []
-
-
-{-| Encapsulate a compatible comparison operator and a worst case value
-according to that operator such that for any DistanceCriterion dc:
-(compareOp dc) \_ (worstValue dc) == True
-(compareOp dc) (worstValue dc) \_ == False
-DistanceCriterion prevents accidental combination of comparators with
-inappropriate worst case values such as when starting an iterative run-off.
-It should be easier and less error prone to write and use generic run-off
-folds dependent on DistanceCriterion.
--}
-type DistanceCriterion
-    = Nearest
-    | Farthest
-
-
-compareOp : DistanceCriterion -> (Float -> Float -> Bool)
-compareOp dc =
-    case dc of
-        Nearest ->
-            (<)
-
-        Farthest ->
-            (>)
-
-
-worstValue : DistanceCriterion -> Float
-worstValue dc =
-    case dc of
-        Nearest ->
-            Const.maxNumber
-
-        Farthest ->
-            -Const.maxNumber
-
-
-bestFace : DistanceCriterion -> Transform -> List Face -> Vec3 -> Maybe Face
-bestFace comparator transform faces separatingNormal =
-    let
-        worstDistance =
-            worstValue comparator
-
-        compareFunc =
-            compareOp comparator
-    in
-    faces
-        |> List.foldl
-            (\face (( _, bestDistance ) as bestPair) ->
-                let
-                    faceDistance =
-                        face.normal
-                            |> Quaternion.rotate transform.orientation
-                            |> Vec3.dot separatingNormal
-                in
-                if compareFunc faceDistance bestDistance then
-                    ( Just face, faceDistance )
-
-                else
-                    bestPair
-            )
-            ( Nothing, worstDistance )
-        |> Tuple.first
-
-
-clipFaceAgainstPlane : Vec3 -> Float -> List Vec3 -> List Vec3
-clipFaceAgainstPlane planeNormal planeConstant vertices =
-    listRingFoldStaggeredPairs
-        (clipFaceAgainstPlaneAdd planeNormal planeConstant)
-        []
-        vertices
-
-
-clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
-clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
-    let
-        nDotPrev =
-            Vec3.dot planeNormal prev + planeConstant
-
-        nDotNext =
-            Vec3.dot planeNormal next + planeConstant
-    in
-    if nDotPrev < 0 then
-        if nDotNext < 0 then
-            next :: result
-
-        else
-            Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
-                :: result
-
-    else if nDotNext < 0 then
-        next
-            :: Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
-            :: result
-
-    else
-        result
-
-
-findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
-findSeparatingAxis t1 hull1 t2 hull2 =
-    let
-        ctx =
-            { t1 = t1, hull1 = hull1, t2 = t2, hull2 = hull2 }
-
-        worldNormals =
-            List.foldl (Quaternion.rotate t1.orientation >> (::))
-                (List.foldl (Quaternion.rotate t2.orientation >> (::)) [] hull2.uniqueNormals)
-                hull1.uniqueNormals
-    in
-    case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
-        Nothing ->
-            Nothing
-
-        Just { target, dmin } ->
-            let
-                worldEdges1 =
-                    List.foldl (Quaternion.rotate ctx.t1.orientation >> (::)) [] ctx.hull1.uniqueEdges
-
-                worldEdges2 =
-                    List.foldl (Quaternion.rotate ctx.t2.orientation >> (::)) [] ctx.hull2.uniqueEdges
-            in
-            testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
-
-
-type alias TestContext =
-    { t1 : Transform
-    , hull1 : ConvexPolyhedron
-    , t2 : Transform
-    , hull2 : ConvexPolyhedron
-    }
-
-
-testUniqueNormals : TestContext -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
-testUniqueNormals ctx normals target dmin =
-    case normals of
-        [] ->
-            Just { target = target, dmin = dmin }
-
-        normal :: restNormals ->
-            case testSepAxis ctx normal of
-                Nothing ->
-                    Nothing
-
-                Just d ->
-                    if d - dmin < 0 then
-                        testUniqueNormals ctx restNormals normal d
-
-                    else
-                        testUniqueNormals ctx restNormals target dmin
-
-
-testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
-    case edges1 of
-        [] ->
-            if Vec3.dot (Vec3.sub ctx.t2.position ctx.t1.position) target > 0 then
-                Just (Vec3.negate target)
-
-            else
-                Just target
-
-        worldEdge1 :: remainingEdges1 ->
-            case edges2 of
-                [] ->
-                    -- requeue edges2
-                    testUniqueEdges ctx initEdges2 remainingEdges1 initEdges2 target dmin
-
-                worldEdge2 :: remainingEdges2 ->
-                    let
-                        cross =
-                            Vec3.cross worldEdge1 worldEdge2
-                    in
-                    if almostZero cross then
-                        -- continue because edges are parallel
-                        testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
-
-                    else
-                        let
-                            normalizedCross =
-                                Vec3.normalize cross
-                        in
-                        case testSepAxis ctx normalizedCross of
-                            Nothing ->
-                                -- exit because hulls don't collide
-                                Nothing
-
-                            Just dist ->
-                                if dist - dmin < 0 then
-                                    -- update target and dmin
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 normalizedCross dist
-
-                                else
-                                    -- continue
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
-
-
-testSepAxis : TestContext -> Vec3 -> Maybe Float
-testSepAxis { t1, hull1, t2, hull2 } axis =
-    let
-        ( max1, min1 ) =
-            project t1 hull1 axis
-
-        ( max2, min2 ) =
-            project t2 hull2 axis
-    in
-    if max1 - min2 < 0 || max2 - min1 < 0 then
-        Nothing
-
-    else
-        Just (min (max1 - min2) (max2 - min1))
-
-
-{-| Get max and min dot product of a convex hull at Transform projected onto an axis.
--}
-project : Transform -> ConvexPolyhedron -> Vec3 -> ( Float, Float )
-project transform { vertices } axis =
-    let
-        -- TODO: consider inlining all the operations here, this is a very HOT path
-        localAxis =
-            Transform.vectorToLocalFrame transform axis
-
-        add =
-            Vec3.zero
-                |> Transform.pointToLocalFrame transform
-                |> Vec3.dot localAxis
-
-        ( maxVal, minVal ) =
-            projectHelp localAxis -Const.maxNumber Const.maxNumber vertices
-    in
-    ( maxVal - add, minVal - add )
-
-
-projectHelp : Vec3 -> Float -> Float -> List Vec3 -> ( Float, Float )
-projectHelp localAxis maxVal minVal currentVertices =
-    case currentVertices of
-        [] ->
-            ( maxVal, minVal )
-
-        vec :: remainingVertices ->
-            let
-                {- val =
-                   Vec3.dot vec localAxis
-                -}
-                val =
-                    vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
-            in
-            projectHelp
-                localAxis
-                (max maxVal val)
-                (min minVal val)
-                remainingVertices
-
-
-max : Float -> Float -> Float
-max a b =
-    if a - b > 0 then
-        a
-
-    else
-        b
-
-
-min : Float -> Float -> Float
-min a b =
-    if b - a > 0 then
-        a
-
-    else
-        b
-
-
-{-| Encapsulated result of sphereTestFace
--}
-type TestFaceResult
-    = QualifiedEdges (List (List ( Vec3, Vec3 )))
-    | FaceContact Vec3 Float
-
-
-isAFaceContact : TestFaceResult -> Bool
-isAFaceContact testFaceResult =
-    case testFaceResult of
-        FaceContact _ _ ->
-            True
-
-        _ ->
-            False
-
-
-type TestBoundaryResult
-    = PossibleVertexContact ( Maybe Vec3, Float )
-    | EdgeContact ( Vec3, Float )
-
-
-isAnEdgeContact : TestBoundaryResult -> Bool
-isAnEdgeContact testEdgeResult =
-    case testEdgeResult of
-        EdgeContact _ ->
-            True
-
-        _ ->
-            False
-
-
-{-| The contact point, if any, of a ConvexPolyhedron with a sphere, and
-the sphere's penetration into the ConvexPolyhedron beyond that contact.
--}
-sphereContact : Vec3 -> Float -> Transform -> ConvexPolyhedron -> ( Maybe Vec3, Float )
-sphereContact center radius t2 { faces } =
-    let
-        sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
-        sphereFaceContact normal distance =
-            -- The world frame contact is located distance away from
-            -- the world frame sphere center in the OPPOSITE direction of
-            -- the normal.
-            ( Just (Vec3.sub center (Vec3.scale distance normal))
-            , radius - distance
-            )
-
-        sphereBoundaryContact : Vec3 -> Float -> ( Maybe Vec3, Float )
-        sphereBoundaryContact localContact distanceSq =
-            ( Just (Vec3.add localContact center)
-            , radius - sqrt distanceSq
-            )
-
-        spherePossibleBoundaryContact : List (List ( Vec3, Vec3 )) -> ( Maybe Vec3, Float )
-        spherePossibleBoundaryContact faceEdgeList =
-            case sphereTestBoundaries radius faceEdgeList of
-                PossibleVertexContact ( Just localContact, distanceSq ) ->
-                    sphereBoundaryContact localContact distanceSq
-
-                PossibleVertexContact noContact ->
-                    noContact
-
-                EdgeContact ( localContact, distanceSq ) ->
-                    sphereBoundaryContact localContact distanceSq
-
-        reframedVertices faceVertices =
-            List.foldl
-                (\vertex acc ->
-                    Vec3.sub (Transform.pointToWorldFrame t2 vertex) center :: acc
-                )
-                []
-                faceVertices
-
-        -- Find the details of the closest faces.
-        testFaceResult =
-            listRecurseUntil
-                isAFaceContact
-                (\face statusQuo ->
-                    case statusQuo of
-                        QualifiedEdges acc ->
-                            sphereTestFace
-                                radius
-                                (Quaternion.rotate t2.orientation face.normal)
-                                (reframedVertices face.vertices)
-                                acc
-
-                        FaceContact _ _ ->
-                            -- Since a FaceContact short circuits the
-                            -- recursion, this case is not expected.
-                            statusQuo
-                )
-                (QualifiedEdges [])
-                faces
-    in
-    case testFaceResult of
-        QualifiedEdges faceEdgeList ->
-            -- Check the candidate faces' edges and vertices.
-            spherePossibleBoundaryContact faceEdgeList
-
-        FaceContact faceNormal faceDistance ->
-            sphereFaceContact faceNormal faceDistance
-
-
-{-| The contact point and distance, if any, of a ConvexPolyhedron's face
-with a sphere, or otherwise a list of the face's edges that may contain an
-edge or vertex contact.
--}
-sphereTestFace : Float -> Vec3 -> List Vec3 -> List (List ( Vec3, Vec3 )) -> TestFaceResult
-sphereTestFace radius normal vertices acc =
-    let
-        -- Use an arbitrary vertex from the face to measure the distance to
-        -- the origin (sphere center) along the face normal.
-        faceDistance =
-            case vertices of
-                point :: _ ->
-                    -(Vec3.dot normal point)
-
-                [] ->
-                    -- a negative value prevents a face or edge contact match
-                    -1
-    in
-    if faceDistance - radius < 0 && faceDistance > 0.0 then
-        -- Sphere intersects the face plane.
-        -- Assume 3 or more valid vertices to proceed
-        -- Check if the sphere center projects onto the face plane INSIDE the face polygon.
-        case originProjection vertices normal of
-            [] ->
-                -- The projection falls within all the face's edges.
-                FaceContact normal faceDistance
-
-            separatingEdges ->
-                -- These origin-excluding edges are candidates for
-                -- having an edge or vertex contact.
-                QualifiedEdges (separatingEdges :: acc)
-
-    else
-        QualifiedEdges acc
-
-
-{-| The edge or vertex contact point and its distance (squared), if any,
-of a ConvexPolyhedron's edges with a sphere, limited to a pre-qualified
-list of edges per face.
--}
-sphereTestBoundaries : Float -> List (List ( Vec3, Vec3 )) -> TestBoundaryResult
-sphereTestBoundaries radius faceEdgeList =
-    List.foldl
-        sphereTestBoundary
-        (PossibleVertexContact ( Nothing, radius * radius ))
-        faceEdgeList
-
-
-{-| The edge or possible vertex contact point and its distance (squared),
-if any, of a ConvexPolyhedron face's pre-qualified edges with a sphere.
--}
-sphereTestBoundary : List ( Vec3, Vec3 ) -> TestBoundaryResult -> TestBoundaryResult
-sphereTestBoundary faceEdges statusQuo =
-    listRecurseUntil
-        isAnEdgeContact
-        (\( prevVertex, vertex ) statusQuo1 ->
-            case statusQuo1 of
-                PossibleVertexContact soFar ->
-                    sphereTestEdge prevVertex vertex soFar
-
-                EdgeContact _ ->
-                    -- Since an EdgeContact stops the recursion,
-                    -- this case is not expected.
-                    statusQuo1
-        )
-        statusQuo
-        faceEdges
-
-
-{-| The edge or possible vertex contact point and its distance (squared),
-if any, of a ConvexPolyhedron face's pre-qualified edge with a sphere.
--}
-sphereTestEdge : Vec3 -> Vec3 -> ( Maybe Vec3, Float ) -> TestBoundaryResult
-sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
-    let
-        betterVertexContact : Vec3 -> ( Maybe Vec3, Float )
-        betterVertexContact candidate =
-            let
-                -- Note: the vector length of a sphere-framed vertex
-                -- is its distance from the sphere center
-                vertexLengthSq =
-                    Vec3.lengthSquared candidate
-            in
-            if vertexLengthSq - minDistanceSq < 0 then
-                ( Just candidate, vertexLengthSq )
-
-            else
-                statusQuo
-
-        edge =
-            Vec3.sub vertex prevVertex
-
-        edgeUnit =
-            Vec3.normalize edge
-
-        -- The potential contact is where the sphere center
-        -- projects onto the edge.
-        -- offset is the directed distance between the edge's
-        -- starting vertex and that projection. If it is not
-        -- between 0 and the edge's length, there is no edge contact.
-        -- Yet there may be a contact with whichever vertex is closest
-        -- to the projection.
-        offset =
-            -(Vec3.dot prevVertex edgeUnit)
-    in
-    if offset < 0 then
-        -- prevVertex is closest in this edge,
-        -- but there may be a closer edge or
-        -- no contact.
-        PossibleVertexContact (betterVertexContact prevVertex)
-
-    else if offset * offset - Vec3.lengthSquared edge > 0 then
-        -- vertex is closest in this edge,
-        -- but there may be a closer edge or
-        -- no contact.
-        PossibleVertexContact (betterVertexContact vertex)
-
-    else
-        let
-            edgeContact =
-                Vec3.add prevVertex (Vec3.scale offset edgeUnit)
-
-            edgeDistanceSq =
-                Vec3.lengthSquared edgeContact
-        in
-        if edgeDistanceSq - minDistanceSq < 0 then
-            EdgeContact ( edgeContact, edgeDistanceSq )
-
-        else
-            PossibleVertexContact statusQuo
-
-
-{-| A 2D point-in-polygon check for the projection of the origin
-(e.g. the center of a sphere within its own frame of reference) within a
-polygon (e.g. a ConvexPolyhedron face). To simplify post-processing,
-return a relatively short but complete list of qualified edges (adjacent
-vertex pairs) whose lines separate the projection from the polygon.
-If the list is empty, the projection is within the polygon.
--}
-originProjection : List Vec3 -> Vec3 -> List ( Vec3, Vec3 )
-originProjection vertices normal =
-    listRingFoldStaggeredPairs
-        (\prevVertex vertex acc ->
-            let
-                edge_x_normal =
-                    Vec3.cross normal (Vec3.sub vertex prevVertex)
-            in
-            -- The sign of this dot product determines on which
-            -- side of the directed edge the projected point lies,
-            -- left or right, within the face plane.
-            -- For the projection to be within the face, the sign
-            -- must always be non-negative when circling from vertex
-            -- to vertex in the listed (counter-clockwise) direction.
-            -- Retain any edge that tests negative as a candidate
-            -- for an edge or vertex contact.
-            if Vec3.dot edge_x_normal prevVertex < 0 then
-                ( prevVertex, vertex ) :: acc
-
-            else
-                acc
-        )
-        []
-        vertices
 
 
 foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
@@ -1032,7 +408,7 @@ raycast { direction, from } transform convex =
                                         Transform.pointToWorldFrame transform p :: acc1
                                     )
                                     []
-                                |> listRingFoldStaggeredPairs
+                                |> foldFaceEdges
                                     (\p1 p2 result ->
                                         result
                                             && (Vec3.dot
@@ -1092,63 +468,34 @@ identityOrCrash _ value =
     value
 
 
-{-| Fold the function over pairs of consecutive elements in the list,
-starting with the pair (first, second), and so on until (last, seed).
+{-| Map the function to pairs of consecutive vertices,
+starting with the pair (first, second), and so on, until (last, first).
 -}
-listFoldStaggeredPairs : (a -> a -> b -> b) -> a -> b -> List a -> b
-listFoldStaggeredPairs fn seed resultSeed list =
-    case list of
+foldFaceEdges : (Vec3 -> Vec3 -> b -> b) -> b -> List Vec3 -> b
+foldFaceEdges fn resultSeed vertices =
+    case vertices of
+        first :: _ :: _ ->
+            foldFaceEdgesHelp fn first resultSeed vertices
+
+        _ ->
+            -- The list is empty or contains one element.
+            resultSeed
+
+
+foldFaceEdgesHelp : (Vec3 -> Vec3 -> b -> b) -> Vec3 -> b -> List Vec3 -> b
+foldFaceEdgesHelp fn seed resultSeed vertices =
+    case vertices of
         el1 :: rest1 ->
             case rest1 of
                 [] ->
                     fn el1 seed resultSeed
 
                 el2 :: _ ->
-                    listFoldStaggeredPairs
+                    foldFaceEdgesHelp
                         fn
                         seed
                         (fn el1 el2 resultSeed)
                         rest1
 
         [] ->
-            resultSeed
-
-
-{-| Recursively "foldl" the function over the elements of the list,
-until the result passes a test. Using recursion in the place of a true
-fold allows a short-circuit return as soon as the test passes.
-Note: If the short-circuit condition is unlikely, especially towards
-the beginning of the list, it MAY be more efficient to use foldl,
-integrating the short-circuit test into the folding function as an up-front
-pass-through condition.
--}
-listRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> List a -> b
-listRecurseUntil test fn resultSoFar list =
-    if test resultSoFar then
-        resultSoFar
-
-    else
-        case list of
-            head :: tail ->
-                let
-                    acc =
-                        fn head resultSoFar
-                in
-                listRecurseUntil test fn acc tail
-
-            _ ->
-                resultSoFar
-
-
-{-| Map the function to pairs of consecutive elements in the ring list,
-starting with the pair (first, second), and so on, until (last, first).
--}
-listRingFoldStaggeredPairs : (a -> a -> b -> b) -> b -> List a -> b
-listRingFoldStaggeredPairs fn resultSeed list =
-    case list of
-        first :: _ :: _ ->
-            listFoldStaggeredPairs fn first resultSeed list
-
-        _ ->
-            -- The list is empty or contains one element.
             resultSeed
