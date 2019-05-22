@@ -1,183 +1,143 @@
 module Collision.ConvexConvex exposing
     ( addContacts
-    , clipAgainstHull
-    , clipFaceAgainstHull
-    , clipFaceAgainstPlane
     , findSeparatingAxis
     , project
-    , testSepAxis
+    , testSeparatingAxis
     )
 
 import Internal.Const as Const
 import Internal.Contact as Contact exposing (Contact)
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron, Face)
+import Internal.Convex as Convex exposing (AdjacentFace, Convex, Face)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-addContacts : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> List Contact -> List Contact
-addContacts shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 contacts =
-    case findSeparatingAxis shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 of
-        Just sepAxis ->
-            clipAgainstHull shapeTransform1 convexPolyhedron1 shapeTransform2 convexPolyhedron2 sepAxis -100 100
-                |> List.foldl
-                    (\{ point, normal, depth } currentContacts ->
-                        { ni = Vec3.negate sepAxis
-                        , pi = Vec3.sub point (Vec3.scale depth normal)
-                        , pj = point
-                        }
-                            :: currentContacts
-                    )
+minDist : Float
+minDist =
+    -100
+
+
+maxDist : Float
+maxDist =
+    100
+
+
+addContacts : Transform -> Convex -> Transform -> Convex -> List Contact -> List Contact
+addContacts transform1 convex1 transform2 convex2 contacts =
+    case findSeparatingAxis transform1 convex1 transform2 convex2 of
+        Just separatingAxis ->
+            case bestFace convex1.faces (Quaternion.derotate transform1.orientation separatingAxis) of
+                Just face1 ->
+                    case bestFace convex2.faces (Quaternion.derotate transform2.orientation (Vec3.negate separatingAxis)) of
+                        Just face2 ->
+                            clipTwoFaces transform1 face1 transform2 face2 separatingAxis contacts
+
+                        Nothing ->
+                            contacts
+
+                Nothing ->
                     contacts
 
         Nothing ->
             contacts
 
 
-type alias ClipResult =
-    { point : Vec3
-    , normal : Vec3
-    , depth : Float
-    }
-
-
-clipAgainstHull : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Vec3 -> Float -> Float -> List ClipResult
-clipAgainstHull t1 hull1 t2 hull2 separatingNormal minDist maxDist =
-    case bestFace Farthest t2 hull2.faces separatingNormal of
-        Just { vertices } ->
-            clipFaceAgainstHull
-                t1
-                hull1
-                separatingNormal
-                (List.map (Transform.pointToWorldFrame t2) vertices)
-                minDist
-                maxDist
-
-        Nothing ->
-            []
-
-
-clipFaceAgainstHull : Transform -> ConvexPolyhedron -> Vec3 -> List Vec3 -> Float -> Float -> List ClipResult
-clipFaceAgainstHull t1 hull1 separatingNormal worldVertsB minDist maxDist =
-    case bestFace Nearest t1 hull1.faces separatingNormal of
-        Just { point, normal, adjacentFaces } ->
-            let
-                localPlaneEq =
-                    -(Vec3.dot normal point)
-
-                planeNormalWS =
-                    Quaternion.rotate t1.orientation normal
-
-                planeEqWS =
-                    localPlaneEq - Vec3.dot planeNormalWS t1.position
-            in
-            adjacentFaces
-                |> List.foldl
-                    (\otherFace ->
-                        let
-                            localPlaneEq_ =
-                                -(Vec3.dot otherFace.point otherFace.normal)
-
-                            planeNormalWS_ =
-                                Quaternion.rotate t1.orientation otherFace.normal
-
-                            planeEqWS_ =
-                                localPlaneEq_ - Vec3.dot planeNormalWS_ t1.position
-                        in
-                        clipFaceAgainstPlane planeNormalWS_ planeEqWS_
-                    )
-                    worldVertsB
-                |> List.foldl
-                    (\vertex result ->
-                        let
-                            depth =
-                                max minDist (Vec3.dot planeNormalWS vertex + planeEqWS)
-                        in
-                        if depth <= maxDist && depth <= 0 then
-                            { point = vertex
-                            , normal = planeNormalWS
-                            , depth = depth
-                            }
-                                :: result
-
-                        else
-                            result
-                    )
-                    []
-
-        Nothing ->
-            []
-
-
-{-| Encapsulate a compatible comparison operator and a worst case value
-according to that operator such that for any DistanceCriterion dc:
-(compareOp dc) \_ (worstValue dc) == True
-(compareOp dc) (worstValue dc) \_ == False
-DistanceCriterion prevents accidental combination of comparators with
-inappropriate worst case values such as when starting an iterative run-off.
-It should be easier and less error prone to write and use generic run-off
-folds dependent on DistanceCriterion.
--}
-type DistanceCriterion
-    = Nearest
-    | Farthest
-
-
-compareOp : DistanceCriterion -> (Float -> Float -> Bool)
-compareOp dc =
-    case dc of
-        Nearest ->
-            (<)
-
-        Farthest ->
-            (>)
-
-
-worstValue : DistanceCriterion -> Float
-worstValue dc =
-    case dc of
-        Nearest ->
-            Const.maxNumber
-
-        Farthest ->
-            -Const.maxNumber
-
-
-bestFace : DistanceCriterion -> Transform -> List Face -> Vec3 -> Maybe Face
-bestFace comparator transform faces separatingNormal =
+clipTwoFaces : Transform -> Face -> Transform -> Face -> Vec3 -> List Contact -> List Contact
+clipTwoFaces transform1 { point, normal, adjacentFaces } transform2 { vertices } separatingAxis contacts =
     let
-        worstDistance =
-            worstValue comparator
+        worldPlaneNormal =
+            Quaternion.rotate transform1.orientation normal
 
-        compareFunc =
-            compareOp comparator
+        worldPlaneConstant =
+            -(Vec3.dot normal point) - Vec3.dot worldPlaneNormal transform1.position
+
+        worldVertices =
+            List.map (Transform.pointToWorldFrame transform2) vertices
     in
-    faces
-        |> List.foldl
-            (\face (( _, bestDistance ) as bestPair) ->
-                let
-                    faceDistance =
-                        face.normal
-                            |> Quaternion.rotate transform.orientation
-                            |> Vec3.dot separatingNormal
-                in
-                if compareFunc faceDistance bestDistance then
-                    ( Just face, faceDistance )
+    List.foldl
+        (\vertex result ->
+            let
+                depth =
+                    max minDist (Vec3.dot worldPlaneNormal vertex + worldPlaneConstant)
+            in
+            if depth <= maxDist && depth <= 0 then
+                { ni = Vec3.negate separatingAxis
+                , pi = Vec3.sub vertex (Vec3.scale depth worldPlaneNormal)
+                , pj = vertex
+                }
+                    :: result
 
-                else
-                    bestPair
-            )
-            ( Nothing, worstDistance )
-        |> Tuple.first
+            else
+                result
+        )
+        contacts
+        (clipAgainstAdjacentFaces transform1 adjacentFaces worldVertices)
 
 
-clipFaceAgainstPlane : Vec3 -> Float -> List Vec3 -> List Vec3
-clipFaceAgainstPlane planeNormal planeConstant vertices =
-    ConvexPolyhedron.foldFaceEdges
-        (clipFaceAgainstPlaneAdd planeNormal planeConstant)
-        []
-        vertices
+bestFace : List Face -> Vec3 -> Maybe Face
+bestFace faces separatingAxis =
+    case faces of
+        face :: restFaces ->
+            Just
+                (bestFaceHelp
+                    separatingAxis
+                    restFaces
+                    face
+                    (Vec3.dot face.normal separatingAxis)
+                )
+
+        [] ->
+            Nothing
+
+
+bestFaceHelp : Vec3 -> List Face -> Face -> Float -> Face
+bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
+    case faces of
+        face :: remainingFaces ->
+            let
+                faceDistance =
+                    Vec3.dot face.normal separatingAxis
+            in
+            if currentBestDistance - faceDistance > 0 then
+                bestFaceHelp
+                    separatingAxis
+                    remainingFaces
+                    face
+                    faceDistance
+
+            else
+                bestFaceHelp
+                    separatingAxis
+                    remainingFaces
+                    currentBestFace
+                    currentBestDistance
+
+        [] ->
+            currentBestFace
+
+
+clipAgainstAdjacentFaces : Transform -> List AdjacentFace -> List Vec3 -> List Vec3
+clipAgainstAdjacentFaces transform adjacentFaces worldVertices =
+    case adjacentFaces of
+        { point, normal } :: remainingFaces ->
+            let
+                worldPlaneNormal =
+                    Quaternion.rotate transform.orientation normal
+
+                worldPlaneConstant =
+                    -(Vec3.dot point normal) - Vec3.dot worldPlaneNormal transform.position
+
+                vertices =
+                    Convex.foldFaceEdges
+                        (clipFaceAgainstPlaneAdd worldPlaneNormal worldPlaneConstant)
+                        []
+                        worldVertices
+            in
+            clipAgainstAdjacentFaces transform remainingFaces vertices
+
+        [] ->
+            worldVertices
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
@@ -206,16 +166,22 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
         result
 
 
-findSeparatingAxis : Transform -> ConvexPolyhedron -> Transform -> ConvexPolyhedron -> Maybe Vec3
-findSeparatingAxis t1 hull1 t2 hull2 =
+findSeparatingAxis : Transform -> Convex -> Transform -> Convex -> Maybe Vec3
+findSeparatingAxis transform1 convex1 transform2 convex2 =
     let
+        -- group to reduce the number of arguments
         ctx =
-            { t1 = t1, hull1 = hull1, t2 = t2, hull2 = hull2 }
+            { transform1 = transform1
+            , convex1 = convex1
+            , transform2 = transform2
+            , convex2 = convex2
+            }
 
+        -- normals from both convexes converted in the world coordinates
         worldNormals =
-            List.foldl (Quaternion.rotate t1.orientation >> (::))
-                (List.foldl (Quaternion.rotate t2.orientation >> (::)) [] hull2.uniqueNormals)
-                hull1.uniqueNormals
+            List.foldl (Quaternion.rotate transform1.orientation >> (::))
+                (List.foldl (Quaternion.rotate transform2.orientation >> (::)) [] convex2.uniqueNormals)
+                convex1.uniqueNormals
     in
     case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
         Nothing ->
@@ -224,19 +190,25 @@ findSeparatingAxis t1 hull1 t2 hull2 =
         Just { target, dmin } ->
             let
                 worldEdges1 =
-                    List.foldl (Quaternion.rotate ctx.t1.orientation >> (::)) [] ctx.hull1.uniqueEdges
+                    List.foldl
+                        (Quaternion.rotate ctx.transform1.orientation >> (::))
+                        []
+                        ctx.convex1.uniqueEdges
 
                 worldEdges2 =
-                    List.foldl (Quaternion.rotate ctx.t2.orientation >> (::)) [] ctx.hull2.uniqueEdges
+                    List.foldl
+                        (Quaternion.rotate ctx.transform2.orientation >> (::))
+                        []
+                        ctx.convex2.uniqueEdges
             in
             testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
 
 
 type alias TestContext =
-    { t1 : Transform
-    , hull1 : ConvexPolyhedron
-    , t2 : Transform
-    , hull2 : ConvexPolyhedron
+    { transform1 : Transform
+    , convex1 : Convex
+    , transform2 : Transform
+    , convex2 : Convex
     }
 
 
@@ -247,7 +219,7 @@ testUniqueNormals ctx normals target dmin =
             Just { target = target, dmin = dmin }
 
         normal :: restNormals ->
-            case testSepAxis ctx normal of
+            case testSeparatingAxis ctx normal of
                 Nothing ->
                     Nothing
 
@@ -263,7 +235,7 @@ testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> 
 testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
     case edges1 of
         [] ->
-            if Vec3.dot (Vec3.sub ctx.t2.position ctx.t1.position) target > 0 then
+            if Vec3.dot (Vec3.sub ctx.transform2.position ctx.transform1.position) target > 0 then
                 Just (Vec3.negate target)
 
             else
@@ -289,7 +261,7 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                             normalizedCross =
                                 Vec3.normalize cross
                         in
-                        case testSepAxis ctx normalizedCross of
+                        case testSeparatingAxis ctx normalizedCross of
                             Nothing ->
                                 -- exit because hulls don't collide
                                 Nothing
@@ -304,14 +276,16 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                                     testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
 
 
-testSepAxis : TestContext -> Vec3 -> Maybe Float
-testSepAxis { t1, hull1, t2, hull2 } axis =
+{-| If projections of two convexes don’t overlap, then they don’t collide.
+-}
+testSeparatingAxis : TestContext -> Vec3 -> Maybe Float
+testSeparatingAxis { transform1, convex1, transform2, convex2 } separatingAxis =
     let
         ( max1, min1 ) =
-            project t1 hull1 axis
+            project transform1 convex1.vertices separatingAxis
 
         ( max2, min2 ) =
-            project t2 hull2 axis
+            project transform2 convex2.vertices separatingAxis
     in
     if max1 - min2 < 0 || max2 - min1 < 0 then
         Nothing
@@ -322,12 +296,12 @@ testSepAxis { t1, hull1, t2, hull2 } axis =
 
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.
 -}
-project : Transform -> ConvexPolyhedron -> Vec3 -> ( Float, Float )
-project transform { vertices } axis =
+project : Transform -> List Vec3 -> Vec3 -> ( Float, Float )
+project transform vertices separatingAxis =
     let
         -- TODO: consider inlining all the operations here, this is a very HOT path
         localAxis =
-            Transform.vectorToLocalFrame transform axis
+            Transform.vectorToLocalFrame transform separatingAxis
 
         add =
             Vec3.zero
@@ -361,6 +335,8 @@ projectHelp localAxis maxVal minVal currentVertices =
                 remainingVertices
 
 
+{-| Faster max for numbers
+-}
 max : Float -> Float -> Float
 max a b =
     if a - b > 0 then

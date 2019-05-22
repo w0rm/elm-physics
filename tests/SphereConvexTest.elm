@@ -2,7 +2,7 @@ module SphereConvexTest exposing (addContacts)
 
 import Collision.SphereConvex
 import Expect exposing (Expectation)
-import Fixtures.ConvexPolyhedron as HullFixtures
+import Fixtures.Convex as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)

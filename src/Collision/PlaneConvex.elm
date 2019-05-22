@@ -1,14 +1,14 @@
 module Collision.PlaneConvex exposing (addContacts)
 
 import Internal.Contact as Contact exposing (Contact)
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-addContacts : (Contact -> Contact) -> Transform -> Transform -> ConvexPolyhedron -> List Contact -> List Contact
-addContacts orderContact planeTransform convexTransform convexPolyhedron contacts =
+addContacts : (Contact -> Contact) -> Transform -> Transform -> Convex -> List Contact -> List Contact
+addContacts orderContact planeTransform convexTransform { vertices } contacts =
     let
         worldNormal =
             Quaternion.rotate planeTransform.orientation Vec3.k
@@ -39,4 +39,4 @@ addContacts orderContact planeTransform convexTransform convexPolyhedron contact
                 currentContacts
         )
         contacts
-        convexPolyhedron.vertices
+        vertices

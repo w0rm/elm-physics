@@ -1,5 +1,6 @@
-module Internal.ConvexPolyhedron exposing
-    ( ConvexPolyhedron
+module Internal.Convex exposing
+    ( AdjacentFace
+    , Convex
     , Face
     , addFaceEdges
     , expandBoundingSphereRadius
@@ -22,15 +23,19 @@ import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Set
 
 
+type alias AdjacentFace =
+    { point : Vec3, normal : Vec3 }
+
+
 type alias Face =
     { vertices : List Vec3
     , normal : Vec3
     , point : Vec3 -- the first point on the face
-    , adjacentFaces : List { point : Vec3, normal : Vec3 }
+    , adjacentFaces : List AdjacentFace
     }
 
 
-type alias ConvexPolyhedron =
+type alias Convex =
     { faces : List Face
     , vertices : List Vec3 -- cached for performance
     , uniqueEdges : List Vec3 -- unique edges
@@ -38,7 +43,7 @@ type alias ConvexPolyhedron =
     }
 
 
-init : List (List Int) -> Array Vec3 -> ConvexPolyhedron
+init : List (List Int) -> Array Vec3 -> Convex
 init faceVertexLists vertices =
     let
         faces =
@@ -170,7 +175,7 @@ faceAdjacency faceVertexLists =
         faceIndexedLists
 
 
-fromBox : Vec3 -> ConvexPolyhedron
+fromBox : Vec3 -> Convex
 fromBox { x, y, z } =
     let
         v0 =
@@ -330,7 +335,7 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
         candidateEdge :: uniques
 
 
-foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
+foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> Convex -> a
 foldFaceNormals fn acc { faces } =
     List.foldl
         (\{ vertices, normal } acc1 ->
@@ -347,7 +352,7 @@ foldFaceNormals fn acc { faces } =
         faces
 
 
-foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> ConvexPolyhedron -> a
+foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> Convex -> a
 foldUniqueEdges fn acc { vertices, uniqueEdges } =
     case vertices of
         vertex0 :: _ ->
@@ -357,7 +362,7 @@ foldUniqueEdges fn acc { vertices, uniqueEdges } =
             acc
 
 
-expandBoundingSphereRadius : Transform -> ConvexPolyhedron -> Float -> Float
+expandBoundingSphereRadius : Transform -> Convex -> Float -> Float
 expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
     vertices
         |> List.foldl
@@ -371,7 +376,7 @@ expandBoundingSphereRadius shapeTransform { vertices } boundingSphereRadius =
         |> sqrt
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Transform -> ConvexPolyhedron -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast : { from : Vec3, direction : Vec3 } -> Transform -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } transform convex =
     List.foldl
         (\face maybeHit ->

@@ -16,7 +16,7 @@ module SphereConvex exposing (main)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
-import Fixtures.ConvexPolyhedron as HullFixtures
+import Fixtures.Convex as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Body as Body exposing (Body)
 import Internal.Quaternion as Quaternion

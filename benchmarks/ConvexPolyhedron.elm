@@ -1,21 +1,21 @@
-module ConvexPolyhedron exposing (main)
+module Convex exposing (main)
 
 {- For a useful benchmark,
-   copy and rename an older baseline version of Physics/ConvexPolyhedron.elm
-   to Physics/OriginalConvexPolyhedron.elm and uncomment the import below,
+   copy and rename an older baseline version of Physics/Convex.elm
+   to Physics/OriginalConvex.elm and uncomment the import below,
    then toggle the usage in benchmarks.
 
-   Switching it back to use the (current) ConvexPolyhedron.elm through the
-   OriginalConvexPolyhedron alias keeps obsolete or redundant code out of
+   Switching it back to use the (current) Convex.elm through the
+   OriginalConvex alias keeps obsolete or redundant code out of
    the repo while the comparison benchmarks continue to be maintained and
    built and run essentially as absolute non-comparison benchmarks until
    they are needed again in another round of performance work.
 -}
-{- import Physics.OriginalConvexPolyhedron as OriginalConvexPolyhedron -}
+{- import Physics.OriginalConvex as OriginalConvex -}
 
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
@@ -30,11 +30,11 @@ suite =
     let
         sampleHull =
             vec3 1 1 1
-                |> ConvexPolyhedron.fromBox
+                |> Convex.fromBox
 
         originalSampleHull =
             vec3 1 1 1
-                |> {- OriginalConvexPolyhedron.fromBox -} ConvexPolyhedron.fromBox
+                |> {- OriginalConvex.fromBox -} Convex.fromBox
 
         trivialVisitor : Vec3 -> Vec3 -> Int -> Int
         trivialVisitor _ _ _ =
@@ -59,20 +59,20 @@ suite =
             ]
 
         boxHull halfExtent =
-            ConvexPolyhedron.fromBox
+            Convex.fromBox
                 (vec3 halfExtent halfExtent halfExtent)
 
         originalBoxHull halfExtent =
-            {- OriginalConvexPolyhedron.fromBox -}
-            ConvexPolyhedron.fromBox
+            {- OriginalConvex.fromBox -}
+            Convex.fromBox
                 (vec3 halfExtent halfExtent halfExtent)
     in
-    describe "ConvexPolyhedron"
+    describe "Convex"
         [ Benchmark.compare "foldFaceNormals"
             "baseline"
             (\_ ->
-                {- OriginalConvexPolyhedron.foldFaceNormals -}
-                ConvexPolyhedron.foldFaceNormals
+                {- OriginalConvex.foldFaceNormals -}
+                Convex.foldFaceNormals
                     -- fold a function with minimal overhead
                     trivialVisitor
                     0
@@ -80,7 +80,7 @@ suite =
             )
             "latest code"
             (\_ ->
-                ConvexPolyhedron.foldFaceNormals
+                Convex.foldFaceNormals
                     -- fold a function with minimal overhead
                     trivialVisitor
                     0
@@ -95,23 +95,19 @@ suite =
         , Benchmark.compare "clipFaceAgainstHull"
             "baseline"
             (\_ ->
-                {- OriginalConvexPolyhedron.clipFaceAgainstHull -}
-                ConvexPolyhedron.clipFaceAgainstHull
+                {- OriginalConvex.clipFaceAgainstHull -}
+                Convex.clipFaceAgainstHull
                     transform
                     (originalBoxHull 0.5)
                     sepNormal
                     worldVertsB
-                    -100
-                    100
             )
             "latest code"
             (\_ ->
-                ConvexPolyhedron.clipFaceAgainstHull
+                Convex.clipFaceAgainstHull
                     transform
                     (boxHull 0.5)
                     sepNormal
                     worldVertsB
-                    -100
-                    100
             )
         ]

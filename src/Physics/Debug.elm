@@ -15,7 +15,7 @@ module Physics.Debug exposing
 -}
 
 import Internal.Body as InternalBody
-import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Convex as Convex
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Shape exposing (Kind(..), Shape)
@@ -64,7 +64,7 @@ addFaceNormals : Shape -> List FaceNormal -> List FaceNormal
 addFaceNormals { kind, position, orientation } normals =
     case kind of
         Convex convex ->
-            ConvexPolyhedron.foldFaceNormals
+            Convex.foldFaceNormals
                 (\normal point ->
                     (::)
                         { normal = Quaternion.rotate orientation normal
@@ -106,7 +106,7 @@ addUniqueEdges : Shape -> List UniqueEdge -> List UniqueEdge
 addUniqueEdges { kind, position, orientation } edges =
     case kind of
         Convex convex ->
-            ConvexPolyhedron.foldUniqueEdges
+            Convex.foldUniqueEdges
                 (\point direction ->
                     (::)
                         { direction = Quaternion.rotate orientation direction

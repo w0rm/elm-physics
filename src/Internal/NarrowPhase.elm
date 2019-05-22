@@ -58,14 +58,14 @@ getBodyContacts body1 body2 =
 addShapeContacts : Transform -> Shape -> Transform -> Shape -> List Contact -> List Contact
 addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
     case shape1.kind of
-        Convex convexPolyhedron ->
+        Convex convex1 ->
             case shape2.kind of
-                Convex convexPolyhedron2 ->
+                Convex convex2 ->
                     Collision.ConvexConvex.addContacts
                         shapeTransform1
-                        convexPolyhedron
+                        convex1
                         shapeTransform2
-                        convexPolyhedron2
+                        convex2
                         contacts
 
                 Plane ->
@@ -73,16 +73,16 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                         Contact.flip
                         shapeTransform2
                         shapeTransform1
-                        convexPolyhedron
+                        convex1
                         contacts
 
-                Sphere radius ->
+                Sphere radius2 ->
                     Collision.SphereConvex.addContacts
                         Contact.flip
                         shapeTransform2
-                        radius
+                        radius2
                         shapeTransform1
-                        convexPolyhedron
+                        convex1
                         contacts
 
         Plane ->
@@ -91,45 +91,45 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                     -- don't collide two planes
                     contacts
 
-                Convex convexPolyhedron ->
+                Convex convex2 ->
                     Collision.PlaneConvex.addContacts
                         identity
                         shapeTransform1
                         shapeTransform2
-                        convexPolyhedron
+                        convex2
                         contacts
 
-                Sphere radius ->
+                Sphere radius2 ->
                     Collision.PlaneSphere.addContacts
                         identity
                         shapeTransform1
                         shapeTransform2
-                        radius
+                        radius2
                         contacts
 
-        Sphere radius ->
+        Sphere radius1 ->
             case shape2.kind of
                 Plane ->
                     Collision.PlaneSphere.addContacts
                         Contact.flip
                         shapeTransform2
                         shapeTransform1
-                        radius
+                        radius1
                         contacts
 
-                Convex convexPolyhedron ->
+                Convex convex2 ->
                     Collision.SphereConvex.addContacts
                         identity
                         shapeTransform1
-                        radius
+                        radius1
                         shapeTransform2
-                        convexPolyhedron
+                        convex2
                         contacts
 
                 Sphere radius2 ->
                     Collision.SphereSphere.addContacts
                         shapeTransform1
-                        radius
+                        radius1
                         shapeTransform2
                         radius2
                         contacts

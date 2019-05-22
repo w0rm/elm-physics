@@ -1,6 +1,6 @@
 module Internal.AABB exposing
     ( AABB
-    , convexPolyhedron
+    , convex
     , dimesions
     , extend
     , impossible
@@ -9,7 +9,7 @@ module Internal.AABB exposing
     )
 
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -82,8 +82,8 @@ overlaps aabb1 aabb2 =
         && ((l2.z <= u1.z && u1.z <= u2.z) || (l1.z <= u2.z && u2.z <= u1.z))
 
 
-convexPolyhedron : ConvexPolyhedron -> Transform -> AABB
-convexPolyhedron { vertices } transform =
+convex : Convex -> Transform -> AABB
+convex { vertices } transform =
     List.foldl
         (\point ->
             let

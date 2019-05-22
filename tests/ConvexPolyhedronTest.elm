@@ -1,4 +1,4 @@
-module ConvexPolyhedronTest exposing
+module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
     , faceAdjacency
@@ -8,9 +8,9 @@ module ConvexPolyhedronTest exposing
 
 import Array exposing (Array)
 import Expect exposing (Expectation)
-import Fixtures.ConvexPolyhedron
+import Fixtures.Convex
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -125,19 +125,19 @@ initFaceNormal =
                         |> Array.fromList
                 )
 
-        -- TODO: test the public api of ConvexPolyhedron.init instead
+        -- TODO: test the public api of Convex.init instead
         legacyInitFaceNormal : List Int -> Array Vec3 -> Vec3
         legacyInitFaceNormal indices vertices =
-            ConvexPolyhedron.init [ indices ] vertices
+            Convex.init [ indices ] vertices
                 |> .faces
                 |> List.head
                 |> Maybe.map .normal
                 |> Maybe.withDefault Vec3.zero
     in
-    describe "ConvexPolyhedron.initFaceNormal"
+    describe "Convex.initFaceNormal"
         [ test "works for the box" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.boxHull 1
+                Fixtures.Convex.boxHull 1
                     |> (\{ faces } ->
                             List.map
                                 (\{ vertices } ->
@@ -150,7 +150,7 @@ initFaceNormal =
                     |> Expect.equal boxNormals
         , test "box-specific bypass optimization works identically" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.boxHull 1
+                Fixtures.Convex.boxHull 1
                     |> .faces
                     |> List.map .normal
                     |> Expect.equal boxNormals
@@ -257,20 +257,20 @@ listRingRotate offset ring =
 
 initUniqueEdges : Test
 initUniqueEdges =
-    describe "ConvexPolyhedron.initUniqueEdges"
+    describe "Convex.initUniqueEdges"
         -- There are several valid representations of the same convex
         -- polyhedron, differing in the listed order of vertices and/or faces
         -- or in insignificant rounding errors in vertex values.
         -- So, the implementation of initUniqueEdges should be given some
         -- lattitude in its resulting list of edges.
-        -- ConvexPolyhedron.addFaceEdges does most of the work of
-        -- ConvexPolyhedron.initUniqueEdges, and it can be tested with seed
-        -- values to get more deterministic results from ConvexPolyhedrons
+        -- Convex.addFaceEdges does most of the work of
+        -- Convex.initUniqueEdges, and it can be tested with seed
+        -- values to get more deterministic results from Convexs
         -- even with varying equivalent representations.
         [ test "gives the correct number of edges for a box" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> uniqueEdgesOfConvexPolyhedron
+                Fixtures.Convex.boxHull 1
+                    |> uniqueEdgesOfConvex
                     |> List.length
                     |> Expect.equal 3
 
@@ -280,20 +280,20 @@ initUniqueEdges =
         -- some edges.
         , test "works for a square pyramid" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.squarePyramid
-                    |> uniqueEdgesOfConvexPolyhedron
+                Fixtures.Convex.squarePyramid
+                    |> uniqueEdgesOfConvex
                     |> List.length
                     |> Expect.equal 6
         , test "works for an off-square pyramid" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.askewSquarePyramid
-                    |> uniqueEdgesOfConvexPolyhedron
+                Fixtures.Convex.askewSquarePyramid
+                    |> uniqueEdgesOfConvex
                     |> List.length
                     |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
-                    |> uniqueEdgesOfConvexPolyhedron
+                Fixtures.Convex.nonSquareQuadPyramid
+                    |> uniqueEdgesOfConvex
                     |> List.length
                     -- all edges unique, none parallel
                     |> Expect.equal 8
@@ -302,17 +302,17 @@ initUniqueEdges =
 
 addFaceEdges : Test
 addFaceEdges =
-    describe "ConvexPolyhedron.addFaceEdges"
+    describe "Convex.addFaceEdges"
         -- Testing addFaceEdges avoids over-testing for exact results from
-        -- ConvexPolyhedron.initUniqueEdges.
+        -- Convex.initUniqueEdges.
         -- There are several valid representations of the same convex
         -- polyhedron, differing in the listed order of vertices and/or faces
         -- or in insignificant rounding errors in vertex values.
         -- So, the implementation of initUniqueEdges should be given some
         -- lattitude in its resulting list of edges.
-        -- ConvexPolyhedron.addFaceEdges does most of the work of
-        -- ConvexPolyhedron.initUniqueEdges, and it can be tested with seed
-        -- values to get more deterministic results from ConvexPolyhedrons
+        -- Convex.addFaceEdges does most of the work of
+        -- Convex.initUniqueEdges, and it can be tested with seed
+        -- values to get more deterministic results from Convexs
         -- even with varying equivalent representations.
         [ test "works for the box with positive seeds" <|
             \_ ->
@@ -330,8 +330,8 @@ addFaceEdges =
                         , vec3 0 0 1
                         ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> addEdgesOfConvexPolyhedron fullSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with negatively directed seeds" <|
             \_ ->
@@ -342,8 +342,8 @@ addFaceEdges =
                         , vec3 0 0 -1
                         ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> addEdgesOfConvexPolyhedron fullSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with partial seeds" <|
             \_ ->
@@ -356,8 +356,8 @@ addFaceEdges =
                         , vec3 0 0 1
                         ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with different partial seeds" <|
             \_ ->
@@ -368,8 +368,8 @@ addFaceEdges =
                     partialSeedSet =
                         [ vec3 0 0 1 ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with other different partial seeds" <|
             \_ ->
@@ -380,8 +380,8 @@ addFaceEdges =
                     partialSeedSet =
                         [ vec3 0 1 0 ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with approximate seeds" <|
             \_ ->
@@ -399,8 +399,8 @@ addFaceEdges =
                         , vec3 0 0 (-1 - Const.precision / 3.0)
                         ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> addEdgesOfConvexPolyhedron validSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> addEdgesOfConvex validSeedSet
                     |> Expect.equal validSeedSet
         , test "works for the box with invalid seeds" <|
             \_ ->
@@ -424,8 +424,8 @@ addFaceEdges =
                         , vec3 1 0 (Const.precision * 3.0)
                         ]
                 in
-                Fixtures.ConvexPolyhedron.boxHull 1
-                    |> countEdgesOfConvexPolyhedron invalidSeedSet
+                Fixtures.Convex.boxHull 1
+                    |> countEdgesOfConvex invalidSeedSet
                     |> Expect.equal (List.length invalidSeedSet + 3)
 
         -- The square pyramid shape has fewer parallel edges than a box.
@@ -440,8 +440,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                Fixtures.ConvexPolyhedron.squarePyramid
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.squarePyramid
+                    |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 6
         , test "works for an off-square pyramid" <|
             \_ ->
@@ -451,8 +451,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                Fixtures.ConvexPolyhedron.askewSquarePyramid
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.askewSquarePyramid
+                    |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->
@@ -462,8 +462,8 @@ addFaceEdges =
                         , vec3 0 1 0
                         ]
                 in
-                Fixtures.ConvexPolyhedron.nonSquareQuadPyramid
-                    |> countEdgesOfConvexPolyhedron partialSeedSet
+                Fixtures.Convex.nonSquareQuadPyramid
+                    |> countEdgesOfConvex partialSeedSet
                     -- all edges unique, none parallel
                     |> Expect.equal 8
         ]
@@ -471,11 +471,11 @@ addFaceEdges =
 
 boxUniqueEdges : Test
 boxUniqueEdges =
-    describe "ConvexPolyhedron.boxUniqueEdges"
+    describe "Convex.boxUniqueEdges"
         [ test "works for the box" <|
             \_ ->
                 Expect.equal
-                    (Fixtures.ConvexPolyhedron.boxHull 1).uniqueEdges
+                    (Fixtures.Convex.boxHull 1).uniqueEdges
                     [ vec3 1 0 0
                     , vec3 0 1 0
                     , vec3 0 0 1
@@ -485,11 +485,11 @@ boxUniqueEdges =
 
 faceAdjacency : Test
 faceAdjacency =
-    describe "ConvexPolyhedron.faceAdjacency"
+    describe "Convex.faceAdjacency"
         [ test "works for the box" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.boxVertexIndices
-                    |> ConvexPolyhedron.faceAdjacency
+                Fixtures.Convex.boxVertexIndices
+                    |> Convex.faceAdjacency
                     |> List.map List.sort
                     |> Expect.equal
                         [ [ 2, 3, 4, 5 ]
@@ -501,8 +501,8 @@ faceAdjacency =
                         ]
         , test "works for the octohedron" <|
             \_ ->
-                Fixtures.ConvexPolyhedron.octoVertexIndices
-                    |> ConvexPolyhedron.faceAdjacency
+                Fixtures.Convex.octoVertexIndices
+                    |> Convex.faceAdjacency
                     |> List.map List.sort
                     |> Expect.equal
                         [ [ 1, 2, 3, 4, 5, 6 ]
@@ -522,32 +522,32 @@ faceAdjacency =
 
 
 {-| Provide convenient test access to initUniqueEdges based on the faces and
-vertices of an existing ConvexPolyhedron. There is no need for this in
-production, where initUniqueEdges is called once at most per ConvexPolyhedron
-BEFORE that ConvexPolyhedron is fully initialized, because its result gets
-cached in ConvexPolyhedron.edges.
+vertices of an existing Convex. There is no need for this in
+production, where initUniqueEdges is called once at most per Convex
+BEFORE that Convex is fully initialized, because its result gets
+cached in Convex.edges.
 -}
-uniqueEdgesOfConvexPolyhedron : ConvexPolyhedron -> List Vec3
-uniqueEdgesOfConvexPolyhedron { faces } =
-    ConvexPolyhedron.initUniqueEdges faces
+uniqueEdgesOfConvex : Convex -> List Vec3
+uniqueEdgesOfConvex { faces } =
+    Convex.initUniqueEdges faces
 
 
 {-| This test helper function is intended as a more flexible variant of
-ConvexPolyhedron.initUniqueEdges. Its differences from initUniqueEdges are
+Convex.initUniqueEdges. Its differences from initUniqueEdges are
 that it can be fed an initial list of "seed" edges and it operates on a
-pre-existing ConvexPolyhedron's vertices and faces.
-See the comment on uniqueEdgesOfConvexPolyhedron.
+pre-existing Convex's vertices and faces.
+See the comment on uniqueEdgesOfConvex.
 These differences have no application in production.
-Keep this code in sync with any changes to ConvexPolyhedron.initUniqueEdges.
+Keep this code in sync with any changes to Convex.initUniqueEdges.
 -}
-addEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> List Vec3
-addEdgesOfConvexPolyhedron seedEdges { faces } =
-    List.foldl ConvexPolyhedron.addFaceEdges seedEdges faces
+addEdgesOfConvex : List Vec3 -> Convex -> List Vec3
+addEdgesOfConvex seedEdges { faces } =
+    List.foldl Convex.addFaceEdges seedEdges faces
 
 
-{-| Useful variant of addEdgesOfConvexPolyhedron that abstracts out the count
+{-| Useful variant of addEdgesOfConvex that abstracts out the count
 for a less-detailed result.
 -}
-countEdgesOfConvexPolyhedron : List Vec3 -> ConvexPolyhedron -> Int
-countEdgesOfConvexPolyhedron seedEdges hull =
-    List.length <| addEdgesOfConvexPolyhedron seedEdges hull
+countEdgesOfConvex : List Vec3 -> Convex -> Int
+countEdgesOfConvex seedEdges hull =
+    List.length <| addEdgesOfConvex seedEdges hull

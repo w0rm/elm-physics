@@ -1,13 +1,13 @@
 module Collision.SphereConvex exposing (addContacts)
 
 import Internal.Contact as Contact exposing (Contact)
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-addContacts : (Contact -> Contact) -> Transform -> Float -> Transform -> ConvexPolyhedron -> List Contact -> List Contact
+addContacts : (Contact -> Contact) -> Transform -> Float -> Transform -> Convex -> List Contact -> List Contact
 addContacts orderContact { position } radius t2 hull2 contacts =
     let
         ( maybeWorldContact, penetration ) =
@@ -62,10 +62,10 @@ isAnEdgeContact testEdgeResult =
             False
 
 
-{-| The contact point, if any, of a ConvexPolyhedron with a sphere, and
-the sphere's penetration into the ConvexPolyhedron beyond that contact.
+{-| The contact point, if any, of a Convex with a sphere, and
+the sphere's penetration into the Convex beyond that contact.
 -}
-sphereContact : Vec3 -> Float -> Transform -> ConvexPolyhedron -> ( Maybe Vec3, Float )
+sphereContact : Vec3 -> Float -> Transform -> Convex -> ( Maybe Vec3, Float )
 sphereContact center radius t2 { faces } =
     let
         sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
@@ -133,7 +133,7 @@ sphereContact center radius t2 { faces } =
             sphereFaceContact faceNormal faceDistance
 
 
-{-| The contact point and distance, if any, of a ConvexPolyhedron's face
+{-| The contact point and distance, if any, of a Convex's face
 with a sphere, or otherwise a list of the face's edges that may contain an
 edge or vertex contact.
 -}
@@ -170,7 +170,7 @@ sphereTestFace radius normal vertices acc =
 
 
 {-| The edge or vertex contact point and its distance (squared), if any,
-of a ConvexPolyhedron's edges with a sphere, limited to a pre-qualified
+of a Convex's edges with a sphere, limited to a pre-qualified
 list of edges per face.
 -}
 sphereTestBoundaries : Float -> List (List ( Vec3, Vec3 )) -> TestBoundaryResult
@@ -182,7 +182,7 @@ sphereTestBoundaries radius faceEdgeList =
 
 
 {-| The edge or possible vertex contact point and its distance (squared),
-if any, of a ConvexPolyhedron face's pre-qualified edges with a sphere.
+if any, of a Convex face's pre-qualified edges with a sphere.
 -}
 sphereTestBoundary : List ( Vec3, Vec3 ) -> TestBoundaryResult -> TestBoundaryResult
 sphereTestBoundary faceEdges statusQuo =
@@ -203,7 +203,7 @@ sphereTestBoundary faceEdges statusQuo =
 
 
 {-| The edge or possible vertex contact point and its distance (squared),
-if any, of a ConvexPolyhedron face's pre-qualified edge with a sphere.
+if any, of a Convex face's pre-qualified edge with a sphere.
 -}
 sphereTestEdge : Vec3 -> Vec3 -> ( Maybe Vec3, Float ) -> TestBoundaryResult
 sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
@@ -267,14 +267,14 @@ sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
 
 {-| A 2D point-in-polygon check for the projection of the origin
 (e.g. the center of a sphere within its own frame of reference) within a
-polygon (e.g. a ConvexPolyhedron face). To simplify post-processing,
+polygon (e.g. a Convex face). To simplify post-processing,
 return a relatively short but complete list of qualified edges (adjacent
 vertex pairs) whose lines separate the projection from the polygon.
 If the list is empty, the projection is within the polygon.
 -}
 originProjection : List Vec3 -> Vec3 -> List ( Vec3, Vec3 )
 originProjection vertices normal =
-    ConvexPolyhedron.foldFaceEdges
+    Convex.foldFaceEdges
         (\prevVertex vertex acc ->
             let
                 edge_x_normal =

@@ -10,9 +10,9 @@ module ConvexConvexTest exposing
 import Array exposing (Array)
 import Collision.ConvexConvex
 import Expect exposing (Expectation)
-import Fixtures.ConvexPolyhedron exposing (boxHull)
+import Fixtures.Convex exposing (boxHull)
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)

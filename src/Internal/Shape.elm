@@ -9,7 +9,7 @@ module Internal.Shape exposing
 
 import Internal.AABB as AABB
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -27,7 +27,7 @@ type alias Shape =
 
 
 type Kind
-    = Convex ConvexPolyhedron
+    = Convex Convex
     | Plane
     | Sphere Float
 
@@ -35,8 +35,8 @@ type Kind
 aabbClosure : Kind -> Transform -> AABB.AABB
 aabbClosure kind =
     case kind of
-        Convex convexPolyhedron ->
-            AABB.convexPolyhedron convexPolyhedron
+        Convex convex ->
+            AABB.convex convex
 
         Plane ->
             AABB.plane
@@ -48,10 +48,10 @@ aabbClosure kind =
 expandBoundingSphereRadius : Shape -> Float -> Float
 expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius =
     case kind of
-        Convex convexPolyhedron ->
-            ConvexPolyhedron.expandBoundingSphereRadius
+        Convex convex ->
+            Convex.expandBoundingSphereRadius
                 { position = position, orientation = orientation }
-                convexPolyhedron
+                convex
                 boundingSphereRadius
 
         Sphere radius ->
@@ -75,7 +75,7 @@ raycast ray transform { kind } =
             raycastSphere ray transform.position radius
 
         Convex convex ->
-            ConvexPolyhedron.raycast ray transform convex
+            Convex.raycast ray transform convex
 
 
 raycastSphere : { from : Vec3, direction : Vec3 } -> Vec3 -> Float -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
