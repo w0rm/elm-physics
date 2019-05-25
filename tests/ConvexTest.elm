@@ -11,8 +11,6 @@ import Expect exposing (Expectation)
 import Fixtures.Convex
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Test exposing (..)
 
