@@ -1,9 +1,9 @@
 module Fixtures.Convex exposing (askewSquarePyramid, boxHull, boxVertexIndices, boxyHull, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 

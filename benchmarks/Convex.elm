@@ -22,11 +22,14 @@ import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 main : BenchmarkProgram
 main =
-    program suite
+    program <|
+        describe "Convex"
+            [ foldFaceNormals
+            ]
 
 
-suite : Benchmark
-suite =
+foldFaceNormals : Benchmark
+foldFaceNormals =
     let
         sampleHull =
             vec3 1 1 1
@@ -67,47 +70,21 @@ suite =
             Convex.fromBox
                 (vec3 halfExtent halfExtent halfExtent)
     in
-    describe "Convex"
-        [ Benchmark.compare "foldFaceNormals"
-            "baseline"
-            (\_ ->
-                {- OriginalConvex.foldFaceNormals -}
-                Convex.foldFaceNormals
-                    -- fold a function with minimal overhead
-                    trivialVisitor
-                    0
-                    originalSampleHull
-            )
-            "latest code"
-            (\_ ->
-                Convex.foldFaceNormals
-                    -- fold a function with minimal overhead
-                    trivialVisitor
-                    0
-                    sampleHull
-            )
-
-        -- We will now clip a face in hullA that is closest to the
-        -- sepNormal against the points in worldVertsB.
-        -- We can expect to get back the 4 corners of the box hullA
-        -- penetrated 0.05 units into the plane worldVertsB we
-        -- constructed.
-        , Benchmark.compare "clipFaceAgainstHull"
-            "baseline"
-            (\_ ->
-                {- OriginalConvex.clipFaceAgainstHull -}
-                Convex.clipFaceAgainstHull
-                    transform
-                    (originalBoxHull 0.5)
-                    sepNormal
-                    worldVertsB
-            )
-            "latest code"
-            (\_ ->
-                Convex.clipFaceAgainstHull
-                    transform
-                    (boxHull 0.5)
-                    sepNormal
-                    worldVertsB
-            )
-        ]
+    Benchmark.compare "foldFaceNormals"
+        "baseline"
+        (\_ ->
+            {- OriginalConvex.foldFaceNormals -}
+            Convex.foldFaceNormals
+                -- fold a function with minimal overhead
+                trivialVisitor
+                0
+                originalSampleHull
+        )
+        "latest code"
+        (\_ ->
+            Convex.foldFaceNormals
+                -- fold a function with minimal overhead
+                trivialVisitor
+                0
+                sampleHull
+        )

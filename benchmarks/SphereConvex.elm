@@ -72,8 +72,8 @@ suite =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions center (radius * 2) octoHalfExtent
                 |> List.map Tuple.first
     in
-    describe "NarrowPhase"
-        [ Benchmark.compare "addSphereConvexContacts box"
+    describe "SphereConvex"
+        [ Benchmark.compare "box colliding"
             "baseline"
             (\_ ->
                 boxPositions
@@ -109,7 +109,7 @@ suite =
                                 []
                         )
             )
-        , Benchmark.compare "addSphereConvexContacts box fail"
+        , Benchmark.compare "box separated"
             "baseline"
             (\_ ->
                 boxFarPositions
@@ -147,7 +147,7 @@ suite =
                                 []
                         )
             )
-        , Benchmark.compare "addSphereConvexContacts octohedron"
+        , Benchmark.compare "octahedron colliding"
             "baseline"
             (\_ ->
                 octoPositions
@@ -185,7 +185,7 @@ suite =
                                 []
                         )
             )
-        , Benchmark.compare "addSphereConvexContacts oct fail"
+        , Benchmark.compare "octahedron failing"
             "baseline"
             (\_ ->
                 octoFarPositions
