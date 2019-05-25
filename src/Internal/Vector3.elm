@@ -1,35 +1,35 @@
 module Internal.Vector3 exposing
-    ( Vec3, vec3, zero, i, j, k
-    , add, sub, negate, scale, dot, cross, normalize, direction
-    , length, lengthSquared, distance, distanceSquared, tangents, lerp
+    ( Vec3
+    , add
+    , almostZero
+    , cross
+    , direction
+    , distance
+    , distanceSquared
+    , dot
+    , i
+    , j
+    , k
+    , length
+    , lengthSquared
+    , lerp
+    , negate
+    , normalize
+    , scale
+    , sub
+    , tangents
+    , vec3
+    , zero
     )
 
-{-|
+import Internal.Const as Const
 
 
-# Create
-
-@docs Vec3, vec3, zero, i, j, k
-
-
-# Get and Set
-
-The set functions create a new copy of the vector, updating a single field.
-
-@docs setX, setY, setZ
-
-
-# Operations
-
-@docs add, sub, negate, scale, dot, cross, normalize, direction
-@docs length, lengthSquared, distance, distanceSquared, tangents, lerp
-
-
-# Conversions
-
-@docs toRecord, fromRecord
-
--}
+almostZero : Vec3 -> Bool
+almostZero { x, y, z } =
+    (abs x <= Const.precision)
+        && (abs y <= Const.precision)
+        && (abs z <= Const.precision)
 
 
 {-| Three dimensional vector type

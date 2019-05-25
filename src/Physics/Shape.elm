@@ -18,7 +18,7 @@ they can be moved and rotated just like bodies in the world.
 -}
 
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Internal exposing (Protected(..))
 import Internal.Vector3 as Vec3
@@ -47,7 +47,7 @@ box dimensions =
     Protected
         { position = Vec3.zero
         , orientation = Quaternion.identity
-        , kind = Internal.Convex (ConvexPolyhedron.fromBox (Vec3.scale 0.5 dimensions))
+        , kind = Internal.Convex (Convex.fromBox (Vec3.scale 0.5 dimensions))
         }
 
 

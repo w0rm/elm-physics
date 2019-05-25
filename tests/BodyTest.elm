@@ -4,7 +4,7 @@ import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron
+import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Shape)
 import Test exposing (..)
@@ -38,7 +38,7 @@ box : Vec3 -> Shape
 box halfExtends =
     { position = vec3 0 0 0
     , orientation = Quaternion.identity
-    , kind = Shape.Convex (ConvexPolyhedron.fromBox halfExtends)
+    , kind = Shape.Convex (Convex.fromBox halfExtends)
     }
 
 

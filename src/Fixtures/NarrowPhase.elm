@@ -5,7 +5,7 @@ module Fixtures.NarrowPhase exposing
     )
 
 import Internal.Const as Const
-import Internal.NarrowPhase exposing (Contact)
+import Internal.Contact exposing (Contact)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 

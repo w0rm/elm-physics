@@ -1,9 +1,9 @@
-module Fixtures.ConvexPolyhedron exposing (askewSquarePyramid, boxHull, boxVertexIndices, boxyHull, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
+module Fixtures.Convex exposing (askewSquarePyramid, boxHull, boxVertexIndices, boxyHull, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Array exposing (Array)
 import Internal.Const as Const
-import Internal.ConvexPolyhedron as ConvexPolyhedron exposing (ConvexPolyhedron)
+import Internal.Convex as Convex exposing (Convex)
+import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 
 
 
@@ -15,24 +15,24 @@ vec3HalfExtent halfExtent =
     vec3 halfExtent halfExtent halfExtent
 
 
-{-| A ConvexPolyhedron for a cube with the given half-extent, constructed
+{-| A Convex for a cube with the given half-extent, constructed
 using optimized box-specific initializers.
 -}
-boxHull : Float -> ConvexPolyhedron
+boxHull : Float -> Convex
 boxHull halfExtent =
-    ConvexPolyhedron.fromBox <| vec3HalfExtent halfExtent
+    Convex.fromBox <| vec3HalfExtent halfExtent
 
 
-originalBoxHull : Float -> ConvexPolyhedron
+originalBoxHull : Float -> Convex
 originalBoxHull halfExtent =
-    ConvexPolyhedron.fromBox <| vec3HalfExtent halfExtent
+    Convex.fromBox <| vec3HalfExtent halfExtent
 
 
-{-| A replacement for boxhull/ConvexPolyhedron.fromBox that introduces some
+{-| A replacement for boxhull/Convex.fromBox that introduces some
 minor imprecision into one of the box vertices and can NOT be constructed
 using optimized box-specific initializers.
 -}
-boxyHull : Float -> ConvexPolyhedron
+boxyHull : Float -> Convex
 boxyHull halfExtent =
     let
         vertices =
@@ -52,10 +52,10 @@ boxyHull halfExtent =
                 ]
     in
     -- To test the handling of minor imprecision in a general
-    -- ConvexPolyhedron, purposely bypass the box-specific
+    -- Convex, purposely bypass the box-specific
     -- optimizations in boxNormals and boxEdges and use instead
     -- the general purpose calculations.
-    ConvexPolyhedron.init boxVertexIndices vertices
+    Convex.init boxVertexIndices vertices
 
 
 boxVertexIndices : List (List Int)
@@ -81,16 +81,16 @@ octoVertices halfExtent =
         |> Array.fromList
 
 
-octoHull : Float -> ConvexPolyhedron.ConvexPolyhedron
+octoHull : Float -> Convex.Convex
 octoHull halfExtent =
     octoVertices halfExtent
-        |> ConvexPolyhedron.init octoVertexIndices
+        |> Convex.init octoVertexIndices
 
 
-originalOctoHull : Float -> ConvexPolyhedron.ConvexPolyhedron
+originalOctoHull : Float -> Convex.Convex
 originalOctoHull halfExtent =
     octoVertices halfExtent
-        |> ConvexPolyhedron.init octoVertexIndices
+        |> Convex.init octoVertexIndices
 
 
 octoVertexIndices : List (List Int)
@@ -106,25 +106,25 @@ octoVertexIndices =
     ]
 
 
-squarePyramid : ConvexPolyhedron
+squarePyramid : Convex
 squarePyramid =
     -- Specify 0 for exact precision
     squareLikePyramid 0.0
 
 
-askewSquarePyramid : ConvexPolyhedron
+askewSquarePyramid : Convex
 askewSquarePyramid =
     -- Use an insignificant epsilon for an approximately square base
     squareLikePyramid (Const.precision / 3.0)
 
 
-nonSquareQuadPyramid : ConvexPolyhedron
+nonSquareQuadPyramid : Convex
 nonSquareQuadPyramid =
     -- Use a significant epsilon for a not even approximately square base
     squareLikePyramid (Const.precision * 3.0)
 
 
-squareLikePyramid : Float -> ConvexPolyhedron
+squareLikePyramid : Float -> Convex
 squareLikePyramid epsilon =
     let
         x =
@@ -163,4 +163,4 @@ squareLikePyramid epsilon =
                 , vec3 0 0 (z - zOffset)
                 ]
     in
-    ConvexPolyhedron.init faces vertices
+    Convex.init faces vertices
