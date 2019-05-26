@@ -189,7 +189,7 @@ project =
                         (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
                         (vec3 1 0 0)
                     )
-                    ( 0.5, -0.5 )
+                    { min = -0.5, max = 0.5 }
         , test "works for the negative x axis" <|
             \_ ->
                 Expect.equal
@@ -198,7 +198,7 @@ project =
                         (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
                         (vec3 -1 0 0)
                     )
-                    ( 0.5, -0.5 )
+                    { min = -0.5, max = 0.5 }
         , test "works for the positive y axis" <|
             \_ ->
                 Expect.equal
@@ -207,7 +207,7 @@ project =
                         (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
                         (vec3 0 1 0)
                     )
-                    ( 0.5, -0.5 )
+                    { min = -0.5, max = 0.5 }
         , test "works for the offset" <|
             \_ ->
                 Expect.equal
@@ -218,7 +218,7 @@ project =
                         (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
                         (vec3 0 1 0)
                     )
-                    ( 1.5, 0.5 )
+                    { min = 0.5, max = 1.5 }
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
@@ -228,7 +228,7 @@ project =
                     (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
                     (vec3 0 1 0)
                     |> Expect.all
-                        [ Tuple.first >> Expect.within (Expect.Absolute 0.00001) 1.5
-                        , Tuple.second >> Expect.within (Expect.Absolute 0.00001) 0.5
+                        [ .min >> Expect.within (Expect.Absolute 0.00001) 0.5
+                        , .max >> Expect.within (Expect.Absolute 0.00001) 1.5
                         ]
         ]

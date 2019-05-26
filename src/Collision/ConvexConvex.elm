@@ -281,44 +281,66 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
 testSeparatingAxis : TestContext -> Vec3 -> Maybe Float
 testSeparatingAxis { transform1, convex1, transform2, convex2 } separatingAxis =
     let
-        ( max1, min1 ) =
+        p1 =
             project transform1 convex1.vertices separatingAxis
 
-        ( max2, min2 ) =
+        p2 =
             project transform2 convex2.vertices separatingAxis
     in
-    if max1 - min2 < 0 || max2 - min1 < 0 then
+    if p1.max - p2.min < 0 || p2.max - p1.min < 0 then
         Nothing
 
     else
-        Just (min (max1 - min2) (max2 - min1))
+        Just (min (p1.max - p2.min) (p2.max - p1.min))
 
 
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.
 -}
-project : Transform -> List Vec3 -> Vec3 -> ( Float, Float )
+project : Transform -> List Vec3 -> Vec3 -> { min : Float, max : Float }
 project transform vertices separatingAxis =
     let
-        -- TODO: consider inlining all the operations here, this is a very HOT path
+        q =
+            transform.orientation
+
+        { x, y, z } =
+            transform.position
+
         localAxis =
-            Transform.vectorToLocalFrame transform separatingAxis
+            {-
+               Transform.vectorToLocalFrame transform separatingAxis
+            -}
+            Quaternion.derotate q separatingAxis
+
+        ix =
+            q.w * x - q.y * z + q.z * y
+
+        iy =
+            q.w * y - q.z * x + q.x * z
+
+        iz =
+            q.w * z - q.x * y + q.y * x
+
+        iw =
+            q.x * x + q.y * y + q.z * z
 
         add =
-            Vec3.zero
-                |> Transform.pointToLocalFrame transform
-                |> Vec3.dot localAxis
-
-        ( maxVal, minVal ) =
-            projectHelp localAxis -Const.maxNumber Const.maxNumber vertices
+            {-
+               -(Vec3.zero
+                   |> Transform.pointToLocalFrame transform
+                   |> Vec3.dot localAxis)
+            -}
+            ((ix * q.w + iw * q.x + iy * q.z - iz * q.y) * localAxis.x)
+                + ((iy * q.w + iw * q.y + iz * q.x - ix * q.z) * localAxis.y)
+                + ((iz * q.w + iw * q.z + ix * q.y - iy * q.x) * localAxis.z)
     in
-    ( maxVal - add, minVal - add )
+    projectHelp add localAxis Const.maxNumber -Const.maxNumber vertices
 
 
-projectHelp : Vec3 -> Float -> Float -> List Vec3 -> ( Float, Float )
-projectHelp localAxis maxVal minVal currentVertices =
+projectHelp : Float -> Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }
+projectHelp add localAxis minVal maxVal currentVertices =
     case currentVertices of
         [] ->
-            ( maxVal, minVal )
+            { min = minVal + add, max = maxVal + add }
 
         vec :: remainingVertices ->
             let
@@ -329,27 +351,18 @@ projectHelp localAxis maxVal minVal currentVertices =
                     vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
             in
             projectHelp
+                add
                 localAxis
-                (max maxVal val)
-                (min minVal val)
+                (if minVal - val > 0 then
+                    val
+
+                 else
+                    minVal
+                )
+                (if maxVal - val > 0 then
+                    maxVal
+
+                 else
+                    val
+                )
                 remainingVertices
-
-
-{-| Faster max for numbers
--}
-max : Float -> Float -> Float
-max a b =
-    if a - b > 0 then
-        a
-
-    else
-        b
-
-
-min : Float -> Float -> Float
-min a b =
-    if b - a > 0 then
-        a
-
-    else
-        b
