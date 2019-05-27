@@ -10,7 +10,7 @@ version=$(grep -m1 version elm.json | awk -F: '{ print $2 }' | sed 's/[", ]//g')
 git commit -a -m "Bump to $version"
 git push
 
-cleanup="examples gh-pages.sh tests release.sh src/Fixtures"
+cleanup=".travis.yml examples elm-physics.gif gh-pages.sh tests benchmarks release.sh src/Fixtures"
 last_commit=$(git rev-parse HEAD)
 
 git clone --reference . git@github.com:w0rm/elm-physics.git release
