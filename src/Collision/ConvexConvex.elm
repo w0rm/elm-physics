@@ -27,11 +27,15 @@ addContacts : Transform -> Convex -> Transform -> Convex -> List Contact -> List
 addContacts transform1 convex1 transform2 convex2 contacts =
     case findSeparatingAxis transform1 convex1 transform2 convex2 of
         Just separatingAxis ->
+            let
+                reversedSeparatingAxis =
+                    Vec3.negate separatingAxis
+            in
             case bestFace convex1.faces (Quaternion.derotate transform1.orientation separatingAxis) of
                 Just face1 ->
-                    case bestFace convex2.faces (Quaternion.derotate transform2.orientation (Vec3.negate separatingAxis)) of
+                    case bestFace convex2.faces (Quaternion.derotate transform2.orientation reversedSeparatingAxis) of
                         Just face2 ->
-                            clipTwoFaces transform1 face1 transform2 face2 separatingAxis contacts
+                            clipTwoFaces transform1 face1 transform2 face2 reversedSeparatingAxis contacts
 
                         Nothing ->
                             contacts
@@ -62,7 +66,7 @@ clipTwoFaces transform1 { point, normal, adjacentFaces } transform2 { vertices }
                     max minDist (Vec3.dot worldPlaneNormal vertex + worldPlaneConstant)
             in
             if depth <= maxDist && depth <= 0 then
-                { ni = Vec3.negate separatingAxis
+                { ni = separatingAxis
                 , pi = Vec3.sub vertex (Vec3.scale depth worldPlaneNormal)
                 , pj = vertex
                 }
