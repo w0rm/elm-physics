@@ -18,7 +18,6 @@ module Physics.World exposing
 -}
 
 import Internal.Body as InternalBody
-import Internal.Const as Const
 import Internal.Constraint exposing (ConstraintGroup)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion

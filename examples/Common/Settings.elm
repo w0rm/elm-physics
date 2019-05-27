@@ -10,10 +10,9 @@ module Common.Settings exposing
 More controls can be injected with view’s extraContent.
 -}
 
-import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (checked, style, type_)
-import Html.Events exposing (on, onCheck, onClick)
+import Html.Events exposing (onCheck, onClick)
 
 
 type alias Settings =

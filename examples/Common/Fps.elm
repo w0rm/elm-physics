@@ -8,7 +8,6 @@ We keep the last 50 time deltas and show the
 weighted average.
 -}
 
-import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (style)
 

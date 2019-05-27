@@ -32,7 +32,7 @@ identity =
     { m11 = 1, m21 = 0, m31 = 0, m12 = 0, m22 = 1, m32 = 0, m13 = 0, m23 = 0, m33 = 1 }
 
 
-{-| Matrix multiplcation: a \* b
+{-| Matrix multiplication: a \* b
 -}
 mul : Mat3 -> Mat3 -> Mat3
 mul a b =

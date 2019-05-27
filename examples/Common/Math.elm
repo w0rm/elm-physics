@@ -8,7 +8,6 @@ module Common.Math exposing
 
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 
 
 {-| A "squash" matrix that smashes things to the ground plane,

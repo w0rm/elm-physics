@@ -14,7 +14,6 @@ subscriptions and commands
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
-import Common.Math as Math
 import Html exposing (Attribute)
 import Html.Events as Events
 import Json.Decode as Decode exposing (Decoder)

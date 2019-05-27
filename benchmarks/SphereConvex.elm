@@ -18,7 +18,6 @@ import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
 import Fixtures.Convex as HullFixtures
 import Fixtures.NarrowPhase
-import Internal.Body as Body exposing (Body)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)

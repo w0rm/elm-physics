@@ -1,4 +1,4 @@
-module Fixtures.Convex exposing (askewSquarePyramid, boxHull, boxVertexIndices, boxyHull, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
+module Fixtures.Convex exposing (askewSquarePyramid, boxHull, boxVertexIndices, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
 
 import Array exposing (Array)
 import Internal.Const as Const
@@ -26,36 +26,6 @@ boxHull halfExtent =
 originalBoxHull : Float -> Convex
 originalBoxHull halfExtent =
     Convex.fromBox <| vec3HalfExtent halfExtent
-
-
-{-| A replacement for boxhull/Convex.fromBox that introduces some
-minor imprecision into one of the box vertices and can NOT be constructed
-using optimized box-specific initializers.
--}
-boxyHull : Float -> Convex
-boxyHull halfExtent =
-    let
-        vertices =
-            Array.fromList
-                [ vec3 -halfExtent -halfExtent -halfExtent
-                , vec3 halfExtent -halfExtent -halfExtent
-                , vec3 halfExtent halfExtent -halfExtent
-                , vec3 -halfExtent halfExtent -halfExtent
-                , vec3 -halfExtent -halfExtent halfExtent
-                , vec3 halfExtent -halfExtent halfExtent
-
-                -- Insignificantly adjust two vertex coordinates to force the 3
-                -- connected edges to be insignificantly off-parallel.
-                -- This should NOT alter the number of uniqueEdges
-                , vec3 halfExtent (halfExtent - Const.precision / 3.0) (halfExtent + Const.precision / 3.0)
-                , vec3 -halfExtent halfExtent halfExtent
-                ]
-    in
-    -- To test the handling of minor imprecision in a general
-    -- Convex, purposely bypass the box-specific
-    -- optimizations in boxNormals and boxEdges and use instead
-    -- the general purpose calculations.
-    Convex.init boxVertexIndices vertices
 
 
 boxVertexIndices : List (List Int)

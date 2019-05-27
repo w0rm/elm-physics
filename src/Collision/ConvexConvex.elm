@@ -290,12 +290,21 @@ testSeparatingAxis { transform1, convex1, transform2, convex2 } separatingAxis =
 
         p2 =
             project transform2 convex2.vertices separatingAxis
+
+        d1 =
+            p1.max - p2.min
+
+        d2 =
+            p2.max - p1.min
     in
-    if p1.max - p2.min < 0 || p2.max - p1.min < 0 then
+    if d1 < 0 || d2 < 0 then
         Nothing
 
+    else if d1 - d2 > 0 then
+        Just d2
+
     else
-        Just (min (p1.max - p2.min) (p2.max - p1.min))
+        Just d1
 
 
 {-| Get max and min dot product of a convex hull at Transform projected onto an axis.

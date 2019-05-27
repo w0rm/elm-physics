@@ -41,7 +41,7 @@ solve dt contactGroups world =
         solverBodies =
             makeSolverBodies world.nextBodyId world.bodies
 
-        conactEquationsGroups =
+        contactEquationsGroups =
             List.foldl
                 (\contactGroup ->
                     (::)
@@ -75,7 +75,7 @@ solve dt contactGroups world =
                                             constraints
                                         )
                 )
-                conactEquationsGroups
+                contactEquationsGroups
                 world.constraints
 
         solvedBodies =

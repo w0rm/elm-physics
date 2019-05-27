@@ -1,7 +1,7 @@
 module Internal.AABB exposing
     ( AABB
     , convex
-    , dimesions
+    , dimensions
     , extend
     , impossible
     , plane
@@ -62,26 +62,6 @@ extend aabb1 aabb =
     }
 
 
-overlaps : AABB -> AABB -> Bool
-overlaps aabb1 aabb2 =
-    let
-        l1 =
-            aabb1.lowerBound
-
-        u1 =
-            aabb1.upperBound
-
-        l2 =
-            aabb2.lowerBound
-
-        u2 =
-            aabb2.upperBound
-    in
-    ((l2.x <= u1.x && u1.x <= u2.x) || (l1.x <= u2.x && u2.x <= u1.x))
-        && ((l2.y <= u1.y && u1.y <= u2.y) || (l1.y <= u2.y && u2.y <= u1.y))
-        && ((l2.z <= u1.z && u1.z <= u2.z) || (l1.z <= u2.z && u2.z <= u1.z))
-
-
 convex : Convex -> Transform -> AABB
 convex { vertices } transform =
     List.foldl
@@ -96,8 +76,8 @@ convex { vertices } transform =
         vertices
 
 
-dimesions : AABB -> Vec3
-dimesions { lowerBound, upperBound } =
+dimensions : AABB -> Vec3
+dimensions { lowerBound, upperBound } =
     Vec3.sub upperBound lowerBound
 
 

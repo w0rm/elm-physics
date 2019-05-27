@@ -16,7 +16,6 @@ module Internal.Convex exposing
 
 import Array exposing (Array)
 import Dict
-import Internal.Const as Const
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3, vec3)

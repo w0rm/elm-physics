@@ -215,7 +215,7 @@ updateMassProperties ({ mass } as body) =
                 1.0 / mass
 
         e =
-            AABB.dimesions (computeAABB body)
+            AABB.dimensions (computeAABB body)
 
         ix =
             1.0 / 12.0 * mass * (e.y * e.y + e.z * e.z)

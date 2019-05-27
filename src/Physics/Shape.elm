@@ -17,7 +17,6 @@ they can be moved and rotated just like bodies in the world.
 
 -}
 
-import Internal.Const as Const
 import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Internal exposing (Protected(..))
