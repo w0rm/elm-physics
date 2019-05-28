@@ -12,7 +12,7 @@ import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias AABB =
@@ -30,15 +30,31 @@ zero =
 
 maximum : AABB
 maximum =
-    { lowerBound = vec3 -Const.maxNumber -Const.maxNumber -Const.maxNumber
-    , upperBound = vec3 Const.maxNumber Const.maxNumber Const.maxNumber
+    { lowerBound =
+        { x = -Const.maxNumber
+        , y = -Const.maxNumber
+        , z = -Const.maxNumber
+        }
+    , upperBound =
+        { x = Const.maxNumber
+        , y = Const.maxNumber
+        , z = Const.maxNumber
+        }
     }
 
 
 impossible : AABB
 impossible =
-    { lowerBound = vec3 Const.maxNumber Const.maxNumber Const.maxNumber
-    , upperBound = vec3 -Const.maxNumber -Const.maxNumber -Const.maxNumber
+    { lowerBound =
+        { x = Const.maxNumber
+        , y = Const.maxNumber
+        , z = Const.maxNumber
+        }
+    , upperBound =
+        { x = -Const.maxNumber
+        , y = -Const.maxNumber
+        , z = -Const.maxNumber
+        }
     }
 
 
@@ -57,8 +73,16 @@ extend aabb1 aabb =
         u1 =
             aabb1.upperBound
     in
-    { lowerBound = vec3 (min l.x l1.x) (min l.y l1.y) (min l.z l1.z)
-    , upperBound = vec3 (max u.x u1.x) (max u.y u1.y) (max u.z u1.z)
+    { lowerBound =
+        { x = min l.x l1.x
+        , y = min l.y l1.y
+        , z = min l.z l1.z
+        }
+    , upperBound =
+        { x = max u.x u1.x
+        , y = max u.y u1.y
+        , z = max u.z u1.z
+        }
     }
 
 
@@ -70,7 +94,7 @@ convex { vertices } transform =
                 p =
                     Transform.pointToWorldFrame transform point
             in
-            extend (AABB p p)
+            extend { lowerBound = p, upperBound = p }
         )
         impossible
         vertices
@@ -88,13 +112,31 @@ plane { position, orientation } =
             Quaternion.rotate orientation Vec3.k
     in
     if abs x == 1 then
-        { maximum | upperBound = vec3 position.x (x * Const.maxNumber) (x * Const.maxNumber) }
+        { lowerBound = maximum.lowerBound
+        , upperBound =
+            { x = position.x
+            , y = x * Const.maxNumber
+            , z = x * Const.maxNumber
+            }
+        }
 
     else if abs y == 1 then
-        { maximum | lowerBound = vec3 (y * Const.maxNumber) position.y (y * Const.maxNumber) }
+        { upperBound = maximum.upperBound
+        , lowerBound =
+            { x = y * Const.maxNumber
+            , y = position.y
+            , z = y * Const.maxNumber
+            }
+        }
 
     else if abs z == 1 then
-        { maximum | lowerBound = vec3 (z * Const.maxNumber) (z * Const.maxNumber) position.z }
+        { upperBound = maximum.upperBound
+        , lowerBound =
+            { x = z * Const.maxNumber
+            , y = z * Const.maxNumber
+            , z = position.z
+            }
+        }
 
     else
         maximum
@@ -106,6 +148,14 @@ sphere radius { position } =
         c =
             position
     in
-    { lowerBound = vec3 (c.x - radius) (c.y - radius) (c.z - radius)
-    , upperBound = vec3 (c.x + radius) (c.y + radius) (c.z + radius)
+    { lowerBound =
+        { x = c.x - radius
+        , y = c.y - radius
+        , z = c.z - radius
+        }
+    , upperBound =
+        { x = c.x + radius
+        , y = c.y + radius
+        , z = c.z + radius
+        }
     }

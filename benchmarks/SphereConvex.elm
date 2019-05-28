@@ -20,7 +20,7 @@ import Fixtures.Convex as HullFixtures
 import Fixtures.NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 main : BenchmarkProgram
@@ -32,7 +32,7 @@ suite : Benchmark
 suite =
     let
         center =
-            vec3 0 0 7
+            { x = 0, y = 0, z = 7 }
 
         radius =
             5

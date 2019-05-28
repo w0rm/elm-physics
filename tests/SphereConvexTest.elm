@@ -7,7 +7,7 @@ import Fixtures.NarrowPhase
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Quaternion as Quaternion
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Test exposing (..)
 
 
@@ -15,7 +15,7 @@ addContacts : Test
 addContacts =
     let
         center =
-            vec3 0 0 7
+            { x = 0, y = 0, z = 7 }
 
         radius =
             5

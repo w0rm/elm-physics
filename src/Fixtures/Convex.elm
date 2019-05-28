@@ -1,18 +1,25 @@
-module Fixtures.Convex exposing (askewSquarePyramid, boxHull, boxVertexIndices, nonSquareQuadPyramid, octoHull, octoVertexIndices, octoVertices, originalBoxHull, originalOctoHull, squareLikePyramid, squarePyramid, vec3HalfExtent)
+module Fixtures.Convex exposing
+    ( askewSquarePyramid
+    , boxHull
+    , boxVertexIndices
+    , nonSquareQuadPyramid
+    , octoHull
+    , octoVertexIndices
+    , octoVertices
+    , originalBoxHull
+    , originalOctoHull
+    , squareLikePyramid
+    , squarePyramid
+    )
 
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 
 -- Test data generators
-
-
-vec3HalfExtent : Float -> Vec3
-vec3HalfExtent halfExtent =
-    vec3 halfExtent halfExtent halfExtent
 
 
 {-| A Convex for a cube with the given half-extent, constructed
@@ -20,12 +27,12 @@ using optimized box-specific initializers.
 -}
 boxHull : Float -> Convex
 boxHull halfExtent =
-    Convex.fromBox <| vec3HalfExtent halfExtent
+    Convex.fromBox { x = halfExtent, y = halfExtent, z = halfExtent }
 
 
 originalBoxHull : Float -> Convex
 originalBoxHull halfExtent =
-    Convex.fromBox <| vec3HalfExtent halfExtent
+    Convex.fromBox { x = halfExtent, y = halfExtent, z = halfExtent }
 
 
 boxVertexIndices : List (List Int)
@@ -41,14 +48,14 @@ boxVertexIndices =
 
 octoVertices : Float -> Array Vec3
 octoVertices halfExtent =
-    [ vec3 0 0 halfExtent
-    , vec3 0 halfExtent 0
-    , vec3 halfExtent 0 0
-    , vec3 -halfExtent 0 0
-    , vec3 0 0 -halfExtent
-    , vec3 0 -halfExtent 0
-    ]
-        |> Array.fromList
+    Array.fromList
+        [ { x = 0, y = 0, z = halfExtent }
+        , { x = 0, y = halfExtent, z = 0 }
+        , { x = halfExtent, y = 0, z = 0 }
+        , { x = -halfExtent, y = 0, z = 0 }
+        , { x = 0, y = 0, z = -halfExtent }
+        , { x = 0, y = -halfExtent, z = 0 }
+        ]
 
 
 octoHull : Float -> Convex.Convex
@@ -122,15 +129,15 @@ squareLikePyramid epsilon =
 
         vertices =
             Array.fromList
-                [ vec3 -x -y -zOffset
-                , vec3 x -y -zOffset
+                [ { x = -x, y = -y, z = -zOffset }
+                , { x = x, y = -y, z = -zOffset }
 
                 -- An optional adjustment of one base corner controls
                 -- the number (0 or 2) of edge pairs that are exactly
                 -- parallel OR approximately parallel.
-                , vec3 (x + epsilon) (y + epsilon) -zOffset
-                , vec3 -x y -zOffset
-                , vec3 0 0 (z - zOffset)
+                , { x = x + epsilon, y = y + epsilon, z = -zOffset }
+                , { x = -x, y = y, z = -zOffset }
+                , { x = 0, y = 0, z = z - zOffset }
                 ]
     in
     Convex.init faces vertices

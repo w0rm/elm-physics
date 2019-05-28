@@ -15,7 +15,7 @@ import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform as Transform exposing (Transform)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type Protected data
@@ -227,28 +227,28 @@ updateMassProperties ({ mass } as body) =
             1.0 / 12.0 * mass * (e.y * e.y + e.x * e.x)
 
         inertia =
-            vec3 ix iy iz
+            { x = ix, y = iy, z = iz }
 
         invInertia =
-            vec3
-                (if ix > 0 then
+            { x =
+                if ix > 0 then
                     1.0 / ix
 
-                 else
+                else
                     0
-                )
-                (if iy > 0 then
+            , y =
+                if iy > 0 then
                     1.0 / iy
 
-                 else
+                else
                     0
-                )
-                (if iz > 0 then
+            , z =
+                if iz > 0 then
                     1.0 / iz
 
-                 else
+                else
                     0
-                )
+            }
     in
     { body
         | invMass = invMass

@@ -10,7 +10,7 @@ import Expect exposing (Expectation)
 import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Test exposing (..)
 
 
@@ -21,16 +21,16 @@ getContacts =
             \_ ->
                 let
                     convex =
-                        Convex.fromBox (vec3 1 1 1)
+                        Convex.fromBox { x = 1, y = 1, z = 1 }
 
                     t1 =
-                        { position = vec3 0 0 2.1 -- going slightly into another box
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        { position = { x = 0, y = 0, z = 2.1 } -- going slightly into another box
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.j
                         }
 
                     t2 =
-                        { position = vec3 0 0 4
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 1 0)
+                        { position = { x = 0, y = 0, z = 4 }
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.j
                         }
                 in
                 Collision.ConvexConvex.addContacts t1 convex t2 convex []
@@ -40,19 +40,19 @@ getContacts =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBox (vec3 0.6 0.6 0.6)
+                        Convex.fromBox { x = 0.6, y = 0.6, z = 0.6 }
 
                     convex2 =
-                        Convex.fromBox (vec3 0.5 0.5 0.5)
+                        Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
 
                     transform1 =
-                        { position = vec3 -0.5 0 0
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 0 0 1)
+                        { position = { x = -0.5, y = 0, z = 0 }
+                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.k
                         }
 
                     transform2 =
-                        { position = vec3 0.5 0 0
-                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                        { position = { x = 0.5, y = 0, z = 0 }
+                        , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
                         }
                 in
                 Collision.ConvexConvex.addContacts transform1 convex1 transform2 convex2 []
@@ -62,15 +62,15 @@ getContacts =
             \_ ->
                 let
                     convex =
-                        Convex.fromBox (vec3 1 1 1)
+                        Convex.fromBox { x = 1, y = 1, z = 1 }
 
                     transform1 =
-                        { position = vec3 -2.9496035986031215 -0.059705884468658266 0.05803282809897854
+                        { position = { x = -2.9496035986031215, y = -0.059705884468658266, z = 0.05803282809897854 }
                         , orientation = { x = -0.022809298766761247, y = 0.006783793446053796, z = 0.002763745916207627, w = 0.9997129976872166 }
                         }
 
                     transform2 =
-                        { position = vec3 -1.7732501140437167 -0.23893989356833145 1.9746722038817583
+                        { position = { x = -1.7732501140437167, y = -0.23893989356833145, z = 1.9746722038817583 }
                         , orientation = { x = -0.14987379072976215, y = 0.5294480629310288, z = 0.19937553795533458, w = -0.8108464653532712 }
                         }
                 in
@@ -88,17 +88,17 @@ testSeparatingAxis =
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
                         { transform1 =
-                            { position = vec3 -0.2 0 0
+                            { position = { x = -0.2, y = 0, z = 0 }
                             , orientation = Quaternion.identity
                             }
-                        , convex1 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         , transform2 =
-                            { position = vec3 0.2 0 0
+                            { position = { x = 0.2, y = 0, z = 0 }
                             , orientation = Quaternion.identity
                             }
-                        , convex2 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         }
-                        (vec3 1 0 0)
+                        Vec3.i
                     )
                     (Just 0.6)
         , test "returns Nothing" <|
@@ -106,17 +106,17 @@ testSeparatingAxis =
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
                         { transform1 =
-                            { position = vec3 -5.2 0 0
+                            { position = { x = -5.2, y = 0, z = 0 }
                             , orientation = Quaternion.identity
                             }
-                        , convex1 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         , transform2 =
-                            { position = vec3 0.2 0 0
+                            { position = { x = 0.2, y = 0, z = 0 }
                             , orientation = Quaternion.identity
                             }
-                        , convex2 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         }
-                        (vec3 1 0 0)
+                        Vec3.i
                     )
                     Nothing
         , test "works with rotation" <|
@@ -124,17 +124,17 @@ testSeparatingAxis =
                 case
                     Collision.ConvexConvex.testSeparatingAxis
                         { transform1 =
-                            { position = vec3 1 0 0
+                            { position = Vec3.i
                             , orientation = Quaternion.identity
                             }
-                        , convex1 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         , transform2 =
-                            { position = vec3 0.2 0 0
-                            , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                            { position = { x = 0.2, y = 0, z = 0 }
+                            , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
                             }
-                        , convex2 = Convex.fromBox (vec3 0.5 0.5 0.5)
+                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
                         }
-                        (vec3 1 0 0)
+                        Vec3.i
                 of
                     Nothing ->
                         Expect.fail "expected depth"
@@ -151,30 +151,30 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        { position = vec3 -0.2 0 0
+                        { position = { x = -0.2, y = 0, z = 0 }
                         , orientation = Quaternion.identity
                         }
-                        (Convex.fromBox (vec3 0.5 0.5 0.5))
-                        { position = vec3 0.2 0 0
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
+                        { position = { x = 0.2, y = 0, z = 0 }
                         , orientation = Quaternion.identity
                         }
-                        (Convex.fromBox (vec3 0.5 0.5 0.5))
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
                     )
-                    (Just (vec3 -1 0 0))
+                    (Just { x = -1, y = 0, z = 0 })
         , test "works for rotation" <|
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        { position = vec3 -0.2 0 0
+                        { position = { x = -0.2, y = 0, z = 0 }
                         , orientation = Quaternion.identity
                         }
-                        (Convex.fromBox (vec3 0.5 0.5 0.5))
-                        { position = vec3 0.2 0 0
-                        , orientation = Quaternion.fromAngleAxis (pi / 4) (vec3 0 0 1)
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
+                        { position = { x = 0.2, y = 0, z = 0 }
+                        , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
                         }
-                        (Convex.fromBox (vec3 0.5 0.5 0.5))
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
                     )
-                    (Just (vec3 -1 0 0))
+                    (Just { x = -1, y = 0, z = 0 })
         ]
 
 
@@ -186,8 +186,8 @@ project =
                 Expect.equal
                     (Collision.ConvexConvex.project
                         Transform.identity
-                        (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
-                        (vec3 1 0 0)
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        Vec3.i
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the negative x axis" <|
@@ -195,8 +195,8 @@ project =
                 Expect.equal
                     (Collision.ConvexConvex.project
                         Transform.identity
-                        (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
-                        (vec3 -1 0 0)
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        { x = -1, y = 0, z = 0 }
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the positive y axis" <|
@@ -204,8 +204,8 @@ project =
                 Expect.equal
                     (Collision.ConvexConvex.project
                         Transform.identity
-                        (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
-                        (vec3 0 1 0)
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        Vec3.j
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the offset" <|
@@ -213,20 +213,20 @@ project =
                 Expect.equal
                     (Collision.ConvexConvex.project
                         { orientation = Quaternion.identity
-                        , position = vec3 0 1 0
+                        , position = Vec3.j
                         }
-                        (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
-                        (vec3 0 1 0)
+                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        Vec3.j
                     )
                     { min = 0.5, max = 1.5 }
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
-                    { orientation = Quaternion.fromAngleAxis (pi / 2) (vec3 1 0 0)
-                    , position = vec3 0 1 0
+                    { orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.i
+                    , position = Vec3.j
                     }
-                    (Convex.fromBox (vec3 0.5 0.5 0.5)).vertices
-                    (vec3 0 1 0)
+                    (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                    Vec3.j
                     |> Expect.all
                         [ .min >> Expect.within (Expect.Absolute 0.00001) 0.5
                         , .max >> Expect.within (Expect.Absolute 0.00001) 1.5

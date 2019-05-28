@@ -17,7 +17,7 @@ import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 main : BenchmarkProgram
@@ -32,12 +32,11 @@ foldFaceNormals : Benchmark
 foldFaceNormals =
     let
         sampleHull =
-            vec3 1 1 1
-                |> Convex.fromBox
+            Convex.fromBox { x = 1, y = 1, z = 1 }
 
         originalSampleHull =
-            vec3 1 1 1
-                |> {- OriginalConvex.fromBox -} Convex.fromBox
+            {- OriginalConvex.fromBox -}
+            Convex.fromBox { x = 1, y = 1, z = 1 }
 
         trivialVisitor : Vec3 -> Vec3 -> Int -> Int
         trivialVisitor _ _ _ =
@@ -46,7 +45,7 @@ foldFaceNormals =
         -- Move the box 0.45 units up
         -- only 0.05 units of the box will be below plane z=0
         transform =
-            { position = vec3 0 0 0.45
+            { position = { x = 0, y = 0, z = 0.45 }
             , orientation = Quaternion.identity
             }
     in

@@ -6,7 +6,7 @@ module Fixtures.NarrowPhase exposing
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List Contact )
@@ -49,56 +49,56 @@ sphereContactBoxPositions center radius boxHalfExtent =
     in
     -- Box positions and their resulting contacts:
     [ -- the 8 vertex contacts
-      ceq { cj = vec3 vertexDimension vertexDimension vertexDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt3 invSqrt3 invSqrt3, rj = vec3 -boxHalfExtent -boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 -vertexDimension vertexDimension vertexDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt3 invSqrt3 invSqrt3, rj = vec3 boxHalfExtent -boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 vertexDimension -vertexDimension vertexDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt3 -invSqrt3 invSqrt3, rj = vec3 -boxHalfExtent boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 -vertexDimension -vertexDimension vertexDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt3 -invSqrt3 invSqrt3, rj = vec3 boxHalfExtent boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 vertexDimension vertexDimension -vertexDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt3 invSqrt3 -invSqrt3, rj = vec3 -boxHalfExtent -boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 -vertexDimension vertexDimension -vertexDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt3 invSqrt3 -invSqrt3, rj = vec3 boxHalfExtent -boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 vertexDimension -vertexDimension -vertexDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt3 -invSqrt3 -invSqrt3, rj = vec3 -boxHalfExtent boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 -vertexDimension -vertexDimension -vertexDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt3 -invSqrt3 -invSqrt3, rj = vec3 boxHalfExtent boxHalfExtent boxHalfExtent }
+      ceq { cj = { x = vertexDimension, y = vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = -vertexDimension, y = vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = boxHalfExtent, y = -boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = vertexDimension, y = -vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = -invSqrt3, z = invSqrt3 }, rj = { x = -boxHalfExtent, y = boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = -vertexDimension, y = -vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = -invSqrt3, z = invSqrt3 }, rj = { x = boxHalfExtent, y = boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = vertexDimension, y = vertexDimension, z = -vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = invSqrt3, z = -invSqrt3 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = -vertexDimension, y = vertexDimension, z = -vertexDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = invSqrt3, z = -invSqrt3 }, rj = { x = boxHalfExtent, y = -boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = vertexDimension, y = -vertexDimension, z = -vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = -invSqrt3, z = -invSqrt3 }, rj = { x = -boxHalfExtent, y = boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = -vertexDimension, y = -vertexDimension, z = -vertexDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = -invSqrt3, z = -invSqrt3 }, rj = { x = boxHalfExtent, y = boxHalfExtent, z = boxHalfExtent } }
 
     -- the 12 edge (midpoint) contacts
-    , ceq { cj = vec3 edgeDimension edgeDimension 0 |> Vec3.add center, ci = center, ni = vec3 invSqrt2 invSqrt2 0, rj = vec3 -boxHalfExtent -boxHalfExtent 0 }
-    , ceq { cj = vec3 0 edgeDimension edgeDimension |> Vec3.add center, ci = center, ni = vec3 0 invSqrt2 invSqrt2, rj = vec3 0 -boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 edgeDimension 0 edgeDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt2 0 invSqrt2, rj = vec3 -boxHalfExtent 0 -boxHalfExtent }
-    , ceq { cj = vec3 -edgeDimension edgeDimension 0 |> Vec3.add center, ci = center, ni = vec3 -invSqrt2 invSqrt2 0, rj = vec3 boxHalfExtent -boxHalfExtent 0 }
-    , ceq { cj = vec3 0 -edgeDimension edgeDimension |> Vec3.add center, ci = center, ni = vec3 0 -invSqrt2 invSqrt2, rj = vec3 0 boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 edgeDimension 0 -edgeDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt2 0 -invSqrt2, rj = vec3 -boxHalfExtent 0 boxHalfExtent }
-    , ceq { cj = vec3 edgeDimension -edgeDimension 0 |> Vec3.add center, ci = center, ni = vec3 invSqrt2 -invSqrt2 0, rj = vec3 -boxHalfExtent boxHalfExtent 0 }
-    , ceq { cj = vec3 0 edgeDimension -edgeDimension |> Vec3.add center, ci = center, ni = vec3 0 invSqrt2 -invSqrt2, rj = vec3 0 -boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 -edgeDimension 0 edgeDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt2 0 invSqrt2, rj = vec3 boxHalfExtent 0 -boxHalfExtent }
-    , ceq { cj = vec3 -edgeDimension -edgeDimension 0 |> Vec3.add center, ci = center, ni = vec3 -invSqrt2 -invSqrt2 0, rj = vec3 boxHalfExtent boxHalfExtent 0 }
-    , ceq { cj = vec3 0 -edgeDimension -edgeDimension |> Vec3.add center, ci = center, ni = vec3 0 -invSqrt2 -invSqrt2, rj = vec3 0 boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 -edgeDimension 0 -edgeDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt2 0 -invSqrt2, rj = vec3 boxHalfExtent 0 boxHalfExtent }
+    , ceq { cj = { x = edgeDimension, y = edgeDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = invSqrt2, z = 0 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = edgeDimension, z = edgeDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = invSqrt2, z = invSqrt2 }, rj = { x = 0, y = -boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = edgeDimension, y = 0, z = edgeDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = 0, z = invSqrt2 }, rj = { x = -boxHalfExtent, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = -edgeDimension, y = edgeDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = invSqrt2, z = 0 }, rj = { x = boxHalfExtent, y = -boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = -edgeDimension, z = edgeDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = -invSqrt2, z = invSqrt2 }, rj = { x = 0, y = boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = edgeDimension, y = 0, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = 0, z = -invSqrt2 }, rj = { x = -boxHalfExtent, y = 0, z = boxHalfExtent } }
+    , ceq { cj = { x = edgeDimension, y = -edgeDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = -invSqrt2, z = 0 }, rj = { x = -boxHalfExtent, y = boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = edgeDimension, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = invSqrt2, z = -invSqrt2 }, rj = { x = 0, y = -boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = -edgeDimension, y = 0, z = edgeDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = 0, z = invSqrt2 }, rj = { x = boxHalfExtent, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = -edgeDimension, y = -edgeDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = -invSqrt2, z = 0 }, rj = { x = boxHalfExtent, y = boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = -edgeDimension, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = -invSqrt2, z = -invSqrt2 }, rj = { x = 0, y = boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = -edgeDimension, y = 0, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = 0, z = -invSqrt2 }, rj = { x = boxHalfExtent, y = 0, z = boxHalfExtent } }
 
     -- the 6 face (center) contacts
-    , ceq { cj = vec3 faceDimension 0 0 |> Vec3.add center, ci = center, ni = vec3 1 0 0, rj = vec3 -boxHalfExtent 0 0 }
-    , ceq { cj = vec3 0 faceDimension 0 |> Vec3.add center, ci = center, ni = vec3 0 1 0, rj = vec3 0 -boxHalfExtent 0 }
-    , ceq { cj = vec3 0 0 faceDimension |> Vec3.add center, ci = center, ni = vec3 0 0 1, rj = vec3 0 0 -boxHalfExtent }
-    , ceq { cj = vec3 -faceDimension 0 0 |> Vec3.add center, ci = center, ni = vec3 -1 0 0, rj = vec3 boxHalfExtent 0 0 }
-    , ceq { cj = vec3 0 -faceDimension 0 |> Vec3.add center, ci = center, ni = vec3 0 -1 0, rj = vec3 0 boxHalfExtent 0 }
-    , ceq { cj = vec3 0 0 -faceDimension |> Vec3.add center, ci = center, ni = vec3 0 0 -1, rj = vec3 0 0 boxHalfExtent }
+    , ceq { cj = { x = faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.i, rj = { x = -boxHalfExtent, y = 0, z = 0 } }
+    , ceq { cj = { x = 0, y = faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.j, rj = { x = 0, y = -boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.k, rj = { x = 0, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = -faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = { x = -1, y = 0, z = 0 }, rj = { x = boxHalfExtent, y = 0, z = 0 } }
+    , ceq { cj = { x = 0, y = -faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = 0, z = -faceDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = 0, z = -1 }, rj = { x = 0, y = 0, z = boxHalfExtent } }
 
     -- 3 sample face contacts very near a vertex
-    , ceq { cj = vec3 nearEdgeOffset faceDimension nearEdgeOffset |> Vec3.add center, ci = center, ni = vec3 0 1 0, rj = vec3 -nearEdgeOffset -boxHalfExtent -nearEdgeOffset }
-    , ceq { cj = vec3 -faceDimension nearEdgeOffset nearEdgeOffset |> Vec3.add center, ci = center, ni = vec3 -1 0 0, rj = vec3 boxHalfExtent -nearEdgeOffset -nearEdgeOffset }
-    , ceq { cj = vec3 nearEdgeOffset nearEdgeOffset -faceDimension |> Vec3.add center, ci = center, ni = vec3 0 0 -1, rj = vec3 -nearEdgeOffset -nearEdgeOffset boxHalfExtent }
+    , ceq { cj = { x = nearEdgeOffset, y = faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = Vec3.j, rj = { x = -nearEdgeOffset, y = -boxHalfExtent, z = -nearEdgeOffset } }
+    , ceq { cj = { x = -faceDimension, y = nearEdgeOffset, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = -1, y = 0, z = 0 }, rj = { x = boxHalfExtent, y = -nearEdgeOffset, z = -nearEdgeOffset } }
+    , ceq { cj = { x = nearEdgeOffset, y = nearEdgeOffset, z = -faceDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = 0, z = -1 }, rj = { x = -nearEdgeOffset, y = -nearEdgeOffset, z = boxHalfExtent } }
 
     -- 3 sample face contacts very near an edge (midpoint)
-    , ceq { cj = vec3 faceDimension nearEdgeOffset 0 |> Vec3.add center, ci = center, ni = vec3 1 0 0, rj = vec3 -boxHalfExtent -nearEdgeOffset 0 }
-    , ceq { cj = vec3 nearEdgeOffset 0 faceDimension |> Vec3.add center, ci = center, ni = vec3 0 0 1, rj = vec3 -nearEdgeOffset 0 -boxHalfExtent }
-    , ceq { cj = vec3 0 -faceDimension nearEdgeOffset |> Vec3.add center, ci = center, ni = vec3 0 -1 0, rj = vec3 0 boxHalfExtent -nearEdgeOffset }
+    , ceq { cj = { x = faceDimension, y = nearEdgeOffset, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.i, rj = { x = -boxHalfExtent, y = -nearEdgeOffset, z = 0 } }
+    , ceq { cj = { x = nearEdgeOffset, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.k, rj = { x = -nearEdgeOffset, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = 0, y = -faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = boxHalfExtent, z = -nearEdgeOffset } }
 
     -- 3 sample edge contacts very near a vertex
-    , ceq { cj = vec3 edgeDimension edgeDimension nearEdgeOffset |> Vec3.add center, ci = center, ni = vec3 invSqrt2 invSqrt2 0, rj = vec3 -boxHalfExtent -boxHalfExtent -nearEdgeOffset }
-    , ceq { cj = vec3 nearEdgeOffset edgeDimension -edgeDimension |> Vec3.add center, ci = center, ni = vec3 0 invSqrt2 -invSqrt2, rj = vec3 -nearEdgeOffset -boxHalfExtent boxHalfExtent }
-    , ceq { cj = vec3 -edgeDimension -nearEdgeOffset edgeDimension |> Vec3.add center, ci = center, ni = vec3 -invSqrt2 0 invSqrt2, rj = vec3 boxHalfExtent nearEdgeOffset -boxHalfExtent }
+    , ceq { cj = { x = edgeDimension, y = edgeDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = invSqrt2, z = 0 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = -nearEdgeOffset } }
+    , ceq { cj = { x = nearEdgeOffset, y = edgeDimension, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = invSqrt2, z = -invSqrt2 }, rj = { x = -nearEdgeOffset, y = -boxHalfExtent, z = boxHalfExtent } }
+    , ceq { cj = { x = -edgeDimension, y = -nearEdgeOffset, z = edgeDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = 0, z = invSqrt2 }, rj = { x = boxHalfExtent, y = nearEdgeOffset, z = -boxHalfExtent } }
 
     -- 3 sample off-diagonal vertex contacts
-    , ceq { cj = vec3 vertexDimension (vertexDimension * offDiagonalFactor) (vertexDimension / offDiagonalFactor) |> Vec3.add center, ci = center, ni = vec3 invSqrt3 invSqrt3 invSqrt3, rj = vec3 -boxHalfExtent -boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 (-vertexDimension / offDiagonalFactor) -vertexDimension (vertexDimension * offDiagonalFactor) |> Vec3.add center, ci = center, ni = vec3 -invSqrt3 -invSqrt3 invSqrt3, rj = vec3 boxHalfExtent boxHalfExtent -boxHalfExtent }
-    , ceq { cj = vec3 (vertexDimension / offDiagonalFactor) (-vertexDimension * offDiagonalFactor) -vertexDimension |> Vec3.add center, ci = center, ni = vec3 invSqrt3 -invSqrt3 -invSqrt3, rj = vec3 -boxHalfExtent boxHalfExtent boxHalfExtent }
+    , ceq { cj = { x = vertexDimension, y = vertexDimension * offDiagonalFactor, z = vertexDimension / offDiagonalFactor } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = -vertexDimension / offDiagonalFactor, y = -vertexDimension, z = vertexDimension * offDiagonalFactor } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = -invSqrt3, z = invSqrt3 }, rj = { x = boxHalfExtent, y = boxHalfExtent, z = -boxHalfExtent } }
+    , ceq { cj = { x = vertexDimension / offDiagonalFactor, y = -vertexDimension * offDiagonalFactor, z = -vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = -invSqrt3, z = -invSqrt3 }, rj = { x = -boxHalfExtent, y = boxHalfExtent, z = boxHalfExtent } }
     ]
 
 
@@ -136,46 +136,46 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
     in
     [ -- Octohedron positions and their contacts
       -- 6 vertex contacts
-      ceq { ci = center, cj = vec3 vertexDimension 0 0 |> Vec3.add center, ni = vec3 1 0 0, rj = vec3 -octoHalfExtent 0 0 }
-    , ceq { ci = center, cj = vec3 0 vertexDimension 0 |> Vec3.add center, ni = vec3 0 1 0, rj = vec3 0 -octoHalfExtent 0 }
-    , ceq { ci = center, cj = vec3 0 0 vertexDimension |> Vec3.add center, ni = vec3 0 0 1, rj = vec3 0 0 -octoHalfExtent }
-    , ceq { ci = center, cj = vec3 0 0 -vertexDimension |> Vec3.add center, ni = vec3 0 0 -1, rj = vec3 0 0 octoHalfExtent }
-    , ceq { ci = center, cj = vec3 0 -vertexDimension 0 |> Vec3.add center, ni = vec3 0 -1 0, rj = vec3 0 octoHalfExtent 0 }
-    , ceq { ci = center, cj = vec3 -vertexDimension 0 0 |> Vec3.add center, ni = vec3 -1 0 0, rj = vec3 octoHalfExtent 0 0 }
+      ceq { ci = center, cj = { x = vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = Vec3.i, rj = { x = -octoHalfExtent, y = 0, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = vertexDimension, z = 0 } |> Vec3.add center, ni = Vec3.j, rj = { x = 0, y = -octoHalfExtent, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = 0, z = vertexDimension } |> Vec3.add center, ni = Vec3.k, rj = { x = 0, y = 0, z = -octoHalfExtent } }
+    , ceq { ci = center, cj = { x = 0, y = 0, z = -vertexDimension } |> Vec3.add center, ni = { x = 0, y = 0, z = -1 }, rj = { x = 0, y = 0, z = octoHalfExtent } }
+    , ceq { ci = center, cj = { x = 0, y = -vertexDimension, z = 0 } |> Vec3.add center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = octoHalfExtent, z = 0 } }
+    , ceq { ci = center, cj = { x = -vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = { x = -1, y = 0, z = 0 }, rj = { x = octoHalfExtent, y = 0, z = 0 } }
 
     -- 12 edge (midpoint) contacts
-    , ceq { ci = center, cj = vec3 edgeDimension edgeDimension 0 |> Vec3.add center, ni = vec3 invSqrt2 invSqrt2 0, rj = vec3 (-octoHalfExtent / 2) (-octoHalfExtent / 2) 0 }
-    , ceq { ci = center, cj = vec3 0 edgeDimension edgeDimension |> Vec3.add center, ni = vec3 0 invSqrt2 invSqrt2, rj = vec3 0 (-octoHalfExtent / 2) (-octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 edgeDimension 0 edgeDimension |> Vec3.add center, ni = vec3 invSqrt2 0 invSqrt2, rj = vec3 (-octoHalfExtent / 2) 0 (-octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 -edgeDimension edgeDimension 0 |> Vec3.add center, ni = vec3 -invSqrt2 invSqrt2 0, rj = vec3 (octoHalfExtent / 2) (-octoHalfExtent / 2) 0 }
-    , ceq { ci = center, cj = vec3 0 -edgeDimension edgeDimension |> Vec3.add center, ni = vec3 0 -invSqrt2 invSqrt2, rj = vec3 0 (octoHalfExtent / 2) (-octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 edgeDimension 0 -edgeDimension |> Vec3.add center, ni = vec3 invSqrt2 0 -invSqrt2, rj = vec3 (-octoHalfExtent / 2) 0 (octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 edgeDimension -edgeDimension 0 |> Vec3.add center, ni = vec3 invSqrt2 -invSqrt2 0, rj = vec3 (-octoHalfExtent / 2) (octoHalfExtent / 2) 0 }
-    , ceq { ci = center, cj = vec3 0 edgeDimension -edgeDimension |> Vec3.add center, ni = vec3 0 invSqrt2 -invSqrt2, rj = vec3 0 (-octoHalfExtent / 2) (octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 -edgeDimension 0 edgeDimension |> Vec3.add center, ni = vec3 -invSqrt2 0 invSqrt2, rj = vec3 (octoHalfExtent / 2) 0 (-octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 -edgeDimension -edgeDimension 0 |> Vec3.add center, ni = vec3 -invSqrt2 -invSqrt2 0, rj = vec3 (octoHalfExtent / 2) (octoHalfExtent / 2) 0 }
-    , ceq { ci = center, cj = vec3 0 -edgeDimension -edgeDimension |> Vec3.add center, ni = vec3 0 -invSqrt2 -invSqrt2, rj = vec3 0 (octoHalfExtent / 2) (octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 -edgeDimension 0 -edgeDimension |> Vec3.add center, ni = vec3 -invSqrt2 0 -invSqrt2, rj = vec3 (octoHalfExtent / 2) 0 (octoHalfExtent / 2) }
+    , ceq { ci = center, cj = { x = edgeDimension, y = edgeDimension, z = 0 } |> Vec3.add center, ni = { x = invSqrt2, y = invSqrt2, z = 0 }, rj = { x = -octoHalfExtent / 2, y = -octoHalfExtent / 2, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = edgeDimension, z = edgeDimension } |> Vec3.add center, ni = { x = 0, y = invSqrt2, z = invSqrt2 }, rj = { x = 0, y = -octoHalfExtent / 2, z = -octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = edgeDimension, y = 0, z = edgeDimension } |> Vec3.add center, ni = { x = invSqrt2, y = 0, z = invSqrt2 }, rj = { x = -octoHalfExtent / 2, y = 0, z = -octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = -edgeDimension, y = edgeDimension, z = 0 } |> Vec3.add center, ni = { x = -invSqrt2, y = invSqrt2, z = 0 }, rj = { x = octoHalfExtent / 2, y = -octoHalfExtent / 2, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = -edgeDimension, z = edgeDimension } |> Vec3.add center, ni = { x = 0, y = -invSqrt2, z = invSqrt2 }, rj = { x = 0, y = octoHalfExtent / 2, z = -octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = edgeDimension, y = 0, z = -edgeDimension } |> Vec3.add center, ni = { x = invSqrt2, y = 0, z = -invSqrt2 }, rj = { x = -octoHalfExtent / 2, y = 0, z = octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = edgeDimension, y = -edgeDimension, z = 0 } |> Vec3.add center, ni = { x = invSqrt2, y = -invSqrt2, z = 0 }, rj = { x = -octoHalfExtent / 2, y = octoHalfExtent / 2, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = edgeDimension, z = -edgeDimension } |> Vec3.add center, ni = { x = 0, y = invSqrt2, z = -invSqrt2 }, rj = { x = 0, y = -octoHalfExtent / 2, z = octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = -edgeDimension, y = 0, z = edgeDimension } |> Vec3.add center, ni = { x = -invSqrt2, y = 0, z = invSqrt2 }, rj = { x = octoHalfExtent / 2, y = 0, z = -octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = -edgeDimension, y = -edgeDimension, z = 0 } |> Vec3.add center, ni = { x = -invSqrt2, y = -invSqrt2, z = 0 }, rj = { x = octoHalfExtent / 2, y = octoHalfExtent / 2, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = -edgeDimension, z = -edgeDimension } |> Vec3.add center, ni = { x = 0, y = -invSqrt2, z = -invSqrt2 }, rj = { x = 0, y = octoHalfExtent / 2, z = octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = -edgeDimension, y = 0, z = -edgeDimension } |> Vec3.add center, ni = { x = -invSqrt2, y = 0, z = -invSqrt2 }, rj = { x = octoHalfExtent / 2, y = 0, z = octoHalfExtent / 2 } }
 
     -- 8 face center contacts
-    , ceq { ci = center, cj = vec3 faceDimension faceDimension faceDimension |> Vec3.add center, ni = vec3 invSqrt3 invSqrt3 invSqrt3, rj = vec3 (-octoHalfExtent / 3) (-octoHalfExtent / 3) (-octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 faceDimension faceDimension -faceDimension |> Vec3.add center, ni = vec3 invSqrt3 invSqrt3 -invSqrt3, rj = vec3 (-octoHalfExtent / 3) (-octoHalfExtent / 3) (octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 faceDimension -faceDimension faceDimension |> Vec3.add center, ni = vec3 invSqrt3 -invSqrt3 invSqrt3, rj = vec3 (-octoHalfExtent / 3) (octoHalfExtent / 3) (-octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 faceDimension -faceDimension -faceDimension |> Vec3.add center, ni = vec3 invSqrt3 -invSqrt3 -invSqrt3, rj = vec3 (-octoHalfExtent / 3) (octoHalfExtent / 3) (octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 -faceDimension faceDimension faceDimension |> Vec3.add center, ni = vec3 -invSqrt3 invSqrt3 invSqrt3, rj = vec3 (octoHalfExtent / 3) (-octoHalfExtent / 3) (-octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 -faceDimension faceDimension -faceDimension |> Vec3.add center, ni = vec3 -invSqrt3 invSqrt3 -invSqrt3, rj = vec3 (octoHalfExtent / 3) (-octoHalfExtent / 3) (octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 -faceDimension -faceDimension faceDimension |> Vec3.add center, ni = vec3 -invSqrt3 -invSqrt3 invSqrt3, rj = vec3 (octoHalfExtent / 3) (octoHalfExtent / 3) (-octoHalfExtent / 3) }
-    , ceq { ci = center, cj = vec3 -faceDimension -faceDimension -faceDimension |> Vec3.add center, ni = vec3 -invSqrt3 -invSqrt3 -invSqrt3, rj = vec3 (octoHalfExtent / 3) (octoHalfExtent / 3) (octoHalfExtent / 3) }
+    , ceq { ci = center, cj = { x = faceDimension, y = faceDimension, z = faceDimension } |> Vec3.add center, ni = { x = invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = -octoHalfExtent / 3, y = -octoHalfExtent / 3, z = -octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = faceDimension, y = faceDimension, z = -faceDimension } |> Vec3.add center, ni = { x = invSqrt3, y = invSqrt3, z = -invSqrt3 }, rj = { x = -octoHalfExtent / 3, y = -octoHalfExtent / 3, z = octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = faceDimension, y = -faceDimension, z = faceDimension } |> Vec3.add center, ni = { x = invSqrt3, y = -invSqrt3, z = invSqrt3 }, rj = { x = -octoHalfExtent / 3, y = octoHalfExtent / 3, z = -octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = faceDimension, y = -faceDimension, z = -faceDimension } |> Vec3.add center, ni = { x = invSqrt3, y = -invSqrt3, z = -invSqrt3 }, rj = { x = -octoHalfExtent / 3, y = octoHalfExtent / 3, z = octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = -faceDimension, y = faceDimension, z = faceDimension } |> Vec3.add center, ni = { x = -invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = octoHalfExtent / 3, y = -octoHalfExtent / 3, z = -octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = -faceDimension, y = faceDimension, z = -faceDimension } |> Vec3.add center, ni = { x = -invSqrt3, y = invSqrt3, z = -invSqrt3 }, rj = { x = octoHalfExtent / 3, y = -octoHalfExtent / 3, z = octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = -faceDimension, y = -faceDimension, z = faceDimension } |> Vec3.add center, ni = { x = -invSqrt3, y = -invSqrt3, z = invSqrt3 }, rj = { x = octoHalfExtent / 3, y = octoHalfExtent / 3, z = -octoHalfExtent / 3 } }
+    , ceq { ci = center, cj = { x = -faceDimension, y = -faceDimension, z = -faceDimension } |> Vec3.add center, ni = { x = -invSqrt3, y = -invSqrt3, z = -invSqrt3 }, rj = { x = octoHalfExtent / 3, y = octoHalfExtent / 3, z = octoHalfExtent / 3 } }
 
     -- 3 face (near vertex) contacts
-    , ceq { ci = center, cj = vec3 (vertexDimension - delta) delta delta |> Vec3.add center, ni = vec3 1 delta delta, rj = vec3 -octoHalfExtent 0 0 }
-    , ceq { ci = center, cj = vec3 delta delta (vertexDimension - delta) |> Vec3.add center, ni = vec3 delta delta 1, rj = vec3 0 0 -octoHalfExtent }
-    , ceq { ci = center, cj = vec3 (delta - vertexDimension) delta delta |> Vec3.add center, ni = vec3 -1 delta delta, rj = vec3 octoHalfExtent 0 0 }
+    , ceq { ci = center, cj = { x = vertexDimension - delta, y = delta, z = delta } |> Vec3.add center, ni = { x = 1, y = delta, z = delta }, rj = { x = -octoHalfExtent, y = 0, z = 0 } }
+    , ceq { ci = center, cj = { x = delta, y = delta, z = vertexDimension - delta } |> Vec3.add center, ni = { x = delta, y = delta, z = 1 }, rj = { x = 0, y = 0, z = -octoHalfExtent } }
+    , ceq { ci = center, cj = { x = delta - vertexDimension, y = delta, z = delta } |> Vec3.add center, ni = { x = -1, y = delta, z = delta }, rj = { x = octoHalfExtent, y = 0, z = 0 } }
 
     -- 3 face (near edge) contacts
-    , ceq { ci = center, cj = vec3 (edgeDimension - delta) (edgeDimension - delta) delta |> Vec3.add center, ni = vec3 invSqrt2 invSqrt2 delta, rj = vec3 (delta - octoHalfExtent / 2) (-octoHalfExtent / 2) 0 }
-    , ceq { ci = center, cj = vec3 delta (edgeDimension - delta) (edgeDimension - delta) |> Vec3.add center, ni = vec3 delta invSqrt2 invSqrt2, rj = vec3 0 (-octoHalfExtent / 2) (delta - octoHalfExtent / 2) }
-    , ceq { ci = center, cj = vec3 (delta - edgeDimension) -delta (delta - edgeDimension) |> Vec3.add center, ni = vec3 -invSqrt2 -delta -invSqrt2, rj = vec3 (octoHalfExtent / 2) 0 (octoHalfExtent / 2) }
+    , ceq { ci = center, cj = { x = edgeDimension - delta, y = edgeDimension - delta, z = delta } |> Vec3.add center, ni = { x = invSqrt2, y = invSqrt2, z = delta }, rj = { x = delta - octoHalfExtent / 2, y = -octoHalfExtent / 2, z = 0 } }
+    , ceq { ci = center, cj = { x = delta, y = edgeDimension - delta, z = edgeDimension - delta } |> Vec3.add center, ni = { x = delta, y = invSqrt2, z = invSqrt2 }, rj = { x = 0, y = -octoHalfExtent / 2, z = delta - octoHalfExtent / 2 } }
+    , ceq { ci = center, cj = { x = delta - edgeDimension, y = -delta, z = delta - edgeDimension } |> Vec3.add center, ni = { x = -invSqrt2, y = -delta, z = -invSqrt2 }, rj = { x = octoHalfExtent / 2, y = 0, z = octoHalfExtent / 2 } }
     ]
 
 

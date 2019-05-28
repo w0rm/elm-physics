@@ -18,7 +18,6 @@ module Internal.Vector3 exposing
     , scale
     , sub
     , tangents
-    , vec3
     , zero
     )
 
@@ -36,13 +35,6 @@ almostZero { x, y, z } =
 -}
 type alias Vec3 =
     { x : Float, y : Float, z : Float }
-
-
-{-| Creates a new 3-element vector with the given values.
--}
-vec3 : Float -> Float -> Float -> Vec3
-vec3 x y z =
-    { x = x, y = y, z = z }
 
 
 {-| The zero vector

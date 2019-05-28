@@ -18,7 +18,7 @@ import Array exposing (Array)
 import Dict
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Set
 
 
@@ -178,64 +178,64 @@ fromBox : Vec3 -> Convex
 fromBox { x, y, z } =
     let
         v0 =
-            vec3 -x -y -z
+            { x = -x, y = -y, z = -z }
 
         v1 =
-            vec3 x -y -z
+            { x = x, y = -y, z = -z }
 
         v2 =
-            vec3 x y -z
+            { x = x, y = y, z = -z }
 
         v3 =
-            vec3 -x y -z
+            { x = -x, y = y, z = -z }
 
         v4 =
-            vec3 -x -y z
+            { x = -x, y = -y, z = z }
 
         v5 =
-            vec3 x -y z
+            { x = x, y = -y, z = z }
 
         v6 =
-            vec3 x y z
+            { x = x, y = y, z = z }
 
         v7 =
-            vec3 -x y z
+            { x = -x, y = y, z = z }
 
         p0 =
             v3
 
         n0 =
-            vec3 0 0 -1
+            { x = 0, y = 0, z = -1 }
 
         p1 =
             v4
 
         n1 =
-            vec3 0 0 1
+            Vec3.k
 
         p2 =
             v5
 
         n2 =
-            vec3 0 -1 0
+            { x = 0, y = -1, z = 0 }
 
         p3 =
             v2
 
         n3 =
-            vec3 0 1 0
+            Vec3.j
 
         p4 =
             v0
 
         n4 =
-            vec3 -1 0 0
+            { x = -1, y = 0, z = 0 }
 
         p5 =
             v1
 
         n5 =
-            vec3 1 0 0
+            Vec3.i
     in
     { faces =
         [ -- face 0

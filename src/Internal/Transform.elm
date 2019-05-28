@@ -5,7 +5,7 @@ module Internal.Transform exposing
     )
 
 import Internal.Quaternion as Quaternion exposing (Quaternion)
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias Transform =
@@ -16,7 +16,7 @@ type alias Transform =
 
 identity : Transform
 identity =
-    { position = vec3 0 0 0
+    { position = Vec3.zero
     , orientation = Quaternion.identity
     }
 

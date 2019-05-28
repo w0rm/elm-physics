@@ -1,12 +1,12 @@
 module BodyTest exposing (boundingSphereRadius, box)
 
-import Internal.Vector3 as Vec3 exposing (Vec3, vec3)
 import Expect exposing (Expectation)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Shape)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Test exposing (..)
 
 
@@ -18,14 +18,14 @@ boundingSphereRadius =
                 Expect.equal 0 (Body.compound [] () |> .boundingSphereRadius)
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box (vec3 1 1 1) ] ()
+                Body.compound [ box { x = 1, y = 1, z = 1 } ] ()
                     |> .boundingSphereRadius
-                    |> Expect.within (Expect.Absolute 0.00001) (Vec3.length (vec3 1 1 1))
+                    |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 1, y = 1, z = 1 })
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box (vec3 1 1 1), box (vec3 2 2 2) ] ()
+                Body.compound [ box { x = 1, y = 1, z = 1 }, box { x = 2, y = 2, z = 2 } ] ()
                     |> .boundingSphereRadius
-                    |> Expect.within (Expect.Absolute 0.00001) (Vec3.length (vec3 2 2 2))
+                    |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 2, y = 2, z = 2 })
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
             \_ ->
                 Body.compound [ plane ] ()
@@ -36,7 +36,7 @@ boundingSphereRadius =
 
 box : Vec3 -> Shape
 box halfExtends =
-    { position = vec3 0 0 0
+    { position = Vec3.zero
     , orientation = Quaternion.identity
     , kind = Shape.Convex (Convex.fromBox halfExtends)
     }
@@ -44,7 +44,7 @@ box halfExtends =
 
 plane : Shape
 plane =
-    { position = vec3 0 0 0
+    { position = Vec3.zero
     , orientation = Quaternion.identity
     , kind = Shape.Plane
     }
