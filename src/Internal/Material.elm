@@ -31,9 +31,18 @@ contactBounciness m1 m2 =
         m2.bounciness
 
 
+{-| Average of two floats, clamped between 0 and 1
+-}
 combine : Float -> Float -> Float
 combine v1 v2 =
-    clamp 0 1 ((v1 + v2) * 0.5)
+    let
+        avg =
+            (v1 + v2) * 0.5
+
+        temp =
+            1 + avg - abs (1 - avg)
+    in
+    (temp + abs temp) * 0.25
 
 
 default : Material
