@@ -16,7 +16,7 @@ module SphereConvex exposing (main)
 import Benchmark exposing (..)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
-import Fixtures.Convex as HullFixtures
+import Fixtures.Convex
 import Fixtures.NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
@@ -41,10 +41,10 @@ suite =
             1
 
         boxHull =
-            HullFixtures.boxHull boxHalfExtent
+            Fixtures.Convex.boxHull boxHalfExtent
 
         originalBoxHull =
-            HullFixtures.originalBoxHull boxHalfExtent
+            Fixtures.Convex.originalBoxHull boxHalfExtent
 
         boxPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions center radius boxHalfExtent
@@ -58,10 +58,10 @@ suite =
             3
 
         octoHull =
-            HullFixtures.octoHull octoHalfExtent
+            Fixtures.Convex.octoHull octoHalfExtent
 
         originalOctoHull =
-            HullFixtures.originalOctoHull octoHalfExtent
+            Fixtures.Convex.originalOctoHull octoHalfExtent
 
         octoPositions =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions center radius octoHalfExtent

@@ -2,7 +2,7 @@ module SphereConvexTest exposing (addContacts)
 
 import Collision.SphereConvex
 import Expect exposing (Expectation)
-import Fixtures.Convex as HullFixtures
+import Fixtures.Convex
 import Fixtures.NarrowPhase
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
@@ -24,7 +24,7 @@ addContacts =
             3
 
         boxHull =
-            HullFixtures.boxHull boxHalfExtent
+            Fixtures.Convex.boxHull boxHalfExtent
 
         ( boxPositions, boxExpectedResults ) =
             Fixtures.NarrowPhase.sphereContactBoxPositions
@@ -44,7 +44,7 @@ addContacts =
             1
 
         octoHull =
-            HullFixtures.octoHull octoHalfExtent
+            Fixtures.Convex.octoHull octoHalfExtent
 
         ( octoPositions, octoExpectedResults ) =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions
