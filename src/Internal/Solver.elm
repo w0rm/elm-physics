@@ -38,45 +38,45 @@ makeSolverBodies nextBodyId bodies =
 solve : Float -> List (ContactGroup data) -> World data -> World data
 solve dt contactGroups world =
     let
-        solverBodies =
-            makeSolverBodies world.nextBodyId world.bodies
-
+        -- make equations from contacts
         contactEquationsGroups =
             List.foldl
-                (\contactGroup ->
-                    (::)
-                        (Equation.contactEquationsGroup
-                            dt
-                            world.gravity
-                            contactGroup
-                        )
+                (\contactGroup groups ->
+                    Equation.contactEquationsGroup
+                        dt
+                        world.gravity
+                        contactGroup
+                        :: groups
                 )
                 []
                 contactGroups
 
+        -- add equations from constraints
         equationsGroups =
             List.foldl
-                (\{ bodyId1, bodyId2, constraints } ->
+                (\{ bodyId1, bodyId2, constraints } groups ->
                     case Array.get bodyId1 solverBodies of
                         Nothing ->
-                            identity
+                            groups
 
                         Just body1 ->
                             case Array.get bodyId2 solverBodies of
                                 Nothing ->
-                                    identity
+                                    groups
 
                                 Just body2 ->
-                                    (::)
-                                        (Equation.constraintEquationsGroup
-                                            dt
-                                            body1.body
-                                            body2.body
-                                            constraints
-                                        )
+                                    Equation.constraintEquationsGroup
+                                        dt
+                                        body1.body
+                                        body2.body
+                                        constraints
+                                        :: groups
                 )
                 contactEquationsGroups
                 world.constraints
+
+        solverBodies =
+            makeSolverBodies world.nextBodyId world.bodies
 
         solvedBodies =
             step maxIterations 0 [] equationsGroups solverBodies
@@ -89,10 +89,12 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
     case currentEquationsGroups of
         [] ->
             if number == 0 || deltalambdaTot - Const.precision < 0 then
+                -- the max number of steps elapsed or tolerance reached
                 solverBodies
 
             else
-                step (number - 1) 0 [] equationsGroups solverBodies
+                -- requeue equationsGropus for the next step
+                step (number - 1) 0 [] (List.reverse equationsGroups) solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             case Array.get bodyId1 solverBodies of
@@ -153,7 +155,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = equations
+            , equations = List.reverse equations
             , deltalambdaTot = deltalambdaTot
             }
 
