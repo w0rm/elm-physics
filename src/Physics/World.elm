@@ -18,8 +18,8 @@ module Physics.World exposing
 -}
 
 import Internal.Body as InternalBody
+import Internal.BroadPhase as BroadPhase
 import Internal.Constraint exposing (ConstraintGroup)
-import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
@@ -93,7 +93,7 @@ simulate : Float -> World data -> World data
 simulate dt (Protected world) =
     world
         |> Internal.addGravityForces
-        |> Solver.solve (dt / 1000) (NarrowPhase.getContacts world)
+        |> Solver.solve (dt / 1000) (BroadPhase.getContacts world)
         |> Protected
 
 

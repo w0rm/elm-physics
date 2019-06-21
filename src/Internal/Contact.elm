@@ -1,6 +1,14 @@
-module Internal.Contact exposing (Contact, flip)
+module Internal.Contact exposing (Contact, ContactGroup, flip)
 
+import Internal.Body as Body exposing (Body)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+
+
+type alias ContactGroup data =
+    { body1 : Body data
+    , body2 : Body data
+    , contacts : List Contact
+    }
 
 
 type alias Contact =

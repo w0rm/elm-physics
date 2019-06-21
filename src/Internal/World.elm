@@ -2,7 +2,6 @@ module Internal.World exposing
     ( Protected(..)
     , World
     , addGravityForces
-    , getPairs
     , raycast
     )
 
@@ -29,51 +28,6 @@ addGravityForces world =
     { world
         | bodies = List.map (Body.addGravity world.gravity) world.bodies
     }
-
-
-getPairs : World data -> List ( Body data, Body data )
-getPairs { bodies } =
-    case bodies of
-        body :: restBodies ->
-            getPairsHelp body restBodies restBodies []
-
-        [] ->
-            []
-
-
-getPairsHelp : Body data -> List (Body data) -> List (Body data) -> List ( Body data, Body data ) -> List ( Body data, Body data )
-getPairsHelp body1 currentBodies restBodies result =
-    case restBodies of
-        body2 :: newRestBodies ->
-            getPairsHelp
-                body1
-                currentBodies
-                newRestBodies
-                (if bodiesMayOverlap body1 body2 then
-                    ( body1, body2 ) :: result
-
-                 else
-                    result
-                )
-
-        [] ->
-            case currentBodies of
-                newBody1 :: newRestBodies ->
-                    getPairsHelp
-                        newBody1
-                        newRestBodies
-                        newRestBodies
-                        result
-
-                [] ->
-                    result
-
-
-bodiesMayOverlap : Body data -> Body data -> Bool
-bodiesMayOverlap body1 body2 =
-    (body1.boundingSphereRadius + body2.boundingSphereRadius)
-        - Vec3.distance body1.position body2.position
-        > 0
 
 
 raycast :

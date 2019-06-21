@@ -15,8 +15,8 @@ module Physics.Debug exposing
 -}
 
 import Internal.Body as InternalBody
+import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
-import Internal.NarrowPhase as NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Shape exposing (Kind(..), Shape)
 import Internal.Vector3 as Vec3
@@ -38,7 +38,7 @@ getContacts (Protected world) =
         )
         []
         -- TODO: maybe cache the previous contacts in the world
-        (NarrowPhase.getContacts world)
+        (BroadPhase.getContacts world)
 
 
 {-| A face normal consists of a normal vector for a face

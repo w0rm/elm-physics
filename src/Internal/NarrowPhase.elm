@@ -1,7 +1,4 @@
-module Internal.NarrowPhase exposing
-    ( ContactGroup
-    , getContacts
-    )
+module Internal.NarrowPhase exposing (getContacts)
 
 import Collision.ConvexConvex
 import Collision.PlaneConvex
@@ -12,32 +9,10 @@ import Internal.Body as Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
 import Internal.Shape exposing (Kind(..), Shape)
 import Internal.Transform exposing (Transform)
-import Internal.World as World exposing (World)
 
 
-type alias ContactGroup data =
-    { body1 : Body data
-    , body2 : Body data
-    , contacts : List Contact
-    }
-
-
-getContacts : World data -> List (ContactGroup data)
-getContacts world =
-    List.foldl
-        (\( body1, body2 ) ->
-            (::)
-                { body1 = body1
-                , body2 = body2
-                , contacts = getBodyContacts body1 body2
-                }
-        )
-        []
-        (World.getPairs world)
-
-
-getBodyContacts : Body data -> Body data -> List Contact
-getBodyContacts body1 body2 =
+getContacts : Body data -> Body data -> List Contact
+getContacts body1 body2 =
     List.foldl
         (\shape1 currentContactEquations1 ->
             List.foldl

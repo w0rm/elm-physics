@@ -9,11 +9,10 @@ module Internal.Equation exposing
 
 import Internal.Body exposing (Body)
 import Internal.Constraint as Constraint exposing (Constraint(..), ConstraintGroup)
-import Internal.Contact exposing (Contact)
+import Internal.Contact exposing (Contact, ContactGroup)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.NarrowPhase exposing (ContactGroup)
 import Internal.Quaternion as Quaternion
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)

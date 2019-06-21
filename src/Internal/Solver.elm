@@ -3,8 +3,8 @@ module Internal.Solver exposing (solve)
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
+import Internal.Contact exposing (ContactGroup)
 import Internal.Equation as Equation exposing (Equation, EquationsGroup, SolverEquation)
-import Internal.NarrowPhase exposing (ContactGroup)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.World as World exposing (World)
 
