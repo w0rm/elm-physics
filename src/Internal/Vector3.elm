@@ -26,9 +26,9 @@ import Internal.Const as Const
 
 almostZero : Vec3 -> Bool
 almostZero { x, y, z } =
-    (abs x <= Const.precision)
-        && (abs y <= Const.precision)
-        && (abs z <= Const.precision)
+    (abs x - Const.precision <= 0)
+        && (abs y - Const.precision <= 0)
+        && (abs z - Const.precision <= 0)
 
 
 {-| Three dimensional vector type
@@ -118,7 +118,17 @@ lengthSquared { x, y, z } =
 -}
 distance : Vec3 -> Vec3 -> Float
 distance a b =
-    length (sub a b)
+    let
+        x =
+            b.x - a.x
+
+        y =
+            b.y - a.y
+
+        z =
+            b.z - a.z
+    in
+    sqrt (x * x + y * y + z * z)
 
 
 {-| The square of the distance between two vectors.
