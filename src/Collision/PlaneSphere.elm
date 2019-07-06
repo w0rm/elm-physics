@@ -1,9 +1,9 @@
 module Collision.PlaneSphere exposing (addContacts)
 
-import Internal.Contact as Contact exposing (Contact)
-import Internal.Quaternion as Quaternion exposing (Quaternion)
-import Internal.Transform as Transform exposing (Transform)
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Contact exposing (Contact)
+import Internal.Quaternion as Quaternion
+import Internal.Transform exposing (Transform)
+import Internal.Vector3 as Vec3
 
 
 addContacts : (Contact -> Contact) -> Transform -> Transform -> Float -> List Contact -> List Contact

@@ -37,7 +37,6 @@ getContacts (Protected world) =
                 contacts
         )
         []
-        -- TODO: maybe cache the previous contacts in the world
         (BroadPhase.getContacts world)
 
 
@@ -48,8 +47,16 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias FaceNormal =
-    { normal : { x : Float, y : Float, z : Float }
-    , point : { x : Float, y : Float, z : Float }
+    { normal :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
+    , point :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     }
 
 
@@ -90,8 +97,16 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias UniqueEdge =
-    { direction : { x : Float, y : Float, z : Float }
-    , point : { x : Float, y : Float, z : Float }
+    { direction :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
+    , point :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     }
 
 

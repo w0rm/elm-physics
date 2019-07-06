@@ -6,9 +6,9 @@ module Collision.ConvexConvex exposing
     )
 
 import Internal.Const as Const
-import Internal.Contact as Contact exposing (Contact)
+import Internal.Contact exposing (Contact)
 import Internal.Convex as Convex exposing (AdjacentFace, Convex, Face)
-import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 

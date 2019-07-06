@@ -15,7 +15,7 @@ import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Physics.Body as Body exposing (Body)
-import Physics.Shape as Shape exposing (Shape)
+import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Random
 

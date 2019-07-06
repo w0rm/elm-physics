@@ -6,13 +6,21 @@ module Common.Camera exposing
     )
 
 import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector3 as Vec3
 import Math.Vector4 as Vec4 exposing (Vec4)
 
 
 type alias Camera =
-    { from : { x : Float, y : Float, z : Float }
-    , to : { x : Float, y : Float, z : Float }
+    { from :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
+    , to :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     , width : Float
     , height : Float
     , cameraTransform : Mat4

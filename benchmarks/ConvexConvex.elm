@@ -13,13 +13,13 @@ module ConvexConvex exposing (main)
 -}
 {- import Collision.OriginalConvexConvex -}
 
-import Benchmark exposing (..)
+import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.ConvexConvex
 import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
 
 
 main : BenchmarkProgram

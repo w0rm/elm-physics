@@ -17,6 +17,7 @@ import Physics.Body as Body exposing (Body)
 import Physics.World as World exposing (World)
 
 
+boxesPerDimension : number
 boxesPerDimension =
     4
 

@@ -1,6 +1,6 @@
 module Collision.SphereConvex exposing (addContacts)
 
-import Internal.Contact as Contact exposing (Contact)
+import Internal.Contact exposing (Contact)
 import Internal.Convex as Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)

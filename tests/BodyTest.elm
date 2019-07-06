@@ -1,13 +1,13 @@
 module BodyTest exposing (boundingSphereRadius, box)
 
-import Expect exposing (Expectation)
-import Internal.Body as Body exposing (Body)
+import Expect
+import Internal.Body as Body
 import Internal.Const as Const
 import Internal.Convex as Convex
 import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Test exposing (..)
+import Test exposing (Test, describe, test)
 
 
 boundingSphereRadius : Test
