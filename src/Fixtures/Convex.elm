@@ -15,7 +15,7 @@ module Fixtures.Convex exposing
 import Array exposing (Array)
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 exposing (Vec3)
 
 
 

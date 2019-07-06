@@ -1,8 +1,8 @@
 module Collision.SphereSphere exposing (addContacts)
 
-import Internal.Contact as Contact exposing (Contact)
+import Internal.Contact exposing (Contact)
 import Internal.Transform as Transform exposing (Transform)
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
 
 
 addContacts : Transform -> Float -> Transform -> Float -> List Contact -> List Contact

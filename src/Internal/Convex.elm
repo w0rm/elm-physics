@@ -16,14 +16,16 @@ module Internal.Convex exposing
 
 import Array exposing (Array)
 import Dict
-import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Set
 
 
 type alias AdjacentFace =
-    { point : Vec3, normal : Vec3 }
+    { point : Vec3
+    , normal : Vec3
+    }
 
 
 type alias Face =

@@ -12,7 +12,7 @@ Shaders support simple flat lighting.
 
 import Common.Meshes exposing (Attributes)
 import Math.Matrix4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Vector3 exposing (Vec3)
 import WebGL exposing (Shader)
 
 
@@ -25,11 +25,7 @@ type alias Uniforms =
     }
 
 
-type alias Varying =
-    { vlighting : Float }
-
-
-vertex : Shader Attributes Uniforms Varying
+vertex : Shader Attributes Uniforms { vlighting : Float }
 vertex =
     [glsl|
         attribute vec3 position;
@@ -50,7 +46,7 @@ vertex =
     |]
 
 
-fragment : Shader {} Uniforms Varying
+fragment : Shader {} Uniforms { vlighting : Float }
 fragment =
     [glsl|
         precision mediump float;
@@ -62,7 +58,7 @@ fragment =
     |]
 
 
-wireframeFragment : Shader {} Uniforms Varying
+wireframeFragment : Shader {} Uniforms { vlighting : Float }
 wireframeFragment =
     [glsl|
         precision mediump float;
@@ -74,7 +70,7 @@ wireframeFragment =
     |]
 
 
-shadowFragment : Shader {} Uniforms Varying
+shadowFragment : Shader {} Uniforms { vlighting : Float }
 shadowFragment =
     [glsl|
         precision mediump float;

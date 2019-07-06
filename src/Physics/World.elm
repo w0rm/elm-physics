@@ -138,8 +138,16 @@ expressed within the local body coordinate system.
 -}
 type alias RaycastResult data =
     { body : Body data
-    , point : { x : Float, y : Float, z : Float }
-    , normal : { x : Float, y : Float, z : Float }
+    , point :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
+    , normal :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     }
 
 

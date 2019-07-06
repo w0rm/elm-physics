@@ -4,11 +4,11 @@ module Internal.BroadPhase exposing (getContacts)
 that checks if the bounding spheres of each two bodies overlap
 -}
 
-import Internal.Body as Body exposing (Body)
-import Internal.Contact as Contact exposing (ContactGroup)
+import Internal.Body exposing (Body)
+import Internal.Contact exposing (ContactGroup)
 import Internal.NarrowPhase as NarrowPhase
-import Internal.Vector3 as Vec3 exposing (Vec3)
-import Internal.World as World exposing (World)
+import Internal.Vector3 as Vec3
+import Internal.World exposing (World)
 
 
 getContacts : World data -> List (ContactGroup data)

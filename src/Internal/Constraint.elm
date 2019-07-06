@@ -1,6 +1,6 @@
 module Internal.Constraint exposing (Constraint(..), ConstraintGroup)
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 exposing (Vec3)
 
 
 type Constraint

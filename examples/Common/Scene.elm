@@ -1,8 +1,8 @@
 module Common.Scene exposing (view)
 
-import Common.Camera as Camera exposing (Camera)
+import Common.Camera exposing (Camera)
 import Common.Math as Math
-import Common.Meshes as Meshes exposing (Attributes, Meshes)
+import Common.Meshes as Meshes exposing (Meshes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
 import Html exposing (Html)
@@ -21,7 +21,12 @@ type alias Params a =
     , camera : Camera
     , meshes : a -> Meshes
     , raycastResult : Maybe (RaycastResult a)
-    , floorOffset : Maybe { x : Float, y : Float, z : Float }
+    , floorOffset :
+        Maybe
+            { x : Float
+            , y : Float
+            , z : Float
+            }
     }
 
 

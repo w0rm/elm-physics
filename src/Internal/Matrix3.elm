@@ -6,13 +6,22 @@ module Internal.Matrix3 exposing
     , transform
     )
 
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 exposing (Vec3)
 
 
 {-| 3x3 matrix type
 -}
 type alias Mat3 =
-    { m11 : Float, m21 : Float, m31 : Float, m12 : Float, m22 : Float, m32 : Float, m13 : Float, m23 : Float, m33 : Float }
+    { m11 : Float
+    , m21 : Float
+    , m31 : Float
+    , m12 : Float
+    , m22 : Float
+    , m32 : Float
+    , m13 : Float
+    , m23 : Float
+    , m33 : Float
+    }
 
 
 {-| Multiply a vector by a 4x4 matrix: m \* v

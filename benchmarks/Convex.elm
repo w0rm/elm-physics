@@ -13,11 +13,10 @@ module Convex exposing (main)
 -}
 {- import Physics.OriginalConvex as OriginalConvex -}
 
-import Benchmark exposing (..)
+import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Internal.Convex as Convex
-import Internal.Quaternion as Quaternion
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 exposing (Vec3)
 
 
 main : BenchmarkProgram
@@ -41,13 +40,6 @@ foldFaceNormals =
         trivialVisitor : Vec3 -> Vec3 -> Int -> Int
         trivialVisitor _ _ _ =
             0
-
-        -- Move the box 0.45 units up
-        -- only 0.05 units of the box will be below plane z=0
-        transform =
-            { position = { x = 0, y = 0, z = 0.45 }
-            , orientation = Quaternion.identity
-            }
     in
     Benchmark.compare "foldFaceNormals"
         "baseline"

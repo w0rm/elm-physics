@@ -9,7 +9,7 @@ module Internal.AABB exposing
     )
 
 import Internal.Const as Const
-import Internal.Convex as Convex exposing (Convex)
+import Internal.Convex exposing (Convex)
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -18,13 +18,6 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 type alias AABB =
     { upperBound : Vec3
     , lowerBound : Vec3
-    }
-
-
-zero : AABB
-zero =
-    { lowerBound = Vec3.zero
-    , upperBound = Vec3.zero
     }
 
 

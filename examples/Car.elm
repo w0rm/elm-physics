@@ -167,7 +167,6 @@ addCar offset world =
 constrainCar : Body Data -> Body Data -> List Constraint
 constrainCar b1 b2 =
     let
-        -- TODO: implement steering
         steeringAngle =
             0
 

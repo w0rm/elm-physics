@@ -39,7 +39,7 @@ import Internal.Material as InternalMaterial
 import Internal.Quaternion as Quaternion
 import Internal.Shape as InternalShape
 import Internal.Vector3 as Vec3
-import Physics.Material as Material exposing (Material)
+import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 
 
@@ -244,13 +244,6 @@ setData data (Protected body) =
 getData : Body data -> data
 getData (Protected { data }) =
     data
-
-
-{-| Check if this is the same body.
--}
-is : Body data -> Body data -> Bool
-is (Protected b1) (Protected b2) =
-    b1.id == b2.id && b1.id /= -1
 
 
 {-| Make a compound body from a list of [shapes](Physics-Shape#Shape).

@@ -19,8 +19,8 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3)
+import Math.Matrix4 as Mat4
+import Math.Vector3 as Vec3
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint
 import Physics.World as World exposing (RaycastResult, World)
@@ -52,7 +52,11 @@ type alias Model =
 
 type alias Selection =
     { raycastResult : RaycastResult Data
-    , direction : { x : Float, y : Float, z : Float }
+    , direction :
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     }
 
 

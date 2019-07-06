@@ -13,14 +13,13 @@ module SphereConvex exposing (main)
 -}
 {- import Collision.OriginalSphereConvex -}
 
-import Benchmark exposing (..)
+import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
 import Fixtures.Convex
 import Fixtures.NarrowPhase
 import Internal.Quaternion as Quaternion
 import Internal.Transform as Transform
-import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 main : BenchmarkProgram

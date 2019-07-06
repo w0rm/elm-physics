@@ -14,7 +14,7 @@ import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
