@@ -188,9 +188,6 @@ findSeparatingAxis transform1 convex1 transform2 convex2 =
                 convex1.uniqueNormals
     in
     case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
-        Nothing ->
-            Nothing
-
         Just { target, dmin } ->
             let
                 worldEdges1 =
@@ -206,6 +203,9 @@ findSeparatingAxis transform1 convex1 transform2 convex2 =
                         ctx.convex2.uniqueEdges
             in
             testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
+
+        _ ->
+            Nothing
 
 
 type alias TestContext =

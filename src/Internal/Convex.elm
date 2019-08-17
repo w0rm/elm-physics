@@ -76,7 +76,8 @@ initFaces faceVertexLists convexVertices =
                                     ( v1, computeNormal v1 v2 v3 )
 
                                 _ ->
-                                    identityOrCrash "Needs at least three vertices" ( Vec3.zero, Vec3.zero )
+                                    -- Shouldn’t happen
+                                    ( Vec3.zero, Vec3.zero )
                     in
                     { vertices = vertices
                     , normal = normal
@@ -456,22 +457,6 @@ raycast { direction, from } transform convex =
         )
         Nothing
         convex.faces
-
-
-
--- Generic utilities, listed alphabetically.
--- TODO: Consider migrating these to one or more utility modules
--- if they are found useful elsewhere.
-
-
-{-| Easily disabled wrapper for Debug.crash.
-KEEP DISABLED in published production code.
--}
-identityOrCrash : String -> a -> a
-identityOrCrash _ value =
-    -- enabled: Debug.crash message value
-    -- disabled: KEEP DISABLED in published production code.
-    value
 
 
 {-| Map the function to pairs of consecutive vertices,

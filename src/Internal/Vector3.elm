@@ -34,7 +34,10 @@ almostZero { x, y, z } =
 {-| Three dimensional vector type
 -}
 type alias Vec3 =
-    { x : Float, y : Float, z : Float }
+    { x : Float
+    , y : Float
+    , z : Float
+    }
 
 
 {-| The zero vector

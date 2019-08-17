@@ -8,13 +8,13 @@ module Internal.Equation exposing
     )
 
 import Internal.Body exposing (Body)
-import Internal.Constraint as Constraint exposing (Constraint(..), ConstraintGroup)
+import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
-import Internal.Matrix3 as Mat3 exposing (Mat3)
+import Internal.Matrix3 as Mat3
 import Internal.Quaternion as Quaternion
-import Internal.SolverBody as SolverBody exposing (SolverBody)
+import Internal.SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
@@ -78,7 +78,7 @@ constraintEquationsGroup dt body1 body2 constraints =
 contactEquationsGroup : Float -> Vec3 -> ContactGroup data -> EquationsGroup
 contactEquationsGroup dt gravity { body1, body2, contacts } =
     let
-        μg =
+        mug =
             Material.contactFriction
                 body1.material
                 body2.material
@@ -92,7 +92,7 @@ contactEquationsGroup dt gravity { body1, body2, contacts } =
                 0
 
         maxFrictionForce =
-            μg * reducedMass
+            mug * reducedMass
 
         bounciness =
             Material.contactBounciness
@@ -450,17 +450,14 @@ computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
 -}
 computeGiMf : Body data -> Body data -> Equation -> Float
 computeGiMf bi bj { jacobianElementA, jacobianElementB } =
-    (+)
-        (JacobianElement.mulVec
-            (Vec3.scale bi.invMass bi.force)
-            (Mat3.transform bi.invInertiaWorld bi.torque)
-            jacobianElementA
-        )
-        (JacobianElement.mulVec
+    JacobianElement.mulVec
+        (Vec3.scale bi.invMass bi.force)
+        (Mat3.transform bi.invInertiaWorld bi.torque)
+        jacobianElementA
+        + JacobianElement.mulVec
             (Vec3.scale bj.invMass bj.force)
             (Mat3.transform bj.invInertiaWorld bj.torque)
             jacobianElementB
-        )
 
 
 {-| Compute G\_inv(M)\_G' + eps, the denominator part of the SPOOK equation:

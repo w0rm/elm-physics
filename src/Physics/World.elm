@@ -128,7 +128,7 @@ raycast ray (Protected world) =
                 , normal = Quaternion.derotate body.orientation normal
                 }
 
-        Nothing ->
+        _ ->
             Nothing
 
 

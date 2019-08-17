@@ -4,8 +4,8 @@ module Internal.SolverBody exposing
     , fromBody
     )
 
-import Internal.Body as Body exposing (Body)
-import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
+import Internal.Body exposing (Body)
+import Internal.JacobianElement exposing (JacobianElement)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 

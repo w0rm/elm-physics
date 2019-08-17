@@ -10,7 +10,7 @@ module Internal.Shape exposing
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Quaternion as Quaternion exposing (Quaternion)
+import Internal.Quaternion exposing (Quaternion)
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 

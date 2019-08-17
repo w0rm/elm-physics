@@ -13,7 +13,11 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias Quaternion =
-    { x : Float, y : Float, z : Float, w : Float }
+    { x : Float
+    , y : Float
+    , z : Float
+    , w : Float
+    }
 
 
 identity : Quaternion
