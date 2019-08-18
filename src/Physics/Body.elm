@@ -5,6 +5,7 @@ module Physics.Body exposing
     , rotateBy, setOrientation, getOrientation
     , setData, getData
     , compound
+    , particle
     )
 
 {-|
@@ -91,6 +92,13 @@ plane =
 sphere : Float -> data -> Body data
 sphere radius =
     compound [ Shape.sphere radius ]
+
+
+{-| A particle is an abstract point that doesn’t have dimenstions.
+-}
+particle : data -> Body data
+particle =
+    compound [ Shape.particle ]
 
 
 {-| Set the body mass. Bodies with zero mass don’t move!
