@@ -14,6 +14,7 @@ type Constraint
         , pivot2 : Vec3
         , axis2 : Vec3
         }
+    | Distance Float
 
 
 type alias ConstraintGroup =

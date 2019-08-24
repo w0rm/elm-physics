@@ -120,6 +120,63 @@ addConstraintEquations dt body1 body2 constraint =
             addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2
                 >> addRotationalConstraintEquations dt body1 body2 axis1 axis2
 
+        Distance distance ->
+            addDistanceConstraintEquations dt body1 body2 distance
+
+
+addDistanceConstraintEquations : Float -> Body data -> Body data -> Float -> List SolverEquation -> List SolverEquation
+addDistanceConstraintEquations dt body1 body2 distance =
+    let
+        halfDistance =
+            distance / 2
+
+        ni =
+            Vec3.direction body2.position body1.position
+
+        ri =
+            Vec3.scale halfDistance ni
+
+        rj =
+            Vec3.scale -halfDistance ni
+
+        spookA =
+            4.0 / (dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+    in
+    (::)
+        (initSolverParams dt
+            body1
+            body2
+            { kind =
+                Contact
+                    { ri = ri
+                    , rj = rj
+                    , ni = ni
+                    , bounciness = 0
+                    }
+            , minForce = -1000000
+            , maxForce = 1000000
+            , solverBs = 0
+            , solverInvCs = 0
+            , spookA = spookA
+            , spookB = spookB
+            , spookEps = spookEps
+            , jacobianElementA =
+                { spatial = Vec3.negate ni
+                , rotational = Vec3.negate (Vec3.cross ri ni)
+                }
+            , jacobianElementB =
+                { spatial = ni
+                , rotational = Vec3.cross rj ni
+                }
+            }
+        )
+
 
 addRotationalConstraintEquations : Float -> Body data -> Body data -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =

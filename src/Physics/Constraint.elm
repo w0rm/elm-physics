@@ -1,13 +1,13 @@
 module Physics.Constraint exposing
     ( Constraint
-    , pointToPoint, hinge
+    , pointToPoint, hinge, distance
     )
 
 {-|
 
 @docs Constraint
 
-@docs pointToPoint, hinge
+@docs pointToPoint, hinge, distance
 
 -}
 
@@ -46,3 +46,12 @@ hinge :
     -> Constraint
 hinge =
     Internal.Hinge
+
+{-| Keep the centers of two bodies at the constant distance
+from each other.
+-}
+distance :
+    Float
+    -> Constraint
+distance =
+    Internal.Distance
