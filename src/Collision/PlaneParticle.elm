@@ -9,16 +9,11 @@ import Internal.Vector3 as Vec3
 addContacts : (Contact -> Contact) -> Transform -> Transform -> List Contact -> List Contact
 addContacts orderContact planeTransform t2 contacts =
     let
-        radius =
-            0
-
         worldPlaneNormal =
             Quaternion.rotate planeTransform.orientation Vec3.k
 
         worldVertex =
-            worldPlaneNormal
-                |> Vec3.scale radius
-                |> Vec3.sub t2.position
+            t2.position
 
         dot =
             planeTransform.position
