@@ -1,9 +1,9 @@
 module Collision.ParticleConvex exposing (addContacts)
 
+import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Convex exposing (Convex, Face)
 import Internal.Quaternion as Quaternion
-import Internal.Const as Const
 import Internal.Transform as Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -13,6 +13,7 @@ addContacts orderContact { position } t2 { faces } contacts =
     case convexContact position faces t2 Const.maxNumber Nothing of
         Just contact ->
             orderContact contact :: contacts
+
         Nothing ->
             contacts
 
@@ -49,6 +50,7 @@ convexContact particlePosition faces convexTransform bestDepth bestContact =
                             , pj = Vec3.add particlePosition (Vec3.scale dot worldFaceNormal)
                             }
                         )
+
                 else
                     convexContact
                         particlePosition
@@ -59,5 +61,3 @@ convexContact particlePosition faces convexTransform bestDepth bestContact =
 
             else
                 Nothing
-
-
