@@ -1,9 +1,12 @@
 module Internal.NarrowPhase exposing (getContacts)
 
 import Collision.ConvexConvex
+import Collision.ParticleConvex
 import Collision.PlaneConvex
+import Collision.PlaneParticle
 import Collision.PlaneSphere
 import Collision.SphereConvex
+import Collision.SphereParticle
 import Collision.SphereSphere
 import Internal.Body as Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
@@ -60,6 +63,14 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                         convex1
                         contacts
 
+                Particle ->
+                    Collision.ParticleConvex.addContacts
+                        Contact.flip
+                        shapeTransform2
+                        shapeTransform1
+                        convex1
+                        contacts
+
         Plane ->
             case shape2.kind of
                 Plane ->
@@ -80,6 +91,13 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                         shapeTransform1
                         shapeTransform2
                         radius2
+                        contacts
+
+                Particle ->
+                    Collision.PlaneParticle.addContacts
+                        identity
+                        shapeTransform1
+                        shapeTransform2
                         contacts
 
         Sphere radius1 ->
@@ -108,3 +126,40 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                         shapeTransform2
                         radius2
                         contacts
+
+                Particle ->
+                    Collision.SphereParticle.addContacts
+                        identity
+                        shapeTransform1
+                        radius1
+                        shapeTransform2
+                        contacts
+
+        Particle ->
+            case shape2.kind of
+                Plane ->
+                    Collision.PlaneParticle.addContacts
+                        Contact.flip
+                        shapeTransform2
+                        shapeTransform1
+                        contacts
+
+                Convex convex2 ->
+                    Collision.ParticleConvex.addContacts
+                        identity
+                        shapeTransform1
+                        shapeTransform2
+                        convex2
+                        contacts
+
+                Sphere radius2 ->
+                    Collision.SphereParticle.addContacts
+                        Contact.flip
+                        shapeTransform2
+                        radius2
+                        shapeTransform1
+                        contacts
+
+                Particle ->
+                    -- don't collide two particles
+                    contacts

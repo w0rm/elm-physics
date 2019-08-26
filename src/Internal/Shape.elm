@@ -30,6 +30,7 @@ type Kind
     = Convex Convex
     | Plane
     | Sphere Float
+    | Particle
 
 
 aabbClosure : Kind -> Transform -> AABB.AABB
@@ -43,6 +44,9 @@ aabbClosure kind =
 
         Sphere radius ->
             AABB.sphere radius
+
+        Particle ->
+            AABB.particle
 
 
 expandBoundingSphereRadius : Shape -> Float -> Float
@@ -64,6 +68,9 @@ expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius 
         Plane ->
             Const.maxNumber
 
+        Particle ->
+            max boundingSphereRadius (Vec3.length position)
+
 
 raycast : { from : Vec3, direction : Vec3 } -> Transform -> Shape -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast ray transform { kind } =
@@ -76,6 +83,9 @@ raycast ray transform { kind } =
 
         Convex convex ->
             Convex.raycast ray transform convex
+
+        Particle ->
+            Nothing
 
 
 raycastSphere : { from : Vec3, direction : Vec3 } -> Vec3 -> Float -> Maybe { distance : Float, point : Vec3, normal : Vec3 }

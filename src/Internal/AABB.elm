@@ -4,6 +4,7 @@ module Internal.AABB exposing
     , dimensions
     , extend
     , impossible
+    , particle
     , plane
     , sphere
     )
@@ -133,6 +134,13 @@ plane { position, orientation } =
 
     else
         maximum
+
+
+particle : Transform -> AABB
+particle { position } =
+    { upperBound = position
+    , lowerBound = position
+    }
 
 
 sphere : Float -> Transform -> AABB

@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, box, plane, sphere
+    ( Shape, box, plane, sphere, particle
     , moveBy, rotateBy, setPosition, setOrientation
     )
 
 {-|
 
-@docs Shape, box, plane, sphere
+@docs Shape, box, plane, sphere, particle
 
 
 ## Positioning and Orientation
@@ -70,6 +70,16 @@ sphere radius =
         { position = Vec3.zero
         , orientation = Quaternion.identity
         , kind = Internal.Sphere radius
+        }
+
+
+{-| -}
+particle : Shape
+particle =
+    Protected
+        { position = Vec3.zero
+        , orientation = Quaternion.identity
+        , kind = Internal.Particle
         }
 
 
