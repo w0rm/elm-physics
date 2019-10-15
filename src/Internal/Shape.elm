@@ -7,12 +7,14 @@ module Internal.Shape exposing
     , raycast
     )
 
+import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Quaternion exposing (Quaternion)
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates, WorldCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Length exposing (Meters)
+import Point3d
 
 
 type Protected
@@ -20,8 +22,7 @@ type Protected
 
 
 type alias Shape =
-    { position : Vec3
-    , orientation : Quaternion
+    { frame3d : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
     , kind : Kind
     }
 
@@ -33,7 +34,7 @@ type Kind
     | Particle
 
 
-aabbClosure : Kind -> Transform -> AABB.AABB
+aabbClosure : Kind -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB.AABB
 aabbClosure kind =
     case kind of
         Convex convex ->
@@ -50,18 +51,15 @@ aabbClosure kind =
 
 
 expandBoundingSphereRadius : Shape -> Float -> Float
-expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius =
+expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
     case kind of
         Convex convex ->
-            Convex.expandBoundingSphereRadius
-                { position = position, orientation = orientation }
-                convex
-                boundingSphereRadius
+            Convex.expandBoundingSphereRadius frame3d convex boundingSphereRadius
 
         Sphere radius ->
-            Vec3.zero
-                |> Transform.pointToWorldFrame { position = position, orientation = orientation }
-                |> Vec3.length
+            Frame3d.originPoint frame3d
+                |> Point3d.distanceFrom Point3d.origin
+                |> Length.inMeters
                 |> (+) radius
                 |> max boundingSphereRadius
 
@@ -69,20 +67,20 @@ expandBoundingSphereRadius { position, orientation, kind } boundingSphereRadius 
             Const.maxNumber
 
         Particle ->
-            max boundingSphereRadius (Vec3.length position)
+            max boundingSphereRadius (Vec3.length (Point3d.toMeters (Frame3d.originPoint frame3d)))
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Transform -> Shape -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycast ray transform { kind } =
+raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeLocalCoordinates } -> Shape -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast ray frame3d { kind } =
     case kind of
         Plane ->
             Nothing
 
         Sphere radius ->
-            raycastSphere ray transform.position radius
+            raycastSphere ray (Point3d.toMeters (Frame3d.originPoint frame3d)) radius
 
         Convex convex ->
-            Convex.raycast ray transform convex
+            Convex.raycast ray frame3d convex
 
         Particle ->
             Nothing

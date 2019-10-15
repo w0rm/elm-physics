@@ -1,16 +1,18 @@
 module Collision.ParticleConvex exposing (addContacts)
 
+import Frame3d
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Convex exposing (Convex, Face)
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Point3d
+import Vector3d
 
 
-addContacts : (Contact -> Contact) -> Transform -> Transform -> Convex -> List Contact -> List Contact
-addContacts orderContact { position } t2 { faces } contacts =
-    case convexContact position faces t2 Const.maxNumber Nothing of
+addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> ShapeWorldFrame3d -> Convex -> List Contact -> List Contact
+addContacts orderContact convexFrame3d t2 { faces } contacts =
+    case convexContact (Point3d.toMeters (Frame3d.originPoint convexFrame3d)) faces t2 Const.maxNumber Nothing of
         Just contact ->
             orderContact contact :: contacts
 
@@ -18,8 +20,8 @@ addContacts orderContact { position } t2 { faces } contacts =
             contacts
 
 
-convexContact : Vec3 -> List Face -> Transform -> Float -> Maybe Contact -> Maybe Contact
-convexContact particlePosition faces convexTransform bestDepth bestContact =
+convexContact : Vec3 -> List Face -> ShapeWorldFrame3d -> Float -> Maybe Contact -> Maybe Contact
+convexContact particlePosition faces convexFrame3d bestDepth bestContact =
     case faces of
         [] ->
             bestContact
@@ -27,10 +29,10 @@ convexContact particlePosition faces convexTransform bestDepth bestContact =
         { point, normal } :: remainingFaces ->
             let
                 worldFaceNormal =
-                    Quaternion.rotate convexTransform.orientation normal
+                    Vector3d.toMeters (Vector3d.placeIn convexFrame3d (Vector3d.fromMeters normal))
 
                 worldFacePoint =
-                    Transform.pointToWorldFrame convexTransform point
+                    Point3d.toMeters (Point3d.placeIn convexFrame3d (Point3d.fromMeters point))
 
                 dot =
                     Vec3.dot
@@ -42,7 +44,7 @@ convexContact particlePosition faces convexTransform bestDepth bestContact =
                     convexContact
                         particlePosition
                         remainingFaces
-                        convexTransform
+                        convexFrame3d
                         dot
                         (Just
                             { ni = Vec3.negate worldFaceNormal
@@ -55,7 +57,7 @@ convexContact particlePosition faces convexTransform bestDepth bestContact =
                     convexContact
                         particlePosition
                         remainingFaces
-                        convexTransform
+                        convexFrame3d
                         bestDepth
                         bestContact
 

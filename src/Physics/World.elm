@@ -17,15 +17,18 @@ module Physics.World exposing
 
 -}
 
+import Direction3d exposing (Direction3d)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Constraint exposing (ConstraintGroup)
-import Internal.Quaternion as Quaternion
+import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
+import Length exposing (Meters)
 import Physics.Body exposing (Body)
 import Physics.Constraint exposing (Constraint)
+import Point3d exposing (Point3d)
 
 
 {-| Physical world is our abstract playground for physical simulations.
@@ -61,7 +64,9 @@ add (InternalBody.Protected body) (Protected world) =
         [] ->
             Protected
                 { world
-                    | bodies = { body | id = world.nextBodyId } :: world.bodies
+                    | bodies =
+                        { body | id = world.nextBodyId }
+                            :: world.bodies
                     , nextBodyId = world.nextBodyId + 1
                 }
 
@@ -79,7 +84,10 @@ add (InternalBody.Protected body) (Protected world) =
         setGravity { x = 0, y = 0, z = -9.80665 } world
 
 -}
-setGravity : { x : Float, y : Float, z : Float } -> World data -> World data
+setGravity :
+    { x : Float, y : Float, z : Float }
+    -> World data
+    -> World data -- Vector3d Acceletation WorldCoordinates // decouple direction and magnitude?
 setGravity gravity (Protected world) =
     Protected { world | gravity = gravity }
 
@@ -89,7 +97,10 @@ setGravity gravity (Protected world) =
 Call this function on a message from the [onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame) subscription.
 
 -}
-simulate : Float -> World data -> World data
+simulate :
+    Float
+    -> World data
+    -> World data -- Duration
 simulate dt (Protected world) =
     world
         |> Internal.addGravityForces
@@ -112,20 +123,17 @@ getBodies (Protected { bodies }) =
 all the bodies in the world.
 -}
 raycast :
-    { from : { x : Float, y : Float, z : Float }
-    , direction : { x : Float, y : Float, z : Float }
-    }
+    Point3d Meters WorldCoordinates
+    -> Direction3d WorldCoordinates
     -> World data
     -> Maybe (RaycastResult data)
-raycast ray (Protected world) =
-    case Internal.raycast { ray | direction = Vec3.normalize ray.direction } world of
+raycast from direction (Protected world) =
+    case Internal.raycast { direction = Direction3d.unwrap direction, from = Point3d.toMeters from } world of
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body
-
-                -- convert into the local body coordinate system:
-                , point = Quaternion.derotate body.orientation (Vec3.sub point body.position)
-                , normal = Quaternion.derotate body.orientation normal
+                , point = Point3d.relativeTo body.frame3d (Point3d.fromMeters point)
+                , normal = Direction3d.relativeTo body.frame3d (Direction3d.unsafe normal)
                 }
 
         _ ->
@@ -138,16 +146,8 @@ expressed within the local body coordinate system.
 -}
 type alias RaycastResult data =
     { body : Body data
-    , point :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
-    , normal :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
+    , point : Point3d Meters BodyLocalCoordinates
+    , normal : Direction3d BodyLocalCoordinates
     }
 
 

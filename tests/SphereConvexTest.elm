@@ -4,10 +4,11 @@ import Collision.SphereConvex
 import Expect exposing (Expectation)
 import Fixtures.Convex
 import Fixtures.NarrowPhase
+import Frame3d
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Quaternion as Quaternion
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Point3d
 import Test exposing (Test, describe, test)
 
 
@@ -68,13 +69,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { position = center
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters center))
                                 radius
-                                { position = position
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters position))
                                 boxHull
                                 []
                         )
@@ -91,13 +88,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { position = center
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters center))
                                 radius
-                                { position = position
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters position))
                                 boxHull
                                 []
                         )
@@ -109,13 +102,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { position = center
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters center))
                                 radius
-                                { position = position
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters position))
                                 octoHull
                                 []
                         )
@@ -132,13 +121,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { position = center
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters center))
                                 radius
-                                { position = position
-                                , orientation = Quaternion.identity
-                                }
+                                (Frame3d.atPoint (Point3d.fromMeters position))
                                 octoHull
                                 []
                         )

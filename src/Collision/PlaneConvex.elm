@@ -1,26 +1,31 @@
 module Collision.PlaneConvex exposing (addContacts)
 
+import Frame3d
 import Internal.Contact exposing (Contact)
 import Internal.Convex exposing (Convex)
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3
+import Point3d
+import Vector3d
 
 
-addContacts : (Contact -> Contact) -> Transform -> Transform -> Convex -> List Contact -> List Contact
-addContacts orderContact planeTransform convexTransform { vertices } contacts =
+addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> ShapeWorldFrame3d -> Convex -> List Contact -> List Contact
+addContacts orderContact planeTransform convexFrame3d { vertices } contacts =
     let
         worldNormal =
-            Quaternion.rotate planeTransform.orientation Vec3.k
+            Vector3d.toMeters (Vector3d.placeIn convexFrame3d (Vector3d.fromMeters Vec3.k))
+
+        planeOriginPosition =
+            Point3d.toMeters (Frame3d.originPoint planeTransform)
     in
     List.foldl
         (\vertex currentContacts ->
             let
                 worldVertex =
-                    Transform.pointToWorldFrame convexTransform vertex
+                    Point3d.toMeters (Point3d.placeIn convexFrame3d (Point3d.fromMeters vertex))
 
                 dot =
-                    planeTransform.position
+                    planeOriginPosition
                         |> Vec3.sub worldVertex
                         |> Vec3.dot worldNormal
             in

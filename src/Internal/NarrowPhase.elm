@@ -8,10 +8,11 @@ import Collision.PlaneSphere
 import Collision.SphereConvex
 import Collision.SphereParticle
 import Collision.SphereSphere
-import Internal.Body as Body exposing (Body)
+import Frame3d
+import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Shape exposing (Kind(..), Shape)
-import Internal.Transform exposing (Transform)
 
 
 getContacts : Body data -> Body data -> List Contact
@@ -21,9 +22,9 @@ getContacts body1 body2 =
             List.foldl
                 (\shape2 ->
                     addShapeContacts
-                        (Body.shapeWorldTransform shape1 body1)
+                        (Frame3d.placeIn body1.frame3d shape1.frame3d)
                         shape1
-                        (Body.shapeWorldTransform shape2 body2)
+                        (Frame3d.placeIn body2.frame3d shape2.frame3d)
                         shape2
                 )
                 currentContactEquations1
@@ -33,41 +34,41 @@ getContacts body1 body2 =
         body1.shapes
 
 
-addShapeContacts : Transform -> Shape -> Transform -> Shape -> List Contact -> List Contact
-addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
+addShapeContacts : ShapeWorldFrame3d -> Shape -> ShapeWorldFrame3d -> Shape -> List Contact -> List Contact
+addShapeContacts frame3d1 shape1 frame3d2 shape2 contacts =
     case shape1.kind of
         Convex convex1 ->
             case shape2.kind of
                 Convex convex2 ->
                     Collision.ConvexConvex.addContacts
-                        shapeTransform1
+                        frame3d1
                         convex1
-                        shapeTransform2
+                        frame3d2
                         convex2
                         contacts
 
                 Plane ->
                     Collision.PlaneConvex.addContacts
                         Contact.flip
-                        shapeTransform2
-                        shapeTransform1
+                        frame3d2
+                        frame3d1
                         convex1
                         contacts
 
                 Sphere radius2 ->
                     Collision.SphereConvex.addContacts
                         Contact.flip
-                        shapeTransform2
+                        frame3d2
                         radius2
-                        shapeTransform1
+                        frame3d1
                         convex1
                         contacts
 
                 Particle ->
                     Collision.ParticleConvex.addContacts
                         Contact.flip
-                        shapeTransform2
-                        shapeTransform1
+                        frame3d2
+                        frame3d1
                         convex1
                         contacts
 
@@ -80,24 +81,24 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                 Convex convex2 ->
                     Collision.PlaneConvex.addContacts
                         identity
-                        shapeTransform1
-                        shapeTransform2
+                        frame3d1
+                        frame3d2
                         convex2
                         contacts
 
                 Sphere radius2 ->
                     Collision.PlaneSphere.addContacts
                         identity
-                        shapeTransform1
-                        shapeTransform2
+                        frame3d1
+                        frame3d2
                         radius2
                         contacts
 
                 Particle ->
                     Collision.PlaneParticle.addContacts
                         identity
-                        shapeTransform1
-                        shapeTransform2
+                        frame3d1
+                        frame3d2
                         contacts
 
         Sphere radius1 ->
@@ -105,34 +106,34 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                 Plane ->
                     Collision.PlaneSphere.addContacts
                         Contact.flip
-                        shapeTransform2
-                        shapeTransform1
+                        frame3d2
+                        frame3d1
                         radius1
                         contacts
 
                 Convex convex2 ->
                     Collision.SphereConvex.addContacts
                         identity
-                        shapeTransform1
+                        frame3d1
                         radius1
-                        shapeTransform2
+                        frame3d2
                         convex2
                         contacts
 
                 Sphere radius2 ->
                     Collision.SphereSphere.addContacts
-                        shapeTransform1
+                        frame3d1
                         radius1
-                        shapeTransform2
+                        frame3d2
                         radius2
                         contacts
 
                 Particle ->
                     Collision.SphereParticle.addContacts
                         identity
-                        shapeTransform1
+                        frame3d1
                         radius1
-                        shapeTransform2
+                        frame3d2
                         contacts
 
         Particle ->
@@ -140,24 +141,24 @@ addShapeContacts shapeTransform1 shape1 shapeTransform2 shape2 contacts =
                 Plane ->
                     Collision.PlaneParticle.addContacts
                         Contact.flip
-                        shapeTransform2
-                        shapeTransform1
+                        frame3d2
+                        frame3d1
                         contacts
 
                 Convex convex2 ->
                     Collision.ParticleConvex.addContacts
                         identity
-                        shapeTransform1
-                        shapeTransform2
+                        frame3d1
+                        frame3d2
                         convex2
                         contacts
 
                 Sphere radius2 ->
                     Collision.SphereParticle.addContacts
                         Contact.flip
-                        shapeTransform2
+                        frame3d2
                         radius2
-                        shapeTransform1
+                        frame3d1
                         contacts
 
                 Particle ->

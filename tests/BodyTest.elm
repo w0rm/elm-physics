@@ -1,12 +1,13 @@
 module BodyTest exposing (boundingSphereRadius, box)
 
 import Expect
+import Frame3d
 import Internal.Body as Body
 import Internal.Const as Const
 import Internal.Convex as Convex
-import Internal.Quaternion as Quaternion
 import Internal.Shape as Shape exposing (Shape)
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
+import Point3d
 import Test exposing (Test, describe, test)
 
 
@@ -18,12 +19,12 @@ boundingSphereRadius =
                 Expect.equal 0 (Body.compound [] () |> .boundingSphereRadius)
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box { x = 1, y = 1, z = 1 } ] ()
+                Body.compound [ box 1 1 1 ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 1, y = 1, z = 1 })
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box { x = 1, y = 1, z = 1 }, box { x = 2, y = 2, z = 2 } ] ()
+                Body.compound [ box 1 1 1, box 2 2 2 ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 2, y = 2, z = 2 })
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
@@ -34,17 +35,15 @@ boundingSphereRadius =
         ]
 
 
-box : Vec3 -> Shape
-box halfExtends =
-    { position = Vec3.zero
-    , orientation = Quaternion.identity
-    , kind = Shape.Convex (Convex.fromBox halfExtends)
+box : Float -> Float -> Float -> Shape
+box x y z =
+    { frame3d = Frame3d.atPoint Point3d.origin
+    , kind = Shape.Convex (Convex.fromBlock x y z)
     }
 
 
 plane : Shape
 plane =
-    { position = Vec3.zero
-    , orientation = Quaternion.identity
+    { frame3d = Frame3d.atPoint Point3d.origin
     , kind = Shape.Plane
     }

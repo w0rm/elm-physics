@@ -4,18 +4,23 @@ module Internal.Body exposing
     , addGravity
     , compound
     , raycast
-    , shapeWorldTransform
     , update
     , updateMassProperties
     )
 
+import Angle
+import Axis3d
+import Direction3d
+import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB exposing (AABB)
+import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.Quaternion as Quaternion exposing (Quaternion)
 import Internal.Shape as Shape exposing (Shape)
-import Internal.Transform exposing (Transform)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Length exposing (Meters)
+import Point3d
+import Vector3d
 
 
 type Protected data
@@ -26,10 +31,9 @@ type alias Body data =
     { id : Int
     , data : data
     , material : Material
-    , position : Vec3
+    , frame3d : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
     , velocity : Vec3
     , angularVelocity : Vec3
-    , orientation : Quaternion
     , mass : Float
     , shapes : List Shape
     , force : Vec3
@@ -50,10 +54,9 @@ compound shapes data =
         { id = -1
         , data = data
         , material = Material.default
-        , position = Vec3.zero
+        , frame3d = defaultFrame
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
-        , orientation = Quaternion.identity
         , mass = 0
         , shapes = shapes
         , force = Vec3.zero
@@ -68,6 +71,11 @@ compound shapes data =
         }
 
 
+defaultFrame : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
+defaultFrame =
+    Frame3d.atPoint Point3d.origin
+
+
 addGravity : Vec3 -> Body data -> Body data
 addGravity gravity body =
     { body
@@ -80,34 +88,6 @@ addGravity gravity body =
             , y = gravity.y * body.mass + body.force.y
             , z = gravity.z * body.mass + body.force.z
             }
-    }
-
-
-shapeWorldTransform : Shape -> Body data -> Transform
-shapeWorldTransform shape { position, orientation } =
-    { orientation = Quaternion.mul orientation shape.orientation
-    , position =
-        {- Vec3.add
-           position
-           (Quaternion.rotate orientation shape.position)
-        -}
-        let
-            ix =
-                orientation.w * shape.position.x + orientation.y * shape.position.z - orientation.z * shape.position.y
-
-            iy =
-                orientation.w * shape.position.y + orientation.z * shape.position.x - orientation.x * shape.position.z
-
-            iz =
-                orientation.w * shape.position.z + orientation.x * shape.position.y - orientation.y * shape.position.x
-
-            iw =
-                -orientation.x * shape.position.x - orientation.y * shape.position.y - orientation.z * shape.position.z
-        in
-        { x = ix * orientation.w + iw * -orientation.x + iy * -orientation.z - iz * -orientation.y + position.x
-        , y = iy * orientation.w + iw * -orientation.y + iz * -orientation.x - ix * -orientation.z + position.y
-        , z = iz * orientation.w + iw * -orientation.z + ix * -orientation.y - iy * -orientation.x + position.z
-        }
     }
 
 
@@ -140,50 +120,23 @@ update dt vlambda wlambda body =
             , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z + wlambda.z
             }
 
-        newPosition =
-            {- newVelocity
-               |> Vec3.scale dt
-               |> Vec3.add body.position
-            -}
-            { x = newVelocity.x * dt + body.position.x
-            , y = newVelocity.y * dt + body.position.y
-            , z = newVelocity.z * dt + body.position.z
-            }
+        newFrame3d =
+            case Vector3d.direction (Vector3d.fromMeters newAngularVelocity) of
+                Just direction ->
+                    body.frame3d
+                        |> Frame3d.rotateAroundOwn (\frame -> Axis3d.through (Frame3d.originPoint frame) direction) (Angle.radians (Vec3.length newAngularVelocity * dt * 0.5))
+                        |> Frame3d.translateBy (Vector3d.meters (newVelocity.x * dt) (newVelocity.y * dt) (newVelocity.z * dt))
 
-        newOrientation =
-            {-
-               body.orientation
-                   |> Quaternion.rotateBy (Vec3.scale (dt / 2) newAngularVelocity)
-                   |> Quaternion.normalize
-            -}
-            { x = x / len
-            , y = y / len
-            , z = z / len
-            , w = w / len
-            }
-
-        x =
-            body.orientation.x + (newAngularVelocity.x * body.orientation.w + newAngularVelocity.y * body.orientation.z - newAngularVelocity.z * body.orientation.y) * (dt / 2)
-
-        y =
-            body.orientation.y + (newAngularVelocity.y * body.orientation.w + newAngularVelocity.z * body.orientation.x - newAngularVelocity.x * body.orientation.z) * (dt / 2)
-
-        z =
-            body.orientation.z + (newAngularVelocity.z * body.orientation.w + newAngularVelocity.x * body.orientation.y - newAngularVelocity.y * body.orientation.x) * (dt / 2)
-
-        w =
-            body.orientation.w + (-newAngularVelocity.x * body.orientation.x - newAngularVelocity.y * body.orientation.y - newAngularVelocity.z * body.orientation.z) * (dt / 2)
-
-        len =
-            sqrt (x * x + y * y + z * z + w * w)
+                Nothing ->
+                    body.frame3d
+                        |> Frame3d.translateBy (Vector3d.meters (newVelocity.x * dt) (newVelocity.y * dt) (newVelocity.z * dt))
     in
     { id = body.id
     , data = body.data
     , material = body.material
     , velocity = newVelocity
     , angularVelocity = newAngularVelocity
-    , position = newPosition
-    , orientation = newOrientation
+    , frame3d = newFrame3d
     , mass = body.mass
     , shapes = body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
@@ -193,7 +146,7 @@ update dt vlambda wlambda body =
     , invInertiaWorld =
         updateInvInertiaWorld False
             body.invInertia
-            newOrientation
+            newFrame3d
             body.invInertiaWorld
 
     -- clear forces
@@ -257,13 +210,13 @@ updateMassProperties ({ mass } as body) =
         , invInertiaWorld =
             updateInvInertiaWorld True
                 invInertia
-                body.orientation
+                body.frame3d
                 body.invInertiaWorld
     }
 
 
-updateInvInertiaWorld : Bool -> Vec3 -> Quaternion -> Mat3 -> Mat3
-updateInvInertiaWorld force invInertia orientation invInertiaWorld =
+updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates } -> Mat3 -> Mat3
+updateInvInertiaWorld force invInertia frame3d invInertiaWorld =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         invInertiaWorld
 
@@ -278,32 +231,41 @@ updateInvInertiaWorld force invInertia orientation invInertiaWorld =
                (Mat3.scale invInertia m)
         -}
         let
+            xDirection =
+                Direction3d.unwrap (Frame3d.xDirection frame3d)
+
+            yDirection =
+                Direction3d.unwrap (Frame3d.yDirection frame3d)
+
+            zDirection =
+                Direction3d.unwrap (Frame3d.zDirection frame3d)
+
             am11 =
-                1 - 2 * orientation.y * orientation.y - 2 * orientation.z * orientation.z
+                xDirection.x
 
             am21 =
-                2 * orientation.x * orientation.y - 2 * orientation.w * orientation.z
+                xDirection.y
 
             am31 =
-                2 * orientation.x * orientation.z + 2 * orientation.w * orientation.y
+                xDirection.z
 
             am12 =
-                2 * orientation.x * orientation.y + 2 * orientation.w * orientation.z
+                yDirection.x
 
             am22 =
-                1 - 2 * orientation.x * orientation.x - 2 * orientation.z * orientation.z
+                yDirection.y
 
             am32 =
-                2 * orientation.y * orientation.z - 2 * orientation.w * orientation.x
+                yDirection.z
 
             am13 =
-                2 * orientation.x * orientation.z - 2 * orientation.w * orientation.y
+                zDirection.x
 
             am23 =
-                2 * orientation.y * orientation.z + 2 * orientation.w * orientation.x
+                zDirection.y
 
             am33 =
-                1 - 2 * orientation.x * orientation.x - 2 * orientation.y * orientation.y
+                zDirection.z
 
             bm11 =
                 am11 * invInertia.x
@@ -348,8 +310,7 @@ computeAABB : Body data -> AABB
 computeAABB body =
     List.foldl
         (\shape ->
-            shapeWorldTransform shape body
-                |> Shape.aabbClosure shape.kind
+            Shape.aabbClosure shape.kind shape.frame3d
                 |> AABB.extend
         )
         AABB.impossible
@@ -363,7 +324,7 @@ raycast :
 raycast ray body =
     List.foldl
         (\shape maybeClosestRaycastResult ->
-            case Shape.raycast ray (shapeWorldTransform shape body) shape of
+            case Shape.raycast ray (Frame3d.placeIn body.frame3d shape.frame3d) shape of
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->

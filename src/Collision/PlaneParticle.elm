@@ -1,22 +1,24 @@
 module Collision.PlaneParticle exposing (addContacts)
 
+import Frame3d
 import Internal.Contact exposing (Contact)
-import Internal.Quaternion as Quaternion
-import Internal.Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3
+import Point3d
+import Vector3d
 
 
-addContacts : (Contact -> Contact) -> Transform -> Transform -> List Contact -> List Contact
-addContacts orderContact planeTransform t2 contacts =
+addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> ShapeWorldFrame3d -> List Contact -> List Contact
+addContacts orderContact planeFrame3d particleFrame3d contacts =
     let
         worldPlaneNormal =
-            Quaternion.rotate planeTransform.orientation Vec3.k
+            Vector3d.toMeters (Vector3d.placeIn planeFrame3d (Vector3d.fromMeters Vec3.k))
 
         worldVertex =
-            t2.position
+            Point3d.toMeters (Frame3d.originPoint particleFrame3d)
 
         dot =
-            planeTransform.position
+            Point3d.toMeters (Frame3d.originPoint planeFrame3d)
                 |> Vec3.sub worldVertex
                 |> Vec3.dot worldPlaneNormal
     in

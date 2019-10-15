@@ -4,11 +4,13 @@ module Internal.BroadPhase exposing (getContacts)
 that checks if the bounding spheres of each two bodies overlap
 -}
 
+import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Contact exposing (ContactGroup)
 import Internal.NarrowPhase as NarrowPhase
-import Internal.Vector3 as Vec3
 import Internal.World exposing (World)
+import Length
+import Point3d
 
 
 getContacts : World data -> List (ContactGroup data)
@@ -61,5 +63,5 @@ getContactsHelp body1 currentBodies restBodies result =
 bodiesMayOverlap : Body data -> Body data -> Bool
 bodiesMayOverlap body1 body2 =
     (body1.boundingSphereRadius + body2.boundingSphereRadius)
-        - Vec3.distance body1.position body2.position
+        - Length.inMeters (Point3d.distanceFrom (Frame3d.originPoint body1.frame3d) (Frame3d.originPoint body2.frame3d))
         > 0

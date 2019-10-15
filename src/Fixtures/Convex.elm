@@ -27,12 +27,12 @@ using optimized box-specific initializers.
 -}
 boxHull : Float -> Convex
 boxHull halfExtent =
-    Convex.fromBox { x = halfExtent, y = halfExtent, z = halfExtent }
+    Convex.fromBlock halfExtent halfExtent halfExtent
 
 
 originalBoxHull : Float -> Convex
 originalBoxHull halfExtent =
-    Convex.fromBox { x = halfExtent, y = halfExtent, z = halfExtent }
+    Convex.fromBlock halfExtent halfExtent halfExtent
 
 
 boxVertexIndices : List (List Int)

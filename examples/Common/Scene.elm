@@ -5,12 +5,15 @@ import Common.Math as Math
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
+import Geometry.Interop.LinearAlgebra.Direction3d as Direction3d
+import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
+import Geometry.Interop.LinearAlgebra.Point3d as Point3d
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body)
-import Physics.Debug as Debug
+import Physics.Debug as Debug exposing (FaceNormal, UniqueEdge)
 import Physics.World as World exposing (RaycastResult, World)
 import WebGL exposing (Entity)
 
@@ -98,7 +101,7 @@ addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
 addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
-            Mat4.fromRecord (Body.getTransformation body)
+            Frame3d.toMat4 (Body.getFrame3d body)
 
         addEdges acc =
             if debugEdges then
@@ -206,7 +209,7 @@ addContactIndicator { lightDirection, camera } { x, y, z } tail =
 
 {-| Render shape face normals for the purpose of debugging
 -}
-addNormalIndicator : SceneParams a -> Mat4 -> { normal : { x : Float, y : Float, z : Float }, point : { x : Float, y : Float, z : Float } } -> List Entity -> List Entity
+addNormalIndicator : SceneParams a -> Mat4 -> FaceNormal -> List Entity -> List Entity
 addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
     WebGL.entity
         Shaders.vertex
@@ -217,9 +220,9 @@ addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
         , lightDirection = lightDirection
         , color = Vec3.vec3 1 0 1
         , transform =
-            Math.makeRotateKTo (Vec3.fromRecord normal)
+            Math.makeRotateKTo (Direction3d.toVec3 normal)
                 |> Mat4.mul
-                    (Vec3.fromRecord point
+                    (Point3d.toVec3 point
                         |> Mat4.makeTranslate
                         |> Mat4.mul transform
                     )
@@ -229,7 +232,7 @@ addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
 
 {-| Render shapes' unique edge for the purpose of debugging
 -}
-addEdgeIndicator : SceneParams a -> Mat4 -> { direction : { x : Float, y : Float, z : Float }, point : { x : Float, y : Float, z : Float } } -> List Entity -> List Entity
+addEdgeIndicator : SceneParams a -> Mat4 -> UniqueEdge -> List Entity -> List Entity
 addEdgeIndicator { lightDirection, camera } transform { direction, point } tail =
     WebGL.entity
         Shaders.vertex
@@ -240,9 +243,9 @@ addEdgeIndicator { lightDirection, camera } transform { direction, point } tail 
         , lightDirection = lightDirection
         , color = Vec3.vec3 0 1 0
         , transform =
-            Math.makeRotateKTo (Vec3.fromRecord direction)
+            Math.makeRotateKTo (Direction3d.toVec3 direction)
                 |> Mat4.mul
-                    (Vec3.fromRecord point
+                    (Point3d.toVec3 point
                         |> Mat4.makeTranslate
                         |> Mat4.mul transform
                     )

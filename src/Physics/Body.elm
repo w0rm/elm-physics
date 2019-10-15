@@ -1,16 +1,14 @@
 module Physics.Body exposing
-    ( Body, box, plane, sphere
-    , setMass, setPosition, getTransformation, setMaterial
-    , moveBy, getPosition
-    , rotateBy, setOrientation, getOrientation
+    ( Body, block, plane, sphere, particle
+    , setMass, setMaterial
     , setData, getData
     , compound
-    , particle
+    , getFrame3d, setFrame3d
     )
 
 {-|
 
-@docs Body, box, plane, sphere
+@docs Body, block, plane, sphere, particle
 @docs setMass, setPosition, getTransformation, setMaterial
 
 
@@ -35,11 +33,13 @@ module Physics.Body exposing
 
 -}
 
+import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
+import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
 import Internal.Material as InternalMaterial
-import Internal.Quaternion as Quaternion
 import Internal.Shape as InternalShape
-import Internal.Vector3 as Vec3
+import Length exposing (Length, Meters)
+import Mass exposing (Mass)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 
@@ -54,7 +54,7 @@ Bodies with zero mass don’t move!
 
 The supported bodies are:
 
-  - [box](#box),
+  - [block](#block),
   - [plane](#plane),
   - [sphere](#sphere).
 
@@ -65,15 +65,15 @@ type alias Body data =
     Protected data
 
 
-{-| A box is defined by its dimensions along the corresponding axes.
-To create a 1x1 box, call this:
+{-| A block is defined by its dimensions along the x, y and z axes.
+To create a 1x1 block, call this:
 
-    box { x = 1, y = 1, z = 1 } data
+    block (Length.meters 1) (Length.meters 1) (Length.meters 1) data
 
 -}
-box : { x : Float, y : Float, z : Float } -> data -> Body data
-box dimensions =
-    compound [ Shape.box dimensions ]
+block : Length -> Length -> Length -> data -> Body data
+block x y z =
+    compound [ Shape.block x y z ]
 
 
 {-| A plane with the normal that points
@@ -89,7 +89,7 @@ plane =
 
 {-| A sphere is defined by its radius.
 -}
-sphere : Float -> data -> Body data
+sphere : Length -> data -> Body data
 sphere radius =
     compound [ Shape.sphere radius ]
 
@@ -103,68 +103,16 @@ particle =
 
 {-| Set the body mass. Bodies with zero mass don’t move!
 -}
-setMass : Float -> Body data -> Body data
+setMass : Mass -> Body data -> Body data
 setMass mass (Protected body) =
-    Protected (Internal.updateMassProperties { body | mass = mass })
+    Protected (Internal.updateMassProperties { body | mass = Mass.inKilograms mass })
 
 
-{-| Set the absolute position of the body in the world.
+{-| Set the frame3d that controls the absolute position and orientation of the body in the world.
 -}
-setPosition : { x : Float, y : Float, z : Float } -> Body data -> Body data
-setPosition position (Protected body) =
-    Protected (Internal.updateMassProperties { body | position = position })
-
-
-{-| Get the position and the orientation of the body in a single matrix.
-
-Elements are given by their row and column indices, starting at 1,
-so `m23` means the element in the second row, third column.
-
-To use this with WebGL, pass the result to [`Math.Matrix4.fromRecord`](https://package.elm-lang.org/packages/elm-explorations/linear-algebra/latest/Math-Matrix4#fromRecord).
-
--}
-getTransformation :
-    Body data
-    ->
-        { m11 : Float
-        , m21 : Float
-        , m31 : Float
-        , m41 : Float
-        , m12 : Float
-        , m22 : Float
-        , m32 : Float
-        , m42 : Float
-        , m13 : Float
-        , m23 : Float
-        , m33 : Float
-        , m43 : Float
-        , m14 : Float
-        , m24 : Float
-        , m34 : Float
-        , m44 : Float
-        }
-getTransformation (Protected { position, orientation }) =
-    let
-        { x, y, z, w } =
-            orientation
-    in
-    { m11 = 1 - 2 * y * y - 2 * z * z
-    , m21 = 2 * x * y + 2 * w * z
-    , m31 = 2 * x * z - 2 * w * y
-    , m41 = 0
-    , m12 = 2 * x * y - 2 * w * z
-    , m22 = 1 - 2 * x * x - 2 * z * z
-    , m32 = 2 * y * z + 2 * w * x
-    , m42 = 0
-    , m13 = 2 * x * z + 2 * w * y
-    , m23 = 2 * y * z - 2 * w * x
-    , m33 = 1 - 2 * x * x - 2 * y * y
-    , m43 = 0
-    , m14 = position.x
-    , m24 = position.y
-    , m34 = position.z
-    , m44 = 1
-    }
+setFrame3d : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates } -> Body data -> Body data
+setFrame3d frame3d (Protected body) =
+    Protected (Internal.updateMassProperties { body | frame3d = frame3d })
 
 
 {-| Set the [material](Physics-Material) to controll friction and bounciness.
@@ -174,53 +122,11 @@ setMaterial (InternalMaterial.Protected material) (Protected body) =
     Protected { body | material = material }
 
 
-{-| Move the body by a vector offset from the current position.
+{-| Get the absolute position and orientation of the body in the world as a frame3d.
 -}
-moveBy : { x : Float, y : Float, z : Float } -> Body data -> Body data
-moveBy offset (Protected body) =
-    Protected
-        (Internal.updateMassProperties
-            { body | position = Vec3.add offset body.position }
-        )
-
-
-{-| -}
-getPosition : Body data -> { x : Float, y : Float, z : Float }
-getPosition (Protected { position }) =
-    position
-
-
-{-| Rotate the body by a specific angle around the axis
-from the current orientation. Angle must be specified in radians.
--}
-rotateBy : Float -> { x : Float, y : Float, z : Float } -> Body data -> Body data
-rotateBy angle axis (Protected body) =
-    Protected
-        (Internal.updateMassProperties
-            { body
-                | orientation =
-                    Quaternion.mul
-                        (Quaternion.fromAngleAxis angle axis)
-                        body.orientation
-            }
-        )
-
-
-{-| Set the body orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
--}
-setOrientation : { x : Float, y : Float, z : Float, w : Float } -> Body data -> Body data
-setOrientation orientation (Protected body) =
-    Protected
-        (Internal.updateMassProperties
-            { body | orientation = orientation }
-        )
-
-
-{-| Get orientation as a unit quaternion.
--}
-getOrientation : Body data -> { x : Float, y : Float, z : Float, w : Float }
-getOrientation (Protected { orientation }) =
-    orientation
+getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
+getFrame3d (Protected { frame3d }) =
+    frame3d
 
 
 {-| Set user-defined data.
@@ -231,10 +137,9 @@ setData data (Protected body) =
         { id = body.id
         , data = data
         , material = body.material
-        , position = body.position
+        , frame3d = body.frame3d
         , velocity = body.velocity
         , angularVelocity = body.angularVelocity
-        , orientation = body.orientation
         , mass = body.mass
         , shapes = body.shapes
         , force = body.force
