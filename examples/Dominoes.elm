@@ -5,6 +5,8 @@ Without the slippy material, dominoes would not slide along each other.
 Try to make the floor slippy too!
 -}
 
+import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -12,11 +14,15 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
+import Length
+import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Material as Material exposing (Material)
 import Physics.World as World exposing (World)
+import Point3d
 
 
 type alias Model =
@@ -125,9 +131,12 @@ initialWorld =
         |> World.add floor
         |> World.add
             (domino
-                |> Body.rotateBy (pi / 8) { x = 0, y = 1, z = 0 }
-                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
-                |> Body.moveBy { x = -5.5, y = -5.5, z = 0 }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 8))
+                        |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = -5.5, y = -5.5, z = 0 })
+                    )
             )
         |> addDominos
 
@@ -137,12 +146,17 @@ addDominos world =
     List.foldl
         (\i ->
             domino
-                |> Body.rotateBy (pi / 4) { x = 0, y = 0, z = 1 }
-                |> Body.moveBy
-                    { x = toFloat (5 - i)
-                    , y = toFloat (5 - i)
-                    , z = 0
-                    }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                        |> Frame3d.moveTo
+                            (Point3d.fromMeters
+                                { x = toFloat (5 - i)
+                                , y = toFloat (5 - i)
+                                , z = 0
+                                }
+                            )
+                    )
                 |> World.add
         )
         world
@@ -161,8 +175,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setMass 0
-        |> Body.setPosition floorOffset
+        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
 
 
 {-| A domino piece
@@ -175,8 +188,8 @@ domino =
     in
     Meshes.box size
         |> Meshes.fromTriangles
-        |> Body.box size
-        |> Body.setMass 5
+        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+        |> Body.setMass (Mass.kilograms 5)
         |> Body.setMaterial slippy
 
 

@@ -11,11 +11,15 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
+import Length
+import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.World as World exposing (World)
+import Point3d
 
 
 particlesPerDimension : Int
@@ -143,7 +147,7 @@ initialWorld =
     World.empty
         |> World.setGravity { x = 0, y = 0, z = -10 }
         |> World.add floor
-        |> World.add (Body.moveBy { x = 0, y = 0, z = 1 } sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0, y = 0, z = 1 })) sphere)
         |> addCloth
         |> World.constrain constrainCloth
 
@@ -159,11 +163,15 @@ addCloth world =
             List.foldl
                 (\y ->
                     particle x y
-                        |> Body.moveBy
-                            { x = (toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
-                            , y = (toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
-                            , z = 8
-                            }
+                        |> Body.setFrame3d
+                            (Frame3d.atPoint
+                                (Point3d.fromMeters
+                                    { x = (toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
+                                    , y = (toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
+                                    , z = 8
+                                    }
+                                )
+                            )
                         |> World.add
                 )
                 world1
@@ -180,11 +188,11 @@ constrainCloth body1 body2 =
     case ( (Body.getData body1).kind, (Body.getData body2).kind ) of
         ( Particle x1 y1, Particle x2 y2 ) ->
             if x1 == x2 && y2 - y1 == 1 || y1 == y2 && x2 - x1 == 1 then
-                [ Constraint.distance distanceBetweenParticles ]
+                [ Constraint.distance (Length.meters distanceBetweenParticles) ]
                 -- Uncomment to add diagonal connections,
                 -- that make the cloth stiffer:
                 -- else if abs (x2 - x1) == 1 && y2 - y1 == 1 then
-                --     [ Constraint.distance (sqrt distanceBetweenParticles) ]
+                --     [ Constraint.distance (Length.meters (sqrt distanceBetweenParticles)) ]
 
             else
                 []
@@ -205,8 +213,7 @@ floorOffset =
 floor : Body Data
 floor =
     Body.plane { kind = Other, meshes = Meshes.fromTriangles [] }
-        |> Body.setMass 0
-        |> Body.setPosition floorOffset
+        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
 
 
 sphere : Body Data
@@ -220,8 +227,8 @@ sphere =
             |> Meshes.fromTriangles
     , kind = Other
     }
-        |> Body.sphere radius
-        |> Body.setMass 5
+        |> Body.sphere (Length.meters radius)
+        |> Body.setMass (Mass.kilograms 5)
 
 
 particle : Int -> Int -> Body Data
@@ -230,4 +237,4 @@ particle x y =
     , kind = Particle x y
     }
         |> Body.particle
-        |> Body.setMass 5
+        |> Body.setMass (Mass.kilograms 5)
