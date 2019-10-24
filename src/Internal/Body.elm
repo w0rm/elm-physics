@@ -124,7 +124,7 @@ update dt vlambda wlambda body =
             case Vector3d.direction (Vector3d.fromMeters newAngularVelocity) of
                 Just direction ->
                     body.frame3d
-                        |> Frame3d.rotateAround (Axis3d.through (Frame3d.originPoint body.frame3d) direction) (Angle.radians (Vec3.length newAngularVelocity * dt * 0.5))
+                        |> Frame3d.rotateAround (Axis3d.through (Frame3d.originPoint body.frame3d) direction) (Angle.radians (Vec3.length newAngularVelocity * dt))
                         |> Frame3d.translateBy (Vector3d.meters (newVelocity.x * dt) (newVelocity.y * dt) (newVelocity.z * dt))
 
                 Nothing ->
