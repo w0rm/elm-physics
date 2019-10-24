@@ -1,24 +1,26 @@
 module Collision.PlaneSphere exposing (addContacts)
 
+import Frame3d
 import Internal.Contact exposing (Contact)
-import Internal.Quaternion as Quaternion
-import Internal.Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3
+import Point3d
+import Vector3d
 
 
-addContacts : (Contact -> Contact) -> Transform -> Transform -> Float -> List Contact -> List Contact
-addContacts orderContact planeTransform t2 radius contacts =
+addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> ShapeWorldFrame3d -> Float -> List Contact -> List Contact
+addContacts orderContact planeFrame3d sphereFrame3d radius contacts =
     let
         worldPlaneNormal =
-            Quaternion.rotate planeTransform.orientation Vec3.k
+            Vector3d.toMeters (Vector3d.placeIn planeFrame3d (Vector3d.fromMeters Vec3.k))
 
         worldVertex =
             worldPlaneNormal
                 |> Vec3.scale radius
-                |> Vec3.sub t2.position
+                |> Vec3.sub (Point3d.toMeters (Frame3d.originPoint sphereFrame3d))
 
         dot =
-            planeTransform.position
+            Point3d.toMeters (Frame3d.originPoint planeFrame3d)
                 |> Vec3.sub worldVertex
                 |> Vec3.dot worldPlaneNormal
     in

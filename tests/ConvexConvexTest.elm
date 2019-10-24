@@ -5,12 +5,14 @@ module ConvexConvexTest exposing
     , testSeparatingAxis
     )
 
+import Angle
+import Axis3d
 import Collision.ConvexConvex
 import Expect
+import Frame3d
 import Internal.Convex as Convex
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform
 import Internal.Vector3 as Vec3
+import Point3d
 import Test exposing (Test, describe, test)
 
 
@@ -21,17 +23,18 @@ getContacts =
             \_ ->
                 let
                     convex =
-                        Convex.fromBox { x = 1, y = 1, z = 1 }
+                        Convex.fromBlock 1 1 1
 
                     t1 =
-                        { position = { x = 0, y = 0, z = 2.1 } -- going slightly into another box
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.j
-                        }
+                        -- going slightly into another box
+                        Frame3d.atPoint Point3d.origin
+                            |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
+                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2.1 })
 
                     t2 =
-                        { position = { x = 0, y = 0, z = 4 }
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.j
-                        }
+                        Frame3d.atPoint Point3d.origin
+                            |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
+                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 4 })
                 in
                 Collision.ConvexConvex.addContacts t1 convex t2 convex []
                     |> List.length
@@ -40,43 +43,24 @@ getContacts =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBox { x = 0.6, y = 0.6, z = 0.6 }
+                        Convex.fromBlock 0.6 0.6 0.6
 
                     convex2 =
-                        Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
+                        Convex.fromBlock 0.5 0.5 0.5
 
-                    transform1 =
-                        { position = { x = -0.5, y = 0, z = 0 }
-                        , orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.k
-                        }
+                    frame3d1 =
+                        Frame3d.atPoint Point3d.origin
+                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 2))
+                            |> Frame3d.moveTo (Point3d.fromMeters { x = -0.5, y = 0, z = 0 })
 
-                    transform2 =
-                        { position = { x = 0.5, y = 0, z = 0 }
-                        , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
-                        }
+                    frame3d2 =
+                        Frame3d.atPoint Point3d.origin
+                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0.5, y = 0, z = 0 })
                 in
-                Collision.ConvexConvex.addContacts transform1 convex1 transform2 convex2 []
+                Collision.ConvexConvex.addContacts frame3d1 convex1 frame3d2 convex2 []
                     |> List.length
                     |> Expect.equal 2
-        , test "should work for the case from the debugger" <|
-            \_ ->
-                let
-                    convex =
-                        Convex.fromBox { x = 1, y = 1, z = 1 }
-
-                    transform1 =
-                        { position = { x = -2.9496035986031215, y = -0.059705884468658266, z = 0.05803282809897854 }
-                        , orientation = { x = -0.022809298766761247, y = 0.006783793446053796, z = 0.002763745916207627, w = 0.9997129976872166 }
-                        }
-
-                    transform2 =
-                        { position = { x = -1.7732501140437167, y = -0.23893989356833145, z = 1.9746722038817583 }
-                        , orientation = { x = -0.14987379072976215, y = 0.5294480629310288, z = 0.19937553795533458, w = -0.8108464653532712 }
-                        }
-                in
-                Collision.ConvexConvex.addContacts transform1 convex transform2 convex []
-                    |> List.length
-                    |> Expect.equal 1
         ]
 
 
@@ -87,16 +71,10 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { transform1 =
-                            { position = { x = -0.2, y = 0, z = 0 }
-                            , orientation = Quaternion.identity
-                            }
-                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
-                        , transform2 =
-                            { position = { x = 0.2, y = 0, z = 0 }
-                            , orientation = Quaternion.identity
-                            }
-                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
+                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 })
+                        , convex1 = Convex.fromBlock 0.5 0.5 0.5
+                        , frame3d2 = Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
                     )
@@ -105,16 +83,10 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { transform1 =
-                            { position = { x = -5.2, y = 0, z = 0 }
-                            , orientation = Quaternion.identity
-                            }
-                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
-                        , transform2 =
-                            { position = { x = 0.2, y = 0, z = 0 }
-                            , orientation = Quaternion.identity
-                            }
-                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
+                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = -5.2, y = 0, z = 0 })
+                        , convex1 = Convex.fromBlock 0.5 0.5 0.5
+                        , frame3d2 = Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
                     )
@@ -123,16 +95,13 @@ testSeparatingAxis =
             \_ ->
                 case
                     Collision.ConvexConvex.testSeparatingAxis
-                        { transform1 =
-                            { position = Vec3.i
-                            , orientation = Quaternion.identity
-                            }
-                        , convex1 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
-                        , transform2 =
-                            { position = { x = 0.2, y = 0, z = 0 }
-                            , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
-                            }
-                        , convex2 = Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }
+                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = 1, y = 0, z = 0 })
+                        , convex1 = Convex.fromBlock 0.5 0.5 0.5
+                        , frame3d2 =
+                            Frame3d.atPoint Point3d.origin
+                                |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                                |> Frame3d.moveTo (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
                 of
@@ -151,28 +120,23 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        { position = { x = -0.2, y = 0, z = 0 }
-                        , orientation = Quaternion.identity
-                        }
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
-                        { position = { x = 0.2, y = 0, z = 0 }
-                        , orientation = Quaternion.identity
-                        }
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
+                        (Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 }))
+                        (Convex.fromBlock 0.5 0.5 0.5)
+                        (Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 }))
+                        (Convex.fromBlock 0.5 0.5 0.5)
                     )
                     (Just { x = -1, y = 0, z = 0 })
         , test "works for rotation" <|
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        { position = { x = -0.2, y = 0, z = 0 }
-                        , orientation = Quaternion.identity
-                        }
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
-                        { position = { x = 0.2, y = 0, z = 0 }
-                        , orientation = Quaternion.fromAngleAxis (pi / 4) Vec3.k
-                        }
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 })
+                        (Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 }))
+                        (Convex.fromBlock 0.5 0.5 0.5)
+                        (Frame3d.atPoint Point3d.origin
+                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        )
+                        (Convex.fromBlock 0.5 0.5 0.5)
                     )
                     (Just { x = -1, y = 0, z = 0 })
         ]
@@ -185,8 +149,8 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Transform.identity
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        (Frame3d.atPoint Point3d.origin)
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.i
                     )
                     { min = -0.5, max = 0.5 }
@@ -194,8 +158,8 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Transform.identity
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        (Frame3d.atPoint Point3d.origin)
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         { x = -1, y = 0, z = 0 }
                     )
                     { min = -0.5, max = 0.5 }
@@ -203,8 +167,8 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Transform.identity
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        (Frame3d.atPoint Point3d.origin)
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
                     )
                     { min = -0.5, max = 0.5 }
@@ -212,20 +176,19 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        { orientation = Quaternion.identity
-                        , position = Vec3.j
-                        }
-                        (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                        (Frame3d.atPoint (Point3d.fromMeters { x = 0, y = 1, z = 0 }))
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
                     )
                     { min = 0.5, max = 1.5 }
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
-                    { orientation = Quaternion.fromAngleAxis (pi / 2) Vec3.i
-                    , position = Vec3.j
-                    }
-                    (Convex.fromBox { x = 0.5, y = 0.5, z = 0.5 }).vertices
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 2))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 1, z = 0 })
+                    )
+                    (Convex.fromBlock 0.5 0.5 0.5).vertices
                     Vec3.j
                     |> Expect.all
                         [ .min >> Expect.within (Expect.Absolute 0.00001) 0.5

@@ -10,6 +10,8 @@ module Drag exposing (main)
 
 -}
 
+import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -17,13 +19,17 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Direction3d
+import Frame3d
+import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Math.Matrix4 as Mat4
-import Math.Vector3 as Vec3
+import Length
+import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint
 import Physics.World as World exposing (RaycastResult, World)
+import Point3d
 
 
 {-| Each body should have a unique id,
@@ -127,9 +133,8 @@ update msg model =
         MouseDown direction ->
             case
                 World.raycast
-                    { from = model.camera.from
-                    , direction = direction
-                    }
+                    (Point3d.fromMeters model.camera.from)
+                    (Direction3d.unsafe direction)
                     model.world
             of
                 Just raycastResult ->
@@ -137,10 +142,7 @@ update msg model =
                     -- with selected body
                     let
                         worldPosition =
-                            raycastResult.point
-                                |> Vec3.fromRecord
-                                |> Mat4.transform (Mat4.fromRecord (Body.getTransformation raycastResult.body))
-                                |> Vec3.toRecord
+                            Point3d.placeIn (Body.getFrame3d raycastResult.body) raycastResult.point
                     in
                     ( { model
                         | selection =
@@ -150,14 +152,13 @@ update msg model =
                                 }
                         , world =
                             model.world
-                                |> World.add (Body.setPosition worldPosition mouse)
+                                |> World.add (Body.setFrame3d (Frame3d.atPoint worldPosition) mouse)
                                 |> World.constrain
                                     (\b1 b2 ->
                                         if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
                                             [ Constraint.pointToPoint
-                                                { pivot1 = { x = 0, y = 0, z = 0 }
-                                                , pivot2 = raycastResult.point
-                                                }
+                                                (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                                                raycastResult.point
                                             ]
 
                                         else
@@ -185,10 +186,9 @@ update msg model =
 
                         p0 =
                             -- Transform local point on body into world coordinates
-                            Mat4.transform
-                                (Mat4.fromRecord (Body.getTransformation raycastResult.body))
-                                (Vec3.fromRecord raycastResult.point)
-                                |> Vec3.toRecord
+                            raycastResult.point
+                                |> Point3d.placeIn (Body.getFrame3d raycastResult.body)
+                                |> Point3d.toMeters
 
                         n =
                             direction
@@ -208,7 +208,7 @@ update msg model =
                             World.update
                                 (\b ->
                                     if (Body.getData b).id == Mouse then
-                                        Body.setPosition intersection b
+                                        Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters intersection)) b
 
                                     else
                                         b
@@ -277,17 +277,23 @@ initialWorld =
         |> World.add floor
         |> World.add
             (box 1
-                |> Body.moveBy { x = 0, y = 0, z = 2 }
-                |> Body.rotateBy (-pi / 5) { x = 0, y = 1, z = 0 }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2 })
+                    )
             )
         |> World.add
             (box 2
-                |> Body.moveBy { x = 0.5, y = 0, z = 8 }
+                |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0.5, y = 0, z = 8 }))
             )
         |> World.add
             (box 3
-                |> Body.moveBy { x = -1.2, y = 0, z = 5 }
-                |> Body.rotateBy (pi / 5) { x = 1, y = 1, z = 0 }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = -1.2, y = 0, z = 5 })
+                    )
             )
 
 
@@ -304,7 +310,7 @@ floor : Body Data
 floor =
     { id = Floor, meshes = Meshes.fromTriangles [] }
         |> Body.plane
-        |> Body.setPosition floorOffset
+        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
 
 
 {-| One of the boxes on the scene
@@ -319,8 +325,8 @@ box id =
             Meshes.fromTriangles (Meshes.box size)
     in
     { id = Box id, meshes = meshes }
-        |> Body.box size
-        |> Body.setMass 10
+        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+        |> Body.setMass (Mass.kilograms 10)
 
 
 {-| An empty body with zero mass, rendered as a sphere.

@@ -7,15 +7,17 @@ module Internal.Equation exposing
     , contactEquationsGroup
     )
 
+import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3
-import Internal.Quaternion as Quaternion
 import Internal.SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Point3d
+import Vector3d
 
 
 type alias ContactEquation =
@@ -131,7 +133,7 @@ addDistanceConstraintEquations dt body1 body2 distance =
             distance / 2
 
         ni =
-            Vec3.direction body2.position body1.position
+            Vec3.direction (Point3d.toMeters (Frame3d.originPoint body2.frame3d)) (Point3d.toMeters (Frame3d.originPoint body1.frame3d))
 
         ri =
             Vec3.scale halfDistance ni
@@ -191,10 +193,10 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
 
         worldAxis1 =
-            Quaternion.rotate body1.orientation axis1
+            Vector3d.toMeters (Vector3d.placeIn body1.frame3d (Vector3d.fromMeters axis1))
 
         worldAxis2 =
-            Quaternion.rotate body2.orientation axis2
+            Vector3d.toMeters (Vector3d.placeIn body2.frame3d (Vector3d.fromMeters axis2))
 
         ( ni1, ni2 ) =
             Vec3.tangents worldAxis1
@@ -262,10 +264,10 @@ addPointToPointConstraintEquations : Float -> Body data -> Body data -> Vec3 -> 
 addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2 equations =
     let
         ri =
-            Quaternion.rotate body1.orientation pivot1
+            Vector3d.toMeters (Vector3d.placeIn body1.frame3d (Vector3d.fromMeters pivot1))
 
         rj =
-            Quaternion.rotate body2.orientation pivot2
+            Vector3d.toMeters (Vector3d.placeIn body2.frame3d (Vector3d.fromMeters pivot2))
 
         spookA =
             4.0 / (dt * (1 + 4 * defaultRelaxation))
@@ -315,10 +317,10 @@ addContactEquations : Float -> Float -> Float -> Body data -> Body data -> Conta
 addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations =
     let
         ri =
-            Vec3.sub contact.pi body1.position
+            Vec3.sub contact.pi (Point3d.toMeters (Frame3d.originPoint body1.frame3d))
 
         rj =
-            Vec3.sub contact.pj body2.position
+            Vec3.sub contact.pj (Point3d.toMeters (Frame3d.originPoint body2.frame3d))
 
         ( t1, t2 ) =
             Vec3.tangents contact.ni
@@ -454,9 +456,9 @@ computeContactB : Float -> Body data -> Body data -> Equation -> ContactEquation
 computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri, rj, ni } =
     let
         g =
-            bj.position
+            Point3d.toMeters (Frame3d.originPoint bj.frame3d)
                 |> Vec3.add rj
-                |> Vec3.add (Vec3.negate bi.position)
+                |> Vec3.add (Vec3.negate (Point3d.toMeters (Frame3d.originPoint bi.frame3d)))
                 |> Vec3.add (Vec3.negate ri)
                 |> Vec3.dot ni
 
@@ -499,7 +501,7 @@ computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
     -gW * spookB - dt * giMf
 
 
-{-| Computes G\_inv(M)\_f, where
+{-| Computes G x inv(M) x f, where
 
   - M is the mass matrix with diagonal blocks for each body
   - f are the forces on the bodies

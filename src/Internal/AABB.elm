@@ -9,11 +9,14 @@ module Internal.AABB exposing
     , sphere
     )
 
+import Direction3d
+import Frame3d exposing (Frame3d)
 import Internal.Const as Const
 import Internal.Convex exposing (Convex)
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Length exposing (Meters)
+import Point3d
 
 
 type alias AABB =
@@ -80,13 +83,13 @@ extend aabb1 aabb =
     }
 
 
-convex : Convex -> Transform -> AABB
-convex { vertices } transform =
+convex : Convex -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+convex { vertices } frame3d =
     List.foldl
         (\point ->
             let
                 p =
-                    Transform.pointToWorldFrame transform point
+                    Point3d.toMeters (Point3d.placeIn frame3d (Point3d.fromMeters point))
             in
             extend { lowerBound = p, upperBound = p }
         )
@@ -99,11 +102,14 @@ dimensions { lowerBound, upperBound } =
     Vec3.sub upperBound lowerBound
 
 
-plane : Transform -> AABB
-plane { position, orientation } =
+plane : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+plane frame3d =
     let
         { x, y, z } =
-            Quaternion.rotate orientation Vec3.k
+            Direction3d.unwrap (Direction3d.placeIn frame3d (Direction3d.unsafe Vec3.k))
+
+        position =
+            Point3d.toMeters (Frame3d.originPoint frame3d)
     in
     if abs x == 1 then
         { lowerBound = maximum.lowerBound
@@ -136,18 +142,22 @@ plane { position, orientation } =
         maximum
 
 
-particle : Transform -> AABB
-particle { position } =
+particle : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+particle frame3d =
+    let
+        position =
+            Point3d.toMeters (Frame3d.originPoint frame3d)
+    in
     { upperBound = position
     , lowerBound = position
     }
 
 
-sphere : Float -> Transform -> AABB
-sphere radius { position } =
+sphere : Float -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+sphere radius frame3d =
     let
         c =
-            position
+            Point3d.toMeters (Frame3d.originPoint frame3d)
     in
     { lowerBound =
         { x = c.x - radius

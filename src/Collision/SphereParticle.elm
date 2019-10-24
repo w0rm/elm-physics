@@ -1,21 +1,23 @@
 module Collision.SphereParticle exposing (addContacts)
 
+import Frame3d
 import Internal.Contact exposing (Contact)
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3
+import Point3d
 
 
-addContacts : (Contact -> Contact) -> Transform -> Float -> Transform -> List Contact -> List Contact
-addContacts orderContact t1 radius1 t2 contacts =
+addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> Float -> ShapeWorldFrame3d -> List Contact -> List Contact
+addContacts orderContact sphereFrame3d radius pointFrame3d contacts =
     let
         center1 =
-            Transform.pointToWorldFrame t1 Vec3.zero
+            Point3d.toMeters (Frame3d.originPoint sphereFrame3d)
 
         center2 =
-            Transform.pointToWorldFrame t2 Vec3.zero
+            Point3d.toMeters (Frame3d.originPoint pointFrame3d)
 
         distance =
-            Vec3.distance center2 center1 - radius1
+            Vec3.distance center2 center1 - radius
 
         normal =
             Vec3.direction center2 center1
@@ -26,7 +28,7 @@ addContacts orderContact t1 radius1 t2 contacts =
     else
         orderContact
             { ni = normal
-            , pi = Vec3.add center1 (Vec3.scale (radius1 - distance) normal)
+            , pi = Vec3.add center1 (Vec3.scale (radius - distance) normal)
             , pj = center2
             }
             :: contacts

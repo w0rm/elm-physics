@@ -11,10 +11,14 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
+import Length
+import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.World as World exposing (World)
+import Point3d
 
 
 boxesPerDimension : number
@@ -145,11 +149,15 @@ addBoxes world =
                     List.foldl
                         (\z ->
                             box
-                                |> Body.moveBy
-                                    { x = (x - (boxesPerDimension - 1) / 2) * distance
-                                    , y = (y - (boxesPerDimension - 1) / 2) * distance
-                                    , z = (z + (2 * boxesPerDimension + 1) / 2) * distance
-                                    }
+                                |> Body.setFrame3d
+                                    (Frame3d.atPoint
+                                        (Point3d.fromMeters
+                                            { x = (x - (boxesPerDimension - 1) / 2) * distance
+                                            , y = (y - (boxesPerDimension - 1) / 2) * distance
+                                            , z = (z + (2 * boxesPerDimension + 1) / 2) * distance
+                                            }
+                                        )
+                                    )
                                 |> World.add
                         )
                         world2
@@ -174,17 +182,16 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setMass 0
-        |> Body.setPosition floorOffset
+        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
 
 
 box : Body Meshes
 box =
     let
         size =
-            { x = 1, y = 1, z = 1 }
+            Length.meters 1
     in
-    Meshes.box size
+    Meshes.box { x = 1, y = 1, z = 1 }
         |> Meshes.fromTriangles
-        |> Body.box size
-        |> Body.setMass 5
+        |> Body.block size size size
+        |> Body.setMass (Mass.kilograms 5)

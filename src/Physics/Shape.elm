@@ -1,26 +1,28 @@
 module Physics.Shape exposing
-    ( Shape, box, plane, sphere, particle
-    , moveBy, rotateBy, setPosition, setOrientation
+    ( Shape, block, plane, sphere, particle
+    , setFrame3d
     )
 
 {-|
 
-@docs Shape, box, plane, sphere, particle
+@docs Shape, block, plane, sphere, particle
 
 
 ## Positioning and Orientation
 
 Shapes are positioned in the local body coordinate system,
-they can be moved and rotated just like bodies in the world.
+they can be moved and rotated just like bodies in the world using frame3d.
 
-@docs moveBy, rotateBy, setPosition, setOrientation
+@docs setFrame3d
 
 -}
 
+import Frame3d exposing (Frame3d)
 import Internal.Convex as Convex
-import Internal.Quaternion as Quaternion
+import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates)
 import Internal.Shape as Internal exposing (Protected(..))
-import Internal.Vector3 as Vec3
+import Length exposing (Length, Meters)
+import Point3d
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -30,7 +32,7 @@ from the [Physics.Body](Physics-Body) module.
 
 The supported shapes are:
 
-  - [box](#box),
+  - [block](#block),
   - [plane](#plane),
   - [sphere](#sphere).
 
@@ -39,14 +41,23 @@ type alias Shape =
     Protected
 
 
-{-| A box is defined by dimensions along the corresponding axes.
+{-| A block is defined by dimensions along the x, y and z axes.
 -}
-box : { x : Float, y : Float, z : Float } -> Shape
-box dimensions =
+block : Length -> Length -> Length -> Shape
+block x y z =
+    let
+        halfX =
+            Length.inMeters x * 0.5
+
+        halfY =
+            Length.inMeters y * 0.5
+
+        halfZ =
+            Length.inMeters z * 0.5
+    in
     Protected
-        { position = Vec3.zero
-        , orientation = Quaternion.identity
-        , kind = Internal.Convex (Convex.fromBox (Vec3.scale 0.5 dimensions))
+        { frame3d = defaultFrame
+        , kind = Internal.Convex (Convex.fromBlock halfX halfY halfZ)
         }
 
 
@@ -56,20 +67,18 @@ direction of the z axis.
 plane : Shape
 plane =
     Protected
-        { position = Vec3.zero
-        , orientation = Quaternion.identity
+        { frame3d = defaultFrame
         , kind = Internal.Plane
         }
 
 
 {-| A sphere is defined by a radius and a position.
 -}
-sphere : Float -> Shape
+sphere : Length -> Shape
 sphere radius =
     Protected
-        { position = Vec3.zero
-        , orientation = Quaternion.identity
-        , kind = Internal.Sphere radius
+        { frame3d = defaultFrame
+        , kind = Internal.Sphere (Length.inMeters radius)
         }
 
 
@@ -77,44 +86,23 @@ sphere radius =
 particle : Shape
 particle =
     Protected
-        { position = Vec3.zero
-        , orientation = Quaternion.identity
+        { frame3d = defaultFrame
         , kind = Internal.Particle
         }
+
+
+defaultFrame : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
+defaultFrame =
+    Frame3d.atPoint Point3d.origin
 
 
 {-| Move the shape in a body by a vector offset from
 the current local position.
 -}
-moveBy : { x : Float, y : Float, z : Float } -> Shape -> Shape
-moveBy offset (Protected shape) =
+setFrame3d :
+    Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
+    -> Shape
+    -> Shape -- Vector3d Meters BodyCoordinates
+setFrame3d frame3d (Protected shape) =
     Protected
-        { shape | position = Vec3.add offset shape.position }
-
-
-{-| Rotate the shape in a body by a specific angle
-around the axis from the current local orientation.
--}
-rotateBy : Float -> { x : Float, y : Float, z : Float } -> Shape -> Shape
-rotateBy angle axis (Protected shape) =
-    Protected
-        { shape
-            | orientation =
-                Quaternion.mul
-                    (Quaternion.fromAngleAxis angle axis)
-                    shape.orientation
-        }
-
-
-{-| Set the local position of the shape in a body.
--}
-setPosition : { x : Float, y : Float, z : Float } -> Shape -> Shape
-setPosition position (Protected shape) =
-    Protected { shape | position = position }
-
-
-{-| Set the local shape orientation to a [unit quaternion](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation).
--}
-setOrientation : { x : Float, y : Float, z : Float, w : Float } -> Shape -> Shape
-setOrientation orientation (Protected shape) =
-    Protected { shape | orientation = orientation }
+        { shape | frame3d = frame3d }

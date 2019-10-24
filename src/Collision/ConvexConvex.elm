@@ -5,12 +5,14 @@ module Collision.ConvexConvex exposing
     , testSeparatingAxis
     )
 
+import Frame3d
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Convex as Convex exposing (AdjacentFace, Convex, Face)
-import Internal.Quaternion as Quaternion
-import Internal.Transform as Transform exposing (Transform)
+import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Point3d
+import Vector3d
 
 
 minDist : Float
@@ -23,19 +25,19 @@ maxDist =
     100
 
 
-addContacts : Transform -> Convex -> Transform -> Convex -> List Contact -> List Contact
-addContacts transform1 convex1 transform2 convex2 contacts =
-    case findSeparatingAxis transform1 convex1 transform2 convex2 of
+addContacts : ShapeWorldFrame3d -> Convex -> ShapeWorldFrame3d -> Convex -> List Contact -> List Contact
+addContacts frame3d1 convex1 frame3d2 convex2 contacts =
+    case findSeparatingAxis frame3d1 convex1 frame3d2 convex2 of
         Just separatingAxis ->
             let
                 reversedSeparatingAxis =
                     Vec3.negate separatingAxis
             in
-            case bestFace convex1.faces (Quaternion.derotate transform1.orientation separatingAxis) of
+            case bestFace convex1.faces (Vector3d.toMeters (Vector3d.relativeTo frame3d1 (Vector3d.fromMeters separatingAxis))) of
                 Just face1 ->
-                    case bestFace convex2.faces (Quaternion.derotate transform2.orientation reversedSeparatingAxis) of
+                    case bestFace convex2.faces (Vector3d.toMeters (Vector3d.relativeTo frame3d2 (Vector3d.fromMeters reversedSeparatingAxis))) of
                         Just face2 ->
-                            clipTwoFaces transform1 face1 transform2 face2 reversedSeparatingAxis contacts
+                            clipTwoFaces frame3d1 face1 frame3d2 face2 reversedSeparatingAxis contacts
 
                         Nothing ->
                             contacts
@@ -47,17 +49,17 @@ addContacts transform1 convex1 transform2 convex2 contacts =
             contacts
 
 
-clipTwoFaces : Transform -> Face -> Transform -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces transform1 { point, normal, adjacentFaces } transform2 { vertices } separatingAxis contacts =
+clipTwoFaces : ShapeWorldFrame3d -> Face -> ShapeWorldFrame3d -> Face -> Vec3 -> List Contact -> List Contact
+clipTwoFaces frame3d1 { point, normal, adjacentFaces } frame3d2 { vertices } separatingAxis contacts =
     let
         worldPlaneNormal =
-            Quaternion.rotate transform1.orientation normal
+            Vector3d.toMeters (Vector3d.placeIn frame3d1 (Vector3d.fromMeters normal))
 
         worldPlaneConstant =
-            -(Vec3.dot normal point) - Vec3.dot worldPlaneNormal transform1.position
+            -(Vec3.dot normal point) - Vec3.dot worldPlaneNormal (Point3d.toMeters (Frame3d.originPoint frame3d1))
 
         worldVertices =
-            List.map (Transform.pointToWorldFrame transform2) vertices
+            List.map (\v -> Point3d.toMeters (Point3d.placeIn frame3d2 (Point3d.fromMeters v))) vertices
     in
     List.foldl
         (\vertex result ->
@@ -76,7 +78,7 @@ clipTwoFaces transform1 { point, normal, adjacentFaces } transform2 { vertices }
                 result
         )
         contacts
-        (clipAgainstAdjacentFaces transform1 adjacentFaces worldVertices)
+        (clipAgainstAdjacentFaces frame3d1 adjacentFaces worldVertices)
 
 
 bestFace : List Face -> Vec3 -> Maybe Face
@@ -121,16 +123,16 @@ bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
             currentBestFace
 
 
-clipAgainstAdjacentFaces : Transform -> List AdjacentFace -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces transform adjacentFaces worldVertices =
+clipAgainstAdjacentFaces : ShapeWorldFrame3d -> List AdjacentFace -> List Vec3 -> List Vec3
+clipAgainstAdjacentFaces frame3d adjacentFaces worldVertices =
     case adjacentFaces of
         { point, normal } :: remainingFaces ->
             let
                 worldPlaneNormal =
-                    Quaternion.rotate transform.orientation normal
+                    Vector3d.toMeters (Vector3d.placeIn frame3d (Vector3d.fromMeters normal))
 
                 worldPlaneConstant =
-                    -(Vec3.dot point normal) - Vec3.dot worldPlaneNormal transform.position
+                    -(Vec3.dot point normal) - Vec3.dot worldPlaneNormal (Point3d.toMeters (Frame3d.originPoint frame3d))
 
                 vertices =
                     Convex.foldFaceEdges
@@ -138,7 +140,7 @@ clipAgainstAdjacentFaces transform adjacentFaces worldVertices =
                         []
                         worldVertices
             in
-            clipAgainstAdjacentFaces transform remainingFaces vertices
+            clipAgainstAdjacentFaces frame3d remainingFaces vertices
 
         [] ->
             worldVertices
@@ -170,21 +172,24 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
         result
 
 
-findSeparatingAxis : Transform -> Convex -> Transform -> Convex -> Maybe Vec3
-findSeparatingAxis transform1 convex1 transform2 convex2 =
+findSeparatingAxis : ShapeWorldFrame3d -> Convex -> ShapeWorldFrame3d -> Convex -> Maybe Vec3
+findSeparatingAxis frame3d1 convex1 frame3d2 convex2 =
     let
         -- group to reduce the number of arguments
         ctx =
-            { transform1 = transform1
+            { frame3d1 = frame3d1
             , convex1 = convex1
-            , transform2 = transform2
+            , frame3d2 = frame3d2
             , convex2 = convex2
             }
 
         -- normals from both convexes converted in the world coordinates
+        worldVector frame3d normal =
+            Vector3d.toMeters (Vector3d.placeIn frame3d (Vector3d.fromMeters normal))
+
         worldNormals =
-            List.foldl (Quaternion.rotate transform1.orientation >> (::))
-                (List.foldl (Quaternion.rotate transform2.orientation >> (::)) [] convex2.uniqueNormals)
+            List.foldl (worldVector frame3d1 >> (::))
+                (List.foldl (worldVector frame3d2 >> (::)) [] convex2.uniqueNormals)
                 convex1.uniqueNormals
     in
     case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
@@ -192,13 +197,13 @@ findSeparatingAxis transform1 convex1 transform2 convex2 =
             let
                 worldEdges1 =
                     List.foldl
-                        (Quaternion.rotate ctx.transform1.orientation >> (::))
+                        (worldVector frame3d1 >> (::))
                         []
                         ctx.convex1.uniqueEdges
 
                 worldEdges2 =
                     List.foldl
-                        (Quaternion.rotate ctx.transform2.orientation >> (::))
+                        (worldVector frame3d2 >> (::))
                         []
                         ctx.convex2.uniqueEdges
             in
@@ -209,9 +214,9 @@ findSeparatingAxis transform1 convex1 transform2 convex2 =
 
 
 type alias TestContext =
-    { transform1 : Transform
+    { frame3d1 : ShapeWorldFrame3d
     , convex1 : Convex
-    , transform2 : Transform
+    , frame3d2 : ShapeWorldFrame3d
     , convex2 : Convex
     }
 
@@ -239,7 +244,7 @@ testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> 
 testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
     case edges1 of
         [] ->
-            if Vec3.dot (Vec3.sub ctx.transform2.position ctx.transform1.position) target > 0 then
+            if Vec3.dot (Vec3.sub (Point3d.toMeters (Frame3d.originPoint ctx.frame3d2)) (Point3d.toMeters (Frame3d.originPoint ctx.frame3d1))) target > 0 then
                 Just (Vec3.negate target)
 
             else
@@ -283,13 +288,13 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
 {-| If projections of two convexes don’t overlap, then they don’t collide.
 -}
 testSeparatingAxis : TestContext -> Vec3 -> Maybe Float
-testSeparatingAxis { transform1, convex1, transform2, convex2 } separatingAxis =
+testSeparatingAxis { frame3d1, convex1, frame3d2, convex2 } separatingAxis =
     let
         p1 =
-            project transform1 convex1.vertices separatingAxis
+            project frame3d1 convex1.vertices separatingAxis
 
         p2 =
-            project transform2 convex2.vertices separatingAxis
+            project frame3d2 convex2.vertices separatingAxis
 
         d1 =
             p1.max - p2.min
@@ -307,46 +312,21 @@ testSeparatingAxis { transform1, convex1, transform2, convex2 } separatingAxis =
         Just d1
 
 
-{-| Get max and min dot product of a convex hull at Transform projected onto an axis.
+{-| Get max and min dot product of a convex hull at ShapeWorldFrame3d projected onto an axis.
 -}
-project : Transform -> List Vec3 -> Vec3 -> { min : Float, max : Float }
-project transform vertices separatingAxis =
+project : ShapeWorldFrame3d -> List Vec3 -> Vec3 -> { min : Float, max : Float }
+project frame3d vertices separatingAxis =
     let
-        q =
-            transform.orientation
-
-        { x, y, z } =
-            transform.position
-
         localAxis =
-            {-
-               Transform.vectorToLocalFrame transform separatingAxis
-            -}
-            Quaternion.derotate q separatingAxis
+            Vector3d.toMeters (Vector3d.relativeTo frame3d (Vector3d.fromMeters separatingAxis))
 
-        ix =
-            q.w * x - q.y * z + q.z * y
-
-        iy =
-            q.w * y - q.z * x + q.x * z
-
-        iz =
-            q.w * z - q.x * y + q.y * x
-
-        iw =
-            q.x * x + q.y * y + q.z * z
+        point =
+            Point3d.toMeters (Point3d.relativeTo frame3d Point3d.origin)
 
         add =
-            {-
-               -(Vec3.zero
-                   |> Transform.pointToLocalFrame transform
-                   |> Vec3.dot localAxis)
-            -}
-            ((ix * q.w + iw * q.x + iy * q.z - iz * q.y) * localAxis.x)
-                + ((iy * q.w + iw * q.y + iz * q.x - ix * q.z) * localAxis.y)
-                + ((iz * q.w + iw * q.z + ix * q.y - iy * q.x) * localAxis.z)
+            (point.x * localAxis.x) + (point.y * localAxis.y) + (point.z * localAxis.z)
     in
-    projectHelp add localAxis Const.maxNumber -Const.maxNumber vertices
+    projectHelp -add localAxis Const.maxNumber -Const.maxNumber vertices
 
 
 projectHelp : Float -> Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }

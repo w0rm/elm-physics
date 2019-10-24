@@ -4,6 +4,8 @@ module CollisionTest exposing (main)
 Note that spheres don’t move, that’s because they have zero mass.
 -}
 
+import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -11,10 +13,15 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Direction3d
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
+import Length
+import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.World as World exposing (World)
+import Point3d
 
 
 type alias Model =
@@ -125,19 +132,27 @@ initialWorld =
         |> World.add sphere
         |> World.add
             (box
-                |> Body.moveBy { x = 0, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 1, z = 0 }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround
+                            (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                            (Angle.radians (pi / 3))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 10 })
+                    )
             )
         -- edge:
-        |> World.add (Body.moveBy { x = 4, y = 0, z = 0 } sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 4, y = 0, z = 0 })) sphere)
         |> World.add
             (box
-                |> Body.moveBy { x = 4, y = 0, z = 10 }
-                |> Body.rotateBy (pi / 3) { x = 1, y = 0, z = 0 }
+                |> Body.setFrame3d
+                    (Frame3d.atPoint Point3d.origin
+                        |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 3))
+                        |> Frame3d.moveTo (Point3d.fromMeters { x = 4, y = 0, z = 10 })
+                    )
             )
         -- face:
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 0 } sphere)
-        |> World.add (Body.moveBy { x = -4, y = 0, z = 10 } box)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -4, y = 0, z = 0 })) sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -4, y = 0, z = 10 })) box)
 
 
 {-| Shift the floor a little bit down
@@ -152,8 +167,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setMass 0
-        |> Body.setPosition floorOffset
+        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
 
 
 box : Body Meshes
@@ -164,8 +178,8 @@ box =
     in
     Meshes.box size
         |> Meshes.fromTriangles
-        |> Body.box size
-        |> Body.setMass 5
+        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+        |> Body.setMass (Mass.kilograms 5)
 
 
 sphere : Body Meshes
@@ -176,4 +190,4 @@ sphere =
     in
     Meshes.sphere 2 radius
         |> Meshes.fromTriangles
-        |> Body.sphere radius
+        |> Body.sphere (Length.meters radius)

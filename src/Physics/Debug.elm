@@ -14,15 +14,17 @@ module Physics.Debug exposing
 
 -}
 
+import Direction3d exposing (Direction3d)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
-import Internal.Quaternion as Quaternion
+import Internal.Coordinates exposing (BodyLocalCoordinates)
 import Internal.Shape exposing (Kind(..), Shape)
-import Internal.Vector3 as Vec3
 import Internal.World exposing (Protected(..))
+import Length exposing (Meters)
 import Physics.Body exposing (Body)
 import Physics.World exposing (World)
+import Point3d exposing (Point3d)
 
 
 {-| Get the contact points in the world.
@@ -47,16 +49,8 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias FaceNormal =
-    { normal :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
-    , point :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
+    { normal : Direction3d BodyLocalCoordinates
+    , point : Point3d Meters BodyLocalCoordinates
     }
 
 
@@ -68,17 +62,14 @@ getFaceNormals (InternalBody.Protected { shapes }) =
 
 
 addFaceNormals : Shape -> List FaceNormal -> List FaceNormal
-addFaceNormals { kind, position, orientation } normals =
+addFaceNormals { kind, frame3d } normals =
     case kind of
         Convex convex ->
             Convex.foldFaceNormals
                 (\normal point ->
                     (::)
-                        { normal = Quaternion.rotate orientation normal
-                        , point =
-                            point
-                                |> Quaternion.rotate orientation
-                                |> Vec3.add position
+                        { normal = Direction3d.placeIn frame3d (Direction3d.unsafe normal)
+                        , point = Point3d.placeIn frame3d (Point3d.fromMeters point)
                         }
                 )
                 normals
@@ -97,16 +88,8 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias UniqueEdge =
-    { direction :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
-    , point :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
+    { direction : Direction3d BodyLocalCoordinates
+    , point : Point3d Meters BodyLocalCoordinates
     }
 
 
@@ -118,17 +101,14 @@ getUniqueEdges (InternalBody.Protected { shapes }) =
 
 
 addUniqueEdges : Shape -> List UniqueEdge -> List UniqueEdge
-addUniqueEdges { kind, position, orientation } edges =
+addUniqueEdges { kind, frame3d } edges =
     case kind of
         Convex convex ->
             Convex.foldUniqueEdges
                 (\point direction ->
                     (::)
-                        { direction = Quaternion.rotate orientation direction
-                        , point =
-                            point
-                                |> Quaternion.rotate orientation
-                                |> Vec3.add position
+                        { direction = Direction3d.placeIn frame3d (Direction3d.unsafe direction)
+                        , point = Point3d.placeIn frame3d (Point3d.fromMeters point)
                         }
                 )
                 edges
