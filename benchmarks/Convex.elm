@@ -31,11 +31,11 @@ foldFaceNormals : Benchmark
 foldFaceNormals =
     let
         sampleHull =
-            Convex.fromBox { x = 1, y = 1, z = 1 }
+            Convex.fromBlock 1 1 1
 
         originalSampleHull =
-            {- OriginalConvex.fromBox -}
-            Convex.fromBox { x = 1, y = 1, z = 1 }
+            {- OriginalConvex.fromBlock -}
+            Convex.fromBlock 1 1 1
 
         trivialVisitor : Vec3 -> Vec3 -> Int -> Int
         trivialVisitor _ _ _ =

@@ -11,7 +11,9 @@
             "elm/html": "1.0.0",
             "elm/json": "1.0.0",
             "elm/random": "1.0.0",
-            "elm-explorations/benchmark": "1.0.0"
+            "elm-explorations/benchmark": "1.0.0",
+            "ianmackenzie/elm-geometry": "2.0.0",
+            "ianmackenzie/elm-units": "2.2.0"
         },
         "indirect": {
             "BrianHicks/elm-trend": "2.1.2",
@@ -21,6 +23,11 @@
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm/virtual-dom": "1.0.0",
+            "ianmackenzie/elm-1d-parameter": "1.0.1",
+            "ianmackenzie/elm-float-extra": "1.1.0",
+            "ianmackenzie/elm-interval": "2.0.0",
+            "ianmackenzie/elm-triangular-mesh": "1.0.2",
+            "ianmackenzie/elm-units-interval": "1.0.0",
             "mdgriffith/style-elements": "5.0.1"
         }
     },
