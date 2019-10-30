@@ -139,22 +139,22 @@ initialWorld =
                         |> Frame3d.rotateAround
                             (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
                             (Angle.radians (pi / 3))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 10 })
+                        |> Frame3d.moveTo (Point3d.meters 0 0 10)
                     )
             )
         -- edge:
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 4, y = 0, z = 0 })) sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters 4 0 0)) sphere)
         |> World.add
             (box
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 3))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 4, y = 0, z = 10 })
+                        |> Frame3d.moveTo (Point3d.meters 4 0 10)
                     )
             )
         -- face:
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -4, y = 0, z = 0 })) sphere)
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -4, y = 0, z = 10 })) box)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters -4 0 0)) sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters -4 0 10)) box)
 
 
 {-| Shift the floor a little bit down
@@ -181,7 +181,7 @@ box =
     Meshes.box size
         |> Meshes.fromTriangles
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 sphere : Body Meshes

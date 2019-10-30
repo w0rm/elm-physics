@@ -154,11 +154,10 @@ addBoxes world =
                             box
                                 |> Body.setFrame3d
                                     (Frame3d.atPoint
-                                        (Point3d.fromMeters
-                                            { x = (x - (boxesPerDimension - 1) / 2) * distance
-                                            , y = (y - (boxesPerDimension - 1) / 2) * distance
-                                            , z = (z + (2 * boxesPerDimension + 1) / 2) * distance
-                                            }
+                                        (Point3d.meters
+                                            ((x - (boxesPerDimension - 1) / 2) * distance)
+                                            ((y - (boxesPerDimension - 1) / 2) * distance)
+                                            ((z + (2 * boxesPerDimension + 1) / 2) * distance)
                                         )
                                     )
                                 |> World.add
@@ -197,4 +196,4 @@ box =
     Meshes.box { x = 1, y = 1, z = 1 }
         |> Meshes.fromTriangles
         |> Body.block size size size
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))

@@ -138,7 +138,7 @@ initialWorld =
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 8))
                         |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = -5.5, y = -5.5, z = 0 })
+                        |> Frame3d.moveTo (Point3d.meters -5.5 -5.5 0)
                     )
             )
         |> addDominos
@@ -152,13 +152,7 @@ addDominos world =
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                        |> Frame3d.moveTo
-                            (Point3d.fromMeters
-                                { x = toFloat (5 - i)
-                                , y = toFloat (5 - i)
-                                , z = 0
-                                }
-                            )
+                        |> Frame3d.moveTo (Point3d.meters (toFloat (5 - i)) (toFloat (5 - i)) 0)
                     )
                 |> World.add
         )
@@ -192,7 +186,7 @@ domino =
     Meshes.box size
         |> Meshes.fromTriangles
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
         |> Body.setMaterial slippy
 
 

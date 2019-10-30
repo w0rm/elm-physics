@@ -159,7 +159,7 @@ update msg model =
                                     (\b1 b2 ->
                                         if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
                                             [ Constraint.pointToPoint
-                                                (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                                                Point3d.origin
                                                 raycastResult.point
                                             ]
 
@@ -282,19 +282,19 @@ initialWorld =
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2 })
+                        |> Frame3d.moveTo (Point3d.meters 0 0 2)
                     )
             )
         |> World.add
             (box 2
-                |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0.5, y = 0, z = 8 }))
+                |> Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 8))
             )
         |> World.add
             (box 3
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = -1.2, y = 0, z = 5 })
+                        |> Frame3d.moveTo (Point3d.meters -1.2 0 5)
                     )
             )
 
@@ -328,7 +328,7 @@ box id =
     in
     { id = Box id, meshes = meshes }
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 10)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 10))
 
 
 {-| An empty body with zero mass, rendered as a sphere.

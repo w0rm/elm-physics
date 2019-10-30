@@ -144,7 +144,7 @@ initialWorld =
         |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add slope
-        |> addCar (Point3d.fromMeters { x = 0, y = 0, z = 5 })
+        |> addCar (Point3d.meters 0 0 5)
 
 
 addCar : Point3d Meters WorldCoordinates -> World Data -> World Data
@@ -159,7 +159,7 @@ addCar offset world =
             (wheel "wheel1"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = 3, y = 3, z = 0 })
+                        (Vector3d.meters 3 3 0)
                         originFrame
                     )
             )
@@ -167,7 +167,7 @@ addCar offset world =
             (wheel "wheel2"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = -3, y = 3, z = 0 })
+                        (Vector3d.meters -3 3 0)
                         originFrame
                     )
             )
@@ -175,7 +175,7 @@ addCar offset world =
             (wheel "wheel3"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = -3, y = -3, z = 0 })
+                        (Vector3d.meters -3 -3 0)
                         originFrame
                     )
             )
@@ -183,7 +183,7 @@ addCar offset world =
             (wheel "wheel4"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = 3, y = -3, z = 0 })
+                        (Vector3d.meters 3 -3 0)
                         originFrame
                     )
             )
@@ -204,44 +204,44 @@ constrainCar b1 b2 =
         hinge1 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 3, y = 3, z = 0 })
+                    (Point3d.meters 3 3 0)
                     (Direction3d.unsafe { x = dx, y = dy, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    (Point3d.meters 0 0 0)
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
 
         hinge2 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = -3, y = 3, z = 0 })
+                    (Point3d.meters -3 3 0)
                     (Direction3d.unsafe { x = -dx, y = -dy, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
 
         hinge3 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = -3, y = -3, z = 0 })
+                    (Point3d.meters -3 -3 0)
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
 
         hinge4 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 3, y = -3, z = 0 })
+                    (Point3d.meters 3 -3 0)
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
     in
@@ -293,7 +293,7 @@ slope =
         |> Body.setFrame3d
             (Frame3d.atPoint Point3d.origin
                 |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 16))
-                |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = -2, z = 1 })
+                |> Frame3d.moveTo (Point3d.meters 0 -2 1)
             )
 
 
@@ -308,7 +308,7 @@ base =
     in
     { name = "base", meshes = meshes }
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 1)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
 
 
 wheel : String -> Body Data
@@ -322,4 +322,4 @@ wheel name =
     in
     { name = name, meshes = meshes }
         |> Body.sphere (Length.meters radius)
-        |> Body.setMass (Mass.kilograms 1)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
