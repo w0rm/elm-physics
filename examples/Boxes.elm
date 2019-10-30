@@ -4,6 +4,7 @@ module Boxes exposing (main)
 Try changing `boxesPerDimension` to drop even more!
 -}
 
+import Acceleration
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -11,6 +12,8 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -79,7 +82,7 @@ update msg model =
         Tick dt ->
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (1000 / 60) model.world
+                , world = World.simulate (Duration.seconds (1 / 60)) model.world
               }
             , Cmd.none
             )
@@ -128,7 +131,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Meshes
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> addBoxes
 

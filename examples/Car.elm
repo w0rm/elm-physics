@@ -3,6 +3,7 @@ module Car exposing (main)
 {-| This shows how hinge constrains can be used to assemble a car.
 -}
 
+import Acceleration
 import Angle
 import Axis3d
 import Browser
@@ -13,6 +14,7 @@ import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -90,7 +92,7 @@ update msg model =
                 , world =
                     model.world
                         |> World.constrain constrainCar
-                        |> World.simulate (1000 / 60)
+                        |> World.simulate (Duration.seconds (1 / 60))
               }
             , Cmd.none
             )
@@ -139,7 +141,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add slope
         |> addCar (Point3d.fromMeters { x = 0, y = 0, z = 5 })

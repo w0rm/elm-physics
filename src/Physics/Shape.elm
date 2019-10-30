@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, block, plane, sphere, particle
+    ( Shape, block, sphere, particle
     , setFrame3d
     )
 
 {-|
 
-@docs Shape, block, plane, sphere, particle
+@docs Shape, block, sphere, particle
 
 
 ## Positioning and Orientation
@@ -19,9 +19,9 @@ they can be moved and rotated just like bodies in the world using frame3d.
 
 import Frame3d exposing (Frame3d)
 import Internal.Convex as Convex
-import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates)
 import Internal.Shape as Internal exposing (Protected(..))
 import Length exposing (Length, Meters)
+import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates)
 import Point3d
 
 
@@ -33,8 +33,8 @@ from the [Physics.Body](Physics-Body) module.
 The supported shapes are:
 
   - [block](#block),
-  - [plane](#plane),
-  - [sphere](#sphere).
+  - [sphere](#sphere),
+  - [particle](#particle).
 
 -}
 type alias Shape =
@@ -91,18 +91,17 @@ particle =
         }
 
 
-defaultFrame : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
+defaultFrame : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
 defaultFrame =
     Frame3d.atPoint Point3d.origin
 
 
-{-| Move the shape in a body by a vector offset from
-the current local position.
+{-| Change the position and orientation of the shape in the body.
 -}
 setFrame3d :
-    Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
+    Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
     -> Shape
-    -> Shape -- Vector3d Meters BodyCoordinates
+    -> Shape
 setFrame3d frame3d (Protected shape) =
     Protected
         { shape | frame3d = frame3d }

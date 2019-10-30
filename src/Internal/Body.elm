@@ -13,12 +13,12 @@ import Axis3d
 import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB exposing (AABB)
-import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Point3d
 import Vector3d
 
@@ -31,7 +31,7 @@ type alias Body data =
     { id : Int
     , data : data
     , material : Material
-    , frame3d : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
+    , frame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
     , velocity : Vec3
     , angularVelocity : Vec3
     , mass : Float
@@ -71,7 +71,7 @@ compound shapes data =
         }
 
 
-defaultFrame : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
+defaultFrame : Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
 defaultFrame =
     Frame3d.atPoint Point3d.origin
 
@@ -215,7 +215,7 @@ updateMassProperties ({ mass } as body) =
     }
 
 
-updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates } -> Mat3 -> Mat3
+updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Mat3 -> Mat3
 updateInvInertiaWorld force invInertia frame3d invInertiaWorld =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         invInertiaWorld

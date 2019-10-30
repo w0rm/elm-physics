@@ -18,23 +18,23 @@ import Direction3d exposing (Direction3d)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
-import Internal.Coordinates exposing (BodyLocalCoordinates)
 import Internal.Shape exposing (Kind(..), Shape)
 import Internal.World exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.World exposing (World)
 import Point3d exposing (Point3d)
 
 
 {-| Get the contact points in the world.
 -}
-getContacts : World data -> List { x : Float, y : Float, z : Float }
+getContacts : World data -> List (Point3d Meters WorldCoordinates)
 getContacts (Protected world) =
     List.foldl
         (\{ contacts } acc1 ->
             List.foldl
-                (\{ pi, pj } acc2 -> pi :: pj :: acc2)
+                (\{ pi, pj } acc2 -> Point3d.fromMeters pi :: Point3d.fromMeters pj :: acc2)
                 acc1
                 contacts
         )
@@ -49,8 +49,8 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias FaceNormal =
-    { normal : Direction3d BodyLocalCoordinates
-    , point : Point3d Meters BodyLocalCoordinates
+    { normal : Direction3d BodyCoordinates
+    , point : Point3d Meters BodyCoordinates
     }
 
 
@@ -88,8 +88,8 @@ These are both expressed within the local body coordinate system.
 
 -}
 type alias UniqueEdge =
-    { direction : Direction3d BodyLocalCoordinates
-    , point : Point3d Meters BodyLocalCoordinates
+    { direction : Direction3d BodyCoordinates
+    , point : Point3d Meters BodyCoordinates
     }
 
 

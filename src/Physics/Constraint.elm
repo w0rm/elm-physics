@@ -14,8 +14,8 @@ module Physics.Constraint exposing
 import Axis3d exposing (Axis3d)
 import Direction3d
 import Internal.Constraint as Internal
-import Internal.Coordinates exposing (BodyLocalCoordinates)
 import Length exposing (Length, Meters)
+import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
 
 
@@ -30,8 +30,8 @@ type alias Constraint =
 Points are defined within the bodies’ local coordinate systems.
 -}
 pointToPoint :
-    Point3d Meters BodyLocalCoordinates
-    -> Point3d Meters BodyLocalCoordinates
+    Point3d Meters BodyCoordinates
+    -> Point3d Meters BodyCoordinates
     -> Constraint
 pointToPoint pivot1 pivot2 =
     Internal.PointToPoint
@@ -44,8 +44,8 @@ pointToPoint pivot1 pivot2 =
 Useful for e.g. connecting a window to a window frame.
 -}
 hinge :
-    Axis3d Meters BodyLocalCoordinates
-    -> Axis3d Meters BodyLocalCoordinates
+    Axis3d Meters BodyCoordinates
+    -> Axis3d Meters BodyCoordinates
     -> Constraint
 hinge axis1 axis2 =
     Internal.Hinge
