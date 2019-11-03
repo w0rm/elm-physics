@@ -2,9 +2,10 @@ module Internal.Constraint exposing (Constraint(..), ConstraintGroup, relativeTo
 
 import Direction3d
 import Frame3d exposing (Frame3d)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates, CenterOfMassCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d
 
 

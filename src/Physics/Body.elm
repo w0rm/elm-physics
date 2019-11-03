@@ -41,7 +41,7 @@ import Mass exposing (Mass)
 import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
-import Point3d exposing (Point3d)
+import Point3d
 
 
 {-| Represents a physical body containing
@@ -208,7 +208,7 @@ setFrame3d userFrame3d (Protected body) =
 -}
 getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
 getFrame3d (Protected { frame3d, centerOfMassFrame3d }) =
-    Frame3d.placeIn frame3d (Frame3d.relativeTo centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))
+    Frame3d.placeIn frame3d (Frame3d.relativeTo centerOfMassFrame3d Frame3d.atOrigin)
 
 
 {-| Set user-defined data.

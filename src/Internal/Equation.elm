@@ -11,12 +11,12 @@ import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3
 import Internal.SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Physics.Coordinates exposing (CenterOfMassCoordinates)
 import Point3d
 import Vector3d
 

@@ -14,12 +14,13 @@ import Axis3d
 import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB exposing (AABB)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates, CenterOfMassCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Point3d exposing (Point3d)
 import Vector3d
 

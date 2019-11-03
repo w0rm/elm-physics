@@ -13,9 +13,10 @@ import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Const as Const
 import Internal.Convex exposing (Convex)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates)
+import Physics.Coordinates exposing (ShapeCoordinates)
 import Point3d
 
 

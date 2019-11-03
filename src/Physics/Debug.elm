@@ -19,11 +19,12 @@ import Frame3d exposing (Frame3d)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Shape exposing (Kind(..), Shape)
 import Internal.World exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
-import Physics.Coordinates exposing (BodyCoordinates, CenterOfMassCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.World exposing (World)
 import Point3d exposing (Point3d)
 

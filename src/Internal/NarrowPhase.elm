@@ -11,9 +11,8 @@ import Collision.SphereSphere
 import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
-import Internal.Coordinates exposing (ShapeWorldFrame3d)
+import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeWorldFrame3d)
 import Internal.Shape exposing (Kind(..), Shape)
-import Physics.Coordinates exposing (CenterOfMassCoordinates)
 
 
 getContacts : Body data -> Body data -> List Contact

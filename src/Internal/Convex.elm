@@ -18,9 +18,10 @@ import Array exposing (Array)
 import Dict
 import Direction3d
 import Frame3d exposing (Frame3d)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (ShapeCoordinates, WorldCoordinates)
 import Point3d
 import Set
 
