@@ -1,26 +1,17 @@
 module Internal.Constraint exposing (Constraint(..), ConstraintGroup, relativeToCenterOfMass)
 
-import Direction3d
+import Axis3d exposing (Axis3d)
 import Frame3d exposing (Frame3d)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
-import Internal.Vector3 exposing (Vec3)
-import Length exposing (Meters)
+import Length exposing (Length, Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
-import Point3d
+import Point3d exposing (Point3d)
 
 
 type Constraint coordinates
-    = PointToPoint
-        { pivot1 : Vec3
-        , pivot2 : Vec3
-        }
-    | Hinge
-        { pivot1 : Vec3
-        , axis1 : Vec3
-        , pivot2 : Vec3
-        , axis2 : Vec3
-        }
-    | Distance Float
+    = PointToPoint (Point3d Meters coordinates) (Point3d Meters coordinates)
+    | Hinge (Axis3d Meters coordinates) (Axis3d Meters coordinates)
+    | Distance Length
 
 
 type alias ConstraintGroup =
@@ -37,19 +28,15 @@ relativeToCenterOfMass :
     -> Constraint CenterOfMassCoordinates
 relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
     case constraint of
-        PointToPoint { pivot1, pivot2 } ->
+        PointToPoint pivot1 pivot2 ->
             PointToPoint
-                { pivot1 = Point3d.toMeters (Point3d.relativeTo centerOfMassFrame3d1 (Point3d.fromMeters pivot1))
-                , pivot2 = Point3d.toMeters (Point3d.relativeTo centerOfMassFrame3d2 (Point3d.fromMeters pivot2))
-                }
+                (Point3d.relativeTo centerOfMassFrame3d1 pivot1)
+                (Point3d.relativeTo centerOfMassFrame3d2 pivot2)
 
-        Hinge { pivot1, axis1, pivot2, axis2 } ->
+        Hinge axis1 axis2 ->
             Hinge
-                { pivot1 = Point3d.toMeters (Point3d.relativeTo centerOfMassFrame3d1 (Point3d.fromMeters pivot1))
-                , axis1 = Direction3d.unwrap (Direction3d.relativeTo centerOfMassFrame3d1 (Direction3d.unsafe axis1))
-                , pivot2 = Point3d.toMeters (Point3d.relativeTo centerOfMassFrame3d2 (Point3d.fromMeters pivot2))
-                , axis2 = Direction3d.unwrap (Direction3d.relativeTo centerOfMassFrame3d1 (Direction3d.unsafe axis2))
-                }
+                (Axis3d.relativeTo centerOfMassFrame3d1 axis1)
+                (Axis3d.relativeTo centerOfMassFrame3d2 axis2)
 
         Distance length ->
             Distance length

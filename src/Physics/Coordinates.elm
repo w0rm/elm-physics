@@ -2,7 +2,7 @@ module Physics.Coordinates exposing (WorldCoordinates, BodyCoordinates, ShapeCoo
 
 {-| These type parameters indicate coordinate systems.
 
-@docs WorldCoordinates, BodyCoordinates, ShapeCoordinates, BodyCenterOfMassCoordinates
+@docs WorldCoordinates, BodyCoordinates, ShapeCoordinates
 
 -}
 

@@ -231,7 +231,10 @@ to use `constrainIf` to apply constraints on a subset of bodies.
         constrainIf (always True)
 
 -}
-constrain : (Body data -> Body data -> List Constraint) -> World data -> World data
+constrain :
+    (Body data -> Body data -> List Constraint)
+    -> World data
+    -> World data
 constrain =
     constrainIf (always True)
 
@@ -248,7 +251,11 @@ and preselect parts of a single car with:
             )
 
 -}
-constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
+constrainIf :
+    (Body data -> Bool)
+    -> (Body data -> Body data -> List Constraint)
+    -> World data
+    -> World data
 constrainIf test fn (Protected world) =
     let
         -- Filter the bodies for permutations

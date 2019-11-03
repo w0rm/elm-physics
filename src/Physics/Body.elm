@@ -28,7 +28,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs setMaterial, compound, centerOfMass
+@docs setMaterial, compound
 
 -}
 
