@@ -1,4 +1,4 @@
-module Internal.Constraint exposing (Constraint(..), ConstraintGroup, relativeToCenterOfMass)
+module Internal.Constraint exposing (Constraint(..), ConstraintGroup, Protected(..), relativeToCenterOfMass)
 
 import Axis3d exposing (Axis3d)
 import Frame3d exposing (Frame3d)
@@ -6,6 +6,10 @@ import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Length exposing (Length, Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
+
+
+type Protected
+    = Protected (Constraint BodyCoordinates)
 
 
 type Constraint coordinates
@@ -24,9 +28,9 @@ type alias ConstraintGroup =
 relativeToCenterOfMass :
     Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
     -> Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
-    -> Constraint BodyCoordinates
+    -> Protected
     -> Constraint CenterOfMassCoordinates
-relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
+relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected constraint) =
     case constraint of
         PointToPoint pivot1 pivot2 ->
             PointToPoint

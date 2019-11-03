@@ -44,7 +44,7 @@ getContacts (Protected world) =
         (BroadPhase.getContacts world)
 
 
-{-| Get the center of mass of a body
+{-| Get the center of mass of the body.
 -}
 getCenterOfMass : Body data -> Point3d Meters BodyCoordinates
 getCenterOfMass (InternalBody.Protected { centerOfMassFrame3d }) =
