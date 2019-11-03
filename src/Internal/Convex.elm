@@ -20,7 +20,7 @@ import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates, WorldCoordinates)
 import Point3d
 import Set
 
@@ -367,7 +367,7 @@ foldUniqueEdges fn acc { vertices, uniqueEdges } =
             acc
 
 
-expandBoundingSphereRadius : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
+expandBoundingSphereRadius : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
 expandBoundingSphereRadius frame3d { vertices } boundingSphereRadius =
     vertices
         |> List.foldl

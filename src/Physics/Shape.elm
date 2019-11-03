@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, block, sphere, particle
+    ( Shape, block, sphere
     , setFrame3d
     )
 
 {-|
 
-@docs Shape, block, sphere, particle
+@docs Shape, block, sphere
 
 
 ## Positioning and Orientation
@@ -30,11 +30,10 @@ import Point3d
 If you need a body with a single shape, use the corresponding functions
 from the [Physics.Body](Physics-Body) module.
 
-The supported shapes are:
+The only supported shapes are:
 
   - [block](#block),
-  - [sphere](#sphere),
-  - [particle](#particle).
+  - [sphere](#sphere).
 
 -}
 type alias Shape =
@@ -58,17 +57,7 @@ block x y z =
     Protected
         { frame3d = defaultFrame
         , kind = Internal.Convex (Convex.fromBlock halfX halfY halfZ)
-        }
-
-
-{-| A plane with the normal that points in the
-direction of the z axis.
--}
-plane : Shape
-plane =
-    Protected
-        { frame3d = defaultFrame
-        , kind = Internal.Plane
+        , volume = Length.inMeters x * Length.inMeters y * Length.inMeters z
         }
 
 
@@ -79,15 +68,7 @@ sphere radius =
     Protected
         { frame3d = defaultFrame
         , kind = Internal.Sphere (Length.inMeters radius)
-        }
-
-
-{-| -}
-particle : Shape
-particle =
-    Protected
-        { frame3d = defaultFrame
-        , kind = Internal.Particle
+        , volume = 4 / 3 * pi * (Length.inMeters radius ^ 3)
         }
 
 

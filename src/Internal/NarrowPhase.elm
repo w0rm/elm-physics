@@ -13,6 +13,7 @@ import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
 import Internal.Coordinates exposing (ShapeWorldFrame3d)
 import Internal.Shape exposing (Kind(..), Shape)
+import Physics.Coordinates exposing (CenterOfMassCoordinates)
 
 
 getContacts : Body data -> Body data -> List Contact
@@ -34,7 +35,7 @@ getContacts body1 body2 =
         body1.shapes
 
 
-addShapeContacts : ShapeWorldFrame3d -> Shape -> ShapeWorldFrame3d -> Shape -> List Contact -> List Contact
+addShapeContacts : ShapeWorldFrame3d -> Shape CenterOfMassCoordinates -> ShapeWorldFrame3d -> Shape CenterOfMassCoordinates -> List Contact -> List Contact
 addShapeContacts frame3d1 shape1 frame3d2 shape2 contacts =
     case shape1.kind of
         Convex convex1 ->

@@ -1,8 +1,11 @@
-module Physics.Coordinates exposing (WorldCoordinates, BodyCoordinates, ShapeCoordinates)
+module Physics.Coordinates exposing
+    ( WorldCoordinates, BodyCoordinates, ShapeCoordinates
+    , CenterOfMassCoordinates
+    )
 
 {-| These type parameters indicate coordinate systems.
 
-@docs WorldCoordinates, BodyCoordinates, ShapeCoordinates
+@docs WorldCoordinates, BodyCoordinates, ShapeCoordinates, BodyCenterOfMassCoordinates
 
 -}
 
@@ -20,3 +23,8 @@ type BodyCoordinates
 {-| -}
 type ShapeCoordinates
     = ShapeCoordinates
+
+
+{-| -}
+type CenterOfMassCoordinates
+    = CenterOfMassCoordinates

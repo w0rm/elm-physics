@@ -49,6 +49,7 @@ view { settings, world, floorOffset, camera, raycastResult, meshes } =
             , debugWireframes = settings.debugWireframes
             , debugNormals = settings.debugNormals
             , debugEdges = settings.debugEdges
+            , debugCenterOfMass = settings.debugCenterOfMass
             , raycastResult = raycastResult
             , meshes = meshes
             , shadow =
@@ -95,6 +96,7 @@ type alias SceneParams a =
     , debugWireframes : Bool
     , debugNormals : Bool
     , debugEdges : Bool
+    , debugCenterOfMass : Bool
     , shadow : Maybe Mat4
     , raycastResult : Maybe (RaycastResult a)
     , meshes : a -> Meshes
@@ -102,7 +104,7 @@ type alias SceneParams a =
 
 
 addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
-addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
+addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
             Frame3d.toMat4 (Body.getFrame3d body)
@@ -140,10 +142,18 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
             else
                 acc
 
+        addCenterOfMass acc =
+            if debugCenterOfMass then
+                addContactIndicator sceneParams (Point3d.placeIn (Body.getFrame3d body) (Debug.getCenterOfMass body)) acc
+
+            else
+                acc
+
         { mesh, wireframe } =
             meshes (Body.getData body)
     in
     entities
+        |> addCenterOfMass
         |> addEdges
         |> addNormals
         |> (if debugWireframes then

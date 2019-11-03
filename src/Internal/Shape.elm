@@ -13,16 +13,17 @@ import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, CenterOfMassCoordinates, ShapeCoordinates, WorldCoordinates)
 import Point3d
 
 
 type Protected
-    = Protected Shape
+    = Protected (Shape BodyCoordinates)
 
 
-type alias Shape =
-    { frame3d : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
+type alias Shape coordinates =
+    { frame3d : Frame3d Meters coordinates { defines : ShapeCoordinates }
+    , volume : Float
     , kind : Kind
     }
 
@@ -34,7 +35,7 @@ type Kind
     | Particle
 
 
-aabbClosure : Kind -> Frame3d Meters BodyCoordinates { defines : ShapeCoordinates } -> AABB.AABB
+aabbClosure : Kind -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB.AABB
 aabbClosure kind =
     case kind of
         Convex convex ->
@@ -50,7 +51,7 @@ aabbClosure kind =
             AABB.particle
 
 
-expandBoundingSphereRadius : Shape -> Float -> Float
+expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float
 expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
     case kind of
         Convex convex ->
@@ -70,7 +71,7 @@ expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
             max boundingSphereRadius (Vec3.length (Point3d.toMeters (Frame3d.originPoint frame3d)))
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Shape -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Shape CenterOfMassCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast ray frame3d { kind } =
     case kind of
         Plane ->

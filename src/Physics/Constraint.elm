@@ -23,7 +23,7 @@ import Point3d exposing (Point3d)
 of two bodies with relation to each other.
 -}
 type alias Constraint =
-    Internal.Constraint
+    Internal.Constraint BodyCoordinates
 
 
 {-| Connect a point on the first body with a point on the second body.

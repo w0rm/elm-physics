@@ -16,6 +16,7 @@ import Internal.Material as Material
 import Internal.Matrix3 as Mat3
 import Internal.SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Physics.Coordinates exposing (CenterOfMassCoordinates)
 import Point3d
 import Vector3d
 
@@ -69,7 +70,7 @@ type alias EquationsGroup =
     }
 
 
-constraintEquationsGroup : Float -> Body data -> Body data -> List Constraint -> EquationsGroup
+constraintEquationsGroup : Float -> Body data -> Body data -> List (Constraint CenterOfMassCoordinates) -> EquationsGroup
 constraintEquationsGroup dt body1 body2 constraints =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
@@ -112,7 +113,7 @@ axes =
     [ Vec3.i, Vec3.j, Vec3.k ]
 
 
-addConstraintEquations : Float -> Body data -> Body data -> Constraint -> List SolverEquation -> List SolverEquation
+addConstraintEquations : Float -> Body data -> Body data -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
 addConstraintEquations dt body1 body2 constraint =
     case constraint of
         PointToPoint { pivot1, pivot2 } ->

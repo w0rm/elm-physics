@@ -23,6 +23,7 @@ import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Coordinates exposing (WorldCoordinates)
+import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
 import Vector3d
@@ -300,14 +301,24 @@ slope =
 base : Body Data
 base =
     let
-        size =
+        bottomSize =
             { x = 3, y = 6, z = 1 }
 
+        topSize =
+            { x = 2, y = 3, z = 1.5 }
+
+        topOffset =
+            { x = 0, y = 1, z = 1 }
+
         meshes =
-            Meshes.fromTriangles (Meshes.box size)
+            Meshes.fromTriangles (Meshes.box bottomSize ++ (Meshes.box topSize |> Meshes.moveBy topOffset))
     in
     { name = "base", meshes = meshes }
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+        |> Body.compound
+            [ Shape.block (Length.meters bottomSize.x) (Length.meters bottomSize.y) (Length.meters bottomSize.z)
+            , Shape.block (Length.meters topSize.x) (Length.meters topSize.y) (Length.meters topSize.z)
+                |> Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters topOffset))
+            ]
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
 
 

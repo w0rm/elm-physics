@@ -28,7 +28,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs setMaterial, compound
+@docs setMaterial, compound, centerOfMass
 
 -}
 
@@ -41,7 +41,7 @@ import Mass exposing (Mass)
 import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
-import Point3d
+import Point3d exposing (Point3d)
 
 
 {-| Represents a physical body containing
@@ -94,6 +94,7 @@ plane =
         [ InternalShape.Protected
             { frame3d = defaultShapeFrame
             , kind = InternalShape.Plane
+            , volume = 0
             }
         ]
 
@@ -115,7 +116,13 @@ Particles don’t collide with each other.
 -}
 particle : data -> Body data
 particle =
-    compound [ Shape.particle ]
+    compound
+        [ InternalShape.Protected
+            { frame3d = defaultShapeFrame
+            , kind = InternalShape.Particle
+            , volume = 0
+            }
+        ]
 
 
 {-| Bodies may have static or dynamic behavior.
@@ -189,15 +196,19 @@ For all possible ways to construct and modify `Frame3d`, check
 
 -}
 setFrame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body data -> Body data
-setFrame3d frame3d (Protected body) =
-    Protected (Internal.updateMassProperties { body | frame3d = frame3d })
+setFrame3d userFrame3d (Protected body) =
+    let
+        newFrame3d =
+            Frame3d.placeIn userFrame3d body.centerOfMassFrame3d
+    in
+    Protected (Internal.updateMassProperties { body | frame3d = newFrame3d })
 
 
 {-| Get the position and orientation of the body in the world as `Frame3d`.
 -}
 getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-getFrame3d (Protected { frame3d }) =
-    frame3d
+getFrame3d (Protected { frame3d, centerOfMassFrame3d }) =
+    Frame3d.placeIn frame3d (Frame3d.relativeTo centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))
 
 
 {-| Set user-defined data.
@@ -209,6 +220,7 @@ setData data (Protected body) =
         , data = data
         , material = body.material
         , frame3d = body.frame3d
+        , centerOfMassFrame3d = body.centerOfMassFrame3d
         , velocity = body.velocity
         , angularVelocity = body.angularVelocity
         , mass = body.mass

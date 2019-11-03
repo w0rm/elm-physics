@@ -218,18 +218,22 @@ compound =
 
         boxShape =
             Shape.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-    in
-    [ Meshes.moveBy { x = -0.5, y = 0, z = -0.5 } boxTriangles
-    , Meshes.moveBy { x = -0.5, y = 0, z = 0.5 } boxTriangles
-    , Meshes.moveBy { x = 0.5, y = 0, z = 0.5 } boxTriangles
-    ]
-        |> List.concat
-        |> Meshes.fromTriangles
-        |> Body.compound
-            [ Shape.setFrame3d (Frame3d.atPoint (Point3d.meters -0.5 0 -0.5)) boxShape
-            , Shape.setFrame3d (Frame3d.atPoint (Point3d.meters -0.5 0 0.5)) boxShape
-            , Shape.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 0.5)) boxShape
+
+        coordinates =
+            [ Point3d.meters -0.5 0 -0.5
+            , Point3d.meters -0.5 0 0.5
+            , Point3d.meters 0.5 0 0.5
             ]
+
+        shapes =
+            List.map (\p -> Shape.setFrame3d (Frame3d.atPoint p) boxShape) coordinates
+
+        compoundTriangles =
+            List.concatMap
+                (\p -> Meshes.moveBy (Point3d.toMeters p) boxTriangles)
+                coordinates
+    in
+    Body.compound shapes (Meshes.fromTriangles compoundTriangles)
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 

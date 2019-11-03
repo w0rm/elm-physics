@@ -20,9 +20,10 @@ module Physics.World exposing
 import Acceleration exposing (Acceleration)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration)
+import Frame3d
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
-import Internal.Constraint exposing (ConstraintGroup)
+import Internal.Constraint as InternalConstraint exposing (ConstraintGroup)
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
@@ -141,8 +142,8 @@ raycast from direction (Protected world) =
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body
-                , point = Point3d.relativeTo body.frame3d (Point3d.fromMeters point)
-                , normal = Direction3d.relativeTo body.frame3d (Direction3d.unsafe normal)
+                , point = Point3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Point3d.fromMeters point)
+                , normal = Direction3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Direction3d.unsafe normal)
                 }
 
         _ ->
@@ -272,7 +273,7 @@ constrainIf test fn (Protected world) =
                 constraints ->
                     { bodyId1 = body1.id
                     , bodyId2 = body2.id
-                    , constraints = constraints
+                    , constraints = List.map (InternalConstraint.relativeToCenterOfMass body1.centerOfMassFrame3d body2.centerOfMassFrame3d) constraints
                     }
                         :: constraintGroup
 
