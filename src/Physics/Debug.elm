@@ -4,7 +4,8 @@ module Physics.Debug exposing
     , UniqueEdge, getUniqueEdges
     )
 
-{-| A list of utilities that may be useful for debugging.
+{-| A list of utilities that may be useful for
+debugging issues with elm-physics itself.
 
 @docs getContacts, getCenterOfMass
 
