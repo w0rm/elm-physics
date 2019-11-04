@@ -130,7 +130,8 @@ getBodies (Protected { bodies }) =
 
 
 {-| Find the closest intersection of a ray against
-all the bodies in the world.
+all the bodies in the world. Except for particles,
+because they have no size.
 -}
 raycast :
     Point3d Meters WorldCoordinates

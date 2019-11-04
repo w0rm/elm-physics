@@ -133,12 +133,24 @@ update msg model =
             ( { model | world = initialWorld }, Cmd.none )
 
         MouseDown direction ->
-            case
-                World.raycast
-                    (Point3d.fromMeters model.camera.from)
-                    (Direction3d.unsafe direction)
+            let
+                maybeRaycastResult =
                     model.world
-            of
+                        |> World.raycast
+                            (Point3d.fromMeters model.camera.from)
+                            (Direction3d.unsafe direction)
+                        |> Maybe.andThen
+                            -- only allow clicks on boxes
+                            (\result ->
+                                case (Body.getData result.body).id of
+                                    Box _ ->
+                                        Just result
+
+                                    _ ->
+                                        Nothing
+                            )
+            in
+            case maybeRaycastResult of
                 Just raycastResult ->
                     -- create temporary body and constrain it
                     -- with selected body

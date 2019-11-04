@@ -37,7 +37,7 @@ pointToPoint pivot1 pivot2 =
 
 
 {-| Keep two bodies connected with each other and limit the freedom of rotation.
-Useful for e.g. connecting a window to a window frame.
+Useful for e.g. connecting a window to a window frame, or to connect a wheel to a car.
 -}
 hinge :
     Axis3d Meters BodyCoordinates

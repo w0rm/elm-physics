@@ -7,6 +7,7 @@ module Internal.Shape exposing
     , raycast
     )
 
+import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB
 import Internal.Const as Const
@@ -76,7 +77,7 @@ raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates {
 raycast ray frame3d { kind } =
     case kind of
         Plane ->
-            Nothing
+            raycastPlane ray frame3d
 
         Sphere radius ->
             raycastSphere ray (Point3d.toMeters (Frame3d.originPoint frame3d)) radius
@@ -86,6 +87,44 @@ raycast ray frame3d { kind } =
 
         Particle ->
             Nothing
+
+
+raycastPlane : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastPlane { from, direction } frame3d =
+    let
+        planeNormalWS =
+            Direction3d.unwrap (Direction3d.placeIn frame3d Direction3d.z)
+
+        dot =
+            Vec3.dot direction planeNormalWS
+    in
+    if dot < 0 then
+        let
+            pointOnFaceWS =
+                Point3d.toMeters (Frame3d.originPoint frame3d)
+
+            pointToFrom =
+                Vec3.sub pointOnFaceWS from
+
+            scalar =
+                Vec3.dot planeNormalWS pointToFrom / dot
+        in
+        if scalar >= 0 then
+            Just
+                { distance = scalar
+                , point =
+                    { x = direction.x * scalar + from.x
+                    , y = direction.y * scalar + from.y
+                    , z = direction.z * scalar + from.z
+                    }
+                , normal = planeNormalWS
+                }
+
+        else
+            Nothing
+
+    else
+        Nothing
 
 
 raycastSphere : { from : Vec3, direction : Vec3 } -> Vec3 -> Float -> Maybe { distance : Float, point : Vec3, normal : Vec3 }

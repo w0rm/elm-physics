@@ -10,8 +10,9 @@ module Physics.Shape exposing
 
 ## Positioning and Orientation
 
-Shapes are positioned in the local body coordinate system,
-they can be moved and rotated just like bodies in the world using frame3d.
+Shapes are positioned in the body coordinate system,
+they can be moved and rotated just like bodies in
+the world using `Frame3d`.
 
 @docs setFrame3d
 

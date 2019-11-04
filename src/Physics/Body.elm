@@ -49,7 +49,7 @@ user defined data, like a WebGL mesh.
 
 By default a body is positioned in the center
 of the world and doesn’t move. To change this,
-use [setFrame3d](#setFrame3d) or [setBehavior](#setBehavior).
+use [setFrame3d](#setFrame3d) and [setBehavior](#setBehavior).
 
 The supported bodies are:
 
@@ -132,7 +132,8 @@ type Behavior
     | Static
 
 
-{-| Dynamic bodies move and react to forces and collide with other dynamic and static bodies.
+{-| Dynamic bodies move and react to forces and collide with
+other dynamic and static bodies.
 -}
 dynamic : Mass -> Behavior
 dynamic kilos =
@@ -184,12 +185,12 @@ setBehavior behavior (Protected body) =
 
 
 {-| Set the position and orientation of the body in the world,
-e.g. to position a body 5 meters below the origin:
+e.g. to raise a body 5 meters above the origin:
 
     movedBody =
         body
             |> setFrame3d
-                (Frame3d.atPoint (Point3d.meters 0 0 -5))
+                (Frame3d.atPoint (Point3d.meters 0 0 5))
 
 For all possible ways to construct and modify `Frame3d`, check
 [elm-geometry package docs](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/2.0.0/Frame3d).
