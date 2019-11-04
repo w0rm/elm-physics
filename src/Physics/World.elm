@@ -107,7 +107,14 @@ add (InternalBody.Protected body) (Protected world) =
 
 {-| Simulate the world, given the number of seconds since the last frame.
 
-Call this function on a message from the [onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame) subscription.
+To animate, call this on a message from [onAnimationFrameDelta](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrameDelta):
+
+    simulatedWorld =
+        World.simulate (Duration.seconds (1 / 60)) world
+
+Make sure to pass a short duration, such that bodies do not travel
+through each other during the single frame. This depends on minimum body
+size and maximum velocity.
 
 -}
 simulate : Duration -> World data -> World data
