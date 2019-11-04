@@ -1,5 +1,5 @@
 module Physics.World exposing
-    ( World, empty, add, setGravity
+    ( World, empty, setGravity, add
     , simulate, getBodies, raycast, RaycastResult
     , keepIf, update
     , constrain, constrainIf
@@ -7,7 +7,7 @@ module Physics.World exposing
 
 {-|
 
-@docs World, empty, add, setGravity
+@docs World, empty, setGravity, add
 
 @docs simulate, getBodies, raycast, RaycastResult
 
@@ -17,17 +17,20 @@ module Physics.World exposing
 
 -}
 
+import Acceleration exposing (Acceleration)
 import Direction3d exposing (Direction3d)
+import Duration exposing (Duration)
+import Frame3d
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
-import Internal.Constraint exposing (ConstraintGroup)
-import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
+import Internal.Constraint as InternalConstraint exposing (ConstraintGroup)
 import Internal.Solver as Solver
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
 import Physics.Constraint exposing (Constraint)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Point3d exposing (Point3d)
 
 
@@ -50,7 +53,31 @@ empty =
         }
 
 
-{-| Adds a body to the world.
+{-| Set the [standard gravity](https://en.wikipedia.org/wiki/Standard_gravity) and its direction, e.g.:
+
+    planetEarth =
+        setGravity
+            (Acceleration.metersPerSecondSquared 9.80665)
+            Direction3d.negativeZ
+            world
+
+-}
+setGravity :
+    Acceleration
+    -> Direction3d WorldCoordinates
+    -> World data
+    -> World data
+setGravity acceleration direction (Protected world) =
+    Protected
+        { world
+            | gravity =
+                Vec3.scale
+                    (Acceleration.inMetersPerSecondSquared acceleration)
+                    (Direction3d.unwrap direction)
+        }
+
+
+{-| Add a body to the world.
 
     worldWithFloor =
         add planeBody world
@@ -78,33 +105,16 @@ add (InternalBody.Protected body) (Protected world) =
                 }
 
 
-{-| Set the [standard gravity](https://en.wikipedia.org/wiki/Standard_gravity), e.g.:
-
-    planetEarth =
-        setGravity { x = 0, y = 0, z = -9.80665 } world
-
--}
-setGravity :
-    { x : Float, y : Float, z : Float }
-    -> World data
-    -> World data -- Vector3d Acceletation WorldCoordinates // decouple direction and magnitude?
-setGravity gravity (Protected world) =
-    Protected { world | gravity = gravity }
-
-
-{-| Simulate the world, given the number of milliseconds since the last frame.
+{-| Simulate the world, given the number of seconds since the last frame.
 
 Call this function on a message from the [onAnimationFrame](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrame) subscription.
 
 -}
-simulate :
-    Float
-    -> World data
-    -> World data -- Duration
+simulate : Duration -> World data -> World data
 simulate dt (Protected world) =
     world
         |> Internal.addGravityForces
-        |> Solver.solve (dt / 1000) (BroadPhase.getContacts world)
+        |> Solver.solve (Duration.inSeconds dt) (BroadPhase.getContacts world)
         |> Protected
 
 
@@ -120,7 +130,8 @@ getBodies (Protected { bodies }) =
 
 
 {-| Find the closest intersection of a ray against
-all the bodies in the world.
+all the bodies in the world. Except for particles,
+because they have no size.
 -}
 raycast :
     Point3d Meters WorldCoordinates
@@ -132,8 +143,8 @@ raycast from direction (Protected world) =
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body
-                , point = Point3d.relativeTo body.frame3d (Point3d.fromMeters point)
-                , normal = Direction3d.relativeTo body.frame3d (Direction3d.unsafe normal)
+                , point = Point3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Point3d.fromMeters point)
+                , normal = Direction3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Direction3d.unsafe normal)
                 }
 
         _ ->
@@ -146,8 +157,8 @@ expressed within the local body coordinate system.
 -}
 type alias RaycastResult data =
     { body : Body data
-    , point : Point3d Meters BodyLocalCoordinates
-    , normal : Direction3d BodyLocalCoordinates
+    , point : Point3d Meters BodyCoordinates
+    , normal : Direction3d BodyCoordinates
     }
 
 
@@ -191,7 +202,11 @@ Check the [Physics.Constraint](Physics-Constraint) module for possible constrain
     worldWithACar =
         constrain
             (\b1 b2 ->
-                case ( (Body.getData b1).part, (Body.getData b2).part ) of
+                case
+                    ( (Body.getData b1).part
+                    , (Body.getData b2).part
+                    )
+                of
                     ( "wheel1", "base" ) ->
                         [ hingeConstraint1 ]
 
@@ -217,7 +232,10 @@ to use `constrainIf` to apply constraints on a subset of bodies.
         constrainIf (always True)
 
 -}
-constrain : (Body data -> Body data -> List Constraint) -> World data -> World data
+constrain :
+    (Body data -> Body data -> List Constraint)
+    -> World data
+    -> World data
 constrain =
     constrainIf (always True)
 
@@ -228,10 +246,17 @@ For the above example we can tag each part of a car with the `carId`,
 and preselect parts of a single car with:
 
     constrainCar carId =
-        constrainIf (\body -> (Body.getData body).carId == carId)
+        constrainIf
+            (\body ->
+                (Body.getData body).carId == carId
+            )
 
 -}
-constrainIf : (Body data -> Bool) -> (Body data -> Body data -> List Constraint) -> World data -> World data
+constrainIf :
+    (Body data -> Bool)
+    -> (Body data -> Body data -> List Constraint)
+    -> World data
+    -> World data
 constrainIf test fn (Protected world) =
     let
         -- Filter the bodies for permutations
@@ -256,7 +281,7 @@ constrainIf test fn (Protected world) =
                 constraints ->
                     { bodyId1 = body1.id
                     , bodyId2 = body2.id
-                    , constraints = constraints
+                    , constraints = List.map (InternalConstraint.relativeToCenterOfMass body1.centerOfMassFrame3d body2.centerOfMassFrame3d) constraints
                     }
                         :: constraintGroup
 

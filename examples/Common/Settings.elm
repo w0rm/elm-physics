@@ -20,6 +20,7 @@ type alias Settings =
     , debugNormals : Bool -- Set to True to see normal spikes
     , debugEdges : Bool -- Set to True to see edge markers
     , debugWireframes : Bool -- Set to True to see wireframes
+    , debugCenterOfMass : Bool -- Set to True to see center of mass
     , showFpsMeter : Bool
     , showSettings : Bool
     }
@@ -31,6 +32,7 @@ type SettingsMsg
     | ToggleEdges Bool
     | ToggleWireframes Bool
     | ToggleFpsMeter Bool
+    | ToggleCenterOfMass Bool
     | ToggleSettings
 
 
@@ -42,6 +44,7 @@ settings =
     , debugWireframes = False
     , showSettings = False
     , showFpsMeter = False
+    , debugCenterOfMass = False
     }
 
 
@@ -66,9 +69,12 @@ update msg model =
         ToggleFpsMeter showFpsMeter ->
             { model | showFpsMeter = showFpsMeter }
 
+        ToggleCenterOfMass debugCenterOfMass ->
+            { model | debugCenterOfMass = debugCenterOfMass }
+
 
 view : (SettingsMsg -> msg) -> Settings -> List (Html msg) -> Html msg
-view msg { showSettings, debugContacts, debugNormals, debugEdges, debugWireframes, showFpsMeter } extraContent =
+view msg { showSettings, debugContacts, debugNormals, debugEdges, debugWireframes, debugCenterOfMass, showFpsMeter } extraContent =
     Html.div
         [ style "position" "fixed"
         , style "right" "6px"
@@ -85,6 +91,7 @@ view msg { showSettings, debugContacts, debugNormals, debugEdges, debugWireframe
                 , style "border-radius" "0 0 4px 4px"
                 ]
                 ([ checkbox (ToggleContacts >> msg) debugContacts "collision points"
+                 , checkbox (ToggleCenterOfMass >> msg) debugCenterOfMass "center of mass"
                  , checkbox (ToggleNormals >> msg) debugNormals "normals"
                  , checkbox (ToggleEdges >> msg) debugEdges "unique edges"
                  , checkbox (ToggleWireframes >> msg) debugWireframes "wireframes"

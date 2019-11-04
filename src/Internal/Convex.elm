@@ -18,9 +18,10 @@ import Array exposing (Array)
 import Dict
 import Direction3d
 import Frame3d exposing (Frame3d)
-import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates, WorldCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
+import Physics.Coordinates exposing (ShapeCoordinates, WorldCoordinates)
 import Point3d
 import Set
 
@@ -367,7 +368,7 @@ foldUniqueEdges fn acc { vertices, uniqueEdges } =
             acc
 
 
-expandBoundingSphereRadius : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> Convex -> Float -> Float
+expandBoundingSphereRadius : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
 expandBoundingSphereRadius frame3d { vertices } boundingSphereRadius =
     vertices
         |> List.foldl
@@ -383,7 +384,7 @@ expandBoundingSphereRadius frame3d { vertices } boundingSphereRadius =
         |> sqrt
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeLocalCoordinates } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } frame3d convex =
     List.foldl
         (\face maybeHit ->

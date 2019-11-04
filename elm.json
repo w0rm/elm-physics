@@ -9,6 +9,7 @@
         "Physics.Body",
         "Physics.Material",
         "Physics.Constraint",
+        "Physics.Coordinates",
         "Physics.Shape",
         "Physics.Debug"
     ],

@@ -3,6 +3,7 @@ module Car exposing (main)
 {-| This shows how hinge constrains can be used to assemble a car.
 -}
 
+import Acceleration
 import Angle
 import Axis3d
 import Browser
@@ -13,6 +14,7 @@ import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -21,6 +23,7 @@ import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Coordinates exposing (WorldCoordinates)
+import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
 import Vector3d
@@ -90,7 +93,7 @@ update msg model =
                 , world =
                     model.world
                         |> World.constrain constrainCar
-                        |> World.simulate (1000 / 60)
+                        |> World.simulate (Duration.seconds (1 / 60))
               }
             , Cmd.none
             )
@@ -139,10 +142,10 @@ view { settings, fps, world, camera } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add slope
-        |> addCar (Point3d.fromMeters { x = 0, y = 0, z = 5 })
+        |> addCar (Point3d.meters 0 0 5)
 
 
 addCar : Point3d Meters WorldCoordinates -> World Data -> World Data
@@ -157,7 +160,7 @@ addCar offset world =
             (wheel "wheel1"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = 3, y = 3, z = 0 })
+                        (Vector3d.meters 3 3 0)
                         originFrame
                     )
             )
@@ -165,7 +168,7 @@ addCar offset world =
             (wheel "wheel2"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = -3, y = 3, z = 0 })
+                        (Vector3d.meters -3 3 0)
                         originFrame
                     )
             )
@@ -173,7 +176,7 @@ addCar offset world =
             (wheel "wheel3"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = -3, y = -3, z = 0 })
+                        (Vector3d.meters -3 -3 0)
                         originFrame
                     )
             )
@@ -181,7 +184,7 @@ addCar offset world =
             (wheel "wheel4"
                 |> Body.setFrame3d
                     (Frame3d.translateBy
-                        (Vector3d.fromMeters { x = 3, y = -3, z = 0 })
+                        (Vector3d.meters 3 -3 0)
                         originFrame
                     )
             )
@@ -202,44 +205,44 @@ constrainCar b1 b2 =
         hinge1 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 3, y = 3, z = 0 })
+                    (Point3d.meters 3 3 0)
                     (Direction3d.unsafe { x = dx, y = dy, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    (Point3d.meters 0 0 0)
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
 
         hinge2 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = -3, y = 3, z = 0 })
+                    (Point3d.meters -3 3 0)
                     (Direction3d.unsafe { x = -dx, y = -dy, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
 
         hinge3 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = -3, y = -3, z = 0 })
+                    (Point3d.meters -3 -3 0)
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
 
         hinge4 =
             Constraint.hinge
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 3, y = -3, z = 0 })
+                    (Point3d.meters 3 -3 0)
                     (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
                 (Axis3d.through
-                    (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                    Point3d.origin
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
     in
@@ -291,22 +294,32 @@ slope =
         |> Body.setFrame3d
             (Frame3d.atPoint Point3d.origin
                 |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 16))
-                |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = -2, z = 1 })
+                |> Frame3d.moveTo (Point3d.meters 0 -2 1)
             )
 
 
 base : Body Data
 base =
     let
-        size =
+        bottomSize =
             { x = 3, y = 6, z = 1 }
 
+        topSize =
+            { x = 2, y = 3, z = 1.5 }
+
+        topOffset =
+            { x = 0, y = 1, z = 1 }
+
         meshes =
-            Meshes.fromTriangles (Meshes.box size)
+            Meshes.fromTriangles (Meshes.box bottomSize ++ (Meshes.box topSize |> Meshes.moveBy topOffset))
     in
     { name = "base", meshes = meshes }
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 1)
+        |> Body.compound
+            [ Shape.block (Length.meters bottomSize.x) (Length.meters bottomSize.y) (Length.meters bottomSize.z)
+            , Shape.block (Length.meters topSize.x) (Length.meters topSize.y) (Length.meters topSize.z)
+                |> Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters topOffset))
+            ]
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
 
 
 wheel : String -> Body Data
@@ -320,4 +333,4 @@ wheel name =
     in
     { name = name, meshes = meshes }
         |> Body.sphere (Length.meters radius)
-        |> Body.setMass (Mass.kilograms 1)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))

@@ -7,15 +7,19 @@ module Internal.Equation exposing
     , contactEquationsGroup
     )
 
+import Axis3d
+import Direction3d
 import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3
 import Internal.SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Length
 import Point3d
 import Vector3d
 
@@ -69,7 +73,7 @@ type alias EquationsGroup =
     }
 
 
-constraintEquationsGroup : Float -> Body data -> Body data -> List Constraint -> EquationsGroup
+constraintEquationsGroup : Float -> Body data -> Body data -> List (Constraint CenterOfMassCoordinates) -> EquationsGroup
 constraintEquationsGroup dt body1 body2 constraints =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
@@ -112,18 +116,31 @@ axes =
     [ Vec3.i, Vec3.j, Vec3.k ]
 
 
-addConstraintEquations : Float -> Body data -> Body data -> Constraint -> List SolverEquation -> List SolverEquation
+addConstraintEquations : Float -> Body data -> Body data -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
 addConstraintEquations dt body1 body2 constraint =
     case constraint of
-        PointToPoint { pivot1, pivot2 } ->
-            addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2
+        PointToPoint pivot1 pivot2 ->
+            addPointToPointConstraintEquations dt body1 body2 (Point3d.toMeters pivot1) (Point3d.toMeters pivot2)
 
-        Hinge { pivot1, axis1, pivot2, axis2 } ->
+        Hinge axis1 axis2 ->
+            let
+                pivot1 =
+                    Point3d.toMeters (Axis3d.originPoint axis1)
+
+                dir1 =
+                    Direction3d.unwrap (Axis3d.direction axis1)
+
+                pivot2 =
+                    Point3d.toMeters (Axis3d.originPoint axis2)
+
+                dir2 =
+                    Direction3d.unwrap (Axis3d.direction axis2)
+            in
             addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2
-                >> addRotationalConstraintEquations dt body1 body2 axis1 axis2
+                >> addRotationalConstraintEquations dt body1 body2 dir1 dir2
 
         Distance distance ->
-            addDistanceConstraintEquations dt body1 body2 distance
+            addDistanceConstraintEquations dt body1 body2 (Length.inMeters distance)
 
 
 addDistanceConstraintEquations : Float -> Body data -> Body data -> Float -> List SolverEquation -> List SolverEquation

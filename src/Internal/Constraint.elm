@@ -1,24 +1,46 @@
-module Internal.Constraint exposing (Constraint(..), ConstraintGroup)
+module Internal.Constraint exposing (Constraint(..), ConstraintGroup, Protected(..), relativeToCenterOfMass)
 
-import Internal.Vector3 exposing (Vec3)
+import Axis3d exposing (Axis3d)
+import Frame3d exposing (Frame3d)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
+import Length exposing (Length, Meters)
+import Physics.Coordinates exposing (BodyCoordinates)
+import Point3d exposing (Point3d)
 
 
-type Constraint
-    = PointToPoint
-        { pivot1 : Vec3
-        , pivot2 : Vec3
-        }
-    | Hinge
-        { pivot1 : Vec3
-        , axis1 : Vec3
-        , pivot2 : Vec3
-        , axis2 : Vec3
-        }
-    | Distance Float
+type Protected
+    = Protected (Constraint BodyCoordinates)
+
+
+type Constraint coordinates
+    = PointToPoint (Point3d Meters coordinates) (Point3d Meters coordinates)
+    | Hinge (Axis3d Meters coordinates) (Axis3d Meters coordinates)
+    | Distance Length
 
 
 type alias ConstraintGroup =
     { bodyId1 : Int
     , bodyId2 : Int
-    , constraints : List Constraint
+    , constraints : List (Constraint CenterOfMassCoordinates)
     }
+
+
+relativeToCenterOfMass :
+    Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
+    -> Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
+    -> Protected
+    -> Constraint CenterOfMassCoordinates
+relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected constraint) =
+    case constraint of
+        PointToPoint pivot1 pivot2 ->
+            PointToPoint
+                (Point3d.relativeTo centerOfMassFrame3d1 pivot1)
+                (Point3d.relativeTo centerOfMassFrame3d2 pivot2)
+
+        Hinge axis1 axis2 ->
+            Hinge
+                (Axis3d.relativeTo centerOfMassFrame3d1 axis1)
+                (Axis3d.relativeTo centerOfMassFrame3d2 axis2)
+
+        Distance length ->
+            Distance length

@@ -42,7 +42,7 @@ colliding =
             Frame3d.atPoint Point3d.origin
                 |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 4))
                 |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 20))
-                |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 0.9 })
+                |> Frame3d.moveTo (Point3d.meters 0 0 0.9)
 
         originFrame3d =
             Frame3d.atPoint Point3d.origin
@@ -78,7 +78,7 @@ separated =
             Frame3d.atPoint Point3d.origin
                 |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 4))
                 |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 20))
-                |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2.5 })
+                |> Frame3d.moveTo (Point3d.meters 0 0 2.5)
 
         originFrame3d =
             Frame3d.atPoint Point3d.origin

@@ -1,25 +1,24 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
-    , setMass, setMaterial
+    , Behavior, dynamic, static, setBehavior
+    , setFrame3d, getFrame3d
     , setData, getData
-    , compound
-    , getFrame3d, setFrame3d
+    , setMaterial, compound
     )
 
 {-|
 
 @docs Body, block, plane, sphere, particle
-@docs setMass, setPosition, getTransformation, setMaterial
+
+
+## Behavior
+
+@docs Behavior, dynamic, static, setBehavior
 
 
 ## Positioning
 
-@docs moveBy, getPosition
-
-
-## Orientation
-
-@docs rotateBy, setOrientation, getOrientation
+@docs setFrame3d, getFrame3d
 
 
 ## User-Defined Data
@@ -29,34 +28,35 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs compound
+@docs setMaterial, compound
 
 -}
 
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
-import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
 import Length exposing (Length, Meters)
 import Mass exposing (Mass)
+import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
+import Point3d
 
 
 {-| Represents a physical body containing
 user defined data, like a WebGL mesh.
 
 By default a body is positioned in the center
-of the world and has zero mass. To change this,
-use [setPosition](#setPosition) or [setMass](#setMass).
-Bodies with zero mass don’t move!
+of the world and doesn’t move. To change this,
+use [setFrame3d](#setFrame3d) and [setBehavior](#setBehavior).
 
 The supported bodies are:
 
   - [block](#block),
   - [plane](#plane),
-  - [sphere](#sphere).
+  - [sphere](#sphere),
+  - [particle](#particle).
 
 For complex bodies check [compound](#compound).
 
@@ -66,9 +66,14 @@ type alias Body data =
 
 
 {-| A block is defined by its dimensions along the x, y and z axes.
-To create a 1x1 block, call this:
+To create a 1x1x1 cube, call this:
 
-    block (Length.meters 1) (Length.meters 1) (Length.meters 1) data
+    cubeBody =
+        block
+            (Length.meters 1)
+            (Length.meters 1)
+            (Length.meters 1)
+            data
 
 -}
 block : Length -> Length -> Length -> data -> Body data
@@ -80,11 +85,23 @@ block x y z =
 in the direction of the z axis.
 
 A plane is collidable in the direction of the normal.
+Planes don’t collide with other planes and are always static.
 
 -}
 plane : data -> Body data
 plane =
-    compound [ Shape.plane ]
+    compound
+        [ InternalShape.Protected
+            { frame3d = defaultShapeFrame
+            , kind = InternalShape.Plane
+            , volume = 0
+            }
+        ]
+
+
+defaultShapeFrame : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
+defaultShapeFrame =
+    Frame3d.atPoint Point3d.origin
 
 
 {-| A sphere is defined by its radius.
@@ -94,39 +111,105 @@ sphere radius =
     compound [ Shape.sphere radius ]
 
 
-{-| A particle is an abstract point that doesn’t have dimenstions.
+{-| A particle is an abstract point that doesn’t have dimensions.
+Particles don’t collide with each other.
 -}
 particle : data -> Body data
 particle =
-    compound [ Shape.particle ]
+    compound
+        [ InternalShape.Protected
+            { frame3d = defaultShapeFrame
+            , kind = InternalShape.Particle
+            , volume = 0
+            }
+        ]
 
 
-{-| Set the body mass. Bodies with zero mass don’t move!
+{-| Bodies may have static or dynamic behavior.
 -}
-setMass : Mass -> Body data -> Body data
-setMass mass (Protected body) =
-    Protected (Internal.updateMassProperties { body | mass = Mass.inKilograms mass })
+type Behavior
+    = Dynamic Float
+    | Static
 
 
-{-| Set the frame3d that controls the absolute position and orientation of the body in the world.
+{-| Dynamic bodies move and react to forces and collide with
+other dynamic and static bodies.
 -}
-setFrame3d : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates } -> Body data -> Body data
-setFrame3d frame3d (Protected body) =
-    Protected (Internal.updateMassProperties { body | frame3d = frame3d })
+dynamic : Mass -> Behavior
+dynamic kilos =
+    let
+        mass =
+            Mass.inKilograms kilos
+    in
+    if isNaN mass || isInfinite mass || mass <= 0 then
+        Static
+
+    else
+        Dynamic mass
 
 
-{-| Set the [material](Physics-Material) to controll friction and bounciness.
+{-| Static bodies don’t move and only collide with dynamic bodies.
 -}
-setMaterial : Material -> Body data -> Body data
-setMaterial (InternalMaterial.Protected material) (Protected body) =
-    Protected { body | material = material }
+static : Behavior
+static =
+    Static
 
 
-{-| Get the absolute position and orientation of the body in the world as a frame3d.
+{-| Change the behavior, e.g. to make a body dynamic:
+
+    dynamicBody =
+        staticBody
+            |> setBehavior (dynamic (Mass.kilograms 5))
+
 -}
-getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
-getFrame3d (Protected { frame3d }) =
-    frame3d
+setBehavior : Behavior -> Body data -> Body data
+setBehavior behavior (Protected body) =
+    case behavior of
+        Dynamic mass ->
+            case body.shapes of
+                [] ->
+                    Protected body
+
+                [ { kind } ] ->
+                    if kind == InternalShape.Plane then
+                        Protected body
+
+                    else
+                        Protected (Internal.updateMassProperties { body | mass = mass })
+
+                _ ->
+                    Protected (Internal.updateMassProperties { body | mass = mass })
+
+        Static ->
+            Protected (Internal.updateMassProperties { body | mass = 0 })
+
+
+{-| Set the position and orientation of the body in the world,
+e.g. to raise a body 5 meters above the origin:
+
+    movedBody =
+        body
+            |> setFrame3d
+                (Frame3d.atPoint (Point3d.meters 0 0 5))
+
+For all possible ways to construct and modify `Frame3d`, check
+[elm-geometry package docs](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/2.0.0/Frame3d).
+
+-}
+setFrame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body data -> Body data
+setFrame3d userFrame3d (Protected body) =
+    let
+        newFrame3d =
+            Frame3d.placeIn userFrame3d body.centerOfMassFrame3d
+    in
+    Protected (Internal.updateMassProperties { body | frame3d = newFrame3d })
+
+
+{-| Get the position and orientation of the body in the world as `Frame3d`.
+-}
+getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+getFrame3d (Protected { frame3d, centerOfMassFrame3d }) =
+    Frame3d.placeIn frame3d (Frame3d.relativeTo centerOfMassFrame3d Frame3d.atOrigin)
 
 
 {-| Set user-defined data.
@@ -138,6 +221,7 @@ setData data (Protected body) =
         , data = data
         , material = body.material
         , frame3d = body.frame3d
+        , centerOfMassFrame3d = body.centerOfMassFrame3d
         , velocity = body.velocity
         , angularVelocity = body.angularVelocity
         , mass = body.mass
@@ -157,6 +241,13 @@ setData data (Protected body) =
 getData : Body data -> data
 getData (Protected { data }) =
     data
+
+
+{-| Set the [material](Physics-Material) to controll friction and bounciness.
+-}
+setMaterial : Material -> Body data -> Body data
+setMaterial (InternalMaterial.Protected material) (Protected body) =
+    Protected { body | material = material }
 
 
 {-| Make a compound body from a list of [shapes](Physics-Shape#Shape).

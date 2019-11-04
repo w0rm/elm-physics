@@ -13,9 +13,10 @@ import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Const as Const
 import Internal.Convex exposing (Convex)
-import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
+import Physics.Coordinates exposing (ShapeCoordinates)
 import Point3d
 
 
@@ -83,7 +84,7 @@ extend aabb1 aabb =
     }
 
 
-convex : Convex -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+convex : Convex -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
 convex { vertices } frame3d =
     List.foldl
         (\point ->
@@ -102,7 +103,7 @@ dimensions { lowerBound, upperBound } =
     Vec3.sub upperBound lowerBound
 
 
-plane : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+plane : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
 plane frame3d =
     let
         { x, y, z } =
@@ -142,7 +143,7 @@ plane frame3d =
         maximum
 
 
-particle : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+particle : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
 particle frame3d =
     let
         position =
@@ -153,7 +154,7 @@ particle frame3d =
     }
 
 
-sphere : Float -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB
+sphere : Float -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
 sphere radius frame3d =
     let
         c =

@@ -7,22 +7,25 @@ module Internal.Shape exposing
     , raycast
     )
 
+import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates, WorldCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
+import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
 import Point3d
 
 
 type Protected
-    = Protected Shape
+    = Protected (Shape BodyCoordinates)
 
 
-type alias Shape =
-    { frame3d : Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates }
+type alias Shape coordinates =
+    { frame3d : Frame3d Meters coordinates { defines : ShapeCoordinates }
+    , volume : Float
     , kind : Kind
     }
 
@@ -34,7 +37,7 @@ type Kind
     | Particle
 
 
-aabbClosure : Kind -> Frame3d Meters BodyLocalCoordinates { defines : ShapeLocalCoordinates } -> AABB.AABB
+aabbClosure : Kind -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB.AABB
 aabbClosure kind =
     case kind of
         Convex convex ->
@@ -50,7 +53,7 @@ aabbClosure kind =
             AABB.particle
 
 
-expandBoundingSphereRadius : Shape -> Float -> Float
+expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float
 expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
     case kind of
         Convex convex ->
@@ -70,11 +73,11 @@ expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
             max boundingSphereRadius (Vec3.length (Point3d.toMeters (Frame3d.originPoint frame3d)))
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeLocalCoordinates } -> Shape -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Shape CenterOfMassCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast ray frame3d { kind } =
     case kind of
         Plane ->
-            Nothing
+            raycastPlane ray frame3d
 
         Sphere radius ->
             raycastSphere ray (Point3d.toMeters (Frame3d.originPoint frame3d)) radius
@@ -84,6 +87,44 @@ raycast ray frame3d { kind } =
 
         Particle ->
             Nothing
+
+
+raycastPlane : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastPlane { from, direction } frame3d =
+    let
+        planeNormalWS =
+            Direction3d.unwrap (Direction3d.placeIn frame3d Direction3d.z)
+
+        dot =
+            Vec3.dot direction planeNormalWS
+    in
+    if dot < 0 then
+        let
+            pointOnFaceWS =
+                Point3d.toMeters (Frame3d.originPoint frame3d)
+
+            pointToFrom =
+                Vec3.sub pointOnFaceWS from
+
+            scalar =
+                Vec3.dot planeNormalWS pointToFrom / dot
+        in
+        if scalar >= 0 then
+            Just
+                { distance = scalar
+                , point =
+                    { x = direction.x * scalar + from.x
+                    , y = direction.y * scalar + from.y
+                    , z = direction.z * scalar + from.z
+                    }
+                , normal = planeNormalWS
+                }
+
+        else
+            Nothing
+
+    else
+        Nothing
 
 
 raycastSphere : { from : Vec3, direction : Vec3 } -> Vec3 -> Float -> Maybe { distance : Float, point : Vec3, normal : Vec3 }

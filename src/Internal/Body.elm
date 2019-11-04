@@ -2,6 +2,7 @@ module Internal.Body exposing
     ( Body
     , Protected(..)
     , addGravity
+    , centerOfMass
     , compound
     , raycast
     , update
@@ -13,13 +14,14 @@ import Axis3d
 import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB exposing (AABB)
-import Internal.Coordinates exposing (BodyLocalCoordinates, WorldCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Length exposing (Meters)
-import Point3d
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Point3d exposing (Point3d)
 import Vector3d
 
 
@@ -31,11 +33,12 @@ type alias Body data =
     { id : Int
     , data : data
     , material : Material
-    , frame3d : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
+    , frame3d : Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates }
+    , centerOfMassFrame3d : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
     , velocity : Vec3
     , angularVelocity : Vec3
     , mass : Float
-    , shapes : List Shape
+    , shapes : List (Shape CenterOfMassCoordinates)
     , force : Vec3
     , torque : Vec3
     , boundingSphereRadius : Float
@@ -48,20 +51,72 @@ type alias Body data =
     }
 
 
-compound : List Shape -> data -> Body data
+centerOfMass : List (Shape BodyCoordinates) -> Point3d Meters BodyCoordinates
+centerOfMass shapes =
+    let
+        totalVolume =
+            List.foldl (\{ volume } sum -> sum + volume) 0 shapes
+    in
+    if totalVolume > 0 then
+        Point3d.fromMeters
+            (List.foldl
+                (\shape ->
+                    Vec3.add
+                        (Vec3.scale
+                            (shape.volume / totalVolume)
+                            (Point3d.toMeters (Frame3d.originPoint shape.frame3d))
+                        )
+                )
+                Vec3.zero
+                shapes
+            )
+
+    else
+        Point3d.origin
+
+
+compound : List (Shape BodyCoordinates) -> data -> Body data
 compound shapes data =
+    let
+        centerOfMassPoint =
+            centerOfMass shapes
+
+        centerOfMassFrame3d : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
+        centerOfMassFrame3d =
+            Frame3d.atPoint centerOfMassPoint
+
+        bodyFrame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+        bodyFrame3d =
+            Frame3d.atPoint Point3d.origin
+
+        frame3d : Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates }
+        frame3d =
+            Frame3d.placeIn bodyFrame3d centerOfMassFrame3d
+
+        movedShapes : List (Shape CenterOfMassCoordinates)
+        movedShapes =
+            List.map
+                (\shape ->
+                    { kind = shape.kind
+                    , volume = shape.volume
+                    , frame3d = Frame3d.relativeTo centerOfMassFrame3d shape.frame3d
+                    }
+                )
+                shapes
+    in
     updateMassProperties
         { id = -1
         , data = data
         , material = Material.default
-        , frame3d = defaultFrame
+        , frame3d = frame3d
+        , centerOfMassFrame3d = centerOfMassFrame3d
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
         , mass = 0
-        , shapes = shapes
+        , shapes = movedShapes
         , force = Vec3.zero
         , torque = Vec3.zero
-        , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 shapes
+        , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
 
         -- mass props
         , invMass = 0
@@ -69,11 +124,6 @@ compound shapes data =
         , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.identity
         }
-
-
-defaultFrame : Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates }
-defaultFrame =
-    Frame3d.atPoint Point3d.origin
 
 
 addGravity : Vec3 -> Body data -> Body data
@@ -137,6 +187,7 @@ update dt vlambda wlambda body =
     , velocity = newVelocity
     , angularVelocity = newAngularVelocity
     , frame3d = newFrame3d
+    , centerOfMassFrame3d = body.centerOfMassFrame3d
     , mass = body.mass
     , shapes = body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
@@ -215,7 +266,7 @@ updateMassProperties ({ mass } as body) =
     }
 
 
-updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : BodyLocalCoordinates } -> Mat3 -> Mat3
+updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates } -> Mat3 -> Mat3
 updateInvInertiaWorld force invInertia frame3d invInertiaWorld =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         invInertiaWorld

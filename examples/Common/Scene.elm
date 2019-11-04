@@ -5,16 +5,20 @@ import Common.Math as Math
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
+import Frame3d
 import Geometry.Interop.LinearAlgebra.Direction3d as Direction3d
 import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
 import Geometry.Interop.LinearAlgebra.Point3d as Point3d
 import Html exposing (Html)
 import Html.Attributes as Attributes
+import Length exposing (Meters)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
 import Physics.Body as Body exposing (Body)
+import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Debug as Debug exposing (FaceNormal, UniqueEdge)
 import Physics.World as World exposing (RaycastResult, World)
+import Point3d exposing (Point3d)
 import WebGL exposing (Entity)
 
 
@@ -45,6 +49,7 @@ view { settings, world, floorOffset, camera, raycastResult, meshes } =
             , debugWireframes = settings.debugWireframes
             , debugNormals = settings.debugNormals
             , debugEdges = settings.debugEdges
+            , debugCenterOfMass = settings.debugCenterOfMass
             , raycastResult = raycastResult
             , meshes = meshes
             , shadow =
@@ -91,6 +96,7 @@ type alias SceneParams a =
     , debugWireframes : Bool
     , debugNormals : Bool
     , debugEdges : Bool
+    , debugCenterOfMass : Bool
     , shadow : Maybe Mat4
     , raycastResult : Maybe (RaycastResult a)
     , meshes : a -> Meshes
@@ -98,7 +104,7 @@ type alias SceneParams a =
 
 
 addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
-addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
+addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
     let
         transform =
             Frame3d.toMat4 (Body.getFrame3d body)
@@ -136,10 +142,18 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
             else
                 acc
 
+        addCenterOfMass acc =
+            if debugCenterOfMass then
+                addContactIndicator sceneParams (Point3d.placeIn (Body.getFrame3d body) (Debug.getCenterOfMass body)) acc
+
+            else
+                acc
+
         { mesh, wireframe } =
             meshes (Body.getData body)
     in
     entities
+        |> addCenterOfMass
         |> addEdges
         |> addNormals
         |> (if debugWireframes then
@@ -192,8 +206,8 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 
 {-| Render collision point for the purpose of debugging
 -}
-addContactIndicator : SceneParams a -> { x : Float, y : Float, z : Float } -> List Entity -> List Entity
-addContactIndicator { lightDirection, camera } { x, y, z } tail =
+addContactIndicator : SceneParams a -> Point3d Meters WorldCoordinates -> List Entity -> List Entity
+addContactIndicator { lightDirection, camera } point tail =
     WebGL.entity
         Shaders.vertex
         Shaders.fragment
@@ -202,7 +216,7 @@ addContactIndicator { lightDirection, camera } { x, y, z } tail =
         , perspective = camera.perspectiveTransform
         , color = Vec3.vec3 1 0 0
         , lightDirection = lightDirection
-        , transform = Mat4.makeTranslate3 x y z
+        , transform = Frame3d.toMat4 (Frame3d.atPoint point)
         }
         :: tail
 

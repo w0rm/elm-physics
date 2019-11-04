@@ -4,6 +4,7 @@ module Cloth exposing (main)
 and distance constraints between adjacent points.
 -}
 
+import Acceleration
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -11,6 +12,8 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -96,7 +99,7 @@ update msg model =
         Tick dt ->
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (1000 / 60) model.world
+                , world = World.simulate (Duration.seconds (1 / 60)) model.world
               }
             , Cmd.none
             )
@@ -145,9 +148,9 @@ view { settings, fps, world, camera } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0, y = 0, z = 1 })) sphere)
+        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0 0 1)) sphere)
         |> addCloth
         |> World.constrain constrainCloth
 
@@ -165,11 +168,10 @@ addCloth world =
                     particle x y
                         |> Body.setFrame3d
                             (Frame3d.atPoint
-                                (Point3d.fromMeters
-                                    { x = (toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
-                                    , y = (toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles
-                                    , z = 8
-                                    }
+                                (Point3d.meters
+                                    ((toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                    ((toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                    8
                                 )
                             )
                         |> World.add
@@ -228,7 +230,7 @@ sphere =
     , kind = Other
     }
         |> Body.sphere (Length.meters radius)
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 particle : Int -> Int -> Body Data
@@ -237,4 +239,4 @@ particle x y =
     , kind = Particle x y
     }
         |> Body.particle
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))

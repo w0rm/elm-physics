@@ -1,15 +1,22 @@
-module Physics.Coordinates exposing (BodyLocalCoordinates, ShapeLocalCoordinates, WorldCoordinates)
+module Physics.Coordinates exposing (WorldCoordinates, BodyCoordinates, ShapeCoordinates)
 
-import Internal.Coordinates as Coordinates
+{-| These type parameters indicate coordinate systems.
 
+@docs WorldCoordinates, BodyCoordinates, ShapeCoordinates
 
-type alias WorldCoordinates =
-    Coordinates.WorldCoordinates
-
-
-type alias BodyLocalCoordinates =
-    Coordinates.BodyLocalCoordinates
+-}
 
 
-type alias ShapeLocalCoordinates =
-    Coordinates.ShapeLocalCoordinates
+{-| -}
+type WorldCoordinates
+    = WorldCoordinates
+
+
+{-| -}
+type BodyCoordinates
+    = BodyCoordinates
+
+
+{-| -}
+type ShapeCoordinates
+    = ShapeCoordinates

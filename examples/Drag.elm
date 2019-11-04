@@ -10,6 +10,7 @@ module Drag exposing (main)
 
 -}
 
+import Acceleration
 import Angle
 import Axis3d
 import Browser
@@ -20,6 +21,7 @@ import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
+import Duration
 import Frame3d
 import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
 import Html exposing (Html)
@@ -117,7 +119,7 @@ update msg model =
                 | fps = Fps.update dt model.fps
                 , world =
                     model.world
-                        |> World.simulate (1000 / 60)
+                        |> World.simulate (Duration.seconds (1 / 60))
               }
             , Cmd.none
             )
@@ -131,12 +133,24 @@ update msg model =
             ( { model | world = initialWorld }, Cmd.none )
 
         MouseDown direction ->
-            case
-                World.raycast
-                    (Point3d.fromMeters model.camera.from)
-                    (Direction3d.unsafe direction)
+            let
+                maybeRaycastResult =
                     model.world
-            of
+                        |> World.raycast
+                            (Point3d.fromMeters model.camera.from)
+                            (Direction3d.unsafe direction)
+                        |> Maybe.andThen
+                            -- only allow clicks on boxes
+                            (\result ->
+                                case (Body.getData result.body).id of
+                                    Box _ ->
+                                        Just result
+
+                                    _ ->
+                                        Nothing
+                            )
+            in
+            case maybeRaycastResult of
                 Just raycastResult ->
                     -- create temporary body and constrain it
                     -- with selected body
@@ -157,7 +171,7 @@ update msg model =
                                     (\b1 b2 ->
                                         if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
                                             [ Constraint.pointToPoint
-                                                (Point3d.fromMeters { x = 0, y = 0, z = 0 })
+                                                Point3d.origin
                                                 raycastResult.point
                                             ]
 
@@ -273,26 +287,26 @@ view { settings, fps, world, camera, selection } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add
             (box 1
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2 })
+                        |> Frame3d.moveTo (Point3d.meters 0 0 2)
                     )
             )
         |> World.add
             (box 2
-                |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0.5, y = 0, z = 8 }))
+                |> Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 8))
             )
         |> World.add
             (box 3
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = -1.2, y = 0, z = 5 })
+                        |> Frame3d.moveTo (Point3d.meters -1.2 0 5)
                     )
             )
 
@@ -326,7 +340,7 @@ box id =
     in
     { id = Box id, meshes = meshes }
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 10)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 10))
 
 
 {-| An empty body with zero mass, rendered as a sphere.

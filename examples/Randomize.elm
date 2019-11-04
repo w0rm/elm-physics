@@ -5,6 +5,7 @@ It also shows how to make a compound body out of multiple shapes.
 If you click too fast, the bodies may be spawned inside each other.
 -}
 
+import Acceleration
 import Angle
 import Axis3d
 import Browser
@@ -15,6 +16,7 @@ import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -83,7 +85,7 @@ update msg model =
         Tick dt ->
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (1000 / 60) model.world
+                , world = World.simulate (Duration.seconds (1 / 60)) model.world
               }
             , Cmd.none
             )
@@ -140,26 +142,26 @@ view { settings, fps, world, camera } =
 initialWorld : World Meshes
 initialWorld =
     World.empty
-        |> World.setGravity { x = 0, y = 0, z = -10 }
+        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add
             (box
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2 })
+                        |> Frame3d.moveTo (Point3d.meters 0 0 2)
                     )
             )
         |> World.add
             (sphere
-                |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0.5, y = 0, z = 8 }))
+                |> Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 8))
             )
         |> World.add
             (compound
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = -1.2, y = 0, z = 5 })
+                        |> Frame3d.moveTo (Point3d.meters -1.2 0 5)
                     )
             )
 
@@ -188,7 +190,7 @@ box =
     Meshes.box size
         |> Meshes.fromTriangles
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 sphere : Body Meshes
@@ -200,7 +202,7 @@ sphere =
     Meshes.sphere 2 radius
         |> Meshes.fromTriangles
         |> Body.sphere (Length.meters radius)
-        |> Body.setMass (Mass.kilograms 5)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 {-| A compound body made of three boxes
@@ -216,19 +218,23 @@ compound =
 
         boxShape =
             Shape.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-    in
-    [ Meshes.moveBy { x = -0.5, y = 0, z = -0.5 } boxTriangles
-    , Meshes.moveBy { x = -0.5, y = 0, z = 0.5 } boxTriangles
-    , Meshes.moveBy { x = 0.5, y = 0, z = 0.5 } boxTriangles
-    ]
-        |> List.concat
-        |> Meshes.fromTriangles
-        |> Body.compound
-            [ Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -0.5, y = 0, z = -0.5 })) boxShape
-            , Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = -0.5, y = 0, z = 0.5 })) boxShape
-            , Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters { x = 0.5, y = 0, z = 0.5 })) boxShape
+
+        coordinates =
+            [ Point3d.meters -0.5 0 -0.5
+            , Point3d.meters -0.5 0 0.5
+            , Point3d.meters 0.5 0 0.5
             ]
-        |> Body.setMass (Mass.kilograms 5)
+
+        shapes =
+            List.map (\p -> Shape.setFrame3d (Frame3d.atPoint p) boxShape) coordinates
+
+        compoundTriangles =
+            List.concatMap
+                (\p -> Meshes.moveBy (Point3d.toMeters p) boxTriangles)
+                coordinates
+    in
+    Body.compound shapes (Meshes.fromTriangles compoundTriangles)
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 {-| A random body raised above the plane, shifted or rotated to a random 3d angle
@@ -249,9 +255,10 @@ randomBody =
             )
                 |> Body.setFrame3d
                     (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.fromMeters { x = x, y = y, z = z })))))
+                        |> Frame3d.rotateAround
+                            (Axis3d.through Point3d.origin (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z)))))
                             (Angle.radians angle)
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 10 })
+                        |> Frame3d.moveTo (Point3d.meters 0 0 10)
                     )
         )
         (Random.float (-pi / 2) (pi / 2))

@@ -29,12 +29,12 @@ getContacts =
                         -- going slightly into another box
                         Frame3d.atPoint Point3d.origin
                             |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 2.1 })
+                            |> Frame3d.moveTo (Point3d.meters 0 0 2.1)
 
                     t2 =
                         Frame3d.atPoint Point3d.origin
                             |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 0, z = 4 })
+                            |> Frame3d.moveTo (Point3d.meters 0 0 4)
                 in
                 Collision.ConvexConvex.addContacts t1 convex t2 convex []
                     |> List.length
@@ -51,12 +51,12 @@ getContacts =
                     frame3d1 =
                         Frame3d.atPoint Point3d.origin
                             |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.fromMeters { x = -0.5, y = 0, z = 0 })
+                            |> Frame3d.moveTo (Point3d.meters  -0.5  0  0 )
 
                     frame3d2 =
                         Frame3d.atPoint Point3d.origin
                             |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0.5, y = 0, z = 0 })
+                            |> Frame3d.moveTo (Point3d.meters  0.5  0 0 )
                 in
                 Collision.ConvexConvex.addContacts frame3d1 convex1 frame3d2 convex2 []
                     |> List.length
@@ -71,9 +71,9 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 })
+                        { frame3d1 = Frame3d.atPoint (Point3d.meters  -0.2  0  0 )
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
-                        , frame3d2 = Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        , frame3d2 = Frame3d.atPoint (Point3d.meters   0.2 0  0 )
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -83,9 +83,9 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = -5.2, y = 0, z = 0 })
+                        { frame3d1 = Frame3d.atPoint (Point3d.meters  -5.2  0  0 )
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
-                        , frame3d2 = Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                        , frame3d2 = Frame3d.atPoint (Point3d.meters   0.2  0 0 )
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -95,12 +95,12 @@ testSeparatingAxis =
             \_ ->
                 case
                     Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.fromMeters { x = 1, y = 0, z = 0 })
+                        { frame3d1 = Frame3d.atPoint (Point3d.meters  1  0  0 )
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
                         , frame3d2 =
                             Frame3d.atPoint Point3d.origin
                                 |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                                |> Frame3d.moveTo (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                                |> Frame3d.moveTo (Point3d.meters   0.2  0  0 )
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -120,9 +120,9 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        (Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 }))
+                        (Frame3d.atPoint (Point3d.meters  -0.2  0  0 ))
                         (Convex.fromBlock 0.5 0.5 0.5)
-                        (Frame3d.atPoint (Point3d.fromMeters { x = 0.2, y = 0, z = 0 }))
+                        (Frame3d.atPoint (Point3d.meters  0.2  0  0 ))
                         (Convex.fromBlock 0.5 0.5 0.5)
                     )
                     (Just { x = -1, y = 0, z = 0 })
@@ -130,11 +130,11 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        (Frame3d.atPoint (Point3d.fromMeters { x = -0.2, y = 0, z = 0 }))
+                        (Frame3d.atPoint (Point3d.meters  -0.2  0  0 ))
                         (Convex.fromBlock 0.5 0.5 0.5)
                         (Frame3d.atPoint Point3d.origin
                             |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                            |> Frame3d.moveTo (Point3d.fromMeters { x = 0.2, y = 0, z = 0 })
+                            |> Frame3d.moveTo (Point3d.meters   0.2 0  0 )
                         )
                         (Convex.fromBlock 0.5 0.5 0.5)
                     )
@@ -176,7 +176,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Frame3d.atPoint (Point3d.fromMeters { x = 0, y = 1, z = 0 }))
+                        (Frame3d.atPoint (Point3d.meters  0  1  0 ))
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
                     )
@@ -186,7 +186,7 @@ project =
                 Collision.ConvexConvex.project
                     (Frame3d.atPoint Point3d.origin
                         |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 2))
-                        |> Frame3d.moveTo (Point3d.fromMeters { x = 0, y = 1, z = 0 })
+                        |> Frame3d.moveTo (Point3d.meters   0  1  0 )
                     )
                     (Convex.fromBlock 0.5 0.5 0.5).vertices
                     Vec3.j

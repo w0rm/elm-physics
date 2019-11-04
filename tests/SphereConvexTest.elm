@@ -16,7 +16,7 @@ addContacts : Test
 addContacts =
     let
         center =
-            { x = 0, y = 0, z = 7 }
+            Point3d.meters 0 0 7
 
         radius =
             5
@@ -69,7 +69,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint (Point3d.fromMeters center))
+                                (Frame3d.atPoint center)
                                 radius
                                 (Frame3d.atPoint (Point3d.fromMeters position))
                                 boxHull
@@ -88,7 +88,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint (Point3d.fromMeters center))
+                                (Frame3d.atPoint center)
                                 radius
                                 (Frame3d.atPoint (Point3d.fromMeters position))
                                 boxHull
@@ -102,7 +102,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint (Point3d.fromMeters center))
+                                (Frame3d.atPoint center)
                                 radius
                                 (Frame3d.atPoint (Point3d.fromMeters position))
                                 octoHull
@@ -121,7 +121,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint (Point3d.fromMeters center))
+                                (Frame3d.atPoint center)
                                 radius
                                 (Frame3d.atPoint (Point3d.fromMeters position))
                                 octoHull

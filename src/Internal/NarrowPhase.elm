@@ -11,7 +11,7 @@ import Collision.SphereSphere
 import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
-import Internal.Coordinates exposing (ShapeWorldFrame3d)
+import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeWorldFrame3d)
 import Internal.Shape exposing (Kind(..), Shape)
 
 
@@ -34,7 +34,7 @@ getContacts body1 body2 =
         body1.shapes
 
 
-addShapeContacts : ShapeWorldFrame3d -> Shape -> ShapeWorldFrame3d -> Shape -> List Contact -> List Contact
+addShapeContacts : ShapeWorldFrame3d -> Shape CenterOfMassCoordinates -> ShapeWorldFrame3d -> Shape CenterOfMassCoordinates -> List Contact -> List Contact
 addShapeContacts frame3d1 shape1 frame3d2 shape2 contacts =
     case shape1.kind of
         Convex convex1 ->
