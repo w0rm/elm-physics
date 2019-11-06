@@ -18,6 +18,7 @@ module Physics.World exposing
 -}
 
 import Acceleration exposing (Acceleration)
+import Axis3d exposing (Axis3d)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration)
 import Internal.Body as InternalBody
@@ -141,12 +142,17 @@ all the bodies in the world. Except for particles,
 because they have no size.
 -}
 raycast :
-    Point3d Meters WorldCoordinates
-    -> Direction3d WorldCoordinates
+    Axis3d Meters WorldCoordinates
     -> World data
     -> Maybe (RaycastResult data)
-raycast from direction (Protected world) =
-    case Internal.raycast { direction = Direction3d.unwrap direction, from = Point3d.toMeters from } world of
+raycast ray (Protected world) =
+    case
+        Internal.raycast
+            { direction = Direction3d.unwrap (Axis3d.direction ray)
+            , from = Point3d.toMeters (Axis3d.originPoint ray)
+            }
+            world
+    of
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body

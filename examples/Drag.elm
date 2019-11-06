@@ -12,6 +12,7 @@ module Drag exposing (main)
 
 import Acceleration
 import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -134,8 +135,10 @@ update msg model =
                 maybeRaycastResult =
                     model.world
                         |> World.raycast
-                            (Point3d.fromMeters model.camera.from)
-                            (Direction3d.unsafe direction)
+                            (Axis3d.through
+                                (Point3d.fromMeters model.camera.from)
+                                (Direction3d.unsafe direction)
+                            )
                         |> Maybe.andThen
                             -- only allow clicks on boxes
                             (\result ->
