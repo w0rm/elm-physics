@@ -7,7 +7,6 @@ Try to make the floor slippy too!
 
 import Acceleration
 import Angle
-import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -17,7 +16,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -134,12 +132,9 @@ initialWorld =
         |> World.add floor
         |> World.add
             (domino
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 8))
-                        |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                        |> Frame3d.moveTo (Point3d.meters -5.5 -5.5 0)
-                    )
+                |> Body.moveTo (Point3d.meters -5.5 -5.5 0)
+                |> Body.rotateAroundOwn Direction3d.z (Angle.radians (pi / 4))
+                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (pi / 8))
             )
         |> addDominos
 
@@ -149,11 +144,8 @@ addDominos world =
     List.foldl
         (\i ->
             domino
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                        |> Frame3d.moveTo (Point3d.meters (toFloat (5 - i)) (toFloat (5 - i)) 0)
-                    )
+                |> Body.moveTo (Point3d.meters (toFloat (5 - i)) (toFloat (5 - i)) 0)
+                |> Body.rotateAroundOwn Direction3d.z (Angle.radians (pi / 4))
                 |> World.add
         )
         world
@@ -172,7 +164,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 {-| A domino piece

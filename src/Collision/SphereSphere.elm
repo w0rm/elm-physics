@@ -1,20 +1,19 @@
 module Collision.SphereSphere exposing (addContacts)
 
-import Frame3d
 import Internal.Contact exposing (Contact)
-import Internal.Coordinates exposing (ShapeWorldFrame3d)
+import Internal.Coordinates exposing (ShapeWorldTransform3d)
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
-import Point3d
 
 
-addContacts : ShapeWorldFrame3d -> Float -> ShapeWorldFrame3d -> Float -> List Contact -> List Contact
-addContacts frame3d1 radius1 frame3d2 radius2 contacts =
+addContacts : ShapeWorldTransform3d -> Float -> ShapeWorldTransform3d -> Float -> List Contact -> List Contact
+addContacts transform3d1 radius1 transform3d2 radius2 contacts =
     let
         center1 =
-            Point3d.toMeters (Frame3d.originPoint frame3d1)
+            Transform3d.originPoint transform3d1
 
         center2 =
-            Point3d.toMeters (Frame3d.originPoint frame3d2)
+            Transform3d.originPoint transform3d2
 
         distance =
             Vec3.distance center2 center1

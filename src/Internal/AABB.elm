@@ -9,15 +9,11 @@ module Internal.AABB exposing
     , sphere
     )
 
-import Direction3d
-import Frame3d exposing (Frame3d)
 import Internal.Const as Const
 import Internal.Convex exposing (Convex)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length exposing (Meters)
-import Physics.Coordinates exposing (ShapeCoordinates)
-import Point3d
 
 
 type alias AABB =
@@ -84,13 +80,13 @@ extend aabb1 aabb =
     }
 
 
-convex : Convex -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
-convex { vertices } frame3d =
+convex : Convex -> Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
+convex { vertices } transform3d =
     List.foldl
         (\point ->
             let
                 p =
-                    Point3d.toMeters (Point3d.placeIn frame3d (Point3d.fromMeters point))
+                    Transform3d.pointPlaceIn transform3d point
             in
             extend { lowerBound = p, upperBound = p }
         )
@@ -103,14 +99,14 @@ dimensions { lowerBound, upperBound } =
     Vec3.sub upperBound lowerBound
 
 
-plane : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
-plane frame3d =
+plane : Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
+plane transform3d =
     let
         { x, y, z } =
-            Direction3d.unwrap (Direction3d.placeIn frame3d (Direction3d.unsafe Vec3.k))
+            Transform3d.directionPlaceIn transform3d Vec3.k
 
         position =
-            Point3d.toMeters (Frame3d.originPoint frame3d)
+            Transform3d.originPoint transform3d
     in
     if abs x == 1 then
         { lowerBound = maximum.lowerBound
@@ -143,22 +139,22 @@ plane frame3d =
         maximum
 
 
-particle : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
-particle frame3d =
+particle : Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
+particle transform3d =
     let
         position =
-            Point3d.toMeters (Frame3d.originPoint frame3d)
+            Transform3d.originPoint transform3d
     in
     { upperBound = position
     , lowerBound = position
     }
 
 
-sphere : Float -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
-sphere radius frame3d =
+sphere : Float -> Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB
+sphere radius transform3d =
     let
         c =
-            Point3d.toMeters (Frame3d.originPoint frame3d)
+            Transform3d.originPoint transform3d
     in
     { lowerBound =
         { x = c.x - radius

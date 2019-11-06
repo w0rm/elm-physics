@@ -1,13 +1,16 @@
-module Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeWorldFrame3d)
+module Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates, ShapeWorldTransform3d)
 
-import Frame3d exposing (Frame3d)
-import Length exposing (Meters)
-import Physics.Coordinates exposing (ShapeCoordinates, WorldCoordinates)
+import Internal.Transform3d exposing (Transform3d)
+import Physics.Coordinates exposing (WorldCoordinates)
 
 
-type alias ShapeWorldFrame3d =
-    Frame3d Meters WorldCoordinates { defines : ShapeCoordinates }
+type alias ShapeWorldTransform3d =
+    Transform3d WorldCoordinates { defines : ShapeCoordinates }
 
 
 type CenterOfMassCoordinates
     = CenterOfMassCoordinates
+
+
+type ShapeCoordinates
+    = ShapeCoordinates

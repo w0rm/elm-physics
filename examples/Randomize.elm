@@ -7,7 +7,6 @@ If you click too fast, the bodies may be spawned inside each other.
 
 import Acceleration
 import Angle
-import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -17,7 +16,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -146,23 +144,19 @@ initialWorld =
         |> World.add floor
         |> World.add
             (box
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                        |> Frame3d.moveTo (Point3d.meters 0 0 2)
-                    )
+                |> Body.moveTo (Point3d.meters 0 0 2)
+                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (-pi / 5))
             )
         |> World.add
             (sphere
-                |> Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 8))
+                |> Body.moveTo (Point3d.meters 0.5 0 8)
             )
         |> World.add
             (compound
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
-                        |> Frame3d.moveTo (Point3d.meters -1.2 0 5)
-                    )
+                |> Body.moveTo (Point3d.meters -1.2 0 5)
+                |> Body.rotateAroundOwn
+                    (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })
+                    (Angle.radians (pi / 5))
             )
 
 
@@ -178,7 +172,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 box : Body Meshes
@@ -226,7 +220,7 @@ compound =
             ]
 
         shapes =
-            List.map (\p -> Shape.setFrame3d (Frame3d.atPoint p) boxShape) coordinates
+            List.map (\p -> Shape.moveTo p boxShape) coordinates
 
         compoundTriangles =
             List.concatMap
@@ -253,13 +247,10 @@ randomBody =
                 _ ->
                     compound
             )
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround
-                            (Axis3d.through Point3d.origin (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z)))))
-                            (Angle.radians angle)
-                        |> Frame3d.moveTo (Point3d.meters 0 0 10)
-                    )
+                |> Body.moveTo (Point3d.meters 0 0 10)
+                |> Body.rotateAroundOwn
+                    (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z))))
+                    (Angle.radians angle)
         )
         (Random.float (-pi / 2) (pi / 2))
         (Random.float -1 1)

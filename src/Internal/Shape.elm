@@ -7,16 +7,13 @@ module Internal.Shape exposing
     , raycast
     )
 
-import Direction3d
-import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
-import Point3d
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 
 
 type Protected
@@ -24,7 +21,7 @@ type Protected
 
 
 type alias Shape coordinates =
-    { frame3d : Frame3d Meters coordinates { defines : ShapeCoordinates }
+    { transform3d : Transform3d coordinates { defines : ShapeCoordinates }
     , volume : Float
     , kind : Kind
     }
@@ -37,7 +34,7 @@ type Kind
     | Particle
 
 
-aabbClosure : Kind -> Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB.AABB
+aabbClosure : Kind -> Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB.AABB
 aabbClosure kind =
     case kind of
         Convex convex ->
@@ -54,15 +51,14 @@ aabbClosure kind =
 
 
 expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float
-expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
+expandBoundingSphereRadius { transform3d, kind } boundingSphereRadius =
     case kind of
         Convex convex ->
-            Convex.expandBoundingSphereRadius frame3d convex boundingSphereRadius
+            Convex.expandBoundingSphereRadius transform3d convex boundingSphereRadius
 
         Sphere radius ->
-            Frame3d.originPoint frame3d
-                |> Point3d.distanceFrom Point3d.origin
-                |> Length.inMeters
+            Transform3d.originPoint transform3d
+                |> Vec3.length
                 |> (+) radius
                 |> max boundingSphereRadius
 
@@ -70,30 +66,30 @@ expandBoundingSphereRadius { frame3d, kind } boundingSphereRadius =
             Const.maxNumber
 
         Particle ->
-            max boundingSphereRadius (Vec3.length (Point3d.toMeters (Frame3d.originPoint frame3d)))
+            max boundingSphereRadius (Vec3.length (Transform3d.originPoint transform3d))
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Shape CenterOfMassCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycast ray frame3d { kind } =
+raycast : { from : Vec3, direction : Vec3 } -> Transform3d WorldCoordinates { defines : ShapeCoordinates } -> Shape CenterOfMassCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast ray transform3d { kind } =
     case kind of
         Plane ->
-            raycastPlane ray frame3d
+            raycastPlane ray transform3d
 
         Sphere radius ->
-            raycastSphere ray (Point3d.toMeters (Frame3d.originPoint frame3d)) radius
+            raycastSphere ray (Transform3d.originPoint transform3d) radius
 
         Convex convex ->
-            Convex.raycast ray frame3d convex
+            Convex.raycast ray transform3d convex
 
         Particle ->
             Nothing
 
 
-raycastPlane : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycastPlane { from, direction } frame3d =
+raycastPlane : { from : Vec3, direction : Vec3 } -> Transform3d WorldCoordinates { defines : ShapeCoordinates } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastPlane { from, direction } transform3d =
     let
         planeNormalWS =
-            Direction3d.unwrap (Direction3d.placeIn frame3d Direction3d.z)
+            Transform3d.directionPlaceIn transform3d Vec3.k
 
         dot =
             Vec3.dot direction planeNormalWS
@@ -101,7 +97,7 @@ raycastPlane { from, direction } frame3d =
     if dot < 0 then
         let
             pointOnFaceWS =
-                Point3d.toMeters (Frame3d.originPoint frame3d)
+                Transform3d.originPoint transform3d
 
             pointToFrom =
                 Vec3.sub pointOnFaceWS from

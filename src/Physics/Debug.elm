@@ -16,12 +16,12 @@ debugging issues with elm-physics itself.
 -}
 
 import Direction3d exposing (Direction3d)
-import Frame3d exposing (Frame3d)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Shape exposing (Kind(..), Shape)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.World exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
@@ -48,8 +48,8 @@ getContacts (Protected world) =
 {-| Get the center of mass of the body.
 -}
 getCenterOfMass : Body data -> Point3d Meters BodyCoordinates
-getCenterOfMass (InternalBody.Protected { centerOfMassFrame3d }) =
-    Frame3d.originPoint centerOfMassFrame3d
+getCenterOfMass (InternalBody.Protected { centerOfMassTransform3d }) =
+    Point3d.fromMeters (Transform3d.originPoint centerOfMassTransform3d)
 
 
 {-| A face normal consists of a normal vector for a face
@@ -67,19 +67,19 @@ type alias FaceNormal =
 {-| Get the face normals of the body.
 -}
 getFaceNormals : Body data -> List FaceNormal
-getFaceNormals (InternalBody.Protected { shapes, centerOfMassFrame3d }) =
-    List.foldl (addFaceNormals centerOfMassFrame3d) [] shapes
+getFaceNormals (InternalBody.Protected { shapes, centerOfMassTransform3d }) =
+    List.foldl (addFaceNormals centerOfMassTransform3d) [] shapes
 
 
-addFaceNormals : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates } -> Shape CenterOfMassCoordinates -> List FaceNormal -> List FaceNormal
-addFaceNormals centerOfMassFrame3d { kind, frame3d } normals =
+addFaceNormals : Transform3d BodyCoordinates { defines : CenterOfMassCoordinates } -> Shape CenterOfMassCoordinates -> List FaceNormal -> List FaceNormal
+addFaceNormals centerOfMassTransform3d { kind, transform3d } normals =
     case kind of
         Convex convex ->
             Convex.foldFaceNormals
                 (\normal point ->
                     (::)
-                        { normal = Direction3d.placeIn (Frame3d.placeIn centerOfMassFrame3d frame3d) (Direction3d.unsafe normal)
-                        , point = Point3d.placeIn (Frame3d.placeIn centerOfMassFrame3d frame3d) (Point3d.fromMeters point)
+                        { normal = Direction3d.unsafe (Transform3d.directionPlaceIn (Transform3d.placeIn centerOfMassTransform3d transform3d) normal)
+                        , point = Point3d.fromMeters (Transform3d.pointPlaceIn (Transform3d.placeIn centerOfMassTransform3d transform3d) point)
                         }
                 )
                 normals
@@ -106,19 +106,19 @@ type alias UniqueEdge =
 {-| Get the unique edges of the body.
 -}
 getUniqueEdges : Body data -> List UniqueEdge
-getUniqueEdges (InternalBody.Protected { shapes, centerOfMassFrame3d }) =
-    List.foldl (addUniqueEdges centerOfMassFrame3d) [] shapes
+getUniqueEdges (InternalBody.Protected { shapes, centerOfMassTransform3d }) =
+    List.foldl (addUniqueEdges centerOfMassTransform3d) [] shapes
 
 
-addUniqueEdges : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates } -> Shape CenterOfMassCoordinates -> List UniqueEdge -> List UniqueEdge
-addUniqueEdges centerOfMassFrame3d { kind, frame3d } edges =
+addUniqueEdges : Transform3d BodyCoordinates { defines : CenterOfMassCoordinates } -> Shape CenterOfMassCoordinates -> List UniqueEdge -> List UniqueEdge
+addUniqueEdges centerOfMassTransform3d { kind, transform3d } edges =
     case kind of
         Convex convex ->
             Convex.foldUniqueEdges
                 (\point direction ->
                     (::)
-                        { direction = Direction3d.placeIn (Frame3d.placeIn centerOfMassFrame3d frame3d) (Direction3d.unsafe direction)
-                        , point = Point3d.placeIn (Frame3d.placeIn centerOfMassFrame3d frame3d) (Point3d.fromMeters point)
+                        { direction = Direction3d.unsafe (Transform3d.directionPlaceIn (Transform3d.placeIn centerOfMassTransform3d transform3d) direction)
+                        , point = Point3d.fromMeters (Transform3d.pointPlaceIn (Transform3d.placeIn centerOfMassTransform3d transform3d) point)
                         }
                 )
                 edges

@@ -9,20 +9,14 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import Angle
-import Axis3d
-import Direction3d
-import Frame3d exposing (Frame3d)
 import Internal.AABB as AABB exposing (AABB)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (Shape)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Point3d exposing (Point3d)
-import Vector3d
 
 
 type Protected data
@@ -33,8 +27,8 @@ type alias Body data =
     { id : Int
     , data : data
     , material : Material
-    , frame3d : Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates }
-    , centerOfMassFrame3d : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
+    , transform3d : Transform3d WorldCoordinates { defines : CenterOfMassCoordinates }
+    , centerOfMassTransform3d : Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
     , velocity : Vec3
     , angularVelocity : Vec3
     , mass : Float
@@ -51,28 +45,26 @@ type alias Body data =
     }
 
 
-centerOfMass : List (Shape BodyCoordinates) -> Point3d Meters BodyCoordinates
+centerOfMass : List (Shape BodyCoordinates) -> Vec3
 centerOfMass shapes =
     let
         totalVolume =
             List.foldl (\{ volume } sum -> sum + volume) 0 shapes
     in
     if totalVolume > 0 then
-        Point3d.fromMeters
-            (List.foldl
-                (\shape ->
-                    Vec3.add
-                        (Vec3.scale
-                            (shape.volume / totalVolume)
-                            (Point3d.toMeters (Frame3d.originPoint shape.frame3d))
-                        )
-                )
-                Vec3.zero
-                shapes
+        List.foldl
+            (\shape ->
+                Vec3.add
+                    (Vec3.scale
+                        (shape.volume / totalVolume)
+                        (Transform3d.originPoint shape.transform3d)
+                    )
             )
+            Vec3.zero
+            shapes
 
     else
-        Point3d.origin
+        Vec3.zero
 
 
 compound : List (Shape BodyCoordinates) -> data -> Body data
@@ -81,17 +73,21 @@ compound shapes data =
         centerOfMassPoint =
             centerOfMass shapes
 
-        centerOfMassFrame3d : Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
-        centerOfMassFrame3d =
-            Frame3d.atPoint centerOfMassPoint
+        centerOfMassTransform3d : Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
+        centerOfMassTransform3d =
+            Transform3d.atPoint centerOfMassPoint
 
-        bodyFrame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-        bodyFrame3d =
-            Frame3d.atPoint Point3d.origin
+        inverseCenterOfMassTransform3d : Transform3d CenterOfMassCoordinates { defines : BodyCoordinates }
+        inverseCenterOfMassTransform3d =
+            Transform3d.inverse centerOfMassTransform3d
 
-        frame3d : Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates }
-        frame3d =
-            Frame3d.placeIn bodyFrame3d centerOfMassFrame3d
+        bodyTransform3d : Transform3d WorldCoordinates { defines : BodyCoordinates }
+        bodyTransform3d =
+            Transform3d.atOrigin
+
+        transform3d : Transform3d WorldCoordinates { defines : CenterOfMassCoordinates }
+        transform3d =
+            Transform3d.placeIn bodyTransform3d centerOfMassTransform3d
 
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
@@ -99,7 +95,7 @@ compound shapes data =
                 (\shape ->
                     { kind = shape.kind
                     , volume = shape.volume
-                    , frame3d = Frame3d.relativeTo centerOfMassFrame3d shape.frame3d
+                    , transform3d = Transform3d.placeIn inverseCenterOfMassTransform3d shape.transform3d
                     }
                 )
                 shapes
@@ -108,8 +104,8 @@ compound shapes data =
         { id = -1
         , data = data
         , material = Material.default
-        , frame3d = frame3d
-        , centerOfMassFrame3d = centerOfMassFrame3d
+        , transform3d = transform3d
+        , centerOfMassTransform3d = centerOfMassTransform3d
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
         , mass = 0
@@ -170,24 +166,19 @@ update dt vlambda wlambda body =
             , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z + wlambda.z
             }
 
-        newFrame3d =
-            case Vector3d.direction (Vector3d.fromMeters newAngularVelocity) of
-                Just direction ->
-                    body.frame3d
-                        |> Frame3d.rotateAround (Axis3d.through (Frame3d.originPoint body.frame3d) direction) (Angle.radians (Vec3.length newAngularVelocity * dt))
-                        |> Frame3d.translateBy (Vector3d.meters (newVelocity.x * dt) (newVelocity.y * dt) (newVelocity.z * dt))
-
-                Nothing ->
-                    body.frame3d
-                        |> Frame3d.translateBy (Vector3d.meters (newVelocity.x * dt) (newVelocity.y * dt) (newVelocity.z * dt))
+        newTransform3d =
+            body.transform3d
+                |> Transform3d.rotateBy { x = newAngularVelocity.x * dt, y = newAngularVelocity.y * dt, z = newAngularVelocity.z * dt }
+                |> Transform3d.translateBy { x = newVelocity.x * dt, y = newVelocity.y * dt, z = newVelocity.z * dt }
+                |> Transform3d.normalize
     in
     { id = body.id
     , data = body.data
     , material = body.material
     , velocity = newVelocity
     , angularVelocity = newAngularVelocity
-    , frame3d = newFrame3d
-    , centerOfMassFrame3d = body.centerOfMassFrame3d
+    , transform3d = newTransform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
     , mass = body.mass
     , shapes = body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
@@ -197,7 +188,7 @@ update dt vlambda wlambda body =
     , invInertiaWorld =
         updateInvInertiaWorld False
             body.invInertia
-            newFrame3d
+            newTransform3d
             body.invInertiaWorld
 
     -- clear forces
@@ -261,13 +252,13 @@ updateMassProperties ({ mass } as body) =
         , invInertiaWorld =
             updateInvInertiaWorld True
                 invInertia
-                body.frame3d
+                body.transform3d
                 body.invInertiaWorld
     }
 
 
-updateInvInertiaWorld : Bool -> Vec3 -> Frame3d Meters WorldCoordinates { defines : CenterOfMassCoordinates } -> Mat3 -> Mat3
-updateInvInertiaWorld force invInertia frame3d invInertiaWorld =
+updateInvInertiaWorld : Bool -> Vec3 -> Transform3d WorldCoordinates { defines : CenterOfMassCoordinates } -> Mat3 -> Mat3
+updateInvInertiaWorld force invInertia transform3d invInertiaWorld =
     if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
         invInertiaWorld
 
@@ -282,78 +273,45 @@ updateInvInertiaWorld force invInertia frame3d invInertiaWorld =
                (Mat3.scale invInertia m)
         -}
         let
-            xDirection =
-                Direction3d.unwrap (Frame3d.xDirection frame3d)
-
-            yDirection =
-                Direction3d.unwrap (Frame3d.yDirection frame3d)
-
-            zDirection =
-                Direction3d.unwrap (Frame3d.zDirection frame3d)
-
-            am11 =
-                xDirection.x
-
-            am21 =
-                xDirection.y
-
-            am31 =
-                xDirection.z
-
-            am12 =
-                yDirection.x
-
-            am22 =
-                yDirection.y
-
-            am32 =
-                yDirection.z
-
-            am13 =
-                zDirection.x
-
-            am23 =
-                zDirection.y
-
-            am33 =
-                zDirection.z
+            { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
+                Transform3d.orientation transform3d
 
             bm11 =
-                am11 * invInertia.x
+                m11 * invInertia.x
 
             bm21 =
-                am12 * invInertia.x
+                m12 * invInertia.x
 
             bm31 =
-                am13 * invInertia.x
+                m13 * invInertia.x
 
             bm12 =
-                am21 * invInertia.y
+                m21 * invInertia.y
 
             bm22 =
-                am22 * invInertia.y
+                m22 * invInertia.y
 
             bm32 =
-                am23 * invInertia.y
+                m23 * invInertia.y
 
             bm13 =
-                am31 * invInertia.z
+                m31 * invInertia.z
 
             bm23 =
-                am32 * invInertia.z
+                m32 * invInertia.z
 
             bm33 =
-                am33 * invInertia.z
+                m33 * invInertia.z
         in
-        { m11 = am11 * bm11 + am12 * bm21 + am13 * bm31
-        , m21 = am21 * bm11 + am22 * bm21 + am23 * bm31
-        , m31 = am31 * bm11 + am32 * bm21 + am33 * bm31
-        , m12 = am11 * bm12 + am12 * bm22 + am13 * bm32
-        , m22 = am21 * bm12 + am22 * bm22 + am23 * bm32
-        , m32 = am31 * bm12 + am32 * bm22 + am33 * bm32
-        , m13 = am11 * bm13 + am12 * bm23 + am13 * bm33
-        , m23 = am21 * bm13 + am22 * bm23 + am23 * bm33
-        , m33 = am31 * bm13 + am32 * bm23 + am33 * bm33
+        { m11 = m11 * bm11 + m12 * bm21 + m13 * bm31
+        , m21 = m21 * bm11 + m22 * bm21 + m23 * bm31
+        , m31 = m31 * bm11 + m32 * bm21 + m33 * bm31
+        , m12 = m11 * bm12 + m12 * bm22 + m13 * bm32
+        , m22 = m21 * bm12 + m22 * bm22 + m23 * bm32
+        , m32 = m31 * bm12 + m32 * bm22 + m33 * bm32
+        , m13 = m11 * bm13 + m12 * bm23 + m13 * bm33
+        , m23 = m21 * bm13 + m22 * bm23 + m23 * bm33
+        , m33 = m31 * bm13 + m32 * bm23 + m33 * bm33
         }
 
 
@@ -361,7 +319,7 @@ computeAABB : Body data -> AABB
 computeAABB body =
     List.foldl
         (\shape ->
-            Shape.aabbClosure shape.kind shape.frame3d
+            Shape.aabbClosure shape.kind shape.transform3d
                 |> AABB.extend
         )
         AABB.impossible
@@ -375,7 +333,7 @@ raycast :
 raycast ray body =
     List.foldl
         (\shape maybeClosestRaycastResult ->
-            case Shape.raycast ray (Frame3d.placeIn body.frame3d shape.frame3d) shape of
+            case Shape.raycast ray (Transform3d.placeIn body.transform3d shape.transform3d) shape of
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->

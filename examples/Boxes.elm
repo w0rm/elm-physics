@@ -14,7 +14,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -152,13 +151,11 @@ addBoxes world =
                     List.foldl
                         (\z ->
                             box
-                                |> Body.setFrame3d
-                                    (Frame3d.atPoint
-                                        (Point3d.meters
-                                            ((x - (boxesPerDimension - 1) / 2) * distance)
-                                            ((y - (boxesPerDimension - 1) / 2) * distance)
-                                            ((z + (2 * boxesPerDimension + 1) / 2) * distance)
-                                        )
+                                |> Body.moveTo
+                                    (Point3d.meters
+                                        ((x - (boxesPerDimension - 1) / 2) * distance)
+                                        ((y - (boxesPerDimension - 1) / 2) * distance)
+                                        ((z + (2 * boxesPerDimension + 1) / 2) * distance)
                                     )
                                 |> World.add
                         )
@@ -184,7 +181,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 box : Body Meshes

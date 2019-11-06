@@ -4,11 +4,10 @@ import Collision.SphereConvex
 import Expect exposing (Expectation)
 import Fixtures.Convex
 import Fixtures.NarrowPhase
-import Frame3d
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Point3d
 import Test exposing (Test, describe, test)
 
 
@@ -16,7 +15,7 @@ addContacts : Test
 addContacts =
     let
         center =
-            Point3d.meters 0 0 7
+            { x = 0, y = 0, z = 7 }
 
         radius =
             5
@@ -69,9 +68,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint center)
+                                (Transform3d.atPoint center)
                                 radius
-                                (Frame3d.atPoint (Point3d.fromMeters position))
+                                (Transform3d.atPoint position)
                                 boxHull
                                 []
                         )
@@ -88,9 +87,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint center)
+                                (Transform3d.atPoint center)
                                 radius
-                                (Frame3d.atPoint (Point3d.fromMeters position))
+                                (Transform3d.atPoint position)
                                 boxHull
                                 []
                         )
@@ -102,9 +101,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint center)
+                                (Transform3d.atPoint center)
                                 radius
-                                (Frame3d.atPoint (Point3d.fromMeters position))
+                                (Transform3d.atPoint position)
                                 octoHull
                                 []
                         )
@@ -121,9 +120,9 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Frame3d.atPoint center)
+                                (Transform3d.atPoint center)
                                 radius
-                                (Frame3d.atPoint (Point3d.fromMeters position))
+                                (Transform3d.atPoint position)
                                 octoHull
                                 []
                         )

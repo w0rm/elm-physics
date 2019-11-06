@@ -1,11 +1,9 @@
 module Internal.Constraint exposing (Constraint(..), ConstraintGroup, Protected(..), relativeToCenterOfMass)
 
-import Axis3d exposing (Axis3d)
-import Frame3d exposing (Frame3d)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
-import Length exposing (Length, Meters)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
+import Internal.Vector3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
-import Point3d exposing (Point3d)
 
 
 type Protected
@@ -13,9 +11,9 @@ type Protected
 
 
 type Constraint coordinates
-    = PointToPoint (Point3d Meters coordinates) (Point3d Meters coordinates)
-    | Hinge (Axis3d Meters coordinates) (Axis3d Meters coordinates)
-    | Distance Length
+    = PointToPoint Vec3 Vec3
+    | Hinge Vec3 Vec3 Vec3 Vec3
+    | Distance Float
 
 
 type alias ConstraintGroup =
@@ -26,21 +24,23 @@ type alias ConstraintGroup =
 
 
 relativeToCenterOfMass :
-    Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
-    -> Frame3d Meters BodyCoordinates { defines : CenterOfMassCoordinates }
+    Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
+    -> Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
     -> Protected
     -> Constraint CenterOfMassCoordinates
 relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected constraint) =
     case constraint of
         PointToPoint pivot1 pivot2 ->
             PointToPoint
-                (Point3d.relativeTo centerOfMassFrame3d1 pivot1)
-                (Point3d.relativeTo centerOfMassFrame3d2 pivot2)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot1)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot2)
 
-        Hinge axis1 axis2 ->
+        Hinge pivot1 axis1 pivot2 axis2 ->
             Hinge
-                (Axis3d.relativeTo centerOfMassFrame3d1 axis1)
-                (Axis3d.relativeTo centerOfMassFrame3d2 axis2)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 axis1)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 axis2)
 
         Distance length ->
             Distance length
