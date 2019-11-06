@@ -7,9 +7,6 @@ module Internal.Equation exposing
     , contactEquationsGroup
     )
 
-import Axis3d
-import Direction3d
-import Frame3d
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
@@ -18,10 +15,8 @@ import Internal.JacobianElement as JacobianElement exposing (JacobianElement)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3
 import Internal.SolverBody exposing (SolverBody)
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length
-import Point3d
-import Vector3d
 
 
 type alias ContactEquation =
@@ -120,27 +115,14 @@ addConstraintEquations : Float -> Body data -> Body data -> Constraint CenterOfM
 addConstraintEquations dt body1 body2 constraint =
     case constraint of
         PointToPoint pivot1 pivot2 ->
-            addPointToPointConstraintEquations dt body1 body2 (Point3d.toMeters pivot1) (Point3d.toMeters pivot2)
-
-        Hinge axis1 axis2 ->
-            let
-                pivot1 =
-                    Point3d.toMeters (Axis3d.originPoint axis1)
-
-                dir1 =
-                    Direction3d.unwrap (Axis3d.direction axis1)
-
-                pivot2 =
-                    Point3d.toMeters (Axis3d.originPoint axis2)
-
-                dir2 =
-                    Direction3d.unwrap (Axis3d.direction axis2)
-            in
             addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2
-                >> addRotationalConstraintEquations dt body1 body2 dir1 dir2
+
+        Hinge pivot1 axis1 pivot2 axis2 ->
+            addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2
+                >> addRotationalConstraintEquations dt body1 body2 axis1 axis2
 
         Distance distance ->
-            addDistanceConstraintEquations dt body1 body2 (Length.inMeters distance)
+            addDistanceConstraintEquations dt body1 body2 distance
 
 
 addDistanceConstraintEquations : Float -> Body data -> Body data -> Float -> List SolverEquation -> List SolverEquation
@@ -150,7 +132,7 @@ addDistanceConstraintEquations dt body1 body2 distance =
             distance / 2
 
         ni =
-            Vec3.direction (Point3d.toMeters (Frame3d.originPoint body2.frame3d)) (Point3d.toMeters (Frame3d.originPoint body1.frame3d))
+            Vec3.direction (Transform3d.originPoint body2.transform3d) (Transform3d.originPoint body1.transform3d)
 
         ri =
             Vec3.scale halfDistance ni
@@ -210,10 +192,10 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
 
         worldAxis1 =
-            Vector3d.toMeters (Vector3d.placeIn body1.frame3d (Vector3d.fromMeters axis1))
+            Transform3d.directionPlaceIn body1.transform3d axis1
 
         worldAxis2 =
-            Vector3d.toMeters (Vector3d.placeIn body2.frame3d (Vector3d.fromMeters axis2))
+            Transform3d.directionPlaceIn body2.transform3d axis2
 
         ( ni1, ni2 ) =
             Vec3.tangents worldAxis1
@@ -281,10 +263,10 @@ addPointToPointConstraintEquations : Float -> Body data -> Body data -> Vec3 -> 
 addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2 equations =
     let
         ri =
-            Vector3d.toMeters (Vector3d.placeIn body1.frame3d (Vector3d.fromMeters pivot1))
+            Transform3d.directionPlaceIn body1.transform3d pivot1
 
         rj =
-            Vector3d.toMeters (Vector3d.placeIn body2.frame3d (Vector3d.fromMeters pivot2))
+            Transform3d.directionPlaceIn body2.transform3d pivot2
 
         spookA =
             4.0 / (dt * (1 + 4 * defaultRelaxation))
@@ -334,10 +316,10 @@ addContactEquations : Float -> Float -> Float -> Body data -> Body data -> Conta
 addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations =
     let
         ri =
-            Vec3.sub contact.pi (Point3d.toMeters (Frame3d.originPoint body1.frame3d))
+            Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
 
         rj =
-            Vec3.sub contact.pj (Point3d.toMeters (Frame3d.originPoint body2.frame3d))
+            Vec3.sub contact.pj (Transform3d.originPoint body2.transform3d)
 
         ( t1, t2 ) =
             Vec3.tangents contact.ni
@@ -473,9 +455,9 @@ computeContactB : Float -> Body data -> Body data -> Equation -> ContactEquation
 computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri, rj, ni } =
     let
         g =
-            Point3d.toMeters (Frame3d.originPoint bj.frame3d)
+            Transform3d.originPoint bj.transform3d
                 |> Vec3.add rj
-                |> Vec3.add (Vec3.negate (Point3d.toMeters (Frame3d.originPoint bi.frame3d)))
+                |> Vec3.add (Vec3.negate (Transform3d.originPoint bi.transform3d))
                 |> Vec3.add (Vec3.negate ri)
                 |> Vec3.dot ni
 
@@ -536,7 +518,7 @@ computeGiMf bi bj { jacobianElementA, jacobianElementB } =
             jacobianElementB
 
 
-{-| Compute G\_inv(M)\_G' + eps, the denominator part of the SPOOK equation:
+{-| Compute G x inv(M) x G' + eps, the denominator part of the SPOOK equation:
 -}
 computeC : Body data -> Body data -> Equation -> Float
 computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
@@ -547,7 +529,7 @@ computeC bi bj { jacobianElementA, jacobianElementB, spookEps } =
         + spookEps
 
 
-{-| Computes G\*Wlambda, where W are the body velocities
+{-| Computes G x Wlambda, where W are the body velocities
 -}
 computeGWlambda : SolverBody data -> SolverBody data -> Equation -> Float
 computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
@@ -561,7 +543,7 @@ computeGWlambda bi bj { jacobianElementA, jacobianElementB } =
         + (jacobianElementB.rotational.x * bj.wlambda.x + jacobianElementB.rotational.y * bj.wlambda.y + jacobianElementB.rotational.z * bj.wlambda.z)
 
 
-{-| Computes G\*W, where W are the body velocities
+{-| Computes G x W, where W are the body velocities
 -}
 computeGW : Body data -> Body data -> Equation -> Float
 computeGW bi bj { jacobianElementA, jacobianElementB } =

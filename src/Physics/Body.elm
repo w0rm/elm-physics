@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , setFrame3d, getFrame3d
+    , getFrame3d, moveTo, translateBy, rotateAroundOwn
     , setData, getData
     , setMaterial, compound
     )
@@ -16,9 +16,9 @@ module Physics.Body exposing
 @docs Behavior, dynamic, static, setBehavior
 
 
-## Positioning
+## Position and Orientation
 
-@docs setFrame3d, getFrame3d
+@docs getFrame3d, moveTo, translateBy, rotateAroundOwn
 
 
 ## User-Defined Data
@@ -32,24 +32,30 @@ module Physics.Body exposing
 
 -}
 
+import Angle exposing (Angle)
+import Direction3d exposing (Direction3d)
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
+import Internal.Transform3d as Transform3d
 import Length exposing (Length, Meters)
 import Mass exposing (Mass)
-import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates, WorldCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
-import Point3d
+import Point3d exposing (Point3d)
+import Vector3d exposing (Vector3d)
 
 
 {-| Represents a physical body containing
 user defined data, like a WebGL mesh.
 
-By default a body is positioned in the center
-of the world and doesn’t move. To change this,
-use [setFrame3d](#setFrame3d) and [setBehavior](#setBehavior).
+By default bodies don’t move. To change this,
+use [setBehavior](#setBehavior).
+
+All bodies start out centered on the origin,
+use [moveTo](#moveTo) to set the position.
 
 The supported bodies are:
 
@@ -92,16 +98,11 @@ plane : data -> Body data
 plane =
     compound
         [ InternalShape.Protected
-            { frame3d = defaultShapeFrame
+            { transform3d = Transform3d.atOrigin
             , kind = InternalShape.Plane
             , volume = 0
             }
         ]
-
-
-defaultShapeFrame : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
-defaultShapeFrame =
-    Frame3d.atPoint Point3d.origin
 
 
 {-| A sphere is defined by its radius.
@@ -118,7 +119,7 @@ particle : data -> Body data
 particle =
     compound
         [ InternalShape.Protected
-            { frame3d = defaultShapeFrame
+            { transform3d = Transform3d.atOrigin
             , kind = InternalShape.Particle
             , volume = 0
             }
@@ -184,32 +185,109 @@ setBehavior behavior (Protected body) =
             Protected (Internal.updateMassProperties { body | mass = 0 })
 
 
-{-| Set the position and orientation of the body in the world,
+{-| Set the position of the body in the world,
 e.g. to raise a body 5 meters above the origin:
 
     movedBody =
         body
-            |> setFrame3d
-                (Frame3d.atPoint (Point3d.meters 0 0 5))
-
-For all possible ways to construct and modify `Frame3d`, check
-[elm-geometry package docs](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/2.0.0/Frame3d).
+            |> moveTo (Point3d.meters 0 0 5)
 
 -}
-setFrame3d : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body data -> Body data
-setFrame3d userFrame3d (Protected body) =
+moveTo : Point3d Meters WorldCoordinates -> Body data -> Body data
+moveTo point3d (Protected body) =
     let
-        newFrame3d =
-            Frame3d.placeIn userFrame3d body.centerOfMassFrame3d
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                body.transform3d
+                (Transform3d.inverse body.centerOfMassTransform3d)
+
+        newTransform3d =
+            Transform3d.placeIn
+                (Transform3d.moveTo (Point3d.toMeters point3d) bodyCoordinatesTransform3d)
+                body.centerOfMassTransform3d
     in
-    Protected (Internal.updateMassProperties { body | frame3d = newFrame3d })
+    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
 
 
-{-| Get the position and orientation of the body in the world as `Frame3d`.
+{-| Rotate the body in the world around axis through its current position,
+e.g. to rotate a body 45 degrees around Z axis:
+
+    movedBody =
+        body
+            |> rotateAroundOwn
+                Direction3d.z
+                (Angle.degrees 45)
+
+-}
+rotateAroundOwn : Direction3d WorldCoordinates -> Angle -> Body data -> Body data
+rotateAroundOwn axis angle (Protected body) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                body.transform3d
+                (Transform3d.inverse body.centerOfMassTransform3d)
+
+        newTransform3d =
+            Transform3d.placeIn
+                (Transform3d.rotateAroundOwn
+                    (Direction3d.unwrap axis)
+                    (Angle.inRadians angle)
+                    bodyCoordinatesTransform3d
+                )
+                body.centerOfMassTransform3d
+    in
+    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+
+
+{-| Move the body in the world relative to its current position,
+e.g. to translate a body down by 5 meters:
+
+    translatedBody =
+        body
+            |> translateBy (Vector3d.meters 0 0 -5)
+
+-}
+translateBy : Vector3d Meters WorldCoordinates -> Body data -> Body data
+translateBy vector3d (Protected body) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                body.transform3d
+                (Transform3d.inverse body.centerOfMassTransform3d)
+
+        newTransform3d =
+            Transform3d.placeIn
+                (Transform3d.translateBy
+                    (Vector3d.toMeters vector3d)
+                    bodyCoordinatesTransform3d
+                )
+                body.centerOfMassTransform3d
+    in
+    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+
+
+{-| Get the position and orientation of the body in the world
+as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/2.0.0/Frame3d).
+
+This is useful to render a body with elm-3d-scene, but also to
+transform points and directions between world and body coordinates.
+
 -}
 getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-getFrame3d (Protected { frame3d, centerOfMassFrame3d }) =
-    Frame3d.placeIn frame3d (Frame3d.relativeTo centerOfMassFrame3d Frame3d.atOrigin)
+getFrame3d (Protected { transform3d, centerOfMassTransform3d }) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
+
+        { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
+            Transform3d.orientation bodyCoordinatesTransform3d
+    in
+    Frame3d.unsafe
+        { originPoint = Point3d.fromMeters (Transform3d.originPoint bodyCoordinatesTransform3d)
+        , xDirection = Direction3d.unsafe { x = m11, y = m21, z = m31 }
+        , yDirection = Direction3d.unsafe { x = m12, y = m22, z = m32 }
+        , zDirection = Direction3d.unsafe { x = m13, y = m23, z = m33 }
+        }
 
 
 {-| Set user-defined data.
@@ -220,8 +298,8 @@ setData data (Protected body) =
         { id = body.id
         , data = data
         , material = body.material
-        , frame3d = body.frame3d
-        , centerOfMassFrame3d = body.centerOfMassFrame3d
+        , transform3d = body.transform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
         , velocity = body.velocity
         , angularVelocity = body.angularVelocity
         , mass = body.mass

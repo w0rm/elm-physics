@@ -16,13 +16,10 @@ module Internal.Convex exposing
 
 import Array exposing (Array)
 import Dict
-import Direction3d
-import Frame3d exposing (Frame3d)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
+import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length exposing (Meters)
-import Physics.Coordinates exposing (ShapeCoordinates, WorldCoordinates)
-import Point3d
+import Physics.Coordinates exposing (WorldCoordinates)
 import Set
 
 
@@ -368,15 +365,13 @@ foldUniqueEdges fn acc { vertices, uniqueEdges } =
             acc
 
 
-expandBoundingSphereRadius : Frame3d Meters CenterOfMassCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
-expandBoundingSphereRadius frame3d { vertices } boundingSphereRadius =
+expandBoundingSphereRadius : Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
+expandBoundingSphereRadius transform3d { vertices } boundingSphereRadius =
     vertices
         |> List.foldl
             (\vertex ->
                 vertex
-                    |> Point3d.fromMeters
-                    |> Point3d.placeIn frame3d
-                    |> Point3d.toMeters
+                    |> Transform3d.pointPlaceIn transform3d
                     |> Vec3.lengthSquared
                     |> max
             )
@@ -384,13 +379,13 @@ expandBoundingSphereRadius frame3d { vertices } boundingSphereRadius =
         |> sqrt
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Frame3d Meters WorldCoordinates { defines : ShapeCoordinates } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycast { direction, from } frame3d convex =
+raycast : { from : Vec3, direction : Vec3 } -> Transform3d WorldCoordinates { defines : ShapeCoordinates } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast { direction, from } transform3d convex =
     List.foldl
         (\face maybeHit ->
             let
                 faceNormalWS =
-                    Direction3d.unwrap (Direction3d.placeIn frame3d (Direction3d.unsafe face.normal))
+                    Transform3d.directionPlaceIn transform3d face.normal
 
                 dot =
                     Vec3.dot direction faceNormalWS
@@ -398,7 +393,7 @@ raycast { direction, from } frame3d convex =
             if dot < 0 then
                 let
                     pointOnFaceWS =
-                        Point3d.toMeters (Point3d.placeIn frame3d (Point3d.fromMeters face.point))
+                        Transform3d.pointPlaceIn transform3d face.point
 
                     pointToFrom =
                         Vec3.sub pointOnFaceWS from
@@ -417,9 +412,7 @@ raycast { direction, from } frame3d convex =
                         isInsidePolygon =
                             face.vertices
                                 |> List.foldl
-                                    (\p acc1 ->
-                                        Point3d.toMeters (Point3d.placeIn frame3d (Point3d.fromMeters p)) :: acc1
-                                    )
+                                    (\p acc1 -> Transform3d.pointPlaceIn transform3d p :: acc1)
                                     []
                                 |> foldFaceEdges
                                     (\p1 p2 result ->

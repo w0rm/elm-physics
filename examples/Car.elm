@@ -15,7 +15,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
@@ -150,43 +149,27 @@ initialWorld =
 
 addCar : Point3d Meters WorldCoordinates -> World Data -> World Data
 addCar offset world =
-    let
-        originFrame =
-            Frame3d.atPoint offset
-    in
     world
-        |> World.add (Body.setFrame3d originFrame base)
+        |> World.add (Body.moveTo offset base)
         |> World.add
             (wheel "wheel1"
-                |> Body.setFrame3d
-                    (Frame3d.translateBy
-                        (Vector3d.meters 3 3 0)
-                        originFrame
-                    )
+                |> Body.moveTo offset
+                |> Body.translateBy (Vector3d.meters 3 3 0)
             )
         |> World.add
             (wheel "wheel2"
-                |> Body.setFrame3d
-                    (Frame3d.translateBy
-                        (Vector3d.meters -3 3 0)
-                        originFrame
-                    )
+                |> Body.moveTo offset
+                |> Body.translateBy (Vector3d.meters -3 3 0)
             )
         |> World.add
             (wheel "wheel3"
-                |> Body.setFrame3d
-                    (Frame3d.translateBy
-                        (Vector3d.meters -3 -3 0)
-                        originFrame
-                    )
+                |> Body.moveTo offset
+                |> Body.translateBy (Vector3d.meters -3 -3 0)
             )
         |> World.add
             (wheel "wheel4"
-                |> Body.setFrame3d
-                    (Frame3d.translateBy
-                        (Vector3d.meters 3 -3 0)
-                        originFrame
-                    )
+                |> Body.moveTo offset
+                |> Body.translateBy (Vector3d.meters 3 -3 0)
             )
 
 
@@ -275,7 +258,7 @@ floorOffset =
 floor : Body Data
 floor =
     Body.plane { name = "floor", meshes = Meshes.fromTriangles [] }
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 {-| A slope to give a car the initial push.
@@ -291,11 +274,8 @@ slope =
     in
     { name = "slope", meshes = meshes }
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-        |> Body.setFrame3d
-            (Frame3d.atPoint Point3d.origin
-                |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 16))
-                |> Frame3d.moveTo (Point3d.meters 0 -2 1)
-            )
+        |> Body.moveTo (Point3d.meters 0 -2 1)
+        |> Body.rotateAroundOwn Direction3d.x (Angle.radians (pi / 16))
 
 
 base : Body Data
@@ -317,7 +297,7 @@ base =
         |> Body.compound
             [ Shape.block (Length.meters bottomSize.x) (Length.meters bottomSize.y) (Length.meters bottomSize.z)
             , Shape.block (Length.meters topSize.x) (Length.meters topSize.y) (Length.meters topSize.z)
-                |> Shape.setFrame3d (Frame3d.atPoint (Point3d.fromMeters topOffset))
+                |> Shape.moveTo (Point3d.fromMeters topOffset)
             ]
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
 

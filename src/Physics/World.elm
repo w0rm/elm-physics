@@ -20,11 +20,11 @@ module Physics.World exposing
 import Acceleration exposing (Acceleration)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration)
-import Frame3d
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Constraint as InternalConstraint exposing (ConstraintGroup)
 import Internal.Solver as Solver
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Internal.World as Internal exposing (Protected(..))
 import Length exposing (Meters)
@@ -150,8 +150,8 @@ raycast from direction (Protected world) =
         Just { body, point, normal } ->
             Just
                 { body = InternalBody.Protected body
-                , point = Point3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Point3d.fromMeters point)
-                , normal = Direction3d.relativeTo (Frame3d.placeIn body.frame3d (Frame3d.relativeTo body.centerOfMassFrame3d (Frame3d.atPoint Point3d.origin))) (Direction3d.unsafe normal)
+                , point = Point3d.fromMeters (Transform3d.pointRelativeTo (Transform3d.placeIn body.transform3d (Transform3d.inverse body.centerOfMassTransform3d)) point)
+                , normal = Direction3d.unsafe (Transform3d.directionRelativeTo (Transform3d.placeIn body.transform3d (Transform3d.inverse body.centerOfMassTransform3d)) normal)
                 }
 
         _ ->
@@ -161,6 +161,10 @@ raycast from direction (Protected world) =
 {-| The Raycast result includes the intersected body,
 intersection point and normal vector on the face,
 expressed within the local body coordinate system.
+
+Use the `Frame3d` from [Body.getFrame3d](Physics-Body#getFrame3d)
+to transform the result into world coordinates.
+
 -}
 type alias RaycastResult data =
     { body : Body data
@@ -288,7 +292,7 @@ constrainIf test fn (Protected world) =
                 constraints ->
                     { bodyId1 = body1.id
                     , bodyId2 = body2.id
-                    , constraints = List.map (InternalConstraint.relativeToCenterOfMass body1.centerOfMassFrame3d body2.centerOfMassFrame3d) constraints
+                    , constraints = List.map (InternalConstraint.relativeToCenterOfMass body1.centerOfMassTransform3d body2.centerOfMassTransform3d) constraints
                     }
                         :: constraintGroup
 

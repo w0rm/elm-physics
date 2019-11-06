@@ -7,19 +7,13 @@ module Fixtures.NarrowPhase exposing
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Length exposing (Meters)
-import Physics.Coordinates exposing (WorldCoordinates)
-import Point3d exposing (Point3d)
 
 
-sphereContactBoxPositions : Point3d Meters WorldCoordinates -> Float -> Float -> List ( Vec3, List Contact )
-sphereContactBoxPositions c radius boxHalfExtent =
+sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List Contact )
+sphereContactBoxPositions center radius boxHalfExtent =
     let
         delta =
             3 * Const.precision
-
-        center =
-            Point3d.toMeters c
 
         nearEdgeOffset =
             boxHalfExtent - delta
@@ -108,14 +102,13 @@ sphereContactBoxPositions c radius boxHalfExtent =
     ]
 
 
-sphereContactOctohedronPositions : Point3d Meters WorldCoordinates -> Float -> Float -> List ( Vec3, List Contact )
-sphereContactOctohedronPositions c radius octoHalfExtent =
+sphereContactOctohedronPositions : Vec3 -> Float -> Float -> List ( Vec3, List Contact )
+sphereContactOctohedronPositions center radius octoHalfExtent =
     let
         delta =
             3 * Const.precision
 
-        center =
-            Point3d.toMeters c
+
 
         -- Reposition the octohedron so that it contacts the sphere at each:
         -- vertex

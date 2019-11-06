@@ -1,22 +1,20 @@
 module Collision.SphereConvex exposing (addContacts)
 
-import Frame3d
 import Internal.Contact exposing (Contact)
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Coordinates exposing (ShapeWorldFrame3d)
+import Internal.Coordinates exposing (ShapeWorldTransform3d)
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Point3d
-import Vector3d
 
 
-addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> Float -> ShapeWorldFrame3d -> Convex -> List Contact -> List Contact
-addContacts orderContact sphereFrame3d radius convexFrame3d hull2 contacts =
+addContacts : (Contact -> Contact) -> ShapeWorldTransform3d -> Float -> ShapeWorldTransform3d -> Convex -> List Contact -> List Contact
+addContacts orderContact sphereTransform3d radius convexTransform3d hull2 contacts =
     let
         position =
-            Point3d.toMeters (Frame3d.originPoint sphereFrame3d)
+            Transform3d.originPoint sphereTransform3d
 
         ( maybeWorldContact, penetration ) =
-            sphereContact position radius convexFrame3d hull2
+            sphereContact position radius convexTransform3d hull2
     in
     case maybeWorldContact of
         Just worldContact2 ->
@@ -70,8 +68,8 @@ isAnEdgeContact testEdgeResult =
 {-| The contact point, if any, of a Convex with a sphere, and
 the sphere's penetration into the Convex beyond that contact.
 -}
-sphereContact : Vec3 -> Float -> ShapeWorldFrame3d -> Convex -> ( Maybe Vec3, Float )
-sphereContact center radius convexFrame3d { faces } =
+sphereContact : Vec3 -> Float -> ShapeWorldTransform3d -> Convex -> ( Maybe Vec3, Float )
+sphereContact center radius convexTransform3d { faces } =
     let
         sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
         sphereFaceContact normal distance =
@@ -103,7 +101,7 @@ sphereContact center radius convexFrame3d { faces } =
         reframedVertices faceVertices =
             List.foldl
                 (\vertex acc ->
-                    Vec3.sub (Point3d.toMeters (Point3d.placeIn convexFrame3d (Point3d.fromMeters vertex))) center :: acc
+                    Vec3.sub (Transform3d.pointPlaceIn convexTransform3d vertex) center :: acc
                 )
                 []
                 faceVertices
@@ -117,7 +115,7 @@ sphereContact center radius convexFrame3d { faces } =
                         QualifiedEdges acc ->
                             sphereTestFace
                                 radius
-                                (Vector3d.toMeters (Vector3d.placeIn convexFrame3d (Vector3d.fromMeters face.normal)))
+                                (Transform3d.directionPlaceIn convexTransform3d face.normal)
                                 (reframedVertices face.vertices)
                                 acc
 

@@ -13,14 +13,12 @@ module ConvexConvex exposing (main)
 -}
 {- import Collision.OriginalConvexConvex -}
 
-import Angle
-import Axis3d
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.ConvexConvex
-import Frame3d
 import Internal.Convex as Convex exposing (Convex)
-import Point3d
+import Internal.Transform3d as Transform3d
+import Internal.Vector3 as Vec3
 
 
 main : BenchmarkProgram
@@ -38,32 +36,31 @@ colliding =
         -- Move the box 0.9 units up and rotate 45 around the y.
         -- only 0.1 units of the box will be overlapping
         -- we expect 4 collision points
-        frame3d =
-            Frame3d.atPoint Point3d.origin
-                |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 4))
-                |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 20))
-                |> Frame3d.moveTo (Point3d.meters 0 0 0.9)
+        transform3d =
+            Transform3d.atPoint { x = 0, y = 0, z = 0.9 }
+                |> Transform3d.rotateAroundOwn Vec3.j (pi / 4)
+                |> Transform3d.rotateAroundOwn Vec3.i (pi / 20)
 
-        originFrame3d =
-            Frame3d.atPoint Point3d.origin
+        originTransform3d =
+            Transform3d.atOrigin
     in
     Benchmark.compare "colliding"
         "baseline"
         (\_ ->
             {- Collision.OriginalConvexConvex.addContacts -}
             Collision.ConvexConvex.addContacts
-                frame3d
+                transform3d
                 box
-                originFrame3d
+                originTransform3d
                 box
                 []
         )
         "latest code"
         (\_ ->
             Collision.ConvexConvex.addContacts
-                frame3d
+                transform3d
                 box
-                originFrame3d
+                originTransform3d
                 box
                 []
         )
@@ -74,32 +71,31 @@ separated =
     let
         -- Move the box 2.5 units up
         -- so that boxes don’t overlap
-        frame3d =
-            Frame3d.atPoint Point3d.origin
-                |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 4))
-                |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 20))
-                |> Frame3d.moveTo (Point3d.meters 0 0 2.5)
+        transform3d =
+            Transform3d.atPoint { x = 0, y = 0, z = 2.5 }
+                |> Transform3d.rotateAroundOwn Vec3.j (pi / 4)
+                |> Transform3d.rotateAroundOwn Vec3.i (pi / 20)
 
-        originFrame3d =
-            Frame3d.atPoint Point3d.origin
+        originTransform3d =
+            Transform3d.atOrigin
     in
     Benchmark.compare "separated"
         "baseline"
         (\_ ->
             {- Collision.OriginalConvexConvex.addContacts -}
             Collision.ConvexConvex.addContacts
-                frame3d
+                transform3d
                 box
-                originFrame3d
+                originTransform3d
                 box
                 []
         )
         "latest code"
         (\_ ->
             Collision.ConvexConvex.addContacts
-                frame3d
+                transform3d
                 box
-                originFrame3d
+                originTransform3d
                 box
                 []
         )

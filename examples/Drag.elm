@@ -12,7 +12,6 @@ module Drag exposing (main)
 
 import Acceleration
 import Angle
-import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -22,8 +21,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
-import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -166,7 +163,7 @@ update msg model =
                                 }
                         , world =
                             model.world
-                                |> World.add (Body.setFrame3d (Frame3d.atPoint worldPosition) mouse)
+                                |> World.add (Body.moveTo worldPosition mouse)
                                 |> World.constrain
                                     (\b1 b2 ->
                                         if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
@@ -222,7 +219,7 @@ update msg model =
                             World.update
                                 (\b ->
                                     if (Body.getData b).id == Mouse then
-                                        Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters intersection)) b
+                                        Body.moveTo (Point3d.fromMeters intersection) b
 
                                     else
                                         b
@@ -291,23 +288,17 @@ initialWorld =
         |> World.add floor
         |> World.add
             (box 1
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                        |> Frame3d.moveTo (Point3d.meters 0 0 2)
-                    )
+                |> Body.moveTo (Point3d.meters 0 0 2)
+                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (-pi / 5))
             )
         |> World.add
             (box 2
-                |> Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0.5 0 8))
+                |> Body.moveTo (Point3d.meters 0.5 0 8)
             )
         |> World.add
             (box 3
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })) (Angle.radians (pi / 5))
-                        |> Frame3d.moveTo (Point3d.meters -1.2 0 5)
-                    )
+                |> Body.moveTo (Point3d.meters -1.2 0 5)
+                |> Body.rotateAroundOwn (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }) (Angle.radians (pi / 5))
             )
 
 
@@ -324,7 +315,7 @@ floor : Body Data
 floor =
     { id = Floor, meshes = Meshes.fromTriangles [] }
         |> Body.plane
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 {-| One of the boxes on the scene

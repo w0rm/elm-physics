@@ -1,6 +1,6 @@
 module Physics.Shape exposing
     ( Shape, block, sphere
-    , setFrame3d
+    , moveTo, translateBy, rotateAroundOwn
     )
 
 {-|
@@ -12,18 +12,21 @@ module Physics.Shape exposing
 
 Shapes are positioned in the body coordinate system,
 they can be moved and rotated just like bodies in
-the world using `Frame3d`.
+the world.
 
-@docs setFrame3d
+@docs moveTo, translateBy, rotateAroundOwn
 
 -}
 
-import Frame3d exposing (Frame3d)
+import Angle exposing (Angle)
+import Direction3d exposing (Direction3d)
 import Internal.Convex as Convex
 import Internal.Shape as Internal exposing (Protected(..))
+import Internal.Transform3d as Transform3d
 import Length exposing (Length, Meters)
-import Physics.Coordinates exposing (BodyCoordinates, ShapeCoordinates)
-import Point3d
+import Physics.Coordinates exposing (BodyCoordinates)
+import Point3d exposing (Point3d)
+import Vector3d exposing (Vector3d)
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -56,7 +59,7 @@ block x y z =
             Length.inMeters z * 0.5
     in
     Protected
-        { frame3d = defaultFrame
+        { transform3d = Transform3d.atOrigin
         , kind = Internal.Convex (Convex.fromBlock halfX halfY halfZ)
         , volume = Length.inMeters x * Length.inMeters y * Length.inMeters z
         }
@@ -67,23 +70,65 @@ block x y z =
 sphere : Length -> Shape
 sphere radius =
     Protected
-        { frame3d = defaultFrame
+        { transform3d = Transform3d.atOrigin
         , kind = Internal.Sphere (Length.inMeters radius)
         , volume = 4 / 3 * pi * (Length.inMeters radius ^ 3)
         }
 
 
-defaultFrame : Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
-defaultFrame =
-    Frame3d.atPoint Point3d.origin
+{-| Set the position of the shape in the body,
+e.g. to raise a shape 5 meters above the origin:
 
+    movedShape =
+        shape
+            |> moveTo (Point3d.meters 0 0 5)
 
-{-| Change the position and orientation of the shape in the body.
 -}
-setFrame3d :
-    Frame3d Meters BodyCoordinates { defines : ShapeCoordinates }
-    -> Shape
-    -> Shape
-setFrame3d frame3d (Protected shape) =
-    Protected
-        { shape | frame3d = frame3d }
+moveTo : Point3d Meters BodyCoordinates -> Shape -> Shape
+moveTo point3d (Protected shape) =
+    let
+        newTransform3d =
+            Transform3d.moveTo (Point3d.toMeters point3d) shape.transform3d
+    in
+    Protected { shape | transform3d = newTransform3d }
+
+
+{-| Rotate the shape in the body around axis through its current position,
+e.g. to rotate a shape 45 degrees around Z axis:
+
+    rotatedShape =
+        shape
+            |> rotateAroundOwn
+                Direction3d.z
+                (Angle.degrees 45)
+
+-}
+rotateAroundOwn : Direction3d BodyCoordinates -> Angle -> Shape -> Shape
+rotateAroundOwn axis angle (Protected shape) =
+    let
+        newTransform3d =
+            Transform3d.rotateAroundOwn
+                (Direction3d.unwrap axis)
+                (Angle.inRadians angle)
+                shape.transform3d
+    in
+    Protected { shape | transform3d = newTransform3d }
+
+
+{-| Move the shape in the body relative to its current position,
+e.g. to translate a shape down by 5 meters:
+
+    translatedShape =
+        shape
+            |> translateBy (Vector3d.meters 0 0 -5)
+
+-}
+translateBy : Vector3d Meters BodyCoordinates -> Shape -> Shape
+translateBy vector3d (Protected shape) =
+    let
+        newTransform3d =
+            Transform3d.translateBy
+                (Vector3d.toMeters vector3d)
+                shape.transform3d
+    in
+    Protected { shape | transform3d = newTransform3d }

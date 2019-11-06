@@ -5,14 +5,11 @@ module ConvexConvexTest exposing
     , testSeparatingAxis
     )
 
-import Angle
-import Axis3d
 import Collision.ConvexConvex
 import Expect
-import Frame3d
 import Internal.Convex as Convex
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
-import Point3d
 import Test exposing (Test, describe, test)
 
 
@@ -27,14 +24,12 @@ getContacts =
 
                     t1 =
                         -- going slightly into another box
-                        Frame3d.atPoint Point3d.origin
-                            |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.meters 0 0 2.1)
+                        Transform3d.atPoint { x = 0, y = 0, z = 2.1 }
+                            |> Transform3d.rotateAroundOwn Vec3.j (pi / 2)
 
                     t2 =
-                        Frame3d.atPoint Point3d.origin
-                            |> Frame3d.rotateAround Axis3d.y (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.meters 0 0 4)
+                        Transform3d.atPoint { x = 0, y = 0, z = 4 }
+                            |> Transform3d.rotateAroundOwn Vec3.j (pi / 2)
                 in
                 Collision.ConvexConvex.addContacts t1 convex t2 convex []
                     |> List.length
@@ -48,17 +43,15 @@ getContacts =
                     convex2 =
                         Convex.fromBlock 0.5 0.5 0.5
 
-                    frame3d1 =
-                        Frame3d.atPoint Point3d.origin
-                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 2))
-                            |> Frame3d.moveTo (Point3d.meters  -0.5  0  0 )
+                    transform3d1 =
+                        Transform3d.atPoint { x = -0.5, y = 0, z = 0 }
+                            |> Transform3d.rotateAroundOwn Vec3.k (pi / 2)
 
-                    frame3d2 =
-                        Frame3d.atPoint Point3d.origin
-                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                            |> Frame3d.moveTo (Point3d.meters  0.5  0 0 )
+                    transform3d2 =
+                        Transform3d.atPoint { x = 0.5, y = 0, z = 0 }
+                            |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
                 in
-                Collision.ConvexConvex.addContacts frame3d1 convex1 frame3d2 convex2 []
+                Collision.ConvexConvex.addContacts transform3d1 convex1 transform3d2 convex2 []
                     |> List.length
                     |> Expect.equal 2
         ]
@@ -71,9 +64,9 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.meters  -0.2  0  0 )
+                        { transform3d1 = Transform3d.atPoint { x = -0.2, y = 0, z = 0 }
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
-                        , frame3d2 = Frame3d.atPoint (Point3d.meters   0.2 0  0 )
+                        , transform3d2 = Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -83,9 +76,9 @@ testSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.meters  -5.2  0  0 )
+                        { transform3d1 = Transform3d.atPoint { x = -5.2, y = 0, z = 0 }
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
-                        , frame3d2 = Frame3d.atPoint (Point3d.meters   0.2  0 0 )
+                        , transform3d2 = Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -95,12 +88,11 @@ testSeparatingAxis =
             \_ ->
                 case
                     Collision.ConvexConvex.testSeparatingAxis
-                        { frame3d1 = Frame3d.atPoint (Point3d.meters  1  0  0 )
+                        { transform3d1 = Transform3d.atPoint { x = 1, y = 0, z = 0 }
                         , convex1 = Convex.fromBlock 0.5 0.5 0.5
-                        , frame3d2 =
-                            Frame3d.atPoint Point3d.origin
-                                |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                                |> Frame3d.moveTo (Point3d.meters   0.2  0  0 )
+                        , transform3d2 =
+                            Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
+                                |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
                         , convex2 = Convex.fromBlock 0.5 0.5 0.5
                         }
                         Vec3.i
@@ -120,9 +112,9 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        (Frame3d.atPoint (Point3d.meters  -0.2  0  0 ))
+                        (Transform3d.atPoint { x = -0.2, y = 0, z = 0 })
                         (Convex.fromBlock 0.5 0.5 0.5)
-                        (Frame3d.atPoint (Point3d.meters  0.2  0  0 ))
+                        (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                         (Convex.fromBlock 0.5 0.5 0.5)
                     )
                     (Just { x = -1, y = 0, z = 0 })
@@ -130,11 +122,10 @@ findSeparatingAxis =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.findSeparatingAxis
-                        (Frame3d.atPoint (Point3d.meters  -0.2  0  0 ))
+                        (Transform3d.atPoint { x = -0.2, y = 0, z = 0 })
                         (Convex.fromBlock 0.5 0.5 0.5)
-                        (Frame3d.atPoint Point3d.origin
-                            |> Frame3d.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                            |> Frame3d.moveTo (Point3d.meters   0.2 0  0 )
+                        (Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
+                            |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
                         )
                         (Convex.fromBlock 0.5 0.5 0.5)
                     )
@@ -149,7 +140,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Frame3d.atPoint Point3d.origin)
+                        Transform3d.atOrigin
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.i
                     )
@@ -158,7 +149,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Frame3d.atPoint Point3d.origin)
+                        Transform3d.atOrigin
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
                         { x = -1, y = 0, z = 0 }
                     )
@@ -167,7 +158,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Frame3d.atPoint Point3d.origin)
+                        Transform3d.atOrigin
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
                     )
@@ -176,7 +167,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Frame3d.atPoint (Point3d.meters  0  1  0 ))
+                        (Transform3d.atPoint { x = 0, y = 1, z = 0 })
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
                     )
@@ -184,9 +175,8 @@ project =
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 2))
-                        |> Frame3d.moveTo (Point3d.meters   0  1  0 )
+                    (Transform3d.atPoint { x = 0, y = 1, z = 0 }
+                        |> Transform3d.rotateAroundOwn Vec3.i (pi / 2)
                     )
                     (Convex.fromBlock 0.5 0.5 0.5).vertices
                     Vec3.j

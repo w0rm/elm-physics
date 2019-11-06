@@ -1,18 +1,16 @@
 module Collision.ParticleConvex exposing (addContacts)
 
-import Frame3d
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Convex exposing (Convex, Face)
-import Internal.Coordinates exposing (ShapeWorldFrame3d)
+import Internal.Coordinates exposing (ShapeWorldTransform3d)
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Point3d
-import Vector3d
 
 
-addContacts : (Contact -> Contact) -> ShapeWorldFrame3d -> ShapeWorldFrame3d -> Convex -> List Contact -> List Contact
+addContacts : (Contact -> Contact) -> ShapeWorldTransform3d -> ShapeWorldTransform3d -> Convex -> List Contact -> List Contact
 addContacts orderContact convexFrame3d t2 { faces } contacts =
-    case convexContact (Point3d.toMeters (Frame3d.originPoint convexFrame3d)) faces t2 Const.maxNumber Nothing of
+    case convexContact (Transform3d.originPoint convexFrame3d) faces t2 Const.maxNumber Nothing of
         Just contact ->
             orderContact contact :: contacts
 
@@ -20,7 +18,7 @@ addContacts orderContact convexFrame3d t2 { faces } contacts =
             contacts
 
 
-convexContact : Vec3 -> List Face -> ShapeWorldFrame3d -> Float -> Maybe Contact -> Maybe Contact
+convexContact : Vec3 -> List Face -> ShapeWorldTransform3d -> Float -> Maybe Contact -> Maybe Contact
 convexContact particlePosition faces convexFrame3d bestDepth bestContact =
     case faces of
         [] ->
@@ -29,10 +27,10 @@ convexContact particlePosition faces convexFrame3d bestDepth bestContact =
         { point, normal } :: remainingFaces ->
             let
                 worldFaceNormal =
-                    Vector3d.toMeters (Vector3d.placeIn convexFrame3d (Vector3d.fromMeters normal))
+                    Transform3d.directionPlaceIn convexFrame3d normal
 
                 worldFacePoint =
-                    Point3d.toMeters (Point3d.placeIn convexFrame3d (Point3d.fromMeters point))
+                    Transform3d.pointPlaceIn convexFrame3d point
 
                 dot =
                     Vec3.dot
