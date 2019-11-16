@@ -1,6 +1,6 @@
 module Physics.Shape exposing
     ( Shape, block, sphere
-    , moveTo, translateBy, rotateAround
+    , moveTo, translateBy, rotateAround, originPoint
     )
 
 {-|
@@ -14,7 +14,7 @@ Shapes are positioned in the body coordinate system,
 they can be moved and rotated just like bodies in
 the world.
 
-@docs moveTo, translateBy, rotateAround
+@docs moveTo, translateBy, rotateAround, originPoint
 
 -}
 
@@ -122,6 +122,14 @@ rotateAround axis angle (Protected shape) =
                     (Angle.inRadians angle)
     in
     Protected { shape | transform3d = newTransform3d }
+
+
+{-| Get the origin point of a shape in the body
+-}
+originPoint : Shape -> Point3d Meters BodyCoordinates
+originPoint (Protected { transform3d }) =
+    Point3d.fromMeters
+        (Transform3d.originPoint transform3d)
 
 
 {-| Move the shape in the body relative to its current position,

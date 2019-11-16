@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , getFrame3d, moveTo, translateBy, rotateAround
+    , getFrame3d, moveTo, translateBy, rotateAround, originPoint
     , setData, getData
     , setMaterial, compound
     )
@@ -18,7 +18,7 @@ module Physics.Body exposing
 
 ## Position and Orientation
 
-@docs getFrame3d, moveTo, translateBy, rotateAround
+@docs getFrame3d, moveTo, translateBy, rotateAround, originPoint
 
 
 ## User-Defined Data
@@ -34,7 +34,7 @@ module Physics.Body exposing
 
 import Angle exposing (Angle)
 import Axis3d exposing (Axis3d)
-import Direction3d exposing (Direction3d)
+import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
 import Internal.Material as InternalMaterial
@@ -248,6 +248,20 @@ rotateAround axis angle (Protected body) =
                 body.centerOfMassTransform3d
     in
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+
+
+{-| Get the origin point of a body in the world
+-}
+originPoint : Body data -> Point3d Meters WorldCoordinates
+originPoint (Protected { transform3d, centerOfMassTransform3d }) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                transform3d
+                (Transform3d.inverse centerOfMassTransform3d)
+    in
+    Point3d.fromMeters
+        (Transform3d.originPoint bodyCoordinatesTransform3d)
 
 
 {-| Move the body in the world relative to its current position,
