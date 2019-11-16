@@ -7,6 +7,7 @@ Try to make the floor slippy too!
 
 import Acceleration
 import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -132,9 +133,9 @@ initialWorld =
         |> World.add floor
         |> World.add
             (domino
+                |> Body.rotateAround Axis3d.z (Angle.radians (pi / 4))
+                |> Body.rotateAround Axis3d.y (Angle.radians (pi / 8))
                 |> Body.moveTo (Point3d.meters -5.5 -5.5 0)
-                |> Body.rotateAroundOwn Direction3d.z (Angle.radians (pi / 4))
-                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (pi / 8))
             )
         |> addDominos
 
@@ -144,8 +145,8 @@ addDominos world =
     List.foldl
         (\i ->
             domino
+                |> Body.rotateAround Axis3d.z (Angle.radians (pi / 4))
                 |> Body.moveTo (Point3d.meters (toFloat (5 - i)) (toFloat (5 - i)) 0)
-                |> Body.rotateAroundOwn Direction3d.z (Angle.radians (pi / 4))
                 |> World.add
         )
         world

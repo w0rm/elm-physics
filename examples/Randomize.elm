@@ -7,6 +7,7 @@ If you click too fast, the bodies may be spawned inside each other.
 
 import Acceleration
 import Angle
+import Axis3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -144,8 +145,8 @@ initialWorld =
         |> World.add floor
         |> World.add
             (box
+                |> Body.rotateAround Axis3d.y (Angle.radians (-pi / 5))
                 |> Body.moveTo (Point3d.meters 0 0 2)
-                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (-pi / 5))
             )
         |> World.add
             (sphere
@@ -153,10 +154,10 @@ initialWorld =
             )
         |> World.add
             (compound
-                |> Body.moveTo (Point3d.meters -1.2 0 5)
-                |> Body.rotateAroundOwn
-                    (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 })
+                |> Body.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
                     (Angle.radians (pi / 5))
+                |> Body.moveTo (Point3d.meters -1.2 0 5)
             )
 
 
@@ -247,10 +248,10 @@ randomBody =
                 _ ->
                     compound
             )
-                |> Body.moveTo (Point3d.meters 0 0 10)
-                |> Body.rotateAroundOwn
-                    (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z))))
+                |> Body.rotateAround
+                    (Axis3d.through Point3d.origin (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z)))))
                     (Angle.radians angle)
+                |> Body.moveTo (Point3d.meters 0 0 10)
         )
         (Random.float (-pi / 2) (pi / 2))
         (Random.float -1 1)

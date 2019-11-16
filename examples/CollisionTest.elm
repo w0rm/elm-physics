@@ -16,7 +16,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -134,27 +133,21 @@ initialWorld =
         |> World.add sphere
         |> World.add
             (box
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround
-                            (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
-                            (Angle.radians (pi / 3))
-                        |> Frame3d.moveTo (Point3d.meters 0 0 10)
-                    )
+                |> Body.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 3))
+                |> Body.moveTo (Point3d.meters 0 0 10)
             )
         -- edge:
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters 4 0 0)) sphere)
+        |> World.add (Body.moveTo (Point3d.meters 4 0 0) sphere)
         |> World.add
             (box
-                |> Body.setFrame3d
-                    (Frame3d.atPoint Point3d.origin
-                        |> Frame3d.rotateAround Axis3d.x (Angle.radians (pi / 3))
-                        |> Frame3d.moveTo (Point3d.meters 4 0 10)
-                    )
+                |> Body.rotateAround Axis3d.x (Angle.radians (pi / 3))
+                |> Body.moveTo (Point3d.meters 4 0 10)
             )
         -- face:
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters -4 0 0)) sphere)
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters -4 0 10)) box)
+        |> World.add (Body.moveTo (Point3d.meters -4 0 0) sphere)
+        |> World.add (Body.moveTo (Point3d.meters -4 0 10) box)
 
 
 {-| Shift the floor a little bit down
@@ -169,7 +162,7 @@ floorOffset =
 floor : Body Meshes
 floor =
     Body.plane (Meshes.fromTriangles [])
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 box : Body Meshes

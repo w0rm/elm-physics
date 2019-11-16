@@ -14,7 +14,6 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -150,7 +149,7 @@ initialWorld =
     World.empty
         |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
-        |> World.add (Body.setFrame3d (Frame3d.atPoint (Point3d.meters 0 0 1)) sphere)
+        |> World.add (Body.moveTo (Point3d.meters 0 0 1) sphere)
         |> addCloth
         |> World.constrain constrainCloth
 
@@ -166,13 +165,11 @@ addCloth world =
             List.foldl
                 (\y ->
                     particle x y
-                        |> Body.setFrame3d
-                            (Frame3d.atPoint
-                                (Point3d.meters
-                                    ((toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
-                                    ((toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
-                                    8
-                                )
+                        |> Body.moveTo
+                            (Point3d.meters
+                                ((toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                ((toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                8
                             )
                         |> World.add
                 )
@@ -215,7 +212,7 @@ floorOffset =
 floor : Body Data
 floor =
     Body.plane { kind = Other, meshes = Meshes.fromTriangles [] }
-        |> Body.setFrame3d (Frame3d.atPoint (Point3d.fromMeters floorOffset))
+        |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
 sphere : Body Data

@@ -274,8 +274,8 @@ slope =
     in
     { name = "slope", meshes = meshes }
         |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+        |> Body.rotateAround Axis3d.x (Angle.radians (pi / 16))
         |> Body.moveTo (Point3d.meters 0 -2 1)
-        |> Body.rotateAroundOwn Direction3d.x (Angle.radians (pi / 16))
 
 
 base : Body Data
