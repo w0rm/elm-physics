@@ -1,6 +1,6 @@
 module Physics.Shape exposing
     ( Shape, block, sphere
-    , moveTo, translateBy, rotateAroundOwn
+    , moveTo, translateBy, rotateAround
     )
 
 {-|
@@ -14,12 +14,13 @@ Shapes are positioned in the body coordinate system,
 they can be moved and rotated just like bodies in
 the world.
 
-@docs moveTo, translateBy, rotateAroundOwn
+@docs moveTo, translateBy, rotateAround
 
 -}
 
 import Angle exposing (Angle)
-import Direction3d exposing (Direction3d)
+import Axis3d exposing (Axis3d)
+import Direction3d
 import Internal.Convex as Convex
 import Internal.Shape as Internal exposing (Protected(..))
 import Internal.Transform3d as Transform3d
@@ -93,24 +94,32 @@ moveTo point3d (Protected shape) =
     Protected { shape | transform3d = newTransform3d }
 
 
-{-| Rotate the shape in the body around axis through its current position,
+{-| Rotate the shape in the body around axis,
 e.g. to rotate a shape 45 degrees around Z axis:
 
     rotatedShape =
         shape
-            |> rotateAroundOwn
-                Direction3d.z
-                (Angle.degrees 45)
+            |> rotateAround Axis3d.z (Angle.degrees 45)
 
 -}
-rotateAroundOwn : Direction3d BodyCoordinates -> Angle -> Shape -> Shape
-rotateAroundOwn axis angle (Protected shape) =
+rotateAround : Axis3d Meters BodyCoordinates -> Angle -> Shape -> Shape
+rotateAround axis angle (Protected shape) =
     let
+        rotatedOrigin =
+            Point3d.rotateAround
+                axis
+                angle
+                (Point3d.fromMeters
+                    (Transform3d.originPoint shape.transform3d)
+                )
+
         newTransform3d =
-            Transform3d.rotateAroundOwn
-                (Direction3d.unwrap axis)
-                (Angle.inRadians angle)
-                shape.transform3d
+            shape.transform3d
+                |> Transform3d.moveTo
+                    (Point3d.toMeters rotatedOrigin)
+                |> Transform3d.rotateAroundOwn
+                    (Direction3d.unwrap (Axis3d.direction axis))
+                    (Angle.inRadians angle)
     in
     Protected { shape | transform3d = newTransform3d }
 

@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , getFrame3d, moveTo, translateBy, rotateAroundOwn
+    , getFrame3d, moveTo, translateBy, rotateAround
     , setData, getData
     , setMaterial, compound
     )
@@ -18,7 +18,7 @@ module Physics.Body exposing
 
 ## Position and Orientation
 
-@docs getFrame3d, moveTo, translateBy, rotateAroundOwn
+@docs getFrame3d, moveTo, translateBy, rotateAround
 
 
 ## User-Defined Data
@@ -33,6 +33,7 @@ module Physics.Body exposing
 -}
 
 import Angle exposing (Angle)
+import Axis3d exposing (Axis3d)
 import Direction3d exposing (Direction3d)
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
@@ -209,31 +210,41 @@ moveTo point3d (Protected body) =
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
 
 
-{-| Rotate the body in the world around axis through its current position,
+{-| Rotate the body in the world around axis,
 e.g. to rotate a body 45 degrees around Z axis:
 
     movedBody =
         body
-            |> rotateAroundOwn
-                Direction3d.z
-                (Angle.degrees 45)
+            |> rotateAround Axis3d.z (Angle.degrees 45)
 
 -}
-rotateAroundOwn : Direction3d WorldCoordinates -> Angle -> Body data -> Body data
-rotateAroundOwn axis angle (Protected body) =
+rotateAround : Axis3d Meters WorldCoordinates -> Angle -> Body data -> Body data
+rotateAround axis angle (Protected body) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn
                 body.transform3d
                 (Transform3d.inverse body.centerOfMassTransform3d)
 
+        rotatedOrigin =
+            Point3d.rotateAround
+                axis
+                angle
+                (Point3d.fromMeters
+                    (Transform3d.originPoint bodyCoordinatesTransform3d)
+                )
+
+        newBodyCoordinatesTransform3d =
+            bodyCoordinatesTransform3d
+                |> Transform3d.moveTo
+                    (Point3d.toMeters rotatedOrigin)
+                |> Transform3d.rotateAroundOwn
+                    (Direction3d.unwrap (Axis3d.direction axis))
+                    (Angle.inRadians angle)
+
         newTransform3d =
             Transform3d.placeIn
-                (Transform3d.rotateAroundOwn
-                    (Direction3d.unwrap axis)
-                    (Angle.inRadians angle)
-                    bodyCoordinatesTransform3d
-                )
+                newBodyCoordinatesTransform3d
                 body.centerOfMassTransform3d
     in
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })

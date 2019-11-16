@@ -291,8 +291,8 @@ initialWorld =
         |> World.add floor
         |> World.add
             (box 1
+                |> Body.rotateAround Axis3d.y (Angle.radians (-pi / 5))
                 |> Body.moveTo (Point3d.meters 0 0 2)
-                |> Body.rotateAroundOwn Direction3d.y (Angle.radians (-pi / 5))
             )
         |> World.add
             (box 2
@@ -300,8 +300,10 @@ initialWorld =
             )
         |> World.add
             (box 3
+                |> Body.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 5))
                 |> Body.moveTo (Point3d.meters -1.2 0 5)
-                |> Body.rotateAroundOwn (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }) (Angle.radians (pi / 5))
             )
 
 
