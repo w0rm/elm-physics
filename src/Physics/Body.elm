@@ -34,18 +34,20 @@ module Physics.Body exposing
 
 import Angle exposing (Angle)
 import Axis3d exposing (Axis3d)
+import Block3d exposing (Block3d)
 import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
 import Internal.Transform3d as Transform3d
-import Length exposing (Length, Meters)
+import Length exposing (Meters)
 import Mass exposing (Mass)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d exposing (Point3d)
+import Sphere3d exposing (Sphere3d)
 import Vector3d exposing (Vector3d)
 
 
@@ -72,20 +74,22 @@ type alias Body data =
     Protected data
 
 
-{-| A block is defined by its dimensions along the x, y and z axes.
-To create a 1x1x1 cube, call this:
+{-| A block is created from elm-geometry Block3d.
+To create a 1x1x1 cube, centered at the origin of
+the body, call this:
 
     cubeBody =
         block
-            (Length.meters 1)
-            (Length.meters 1)
-            (Length.meters 1)
+            (Block3d.centeredOn
+                Frame3d.origin
+                ( meters 1, meters 1, meters 1 )
+            )
             data
 
 -}
-block : Length -> Length -> Length -> data -> Body data
-block x y z =
-    compound [ Shape.block x y z ]
+block : Block3d Meters BodyCoordinates -> data -> Body data
+block block3d =
+    compound [ Shape.block block3d ]
 
 
 {-| A plane with the normal that points
@@ -106,11 +110,20 @@ plane =
         ]
 
 
-{-| A sphere is defined by its radius.
+{-| A sphere is created from elm-geometry Sphere3d.
+
+To create a 1 meter radius sphere, that is centered
+at the origin of the body, call this:
+
+    sphereBody =
+        sphere
+            (Sphere3d.atOrigin (meters 1))
+            data
+
 -}
-sphere : Length -> data -> Body data
-sphere radius =
-    compound [ Shape.sphere radius ]
+sphere : Sphere3d Meters BodyCoordinates -> data -> Body data
+sphere sphere3d =
+    compound [ Shape.sphere sphere3d ]
 
 
 {-| A particle is an abstract point that doesn’t have dimensions.

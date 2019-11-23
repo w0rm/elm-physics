@@ -13,6 +13,7 @@ module Drag exposing (main)
 import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -22,6 +23,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -30,6 +32,7 @@ import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint
 import Physics.World as World exposing (RaycastResult, World)
 import Point3d
+import Sphere3d
 
 
 {-| Each body should have a unique id,
@@ -328,14 +331,18 @@ floor =
 box : Int -> Body Data
 box id =
     let
-        size =
-            { x = 2, y = 2, z = 2 }
-
-        meshes =
-            Meshes.fromTriangles (Meshes.box size)
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 2
+                , Length.meters 2
+                , Length.meters 2
+                )
     in
-    { id = Box id, meshes = meshes }
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+    Body.block block3d
+        { id = Box id
+        , meshes = Meshes.fromTriangles (Meshes.block block3d)
+        }
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 10))
 
 
@@ -345,11 +352,10 @@ This is a temporary body used to drag selected bodies.
 mouse : Body Data
 mouse =
     let
-        radius =
-            0.2
-
-        meshes =
-            Meshes.fromTriangles (Meshes.sphere 2 radius)
+        sphere3d =
+            Sphere3d.atOrigin (Length.meters 0.2)
     in
-    { id = Mouse, meshes = meshes }
-        |> Body.compound []
+    Body.compound []
+        { id = Mouse
+        , meshes = Meshes.fromTriangles (Meshes.sphere 2 sphere3d)
+        }

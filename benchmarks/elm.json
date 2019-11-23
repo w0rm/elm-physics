@@ -12,7 +12,7 @@
             "elm/json": "1.0.0",
             "elm/random": "1.0.0",
             "elm-explorations/benchmark": "1.0.0",
-            "ianmackenzie/elm-geometry": "2.0.0",
+            "ianmackenzie/elm-geometry": "3.0.0",
             "ianmackenzie/elm-units": "2.2.0"
         },
         "indirect": {

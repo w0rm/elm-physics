@@ -7,6 +7,7 @@ Note that spheres don’t move, that’s because they have zero mass.
 import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -16,6 +17,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -23,6 +25,7 @@ import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.World as World exposing (World)
 import Point3d
+import Sphere3d
 
 
 type alias Model =
@@ -168,21 +171,24 @@ floor =
 box : Body Meshes
 box =
     let
-        size =
-            { x = 2, y = 2, z = 2 }
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 2
+                , Length.meters 2
+                , Length.meters 2
+                )
     in
-    Meshes.box size
-        |> Meshes.fromTriangles
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+    Body.block block3d
+        (Meshes.fromTriangles (Meshes.block block3d))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 sphere : Body Meshes
 sphere =
     let
-        radius =
-            1.2
+        sphere3d =
+            Sphere3d.atOrigin (Length.meters 1.2)
     in
-    Meshes.sphere 2 radius
-        |> Meshes.fromTriangles
-        |> Body.sphere (Length.meters radius)
+    Body.sphere sphere3d
+        (Meshes.fromTriangles (Meshes.sphere 2 sphere3d))

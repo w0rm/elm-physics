@@ -22,6 +22,7 @@ import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.World as World exposing (World)
 import Point3d
+import Sphere3d
 
 
 particlesPerDimension : Int
@@ -218,22 +219,24 @@ floor =
 sphere : Body Data
 sphere =
     let
-        radius =
-            2
+        sphere3d =
+            Sphere3d.atOrigin (Length.meters 2)
     in
-    { meshes =
-        Meshes.sphere 3 radius
-            |> Meshes.fromTriangles
-    , kind = Other
-    }
-        |> Body.sphere (Length.meters radius)
+    Body.sphere sphere3d
+        { meshes = Meshes.fromTriangles (Meshes.sphere 3 sphere3d)
+        , kind = Other
+        }
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 particle : Int -> Int -> Body Data
 particle x y =
-    { meshes = Meshes.fromTriangles (Meshes.sphere 1 0.1)
-    , kind = Particle x y
-    }
-        |> Body.particle
+    let
+        sphere3d =
+            Sphere3d.atOrigin (Length.meters 0.1)
+    in
+    Body.particle
+        { meshes = Meshes.fromTriangles (Meshes.sphere 1 sphere3d)
+        , kind = Particle x y
+        }
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))

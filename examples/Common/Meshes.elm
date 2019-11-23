@@ -1,16 +1,20 @@
 module Common.Meshes exposing
     ( Attributes
     , Meshes
-    , box
+    , block
     , contact
     , edge
     , fromTriangles
-    , moveBy
     , normal
     , sphere
     )
 
+import Block3d exposing (Block3d)
+import Length exposing (Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Physics.Coordinates exposing (BodyCoordinates)
+import Point3d
+import Sphere3d exposing (Sphere3d)
 import WebGL exposing (Mesh)
 
 
@@ -36,7 +40,7 @@ edge =
 
 contact : Mesh Attributes
 contact =
-    toMesh (sphere 2 0.07)
+    toMesh (sphere 2 (Sphere3d.atOrigin (Length.meters 0.07)))
 
 
 toMesh : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
@@ -62,18 +66,6 @@ fromTriangles triangles =
     }
 
 
-moveBy : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes, Attributes )
-moveBy offset triangles =
-    List.map
-        (\( p1, p2, p3 ) ->
-            ( { p1 | position = Vec3.add (Vec3.fromRecord offset) p1.position }
-            , { p2 | position = Vec3.add (Vec3.fromRecord offset) p2.position }
-            , { p3 | position = Vec3.add (Vec3.fromRecord offset) p3.position }
-            )
-        )
-        triangles
-
-
 trianglesToLines : List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes )
 trianglesToLines triangles =
     List.foldl
@@ -82,41 +74,52 @@ trianglesToLines triangles =
         triangles
 
 
-box : { x : Float, y : Float, z : Float } -> List ( Attributes, Attributes, Attributes )
-box dimensions =
+block : Block3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
+block block3d =
     let
+        ( sizeX, sizeY, sizeZ ) =
+            Block3d.dimensions block3d
+
+        blockFrame3d =
+            Block3d.axes block3d
+
         x =
-            dimensions.x * 0.5
+            inMeters sizeX * 0.5
 
         y =
-            dimensions.y * 0.5
+            inMeters sizeY * 0.5
 
         z =
-            dimensions.z * 0.5
+            inMeters sizeZ * 0.5
+
+        transform px py pz =
+            Point3d.placeIn blockFrame3d (Point3d.meters px py pz)
+                |> Point3d.toMeters
+                |> Vec3.fromRecord
 
         v0 =
-            vec3 -x -y -z
+            transform -x -y -z
 
         v1 =
-            vec3 x -y -z
+            transform x -y -z
 
         v2 =
-            vec3 x y -z
+            transform x y -z
 
         v3 =
-            vec3 -x y -z
+            transform -x y -z
 
         v4 =
-            vec3 -x -y z
+            transform -x -y z
 
         v5 =
-            vec3 x -y z
+            transform x -y z
 
         v6 =
-            vec3 x y z
+            transform x y z
 
         v7 =
-            vec3 -x y z
+            transform -x y z
     in
     [ facet v3 v2 v1
     , facet v1 v0 v3
@@ -160,10 +163,22 @@ pyramid halfbase baserise =
     ]
 
 
-sphere : Int -> Float -> List ( Attributes, Attributes, Attributes )
-sphere iterations radius =
+sphere : Int -> Sphere3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
+sphere iterations sphere3d =
+    let
+        position p =
+            Point3d.toMeters (Sphere3d.centerPoint sphere3d)
+                |> Vec3.fromRecord
+                |> Vec3.add p
+
+        radius =
+            Length.inMeters (Sphere3d.radius sphere3d)
+    in
     divideSphere iterations radius (octahedron radius)
-        |> List.map (\( p1, p2, p3 ) -> facet p1 p2 p3)
+        |> List.map
+            (\( p1, p2, p3 ) ->
+                facet (position p1) (position p2) (position p3)
+            )
 
 
 {-| Recursively divide an octahedron to turn it into a sphere

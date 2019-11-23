@@ -5,6 +5,7 @@ Try changing `boxesPerDimension` to drop even more!
 -}
 
 import Acceleration
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -14,6 +15,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -187,10 +189,11 @@ floor =
 box : Body Meshes
 box =
     let
-        size =
-            Length.meters 1
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 1, Length.meters 1, Length.meters 1 )
     in
-    Meshes.box { x = 1, y = 1, z = 1 }
-        |> Meshes.fromTriangles
-        |> Body.block size size size
+    Body.block block3d
+        (Meshes.fromTriangles (Meshes.block block3d))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))

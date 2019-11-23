@@ -6,6 +6,7 @@ module Car exposing (main)
 import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -15,6 +16,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
@@ -25,6 +27,7 @@ import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
+import Sphere3d
 import Vector3d
 
 
@@ -266,14 +269,18 @@ floor =
 slope : Body Data
 slope =
     let
-        size =
-            { x = 10, y = 16, z = 0.5 }
-
-        meshes =
-            Meshes.fromTriangles (Meshes.box size)
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 10
+                , Length.meters 16
+                , Length.meters 0.5
+                )
     in
-    { name = "slope", meshes = meshes }
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+    Body.block block3d
+        { name = "slope"
+        , meshes = Meshes.fromTriangles (Meshes.block block3d)
+        }
         |> Body.rotateAround Axis3d.x (Angle.radians (pi / 16))
         |> Body.moveTo (Point3d.meters 0 -2 1)
 
@@ -281,36 +288,32 @@ slope =
 base : Body Data
 base =
     let
-        bottomSize =
-            { x = 3, y = 6, z = 1 }
+        bottom =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 3, Length.meters 6, Length.meters 1 )
 
-        topSize =
-            { x = 2, y = 3, z = 1.5 }
-
-        topOffset =
-            { x = 0, y = 1, z = 1 }
-
-        meshes =
-            Meshes.fromTriangles (Meshes.box bottomSize ++ (Meshes.box topSize |> Meshes.moveBy topOffset))
+        top =
+            Block3d.centeredOn
+                (Frame3d.atPoint (Point3d.meters 0 1 1))
+                ( Length.meters 2, Length.meters 3, Length.meters 1.5 )
     in
-    { name = "base", meshes = meshes }
-        |> Body.compound
-            [ Shape.block (Length.meters bottomSize.x) (Length.meters bottomSize.y) (Length.meters bottomSize.z)
-            , Shape.block (Length.meters topSize.x) (Length.meters topSize.y) (Length.meters topSize.z)
-                |> Shape.moveTo (Point3d.fromMeters topOffset)
-            ]
+    Body.compound
+        [ Shape.block top, Shape.block bottom ]
+        { name = "base"
+        , meshes = Meshes.fromTriangles (Meshes.block bottom ++ Meshes.block top)
+        }
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
 
 
 wheel : String -> Body Data
 wheel name =
     let
-        radius =
-            1.2
-
-        meshes =
-            Meshes.fromTriangles (Meshes.sphere 2 radius)
+        sphere =
+            Sphere3d.atOrigin (Length.meters 1.2)
     in
-    { name = name, meshes = meshes }
-        |> Body.sphere (Length.meters radius)
+    Body.sphere sphere
+        { name = name
+        , meshes = Meshes.fromTriangles (Meshes.sphere 2 sphere)
+        }
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
