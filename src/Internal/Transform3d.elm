@@ -4,6 +4,7 @@ module Internal.Transform3d exposing
     , atPoint
     , directionPlaceIn
     , directionRelativeTo
+    , fromOriginAndBasis
     , inverse
     , moveTo
     , normalize
@@ -24,6 +25,96 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 
 type Transform3d coordinates defines
     = Transform3d Vec3 Orientation3d
+
+
+fromOriginAndBasis : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Transform3d coordinates defines
+fromOriginAndBasis origin x y z =
+    let
+        m00 =
+            x.x
+
+        m10 =
+            x.y
+
+        m20 =
+            x.z
+
+        m01 =
+            y.x
+
+        m11 =
+            y.y
+
+        m21 =
+            y.z
+
+        m02 =
+            z.x
+
+        m12 =
+            z.y
+
+        m22 =
+            z.z
+
+        tr =
+            m00 + m11 + m22
+    in
+    if tr > 0 then
+        let
+            s =
+                -- s=4*qw
+                sqrt (tr + 1.0) * 2
+        in
+        Transform3d origin
+            (Orientation3d
+                ((m21 - m12) / s)
+                ((m02 - m20) / s)
+                ((m10 - m01) / s)
+                (0.25 * s)
+            )
+
+    else if (m00 > m11) && (m00 > m22) then
+        let
+            s =
+                -- s=4*qx
+                sqrt (1.0 + m00 - m11 - m22) * 2
+        in
+        Transform3d origin
+            (Orientation3d
+                (0.25 * s)
+                ((m01 + m10) / s)
+                ((m02 + m20) / s)
+                ((m21 - m12) / s)
+            )
+
+    else if m11 > m22 then
+        let
+            s =
+                -- s=4*qy
+                sqrt (1.0 + m11 - m00 - m22) * 2
+        in
+        Transform3d origin
+            (Orientation3d
+                ((m01 + m10) / s)
+                (0.25 * s)
+                ((m12 + m21) / s)
+                ((m02 - m20) / s)
+            )
+
+    else
+        let
+            s =
+                -- s=4*qz
+                sqrt (1.0 + m22 - m00 - m11) * 2
+        in
+        Transform3d origin
+            (Orientation3d
+                ((m02 + m20) / s)
+                ((m12 + m21) / s)
+                (0.25 * s)
+                ((m10 - m01) / s)
+            )
 
 
 atOrigin : Transform3d coordinates defines

@@ -8,6 +8,7 @@ If you click too fast, the bodies may be spawned inside each other.
 import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -17,6 +18,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -26,6 +28,7 @@ import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d
 import Random
+import Sphere3d
 import Vector3d
 
 
@@ -179,24 +182,27 @@ floor =
 box : Body Meshes
 box =
     let
-        size =
-            { x = 2, y = 2, z = 2 }
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 2
+                , Length.meters 2
+                , Length.meters 2
+                )
     in
-    Meshes.box size
-        |> Meshes.fromTriangles
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+    Body.block block3d (Meshes.fromTriangles (Meshes.block block3d))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 sphere : Body Meshes
 sphere =
     let
-        radius =
-            1.2
+        sphere3d =
+            Sphere3d.atOrigin (Length.meters 1.2)
     in
-    Meshes.sphere 2 radius
-        |> Meshes.fromTriangles
-        |> Body.sphere (Length.meters radius)
+    Body.sphere
+        sphere3d
+        (Meshes.fromTriangles (Meshes.sphere 2 sphere3d))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 
@@ -205,30 +211,24 @@ sphere =
 compound : Body Meshes
 compound =
     let
-        size =
-            { x = 1, y = 1, z = 1 }
-
-        boxTriangles =
-            Meshes.box size
-
-        boxShape =
-            Shape.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
-
-        coordinates =
-            [ Point3d.meters -0.5 0 -0.5
-            , Point3d.meters -0.5 0 0.5
-            , Point3d.meters 0.5 0 0.5
-            ]
-
-        shapes =
-            List.map (\p -> Shape.moveTo p boxShape) coordinates
-
-        compoundTriangles =
-            List.concatMap
-                (\p -> Meshes.moveBy (Point3d.toMeters p) boxTriangles)
-                coordinates
+        blocks =
+            List.map
+                (\center ->
+                    Block3d.centeredOn
+                        (Frame3d.atPoint center)
+                        ( Length.meters 1
+                        , Length.meters 1
+                        , Length.meters 1
+                        )
+                )
+                [ Point3d.meters -0.5 0 -0.5
+                , Point3d.meters -0.5 0 0.5
+                , Point3d.meters 0.5 0 0.5
+                ]
     in
-    Body.compound shapes (Meshes.fromTriangles compoundTriangles)
+    Body.compound
+        (List.map Shape.block blocks)
+        (Meshes.fromTriangles (List.concatMap Meshes.block blocks))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
 
 

@@ -8,6 +8,7 @@ Try to make the floor slippy too!
 import Acceleration
 import Angle
 import Axis3d
+import Block3d
 import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
@@ -17,6 +18,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
+import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length
@@ -173,12 +175,16 @@ floor =
 domino : Body Meshes
 domino =
     let
-        size =
-            { x = 0.1, y = 1, z = 2 }
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 0.1
+                , Length.meters 1
+                , Length.meters 2
+                )
     in
-    Meshes.box size
-        |> Meshes.fromTriangles
-        |> Body.block (Length.meters size.x) (Length.meters size.y) (Length.meters size.z)
+    Body.block block3d
+        (Meshes.fromTriangles (Meshes.block block3d))
         |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
         |> Body.setMaterial slippy
 
