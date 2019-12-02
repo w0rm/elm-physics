@@ -354,7 +354,11 @@ setMaterial (InternalMaterial.Protected material) (Protected body) =
 For example, the [sphere](#sphere) from above can be defined like this:
 
     sphere radius data =
-        compound [ Shape.sphere radius ] data
+        compound
+            [ Shape.sphere
+                (Sphere3d.atOrigin (meters 1))
+            ]
+            data
 
 We only support [rigid bodies](https://en.wikipedia.org/wiki/Rigid_body).
 
