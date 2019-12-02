@@ -27,18 +27,17 @@ type alias Params a =
     , world : World a
     , camera : Camera
     , meshes : a -> Meshes
-    , raycastResult : Maybe (RaycastResult a)
+    , maybeRaycastResult : Maybe (RaycastResult a)
     , floorOffset :
-        Maybe
-            { x : Float
-            , y : Float
-            , z : Float
-            }
+        { x : Float
+        , y : Float
+        , z : Float
+        }
     }
 
 
 view : Params a -> Html msg
-view { settings, world, floorOffset, camera, raycastResult, meshes } =
+view { settings, world, floorOffset, camera, maybeRaycastResult, meshes } =
     let
         lightDirection =
             Vec3.normalize (Vec3.vec3 -1 -1 -1)
@@ -50,17 +49,13 @@ view { settings, world, floorOffset, camera, raycastResult, meshes } =
             , debugNormals = settings.debugNormals
             , debugEdges = settings.debugEdges
             , debugCenterOfMass = settings.debugCenterOfMass
-            , raycastResult = raycastResult
+            , maybeRaycastResult = maybeRaycastResult
             , meshes = meshes
             , shadow =
-                Maybe.map
-                    (\offset ->
-                        Math.makeShadow
-                            (Vec3.fromRecord offset)
-                            Vec3.k
-                            lightDirection
-                    )
-                    floorOffset
+                Math.makeShadow
+                    (Vec3.fromRecord floorOffset)
+                    Vec3.k
+                    lightDirection
             }
     in
     WebGL.toHtmlWith
@@ -97,14 +92,14 @@ type alias SceneParams a =
     , debugNormals : Bool
     , debugEdges : Bool
     , debugCenterOfMass : Bool
-    , shadow : Maybe Mat4
-    , raycastResult : Maybe (RaycastResult a)
+    , shadow : Mat4
+    , maybeRaycastResult : Maybe (RaycastResult a)
     , meshes : a -> Meshes
     }
 
 
 addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
-addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugEdges, debugNormals, raycastResult } as sceneParams) body entities =
+addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugEdges, debugNormals, maybeRaycastResult } as sceneParams) body entities =
     let
         transform =
             Frame3d.toMat4 (Body.getFrame3d body)
@@ -122,7 +117,7 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
             Vec3.vec3 0.9 0.9 0.9
 
         normals =
-            case raycastResult of
+            case maybeRaycastResult of
                 Just res ->
                     if Body.getData res.body == Body.getData body then
                         [ { normal = res.normal, point = res.point } ]
@@ -184,23 +179,22 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
                         }
                     )
            )
-        |> (case ( shadow, debugWireframes ) of
-                ( Just shadowTransform, False ) ->
-                    (::)
-                        (WebGL.entity
-                            Shaders.vertex
-                            Shaders.shadowFragment
-                            mesh
-                            { camera = camera.cameraTransform
-                            , perspective = camera.perspectiveTransform
-                            , color = Vec3.vec3 0.25 0.25 0.25
-                            , lightDirection = lightDirection
-                            , transform = Mat4.mul shadowTransform transform
-                            }
-                        )
+        |> (if debugWireframes then
+                identity
 
-                _ ->
-                    identity
+            else
+                (::)
+                    (WebGL.entity
+                        Shaders.vertex
+                        Shaders.shadowFragment
+                        mesh
+                        { camera = camera.cameraTransform
+                        , perspective = camera.perspectiveTransform
+                        , color = Vec3.vec3 0.25 0.25 0.25
+                        , lightDirection = lightDirection
+                        , transform = Mat4.mul shadow transform
+                        }
+                    )
            )
 
 

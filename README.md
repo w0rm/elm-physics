@@ -8,10 +8,10 @@ A highly experimental toy physics engine in [Elm](http://elm-lang.org/).
 
 * Boxes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Boxes.elm), [demo](https://unsoundscapes.com/elm-physics/examples/boxes/))
 * Car ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Car.elm), [demo](https://unsoundscapes.com/elm-physics/examples/car/))
+* Cloth ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Cloth.elm), [demo](https://unsoundscapes.com/elm-physics/examples/cloth/))
 * Dominoes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Dominoes.elm), [demo](https://unsoundscapes.com/elm-physics/examples/dominoes/))
 * Drag ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Drag.elm), [demo](https://unsoundscapes.com/elm-physics/examples/drag/))
 * Randomize ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Randomize.elm), [demo](https://unsoundscapes.com/elm-physics/examples/randomize/))
-* Dice ([source](https://github.com/w0rm/elm-dice), [demo](https://unsoundscapes.itch.io/dice))
 
 # Prior Work
 

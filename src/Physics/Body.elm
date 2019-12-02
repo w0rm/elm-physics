@@ -74,7 +74,7 @@ type alias Body data =
     Protected data
 
 
-{-| A block is created from elm-geometry Block3d.
+{-| A block is created from elm-geometry [Block3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Block3d).
 To create a 1x1x1 cube, centered at the origin of
 the body, call this:
 
@@ -110,7 +110,7 @@ plane =
         ]
 
 
-{-| A sphere is created from elm-geometry Sphere3d.
+{-| A sphere is created from elm-geometry [Sphere3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Sphere3d).
 
 To create a 1 meter radius sphere, that is centered
 at the origin of the body, call this:
@@ -305,7 +305,7 @@ translateBy vector3d (Protected body) =
 
 
 {-| Get the position and orientation of the body in the world
-as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/2.0.0/Frame3d).
+as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Frame3d).
 
 This is useful to render a body with elm-3d-scene, but also to
 transform points and directions between world and body coordinates.
@@ -332,24 +332,7 @@ getFrame3d (Protected { transform3d, centerOfMassTransform3d }) =
 -}
 setData : data -> Body data -> Body data
 setData data (Protected body) =
-    Protected
-        { id = body.id
-        , data = data
-        , material = body.material
-        , transform3d = body.transform3d
-        , centerOfMassTransform3d = body.centerOfMassTransform3d
-        , velocity = body.velocity
-        , angularVelocity = body.angularVelocity
-        , mass = body.mass
-        , shapes = body.shapes
-        , force = body.force
-        , torque = body.torque
-        , boundingSphereRadius = body.boundingSphereRadius
-        , invMass = body.invMass
-        , inertia = body.inertia
-        , invInertia = body.invInertia
-        , invInertiaWorld = body.invInertiaWorld
-        }
+    Protected { body | data = data }
 
 
 {-| Get user-defined data.

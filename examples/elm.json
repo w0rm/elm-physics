@@ -2,8 +2,7 @@
     "type": "application",
     "source-directories": [
         ".",
-        "../src",
-        "../../elm-geometry-linear-algebra-interop/src"
+        "../src"
     ],
     "elm-version": "0.19.1",
     "dependencies": {
@@ -16,6 +15,7 @@
             "elm-explorations/linear-algebra": "1.0.3",
             "elm-explorations/webgl": "1.1.1",
             "ianmackenzie/elm-geometry": "3.0.0",
+            "ianmackenzie/elm-geometry-linear-algebra-interop": "2.0.1",
             "ianmackenzie/elm-units": "2.2.0"
         },
         "indirect": {

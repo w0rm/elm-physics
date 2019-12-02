@@ -55,17 +55,7 @@ type alias Model =
     , fps : List Float
     , settings : Settings
     , camera : Camera
-    , selection : Maybe Selection
-    }
-
-
-type alias Selection =
-    { raycastResult : RaycastResult Data
-    , direction :
-        { x : Float
-        , y : Float
-        , z : Float
-        }
+    , maybeRaycastResult : Maybe (RaycastResult Data)
     }
 
 
@@ -99,7 +89,7 @@ init _ =
                 { from = { x = 0, y = 30, z = 20 }
                 , to = { x = 0, y = 0, z = 0 }
                 }
-      , selection = Nothing
+      , maybeRaycastResult = Nothing
       }
     , Events.measureSize Resize
     )
@@ -162,11 +152,7 @@ update msg model =
                             Point3d.placeIn (Body.getFrame3d raycastResult.body) raycastResult.point
                     in
                     ( { model
-                        | selection =
-                            Just
-                                { raycastResult = raycastResult
-                                , direction = direction
-                                }
+                        | maybeRaycastResult = maybeRaycastResult
                         , world =
                             model.world
                                 |> World.add (Body.moveTo worldPosition mouse)
@@ -189,13 +175,13 @@ update msg model =
                     ( model, Cmd.none )
 
         MouseMove newDirection ->
-            case model.selection of
+            case model.maybeRaycastResult of
                 -- move the mouse
-                Just { raycastResult, direction } ->
+                Just raycastResult ->
                     let
                         -- the new position is an intersection
                         -- of the newDirection from the camera and a plane,
-                        -- that is defined by a normal = previous mouse direction
+                        -- that is defined by the camera direction
                         -- and a point from the raycastResult
                         -- https://samsymons.com/blog/math-notes-ray-plane-intersection/
                         r0 =
@@ -208,7 +194,9 @@ update msg model =
                                 |> Point3d.toMeters
 
                         n =
-                            direction
+                            Direction3d.from (Point3d.fromMeters model.camera.from) (Point3d.fromMeters model.camera.to)
+                                |> Maybe.withDefault Direction3d.z
+                                |> Direction3d.unwrap
 
                         t =
                             ((n.x * (p0.x - r0.x)) + (n.y * (p0.y - r0.y)) + (n.z * (p0.z - r0.z)))
@@ -241,7 +229,7 @@ update msg model =
         MouseUp _ ->
             -- remove temporary body on mouse up
             ( { model
-                | selection = Nothing
+                | maybeRaycastResult = Nothing
                 , world =
                     World.keepIf
                         (Body.getData >> .id >> (/=) Mouse)
@@ -260,7 +248,7 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera, selection } =
+view { settings, fps, world, camera, maybeRaycastResult } =
     Html.div
         [ Events.onMouseDown camera MouseDown
         , Events.onMouseMove camera MouseMove
@@ -271,8 +259,8 @@ view { settings, fps, world, camera, selection } =
             , world = world
             , camera = camera
             , meshes = .meshes
-            , raycastResult = Maybe.map .raycastResult selection
-            , floorOffset = Just floorOffset
+            , maybeRaycastResult = maybeRaycastResult
+            , floorOffset = floorOffset
             }
         , Settings.view ForSettings
             settings

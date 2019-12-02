@@ -129,8 +129,8 @@ view { settings, fps, world, camera } =
             , world = world
             , camera = camera
             , meshes = .meshes
-            , raycastResult = Nothing
-            , floorOffset = Just floorOffset
+            , maybeRaycastResult = Nothing
+            , floorOffset = floorOffset
             }
         , Settings.view ForSettings
             settings
