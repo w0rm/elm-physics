@@ -307,8 +307,8 @@ translateBy vector3d (Protected body) =
 {-| Get the position and orientation of the body in the world
 as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Frame3d).
 
-This is useful to render a body with elm-3d-scene, but also to
-transform points and directions between world and body coordinates.
+This is useful to transform points and directions between
+world and body coordinates.
 
 -}
 getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
