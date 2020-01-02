@@ -27,6 +27,7 @@ type alias Constraint =
 
 
 {-| Connect a point on the first body with a point on the second body.
+This doesn’t limit the freedom of rotation of two bodies.
 Points are defined within the bodies’ local coordinate systems.
 -}
 pointToPoint :
