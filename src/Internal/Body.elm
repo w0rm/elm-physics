@@ -2,6 +2,7 @@ module Internal.Body exposing
     ( Body
     , Protected(..)
     , addGravity
+    , applyImpulse
     , centerOfMass
     , compound
     , raycast
@@ -313,6 +314,27 @@ updateInvInertiaWorld force invInertia transform3d invInertiaWorld =
         , m23 = m21 * bm13 + m22 * bm23 + m23 * bm33
         , m33 = m31 * bm13 + m32 * bm23 + m33 * bm33
         }
+
+
+applyImpulse : Float -> Vec3 -> Vec3 -> Body data -> Body data
+applyImpulse amount direction point body =
+    let
+        relativePoint =
+            Vec3.sub point (Transform3d.originPoint body.transform3d)
+
+        impulse =
+            Vec3.scale amount direction
+
+        velocity =
+            Vec3.scale body.invMass impulse
+
+        angularVelocity =
+            Mat3.transform body.invInertiaWorld (Vec3.cross relativePoint impulse)
+    in
+    { body
+        | velocity = Vec3.add body.velocity velocity
+        , angularVelocity = Vec3.add body.angularVelocity angularVelocity
+    }
 
 
 computeAABB : Body data -> AABB
