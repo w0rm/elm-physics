@@ -3,6 +3,7 @@ module Physics.Body exposing
     , Behavior, dynamic, static, setBehavior
     , getFrame3d, moveTo, translateBy, rotateAround, originPoint
     , setData, getData
+    , applyImpulse
     , setMaterial, compound
     )
 
@@ -26,6 +27,11 @@ module Physics.Body exposing
 @docs setData, getData
 
 
+## Interaction
+
+@docs applyImpulse
+
+
 ## Advanced
 
 @docs setMaterial, compound
@@ -35,7 +41,9 @@ module Physics.Body exposing
 import Angle exposing (Angle)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
-import Direction3d
+import Direction3d exposing (Direction3d)
+import Duration exposing (Seconds)
+import Force exposing (Newtons)
 import Frame3d exposing (Frame3d)
 import Internal.Body as Internal exposing (Protected(..))
 import Internal.Material as InternalMaterial
@@ -47,6 +55,7 @@ import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d exposing (Point3d)
+import Quantity exposing (Product, Quantity(..))
 import Sphere3d exposing (Sphere3d)
 import Vector3d exposing (Vector3d)
 
@@ -340,6 +349,37 @@ setData data (Protected body) =
 getData : Body data -> data
 getData (Protected { data }) =
     data
+
+
+{-| Apply an impulse in a direction at a point on a body.
+For example, to hit a billiard ball with a force of 50 newtons,
+with the duration of the hit 0.005 seconds:
+
+    impulse =
+        Force.newtons 50
+            |> Quantity.times (Duration.seconds 0.005)
+
+    hitCueBall =
+        cueBall
+            |> applyImpulse
+                impulse
+                Direction3d.positiveY
+                hitPoint
+
+-}
+applyImpulse : Quantity Float (Product Newtons Seconds) -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body data -> Body data
+applyImpulse (Quantity impulse) direction point (Protected body) =
+    if body.mass > 0 then
+        Protected
+            (Internal.applyImpulse
+                impulse
+                (Direction3d.unwrap direction)
+                (Point3d.toMeters point)
+                body
+            )
+
+    else
+        Protected body
 
 
 {-| Set the [material](Physics-Material) to controll friction and bounciness.
