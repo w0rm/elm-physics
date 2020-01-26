@@ -1,10 +1,11 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , getFrame3d, moveTo, translateBy, rotateAround, originPoint
+    , getFrame3d, originPoint
     , setData, getData
     , applyImpulse
     , setMaterial, compound, setDamping
+    , moveTo, rotateAround, translateBy
     )
 
 {-|
@@ -17,9 +18,14 @@ module Physics.Body exposing
 @docs Behavior, dynamic, static, setBehavior
 
 
-## Position and Orientation
+## Properties
 
-@docs getFrame3d, moveTo, translateBy, rotateAround, originPoint
+@docs getFrame3d, originPoint
+
+
+## Position and orientation
+
+moveTo, translateBy, rotateAround
 
 
 ## User-Defined Data
@@ -208,6 +214,44 @@ setBehavior behavior (Protected body) =
             Protected (Internal.updateMassProperties { body | mass = 0 })
 
 
+{-| Get the position and orientation of the body in the world
+as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Frame3d).
+
+This is useful to transform points and directions between
+world and body coordinates.
+
+-}
+getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+getFrame3d (Protected { transform3d, centerOfMassTransform3d }) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
+
+        { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
+            Transform3d.orientation bodyCoordinatesTransform3d
+    in
+    Frame3d.unsafe
+        { originPoint = Point3d.fromMeters (Transform3d.originPoint bodyCoordinatesTransform3d)
+        , xDirection = Direction3d.unsafe { x = m11, y = m21, z = m31 }
+        , yDirection = Direction3d.unsafe { x = m12, y = m22, z = m32 }
+        , zDirection = Direction3d.unsafe { x = m13, y = m23, z = m33 }
+        }
+
+
+{-| Get the origin point of a body in the world
+-}
+originPoint : Body data -> Point3d Meters WorldCoordinates
+originPoint (Protected { transform3d, centerOfMassTransform3d }) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                transform3d
+                (Transform3d.inverse centerOfMassTransform3d)
+    in
+    Point3d.fromMeters
+        (Transform3d.originPoint bodyCoordinatesTransform3d)
+
+
 {-| Set the position of the body in the world,
 e.g. to raise a body 5 meters above the origin:
 
@@ -227,6 +271,33 @@ moveTo point3d (Protected body) =
         newTransform3d =
             Transform3d.placeIn
                 (Transform3d.moveTo (Point3d.toMeters point3d) bodyCoordinatesTransform3d)
+                body.centerOfMassTransform3d
+    in
+    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+
+
+{-| Move the body in the world relative to its current position,
+e.g. to translate a body down by 5 meters:
+
+    translatedBody =
+        body
+            |> translateBy (Vector3d.meters 0 0 -5)
+
+-}
+translateBy : Vector3d Meters WorldCoordinates -> Body data -> Body data
+translateBy vector3d (Protected body) =
+    let
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn
+                body.transform3d
+                (Transform3d.inverse body.centerOfMassTransform3d)
+
+        newTransform3d =
+            Transform3d.placeIn
+                (Transform3d.translateBy
+                    (Vector3d.toMeters vector3d)
+                    bodyCoordinatesTransform3d
+                )
                 body.centerOfMassTransform3d
     in
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
@@ -270,71 +341,6 @@ rotateAround axis angle (Protected body) =
                 body.centerOfMassTransform3d
     in
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
-
-
-{-| Get the origin point of a body in the world
--}
-originPoint : Body data -> Point3d Meters WorldCoordinates
-originPoint (Protected { transform3d, centerOfMassTransform3d }) =
-    let
-        bodyCoordinatesTransform3d =
-            Transform3d.placeIn
-                transform3d
-                (Transform3d.inverse centerOfMassTransform3d)
-    in
-    Point3d.fromMeters
-        (Transform3d.originPoint bodyCoordinatesTransform3d)
-
-
-{-| Move the body in the world relative to its current position,
-e.g. to translate a body down by 5 meters:
-
-    translatedBody =
-        body
-            |> translateBy (Vector3d.meters 0 0 -5)
-
--}
-translateBy : Vector3d Meters WorldCoordinates -> Body data -> Body data
-translateBy vector3d (Protected body) =
-    let
-        bodyCoordinatesTransform3d =
-            Transform3d.placeIn
-                body.transform3d
-                (Transform3d.inverse body.centerOfMassTransform3d)
-
-        newTransform3d =
-            Transform3d.placeIn
-                (Transform3d.translateBy
-                    (Vector3d.toMeters vector3d)
-                    bodyCoordinatesTransform3d
-                )
-                body.centerOfMassTransform3d
-    in
-    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
-
-
-{-| Get the position and orientation of the body in the world
-as [Frame3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Frame3d).
-
-This is useful to transform points and directions between
-world and body coordinates.
-
--}
-getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-getFrame3d (Protected { transform3d, centerOfMassTransform3d }) =
-    let
-        bodyCoordinatesTransform3d =
-            Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
-
-        { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
-            Transform3d.orientation bodyCoordinatesTransform3d
-    in
-    Frame3d.unsafe
-        { originPoint = Point3d.fromMeters (Transform3d.originPoint bodyCoordinatesTransform3d)
-        , xDirection = Direction3d.unsafe { x = m11, y = m21, z = m31 }
-        , yDirection = Direction3d.unsafe { x = m12, y = m22, z = m32 }
-        , zDirection = Direction3d.unsafe { x = m13, y = m23, z = m33 }
-        }
 
 
 {-| Set user-defined data.
