@@ -4,7 +4,7 @@ module Physics.Body exposing
     , getFrame3d, moveTo, translateBy, rotateAround, originPoint
     , setData, getData
     , applyImpulse
-    , setMaterial, compound
+    , setMaterial, compound, setDamping
     )
 
 {-|
@@ -34,7 +34,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs setMaterial, compound
+@docs setMaterial, compound, setDamping
 
 -}
 
@@ -410,3 +410,21 @@ compound shapes data =
             List.map (\(InternalShape.Protected shape) -> shape) shapes
     in
     Protected (Internal.compound unprotectedShapes data)
+
+
+{-| Set linear and angular damping, in order to decrease velocity over time.
+
+This may be useful to e.g. simulate the friction of a sphere rolling on
+the flat surface. The normal friction between these surfaces doesn’t work,
+because there is just 1 contact point.
+
+Inputs are clamped between 0 and 1, the defaults are 0.01.
+
+-}
+setDamping : { linear : Float, angular : Float } -> Body data -> Body data
+setDamping { linear, angular } (Protected body) =
+    Protected
+        { body
+            | linearDamping = clamp 0 1 linear
+            , angularDamping = clamp 0 1 angular
+        }

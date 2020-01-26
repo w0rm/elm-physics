@@ -38,22 +38,16 @@ type alias Body data =
     , torque : Vec3
     , boundingSphereRadius : Float
 
+    -- damping
+    , linearDamping : Float
+    , angularDamping : Float
+
     -- mass props
     , invMass : Float
     , inertia : Vec3
     , invInertia : Vec3
     , invInertiaWorld : Mat3
     }
-
-
-defaultLinearDamping : Float
-defaultLinearDamping =
-    0.01
-
-
-defaultAngularDamping : Float
-defaultAngularDamping =
-    0.01
 
 
 centerOfMass : List (Shape BodyCoordinates) -> Vec3
@@ -125,6 +119,10 @@ compound shapes data =
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
 
+        -- default damping
+        , linearDamping = 0.01
+        , angularDamping = 0.01
+
         -- mass props
         , invMass = 0
         , inertia = Vec3.zero
@@ -153,10 +151,10 @@ update dt vlambda wlambda body =
     let
         -- Apply damping https://code.google.com/archive/p/bullet/issues/74
         ld =
-            (1.0 - defaultLinearDamping) ^ dt
+            (1.0 - body.linearDamping) ^ dt
 
         ad =
-            (1.0 - defaultAngularDamping) ^ dt
+            (1.0 - body.angularDamping) ^ dt
 
         newVelocity =
             {- body.force
@@ -200,6 +198,8 @@ update dt vlambda wlambda body =
     , mass = body.mass
     , shapes = body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
     , invMass = body.invMass
     , inertia = body.inertia
     , invInertia = body.invInertia
