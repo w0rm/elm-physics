@@ -38,6 +38,10 @@ type alias Body data =
     , torque : Vec3
     , boundingSphereRadius : Float
 
+    -- damping
+    , linearDamping : Float
+    , angularDamping : Float
+
     -- mass props
     , invMass : Float
     , inertia : Vec3
@@ -115,6 +119,10 @@ compound shapes data =
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
 
+        -- default damping
+        , linearDamping = 0.01
+        , angularDamping = 0.01
+
         -- mass props
         , invMass = 0
         , inertia = Vec3.zero
@@ -141,6 +149,13 @@ addGravity gravity body =
 update : Float -> Vec3 -> Vec3 -> Body data -> Body data
 update dt vlambda wlambda body =
     let
+        -- Apply damping https://code.google.com/archive/p/bullet/issues/74
+        ld =
+            (1.0 - body.linearDamping) ^ dt
+
+        ad =
+            (1.0 - body.angularDamping) ^ dt
+
         newVelocity =
             {- body.force
                |> Vec3.scale (body.invMass * dt)
@@ -148,9 +163,9 @@ update dt vlambda wlambda body =
                -- from the solver
                |> Vec3.add vlambda
             -}
-            { x = body.force.x * body.invMass * dt + body.velocity.x + vlambda.x
-            , y = body.force.y * body.invMass * dt + body.velocity.y + vlambda.y
-            , z = body.force.z * body.invMass * dt + body.velocity.z + vlambda.z
+            { x = body.force.x * body.invMass * dt + body.velocity.x * ld + vlambda.x
+            , y = body.force.y * body.invMass * dt + body.velocity.y * ld + vlambda.y
+            , z = body.force.z * body.invMass * dt + body.velocity.z * ld + vlambda.z
             }
 
         newAngularVelocity =
@@ -162,9 +177,9 @@ update dt vlambda wlambda body =
                    -- from the solver
                    |> Vec3.add wlambda
             -}
-            { x = (body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x + wlambda.x
-            , y = (body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y + wlambda.y
-            , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z + wlambda.z
+            { x = (body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + wlambda.x
+            , y = (body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + wlambda.y
+            , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wlambda.z
             }
 
         newTransform3d =
@@ -183,6 +198,8 @@ update dt vlambda wlambda body =
     , mass = body.mass
     , shapes = body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
     , invMass = body.invMass
     , inertia = body.inertia
     , invInertia = body.invInertia
