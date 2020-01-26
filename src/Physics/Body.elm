@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , getFrame3d, originPoint
+    , getFrame3d, originPoint, velocity, angularVelocity
     , setData, getData
     , applyImpulse
     , setMaterial, compound, setDamping
@@ -20,7 +20,7 @@ module Physics.Body exposing
 
 ## Properties
 
-@docs getFrame3d, originPoint
+@docs getFrame3d, originPoint, velocity, angularVelocity
 
 
 ## Position and orientation
@@ -45,6 +45,7 @@ moveTo, translateBy, rotateAround
 -}
 
 import Angle exposing (Angle)
+import AngularSpeed exposing (RadiansPerSecond)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
 import Direction3d exposing (Direction3d)
@@ -62,6 +63,7 @@ import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d exposing (Point3d)
 import Quantity exposing (Product, Quantity(..))
+import Speed exposing (MetersPerSecond)
 import Sphere3d exposing (Sphere3d)
 import Vector3d exposing (Vector3d)
 
@@ -250,6 +252,20 @@ originPoint (Protected { transform3d, centerOfMassTransform3d }) =
     in
     Point3d.fromMeters
         (Transform3d.originPoint bodyCoordinatesTransform3d)
+
+
+{-| Get the linear velocity of a body
+-}
+velocity : Body data -> Vector3d MetersPerSecond WorldCoordinates
+velocity (Protected body) =
+    Vector3d.unsafe body.velocity
+
+
+{-| Get the angular velocity of a body
+-}
+angularVelocity : Body data -> Vector3d RadiansPerSecond WorldCoordinates
+angularVelocity (Protected body) =
+    Vector3d.unsafe body.angularVelocity
 
 
 {-| Set the position of the body in the world,
