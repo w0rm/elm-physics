@@ -3,10 +3,9 @@ module Transform3dFromFrame3dTest exposing (conversion)
 import Angle
 import Axis3d
 import Direction3d
-import Expect exposing (Expectation)
+import Extra.Expect as Expect
 import Frame3d exposing (Frame3d)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
-import Internal.Vector3 exposing (Vec3)
 import Length exposing (Meters)
 import Point3d
 import Test exposing (Test, describe, test)
@@ -63,42 +62,10 @@ conversion =
                 frame3d
                     |> fromFrame3d
                     |> toFrame3d
-                    |> expectFrame3d frame3d
+                    |> Expect.frame3d frame3d
         , test "transforms the point exactly the same for 180 rotation" <|
             \_ ->
-                expectVec3
+                Expect.vec3
                     (Point3d.unwrap (Point3d.placeIn frame3d point3d))
                     (Transform3d.pointPlaceIn (frame3d |> fromFrame3d) (Point3d.toMeters point3d))
-        ]
-
-
-expectFrame3d : Frame3d Meters coords define -> Frame3d Meters coords define -> Expectation
-expectFrame3d frame3d =
-    let
-        origin =
-            Point3d.unwrap (Frame3d.originPoint frame3d)
-
-        x =
-            Direction3d.unwrap (Frame3d.xDirection frame3d)
-
-        y =
-            Direction3d.unwrap (Frame3d.yDirection frame3d)
-
-        z =
-            Direction3d.unwrap (Frame3d.zDirection frame3d)
-    in
-    Expect.all
-        [ Frame3d.originPoint >> Point3d.unwrap >> expectVec3 origin
-        , Frame3d.xDirection >> Direction3d.unwrap >> expectVec3 x
-        , Frame3d.yDirection >> Direction3d.unwrap >> expectVec3 y
-        , Frame3d.zDirection >> Direction3d.unwrap >> expectVec3 z
-        ]
-
-
-expectVec3 : Vec3 -> Vec3 -> Expectation
-expectVec3 vec3 =
-    Expect.all
-        [ .x >> Expect.within (Expect.Absolute 0.00001) vec3.x
-        , .y >> Expect.within (Expect.Absolute 0.00001) vec3.y
-        , .z >> Expect.within (Expect.Absolute 0.00001) vec3.z
         ]

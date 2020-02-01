@@ -1,6 +1,7 @@
 module Transform3dTest exposing (directionRelativeTo, inverse, pointRelativeTo, relativeTo)
 
 import Expect
+import Extra.Expect as Expect
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Test exposing (Test, describe, test)
@@ -23,11 +24,7 @@ pointRelativeTo =
                 point
                     |> Transform3d.pointPlaceIn transform3d
                     |> Transform3d.pointRelativeTo transform3d
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) point.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) point.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) point.z
-                        ]
+                    |> Expect.vec3 point
         ]
 
 
@@ -48,11 +45,7 @@ directionRelativeTo =
                 direction
                     |> Transform3d.directionPlaceIn transform3d
                     |> Transform3d.directionRelativeTo transform3d
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) direction.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) direction.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) direction.z
-                        ]
+                    |> Expect.vec3 direction
         ]
 
 
@@ -79,21 +72,13 @@ relativeTo =
                 direction
                     |> Transform3d.directionPlaceIn transform3d
                     |> Transform3d.directionPlaceIn transform3dInverse
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) direction.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) direction.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) direction.z
-                        ]
+                    |> Expect.vec3 direction
         , test "transforms the point back to its original value" <|
             \_ ->
                 point
                     |> Transform3d.pointPlaceIn transform3d
                     |> Transform3d.pointPlaceIn transform3dInverse
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) point.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) point.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) point.z
-                        ]
+                    |> Expect.vec3 point
         ]
 
 
@@ -120,19 +105,11 @@ inverse =
                 direction
                     |> Transform3d.directionPlaceIn transform3d
                     |> Transform3d.directionPlaceIn transform3dInverse
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) direction.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) direction.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) direction.z
-                        ]
+                    |> Expect.vec3 direction
         , test "transforms the point back to its original value" <|
             \_ ->
                 point
                     |> Transform3d.pointPlaceIn transform3d
                     |> Transform3d.pointPlaceIn transform3dInverse
-                    |> Expect.all
-                        [ .x >> Expect.within (Expect.Absolute 0.00001) point.x
-                        , .y >> Expect.within (Expect.Absolute 0.00001) point.y
-                        , .z >> Expect.within (Expect.Absolute 0.00001) point.z
-                        ]
+                    |> Expect.vec3 point
         ]

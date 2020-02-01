@@ -1,6 +1,6 @@
-module ConvexConvexTest exposing
-    ( findSeparatingAxis
-    , getContacts
+module Collision.ConvexConvexTest exposing
+    ( addContacts
+    , findSeparatingAxis
     , project
     , testSeparatingAxis
     )
@@ -13,8 +13,8 @@ import Internal.Vector3 as Vec3
 import Test exposing (Test, describe, test)
 
 
-getContacts : Test
-getContacts =
+addContacts : Test
+addContacts =
     describe "Collision.ConvexConvex.addContacts"
         [ test "should return 4 results" <|
             \_ ->
