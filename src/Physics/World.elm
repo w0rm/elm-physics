@@ -120,9 +120,12 @@ size and maximum velocity.
 -}
 simulate : Duration -> World data -> World data
 simulate dt (Protected world) =
-    world
-        |> Internal.addGravityForces
-        |> Solver.solve (Duration.inSeconds dt) (BroadPhase.getContacts world)
+    let
+        worldWithGravityForces =
+            Internal.addGravityForces world
+    in
+    worldWithGravityForces
+        |> Solver.solve (Duration.inSeconds dt) (BroadPhase.getContacts worldWithGravityForces)
         |> Protected
 
 
