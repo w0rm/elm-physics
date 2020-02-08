@@ -248,7 +248,7 @@ addCar offset world =
 
 applySpeed : Float -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body Data -> Body Data
 applySpeed speed baseFrame body =
-    if (Body.getData body).name == "wheel1" || (Body.getData body).name == "wheel2" then
+    if speed /= 0 && ((Body.getData body).name == "wheel1" || (Body.getData body).name == "wheel2") then
         let
             forward =
                 Frame3d.yDirection baseFrame
@@ -261,8 +261,13 @@ applySpeed speed baseFrame body =
 
             pointOnTheWheel =
                 wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) up)
+
+            pointUnderTheWheel =
+                wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) (Direction3d.reverse up))
         in
-        Body.applyForce (Force.newtons (-speed * 100)) forward pointOnTheWheel body
+        body
+            |> Body.applyForce (Force.newtons (-speed * 100)) forward pointOnTheWheel
+            |> Body.applyForce (Force.newtons (-speed * 100)) (Direction3d.reverse forward) pointUnderTheWheel
 
     else
         body

@@ -367,7 +367,10 @@ applyForce amount direction point body =
         torque =
             Vec3.cross relativePoint force
     in
-    { body | force = force, torque = torque }
+    { body
+        | force = Vec3.add body.force force
+        , torque = Vec3.add body.torque torque
+    }
 
 
 computeAABB : Body data -> AABB
