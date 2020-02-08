@@ -1,6 +1,7 @@
 module Car exposing (main)
 
 {-| This shows how hinge constrains can be used to assemble a car.
+Use the arrow keys to steer and speed!
 -}
 
 import Acceleration
@@ -8,6 +9,7 @@ import Angle
 import Axis3d
 import Block3d
 import Browser
+import Browser.Events
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
@@ -16,14 +18,16 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
 import Duration
-import Frame3d
+import Force
+import Frame3d exposing (Frame3d)
 import Html exposing (Html)
 import Html.Events exposing (onClick)
+import Json.Decode
 import Length exposing (Meters)
 import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
-import Physics.Coordinates exposing (WorldCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
@@ -44,7 +48,37 @@ type alias Model =
     , fps : List Float
     , settings : Settings
     , camera : Camera
+    , speeding : Float -- -1, 0, 1
+    , steering : Float -- -1, 0, 1
     }
+
+
+type Command
+    = Speed Float
+    | Steer Float
+
+
+keyDecoder : (Command -> Msg) -> Json.Decode.Decoder Msg
+keyDecoder toMsg =
+    Json.Decode.field "key" Json.Decode.string
+        |> Json.Decode.andThen
+            (\string ->
+                case string of
+                    "ArrowLeft" ->
+                        Json.Decode.succeed (toMsg (Steer -1))
+
+                    "ArrowRight" ->
+                        Json.Decode.succeed (toMsg (Steer 1))
+
+                    "ArrowUp" ->
+                        Json.Decode.succeed (toMsg (Speed 1))
+
+                    "ArrowDown" ->
+                        Json.Decode.succeed (toMsg (Speed -1))
+
+                    _ ->
+                        Json.Decode.fail ("Unrecognized key: " ++ string)
+            )
 
 
 type Msg
@@ -52,13 +86,15 @@ type Msg
     | Tick Float
     | Resize Float Float
     | Restart
+    | KeyDown Command
+    | KeyUp Command
 
 
 main : Program () Model Msg
 main =
     Browser.element
         { init = init
-        , update = update
+        , update = \msg model -> ( update msg model, Cmd.none )
         , subscriptions = subscriptions
         , view = view
         }
@@ -69,9 +105,11 @@ init _ =
     ( { world = initialWorld
       , fps = []
       , settings = settings
+      , speeding = 0
+      , steering = 0
       , camera =
             Camera.camera
-                { from = { x = -30, y = 30, z = 20 }
+                { from = { x = -60, y = 60, z = 40 }
                 , to = { x = 0, y = -7, z = 0 }
                 }
       }
@@ -79,34 +117,64 @@ init _ =
     )
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
+update : Msg -> Model -> Model
 update msg model =
     case msg of
         ForSettings settingsMsg ->
-            ( { model
+            { model
                 | settings = Settings.update settingsMsg model.settings
-              }
-            , Cmd.none
-            )
+            }
 
         Tick dt ->
-            ( { model
+            { model
                 | fps = Fps.update dt model.fps
                 , world =
+                    let
+                        baseFrame =
+                            model.world
+                                |> World.getBodies
+                                |> List.filter (\b -> (Body.getData b).name == "base")
+                                |> List.head
+                                |> Maybe.map (\b -> Body.getFrame3d b)
+                                |> Maybe.withDefault Frame3d.atOrigin
+                    in
                     model.world
-                        |> World.constrain constrainCar
+                        |> World.constrain (constrainCar model.steering)
+                        |> World.update (applySpeed model.speeding baseFrame)
                         |> World.simulate (Duration.seconds (1 / 60))
-              }
-            , Cmd.none
-            )
+            }
 
         Resize width height ->
-            ( { model | camera = Camera.resize width height model.camera }
-            , Cmd.none
-            )
+            { model | camera = Camera.resize width height model.camera }
 
         Restart ->
-            ( { model | world = initialWorld }, Cmd.none )
+            { model | world = initialWorld }
+
+        KeyDown (Steer k) ->
+            { model | steering = k }
+
+        KeyDown (Speed k) ->
+            { model | speeding = k }
+
+        KeyUp (Steer k) ->
+            { model
+                | steering =
+                    if k == model.steering then
+                        0
+
+                    else
+                        model.steering
+            }
+
+        KeyUp (Speed k) ->
+            { model
+                | speeding =
+                    if k == model.speeding then
+                        0
+
+                    else
+                        model.speeding
+            }
 
 
 subscriptions : Model -> Sub Msg
@@ -114,6 +182,8 @@ subscriptions _ =
     Sub.batch
         [ Events.onResize Resize
         , Events.onAnimationFrameDelta Tick
+        , Browser.Events.onKeyDown (keyDecoder KeyDown)
+        , Browser.Events.onKeyUp (keyDecoder KeyUp)
         ]
 
 
@@ -176,11 +246,38 @@ addCar offset world =
             )
 
 
-constrainCar : Body Data -> Body Data -> List Constraint
-constrainCar b1 b2 =
+applySpeed : Float -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body Data -> Body Data
+applySpeed speed baseFrame body =
+    if speed /= 0 && ((Body.getData body).name == "wheel1" || (Body.getData body).name == "wheel2") then
+        let
+            forward =
+                Frame3d.yDirection baseFrame
+
+            up =
+                Frame3d.zDirection baseFrame
+
+            wheelPoint =
+                Frame3d.originPoint (Body.getFrame3d body)
+
+            pointOnTheWheel =
+                wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) up)
+
+            pointUnderTheWheel =
+                wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) (Direction3d.reverse up))
+        in
+        body
+            |> Body.applyForce (Force.newtons (-speed * 100)) forward pointOnTheWheel
+            |> Body.applyForce (Force.newtons (-speed * 100)) (Direction3d.reverse forward) pointUnderTheWheel
+
+    else
+        body
+
+
+constrainCar : Float -> Body Data -> Body Data -> List Constraint
+constrainCar steering b1 b2 =
     let
         steeringAngle =
-            0
+            steering * pi / 8
 
         dx =
             cos steeringAngle
@@ -192,7 +289,7 @@ constrainCar b1 b2 =
             Constraint.hinge
                 (Axis3d.through
                     (Point3d.meters 3 3 0)
-                    (Direction3d.unsafe { x = dx, y = dy, z = 0 })
+                    (Direction3d.unsafe { x = 1, y = 0, z = 0 })
                 )
                 (Axis3d.through
                     (Point3d.meters 0 0 0)
@@ -203,7 +300,7 @@ constrainCar b1 b2 =
             Constraint.hinge
                 (Axis3d.through
                     (Point3d.meters -3 3 0)
-                    (Direction3d.unsafe { x = -dx, y = -dy, z = 0 })
+                    (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
                 (Axis3d.through
                     Point3d.origin
@@ -214,7 +311,7 @@ constrainCar b1 b2 =
             Constraint.hinge
                 (Axis3d.through
                     (Point3d.meters -3 -3 0)
-                    (Direction3d.unsafe { x = -1, y = 0, z = 0 })
+                    (Direction3d.unsafe { x = -dx, y = dy, z = 0 })
                 )
                 (Axis3d.through
                     Point3d.origin
@@ -225,7 +322,7 @@ constrainCar b1 b2 =
             Constraint.hinge
                 (Axis3d.through
                     (Point3d.meters 3 -3 0)
-                    (Direction3d.unsafe { x = 1, y = 0, z = 0 })
+                    (Direction3d.unsafe { x = -dx, y = dy, z = 0 })
                 )
                 (Axis3d.through
                     Point3d.origin
@@ -303,7 +400,7 @@ base =
         { name = "base"
         , meshes = Meshes.fromTriangles (Meshes.block bottom ++ Meshes.block top)
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 80))
 
 
 wheel : String -> Body Data
@@ -316,4 +413,4 @@ wheel name =
         { name = name
         , meshes = Meshes.fromTriangles (Meshes.sphere 2 sphere)
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 1))
+        |> Body.setBehavior (Body.dynamic (Mass.kilograms 2))

@@ -3,7 +3,7 @@ module Physics.Body exposing
     , Behavior, dynamic, static, setBehavior
     , getFrame3d, originPoint, velocity, angularVelocity
     , setData, getData
-    , applyImpulse
+    , applyForce, applyImpulse
     , setMaterial, compound, setDamping
     , moveTo, rotateAround, translateBy
     )
@@ -35,7 +35,7 @@ moveTo, translateBy, rotateAround
 
 ## Interaction
 
-@docs applyImpulse
+@docs applyForce, applyImpulse
 
 
 ## Advanced
@@ -373,7 +373,39 @@ getData (Protected { data }) =
     data
 
 
+{-| Apply a force in a direction at a point on a body.
+The force will be applied during one simulation step.
+
+Keep applying the force every simulation step to accelerate.
+
+    pushedBox =
+        box
+            |> applyForce
+                (Force.newtons 50)
+                Direction3d.positiveY
+                pointOnBox
+
+-}
+applyForce : Quantity Float Newtons -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body data -> Body data
+applyForce (Quantity force) direction point (Protected body) =
+    if body.mass > 0 then
+        Protected
+            (Internal.applyForce
+                force
+                (Direction3d.unwrap direction)
+                (Point3d.toMeters point)
+                body
+            )
+
+    else
+        Protected body
+
+
 {-| Apply an impulse in a direction at a point on a body.
+Applying an impulse is the same as applying a force during
+the interval of time. The changes are applied to velocity
+and angular velocity of the body.
+
 For example, to hit a billiard ball with a force of 50 newtons,
 with the duration of the hit 0.005 seconds:
 

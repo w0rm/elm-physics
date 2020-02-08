@@ -2,6 +2,7 @@ module Internal.Body exposing
     ( Body
     , Protected(..)
     , addGravity
+    , applyForce
     , applyImpulse
     , centerOfMass
     , compound
@@ -351,6 +352,24 @@ applyImpulse amount direction point body =
     { body
         | velocity = Vec3.add body.velocity velocity
         , angularVelocity = Vec3.add body.angularVelocity angularVelocity
+    }
+
+
+applyForce : Float -> Vec3 -> Vec3 -> Body data -> Body data
+applyForce amount direction point body =
+    let
+        relativePoint =
+            Vec3.sub point (Transform3d.originPoint body.transform3d)
+
+        force =
+            Vec3.scale amount direction
+
+        torque =
+            Vec3.cross relativePoint force
+    in
+    { body
+        | force = Vec3.add body.force force
+        , torque = Vec3.add body.torque torque
     }
 
 
