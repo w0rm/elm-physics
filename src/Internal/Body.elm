@@ -169,6 +169,23 @@ update dt vlambda wlambda body =
             , z = body.force.z * body.invMass * dt + body.velocity.z * ld + vlambda.z
             }
 
+        velocityLength =
+            Vec3.length newVelocity
+
+        -- This hack is needed to minimize tunnelling
+        -- we don’t let the body to move more
+        -- than half of its bounding radius in a frame
+        cappedVelocity =
+            if
+                (velocityLength == 0)
+                    || (body.boundingSphereRadius == 0)
+                    || (velocityLength * dt - body.boundingSphereRadius < 0)
+            then
+                newVelocity
+
+            else
+                Vec3.scale (body.boundingSphereRadius / (velocityLength * dt)) newVelocity
+
         newAngularVelocity =
             {-
                body.torque
@@ -186,7 +203,7 @@ update dt vlambda wlambda body =
         newTransform3d =
             body.transform3d
                 |> Transform3d.rotateBy { x = newAngularVelocity.x * dt, y = newAngularVelocity.y * dt, z = newAngularVelocity.z * dt }
-                |> Transform3d.translateBy { x = newVelocity.x * dt, y = newVelocity.y * dt, z = newVelocity.z * dt }
+                |> Transform3d.translateBy { x = cappedVelocity.x * dt, y = cappedVelocity.y * dt, z = cappedVelocity.z * dt }
                 |> Transform3d.normalize
     in
     { id = body.id

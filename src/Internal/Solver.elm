@@ -194,13 +194,20 @@ updateBodies dt bodies world =
     { world
         | bodies =
             List.foldl
-                (\solverBody result ->
+                (\{ body, vlambda, wlambda } result ->
                     -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
-                    if solverBody.body.id + 1 > 0 then
-                        Body.update dt
-                            solverBody.vlambda
-                            solverBody.wlambda
-                            solverBody.body
+                    if body.id + 1 > 0 then
+                        -- only dynamic bodies are updated
+                        (if body.mass > 0 then
+                            Body.update
+                                dt
+                                vlambda
+                                wlambda
+                                body
+
+                         else
+                            body
+                        )
                             :: result
 
                     else
