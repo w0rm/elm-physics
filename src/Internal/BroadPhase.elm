@@ -30,7 +30,7 @@ getContactsHelp body1 currentBodies restBodies result =
                 body1
                 currentBodies
                 newRestBodies
-                (if bodiesMayOverlap body1 body2 then
+                (if bodiesMayContact body1 body2 then
                     case NarrowPhase.getContacts body1 body2 of
                         [] ->
                             result
@@ -59,8 +59,9 @@ getContactsHelp body1 currentBodies restBodies result =
                     result
 
 
-bodiesMayOverlap : Body data -> Body data -> Bool
-bodiesMayOverlap body1 body2 =
-    (body1.boundingSphereRadius + body2.boundingSphereRadius)
+bodiesMayContact : Body data -> Body data -> Bool
+bodiesMayContact body1 body2 =
+    not (body1.mass == 0 && body2.mass == 0)
+        && (body1.boundingSphereRadius + body2.boundingSphereRadius)
         - Vec3.distance (Transform3d.originPoint body1.transform3d) (Transform3d.originPoint body2.transform3d)
         > 0
