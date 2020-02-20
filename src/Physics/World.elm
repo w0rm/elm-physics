@@ -245,7 +245,7 @@ Check the [Physics.Constraint](Physics-Constraint) module for possible constrain
             worldWithCarParts
 
 Note that this example only works for a single car, otherwise it would
-connect wheels of one car with the base of another another. You might want
+connect wheels of one car with the base of another. You might want
 to use `constrainIf` to apply constraints on a subset of bodies.
 
     constrain =
