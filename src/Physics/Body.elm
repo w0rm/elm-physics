@@ -2,10 +2,10 @@ module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, withBehavior
     , frame, originPoint, centerOfMass, velocity, angularVelocity
-    , setData, data
+    , moveTo, translateBy, rotateAround
+    , data, withData
     , applyForce, applyImpulse
     , withMaterial, compound, withDamping
-    , moveTo, rotateAround, translateBy
     )
 
 {-|
@@ -25,12 +25,12 @@ module Physics.Body exposing
 
 ## Position and orientation
 
-moveTo, translateBy, rotateAround
+@docs moveTo, translateBy, rotateAround
 
 
 ## User-Defined Data
 
-@docs setData, data
+@docs data, withData
 
 
 ## Interaction
@@ -366,10 +366,10 @@ rotateAround axis angle (Protected body) =
     Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
 
 
-{-| Set user-defined data.
+{-| Update user-defined data.
 -}
-setData : data -> Body data -> Body data
-setData newData (Protected body) =
+withData : data -> Body data -> Body data
+withData newData (Protected body) =
     Protected { body | data = newData }
 
 
