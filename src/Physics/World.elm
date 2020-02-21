@@ -1,6 +1,7 @@
 module Physics.World exposing
     ( World, empty, setGravity, add
-    , simulate, getBodies, raycast, RaycastResult
+    , simulate, getBodies, contacts
+    , raycast, RaycastResult
     , keepIf, update
     , constrain, constrainIf
     )
@@ -9,7 +10,9 @@ module Physics.World exposing
 
 @docs World, empty, setGravity, add
 
-@docs simulate, getBodies, raycast, RaycastResult
+@docs simulate, getBodies, contacts
+
+@docs raycast, RaycastResult
 
 @docs keepIf, update
 
@@ -18,12 +21,14 @@ module Physics.World exposing
 -}
 
 import Acceleration exposing (Acceleration)
+import Array
 import Axis3d exposing (Axis3d)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration)
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Constraint as InternalConstraint exposing (ConstraintGroup)
+import Internal.Contact as InternalContact
 import Internal.Solver as Solver
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
@@ -31,6 +36,7 @@ import Internal.World as Internal exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
 import Physics.Constraint exposing (Constraint)
+import Physics.Contact exposing (Contact)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Point3d exposing (Point3d)
 
@@ -51,6 +57,8 @@ empty =
         , freeIds = []
         , nextBodyId = 0
         , gravity = Vec3.zero
+        , contactGroups = []
+        , simulatedBodies = Array.empty
         }
 
 
@@ -120,12 +128,10 @@ size and maximum velocity.
 -}
 simulate : Duration -> World data -> World data
 simulate dt (Protected world) =
-    let
-        worldWithGravityForces =
-            Internal.addGravityForces world
-    in
-    worldWithGravityForces
-        |> Solver.solve (Duration.inSeconds dt) (BroadPhase.getContacts worldWithGravityForces)
+    world
+        |> Internal.addGravityForces
+        |> BroadPhase.addContacts
+        |> Solver.solve (Duration.inSeconds dt)
         |> Protected
 
 
@@ -138,6 +144,55 @@ e.g. WebGL entities.
 getBodies : World data -> List (Body data)
 getBodies (Protected { bodies }) =
     List.map InternalBody.Protected bodies
+
+
+{-| Get all contacts from the last simulation frame.
+-}
+contacts : World data -> List (Contact data)
+contacts (Protected { contactGroups, simulatedBodies }) =
+    let
+        mapContact :
+            InternalBody.Body data
+            -> InternalBody.Body data
+            -> InternalContact.Contact
+            ->
+                { point : Point3d Meters WorldCoordinates
+                , normal : Direction3d WorldCoordinates
+                }
+        mapContact oldBody newBody { ni, pi } =
+            { point =
+                pi
+                    |> Transform3d.pointRelativeTo oldBody.transform3d
+                    |> Transform3d.pointPlaceIn newBody.transform3d
+                    |> Point3d.fromMeters
+            , normal =
+                ni
+                    |> Transform3d.directionRelativeTo oldBody.transform3d
+                    |> Transform3d.directionPlaceIn newBody.transform3d
+                    |> Direction3d.unsafe
+            }
+    in
+    List.filterMap
+        (\contactGroup ->
+            case Array.get contactGroup.body1.id simulatedBodies of
+                Just newBody1 ->
+                    case Array.get contactGroup.body2.id simulatedBodies of
+                        Just newBody2 ->
+                            Just
+                                (InternalContact.Protected
+                                    { body1 = newBody1
+                                    , body2 = newBody2
+                                    , points = List.map (mapContact contactGroup.body1 newBody1) contactGroup.contacts
+                                    }
+                                )
+
+                        Nothing ->
+                            Nothing
+
+                Nothing ->
+                    Nothing
+        )
+        contactGroups
 
 
 {-| Find the closest intersection of a ray against

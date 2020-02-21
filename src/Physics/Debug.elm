@@ -17,7 +17,6 @@ debugging issues with elm-physics itself.
 
 import Direction3d exposing (Direction3d)
 import Internal.Body as InternalBody
-import Internal.BroadPhase as BroadPhase
 import Internal.Convex as Convex
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Shape exposing (Kind(..), Shape)
@@ -25,24 +24,20 @@ import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.World exposing (Protected(..))
 import Length exposing (Meters)
 import Physics.Body exposing (Body)
+import Physics.Contact as Contact
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Physics.World exposing (World)
+import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
 
 
 {-| Get the contact points in the world.
 -}
 getContacts : World data -> List (Point3d Meters WorldCoordinates)
-getContacts (Protected world) =
-    List.foldl
-        (\{ contacts } acc1 ->
-            List.foldl
-                (\{ pi, pj } acc2 -> Point3d.fromMeters pi :: Point3d.fromMeters pj :: acc2)
-                acc1
-                contacts
-        )
-        []
-        (BroadPhase.getContacts world)
+getContacts world =
+    world
+        |> World.contacts
+        |> List.concatMap Contact.points
+        |> List.map .point
 
 
 {-| Get the center of mass of the body.

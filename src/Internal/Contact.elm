@@ -1,7 +1,23 @@
-module Internal.Contact exposing (Contact, ContactGroup, flip)
+module Internal.Contact exposing (Contact, ContactGroup, Protected(..), flip)
 
+import Direction3d exposing (Direction3d)
 import Internal.Body exposing (Body)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Length exposing (Meters)
+import Physics.Coordinates exposing (WorldCoordinates)
+import Point3d exposing (Point3d)
+
+
+type Protected data
+    = Protected
+        { body1 : Body data
+        , body2 : Body data
+        , points :
+            List
+                { point : Point3d Meters WorldCoordinates
+                , normal : Direction3d WorldCoordinates
+                }
+        }
 
 
 type alias ContactGroup data =

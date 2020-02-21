@@ -1,4 +1,4 @@
-module Internal.BroadPhase exposing (getContacts)
+module Internal.BroadPhase exposing (addContacts)
 
 {-| This is very naive implementation of BroadPhase,
 that checks if the bounding spheres of each two bodies overlap
@@ -12,21 +12,24 @@ import Internal.Vector3 as Vec3
 import Internal.World exposing (World)
 
 
-getContacts : World data -> List (ContactGroup data)
-getContacts { bodies } =
-    case bodies of
-        body :: restBodies ->
-            getContactsHelp body restBodies restBodies []
+addContacts : World data -> World data
+addContacts world =
+    { world
+        | contactGroups =
+            case world.bodies of
+                body :: restBodies ->
+                    addContactsHelp body restBodies restBodies []
 
-        [] ->
-            []
+                [] ->
+                    []
+    }
 
 
-getContactsHelp : Body data -> List (Body data) -> List (Body data) -> List (ContactGroup data) -> List (ContactGroup data)
-getContactsHelp body1 currentBodies restBodies result =
+addContactsHelp : Body data -> List (Body data) -> List (Body data) -> List (ContactGroup data) -> List (ContactGroup data)
+addContactsHelp body1 currentBodies restBodies result =
     case restBodies of
         body2 :: newRestBodies ->
-            getContactsHelp
+            addContactsHelp
                 body1
                 currentBodies
                 newRestBodies
@@ -49,7 +52,7 @@ getContactsHelp body1 currentBodies restBodies result =
         [] ->
             case currentBodies of
                 newBody1 :: newRestBodies ->
-                    getContactsHelp
+                    addContactsHelp
                         newBody1
                         newRestBodies
                         newRestBodies

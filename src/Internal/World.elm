@@ -5,8 +5,10 @@ module Internal.World exposing
     , raycast
     )
 
+import Array exposing (Array)
 import Internal.Body as Body exposing (Body)
 import Internal.Constraint exposing (ConstraintGroup)
+import Internal.Contact exposing (ContactGroup)
 import Internal.Vector3 exposing (Vec3)
 
 
@@ -20,6 +22,8 @@ type alias World data =
     , freeIds : List Int
     , nextBodyId : Int
     , gravity : Vec3
+    , contactGroups : List (ContactGroup data)
+    , simulatedBodies : Array (Body data)
     }
 
 
