@@ -159,18 +159,21 @@ contacts (Protected { contactGroups, simulatedBodies }) =
                 { point : Point3d Meters WorldCoordinates
                 , normal : Direction3d WorldCoordinates
                 }
-        mapContact oldBody newBody { ni, pi } =
-            { point =
-                pi
-                    |> Transform3d.pointRelativeTo oldBody.transform3d
-                    |> Transform3d.pointPlaceIn newBody.transform3d
-                    |> Point3d.fromMeters
-            , normal =
-                ni
-                    |> Transform3d.directionRelativeTo oldBody.transform3d
-                    |> Transform3d.directionPlaceIn newBody.transform3d
-                    |> Direction3d.unsafe
-            }
+        mapContact oldBody newBody =
+            let
+                transform =
+                    Transform3d.relativeTo oldBody.transform3d newBody.transform3d
+            in
+            \{ ni, pi } ->
+                { point =
+                    pi
+                        |> Transform3d.pointPlaceIn transform
+                        |> Point3d.fromMeters
+                , normal =
+                    ni
+                        |> Transform3d.directionPlaceIn transform
+                        |> Direction3d.unsafe
+                }
     in
     List.filterMap
         (\contactGroup ->
