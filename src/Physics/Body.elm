@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, setBehavior
-    , getFrame3d, originPoint, velocity, angularVelocity
+    , getFrame3d, originPoint, centerOfMass, velocity, angularVelocity
     , setData, getData
     , applyForce, applyImpulse
     , setMaterial, compound, setDamping
@@ -20,7 +20,7 @@ module Physics.Body exposing
 
 ## Properties
 
-@docs getFrame3d, originPoint, velocity, angularVelocity
+@docs getFrame3d, originPoint, centerOfMass, velocity, angularVelocity
 
 
 ## Position and orientation
@@ -252,6 +252,13 @@ originPoint (Protected { transform3d, centerOfMassTransform3d }) =
     in
     Point3d.fromMeters
         (Transform3d.originPoint bodyCoordinatesTransform3d)
+
+
+{-| Get the center of mass of a body.
+-}
+centerOfMass : Body data -> Point3d Meters BodyCoordinates
+centerOfMass (Protected { centerOfMassTransform3d }) =
+    Point3d.fromMeters (Transform3d.originPoint centerOfMassTransform3d)
 
 
 {-| Get the linear velocity of a body
