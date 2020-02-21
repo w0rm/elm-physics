@@ -1,10 +1,10 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
-    , Behavior, dynamic, static, setBehavior
-    , getFrame3d, originPoint, centerOfMass, velocity, angularVelocity
-    , setData, getData
+    , Behavior, dynamic, static, withBehavior
+    , frame, originPoint, centerOfMass, velocity, angularVelocity
+    , setData, data
     , applyForce, applyImpulse
-    , setMaterial, compound, setDamping
+    , withMaterial, compound, withDamping
     , moveTo, rotateAround, translateBy
     )
 
@@ -15,12 +15,12 @@ module Physics.Body exposing
 
 ## Behavior
 
-@docs Behavior, dynamic, static, setBehavior
+@docs Behavior, dynamic, static, withBehavior
 
 
 ## Properties
 
-@docs getFrame3d, originPoint, centerOfMass, velocity, angularVelocity
+@docs frame, originPoint, centerOfMass, velocity, angularVelocity
 
 
 ## Position and orientation
@@ -30,7 +30,7 @@ moveTo, translateBy, rotateAround
 
 ## User-Defined Data
 
-@docs setData, getData
+@docs setData, data
 
 
 ## Interaction
@@ -40,7 +40,7 @@ moveTo, translateBy, rotateAround
 
 ## Advanced
 
-@docs setMaterial, compound, setDamping
+@docs withMaterial, compound, withDamping
 
 -}
 
@@ -72,7 +72,7 @@ import Vector3d exposing (Vector3d)
 user defined data, like a WebGL mesh.
 
 By default bodies don’t move. To change this,
-use [setBehavior](#setBehavior).
+use [withBehavior](#withBehavior).
 
 All bodies start out centered on the origin,
 use [moveTo](#moveTo) to set the position.
@@ -191,11 +191,11 @@ static =
 
     dynamicBody =
         staticBody
-            |> setBehavior (dynamic (Mass.kilograms 5))
+            |> withBehavior (dynamic (Mass.kilograms 5))
 
 -}
-setBehavior : Behavior -> Body data -> Body data
-setBehavior behavior (Protected body) =
+withBehavior : Behavior -> Body data -> Body data
+withBehavior behavior (Protected body) =
     case behavior of
         Dynamic mass ->
             case body.shapes of
@@ -223,8 +223,8 @@ This is useful to transform points and directions between
 world and body coordinates.
 
 -}
-getFrame3d : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-getFrame3d (Protected { transform3d, centerOfMassTransform3d }) =
+frame : Body data -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+frame (Protected { transform3d, centerOfMassTransform3d }) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
@@ -369,15 +369,15 @@ rotateAround axis angle (Protected body) =
 {-| Set user-defined data.
 -}
 setData : data -> Body data -> Body data
-setData data (Protected body) =
-    Protected { body | data = data }
+setData newData (Protected body) =
+    Protected { body | data = newData }
 
 
 {-| Get user-defined data.
 -}
-getData : Body data -> data
-getData (Protected { data }) =
-    data
+data : Body data -> data
+data (Protected body) =
+    body.data
 
 
 {-| Apply a force in a direction at a point on a body.
@@ -445,8 +445,8 @@ applyImpulse (Quantity impulse) direction point (Protected body) =
 
 {-| Set the [material](Physics-Material) to controll friction and bounciness.
 -}
-setMaterial : Material -> Body data -> Body data
-setMaterial (InternalMaterial.Protected material) (Protected body) =
+withMaterial : Material -> Body data -> Body data
+withMaterial (InternalMaterial.Protected material) (Protected body) =
     Protected { body | material = material }
 
 
@@ -465,12 +465,12 @@ We only support [rigid bodies](https://en.wikipedia.org/wiki/Rigid_body).
 
 -}
 compound : List Shape -> data -> Body data
-compound shapes data =
+compound shapes newData =
     let
         unprotectedShapes =
             List.map (\(InternalShape.Protected shape) -> shape) shapes
     in
-    Protected (Internal.compound unprotectedShapes data)
+    Protected (Internal.compound unprotectedShapes newData)
 
 
 {-| Set linear and angular damping, in order to decrease velocity over time.
@@ -482,8 +482,8 @@ because there is just 1 contact point.
 Inputs are clamped between 0 and 1, the defaults are 0.01.
 
 -}
-setDamping : { linear : Float, angular : Float } -> Body data -> Body data
-setDamping { linear, angular } (Protected body) =
+withDamping : { linear : Float, angular : Float } -> Body data -> Body data
+withDamping { linear, angular } (Protected body) =
     Protected
         { body
             | linearDamping = clamp 0 1 linear

@@ -10,7 +10,7 @@ import Internal.Material as Internal exposing (Protected(..))
 
 
 {-| Materials allow to control friction and bounciness.
-You can change materials using [Body.setMaterial](Physics-Body#setMaterial).
+You can change materials using [Body.withMaterial](Physics-Body#withMaterial).
 -}
 type alias Material =
     Protected

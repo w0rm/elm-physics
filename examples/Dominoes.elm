@@ -121,7 +121,7 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.getBodies world))
+            Fps.view fps (List.length (World.bodies world))
 
           else
             Html.text ""
@@ -131,7 +131,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Meshes
 initialWorld =
     World.empty
-        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
+        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add
             (domino
@@ -185,8 +185,8 @@ domino =
     in
     Body.block block3d
         (Meshes.fromTriangles (Meshes.block block3d))
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
-        |> Body.setMaterial slippy
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withMaterial slippy
 
 
 slippy : Material

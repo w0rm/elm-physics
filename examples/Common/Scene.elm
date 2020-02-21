@@ -70,7 +70,7 @@ view { settings, world, floorOffset, camera, maybeRaycastResult, meshes } =
         , Attributes.style "left" "0"
         ]
         ([ ( True
-           , \entities -> List.foldl (addBodyEntities sceneParams) entities (World.getBodies world)
+           , \entities -> List.foldl (addBodyEntities sceneParams) entities (World.bodies world)
            )
          , ( settings.debugContacts
            , \entities -> List.foldl (addContactIndicator sceneParams) entities (getContactPoints world)
@@ -105,7 +105,7 @@ addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
 addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, maybeRaycastResult } as sceneParams) body entities =
     let
         transform =
-            Frame3d.toMat4 (Body.getFrame3d body)
+            Frame3d.toMat4 (Body.frame body)
 
         color =
             Vec3.vec3 0.9 0.9 0.9
@@ -116,7 +116,7 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
         addNormals acc =
             case maybeRaycastResult of
                 Just res ->
-                    if showRayCastNormal && Body.getData res.body == Body.getData body then
+                    if showRayCastNormal && Body.data res.body == Body.data body then
                         addNormalIndicator sceneParams transform { normal = res.normal, point = res.point } acc
 
                     else
@@ -127,13 +127,13 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 
         addCenterOfMass acc =
             if debugCenterOfMass then
-                addContactIndicator sceneParams (Point3d.placeIn (Body.getFrame3d body) (Body.centerOfMass body)) acc
+                addContactIndicator sceneParams (Point3d.placeIn (Body.frame body) (Body.centerOfMass body)) acc
 
             else
                 acc
 
         { mesh, wireframe } =
-            meshes (Body.getData body)
+            meshes (Body.data body)
     in
     entities
         |> addCenterOfMass

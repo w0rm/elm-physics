@@ -1,6 +1,6 @@
 module Physics.World exposing
-    ( World, empty, setGravity, add
-    , simulate, getBodies, contacts
+    ( World, empty, withGravity, add
+    , simulate, bodies, contacts
     , raycast, RaycastResult
     , keepIf, update
     , constrain, constrainIf
@@ -8,9 +8,9 @@ module Physics.World exposing
 
 {-|
 
-@docs World, empty, setGravity, add
+@docs World, empty, withGravity, add
 
-@docs simulate, getBodies, contacts
+@docs simulate, bodies, contacts
 
 @docs raycast, RaycastResult
 
@@ -65,18 +65,18 @@ empty =
 {-| Set the [standard gravity](https://en.wikipedia.org/wiki/Standard_gravity) and its direction, e.g.:
 
     planetEarth =
-        setGravity
+        withGravity
             (Acceleration.metersPerSecondSquared 9.80665)
             Direction3d.negativeZ
             world
 
 -}
-setGravity :
+withGravity :
     Acceleration
     -> Direction3d WorldCoordinates
     -> World data
     -> World data
-setGravity acceleration direction (Protected world) =
+withGravity acceleration direction (Protected world) =
     Protected
         { world
             | gravity =
@@ -141,9 +141,9 @@ Use this to convert bodies into visual representation,
 e.g. WebGL entities.
 
 -}
-getBodies : World data -> List (Body data)
-getBodies (Protected { bodies }) =
-    List.map InternalBody.Protected bodies
+bodies : World data -> List (Body data)
+bodies (Protected world) =
+    List.map InternalBody.Protected world.bodies
 
 
 {-| Get all contacts from the last simulation frame.
@@ -229,7 +229,7 @@ raycast ray (Protected world) =
 intersection point and normal vector on the face,
 expressed within the local body coordinate system.
 
-Use the `Frame3d` from [Body.getFrame3d](Physics-Body#getFrame3d)
+Use the `Frame3d` from [Body.frame](Physics-Body#frame)
 to transform the result into world coordinates.
 
 -}
@@ -281,8 +281,8 @@ Check the [Physics.Constraint](Physics-Constraint) module for possible constrain
         constrain
             (\b1 b2 ->
                 case
-                    ( (Body.getData b1).part
-                    , (Body.getData b2).part
+                    ( (Body.data b1).part
+                    , (Body.data b2).part
                     )
                 of
                     ( "wheel1", "base" ) ->
@@ -326,7 +326,7 @@ and preselect parts of a single car with:
     constrainCar carId =
         constrainIf
             (\body ->
-                (Body.getData body).carId == carId
+                (Body.data body).carId == carId
             )
 
 -}
