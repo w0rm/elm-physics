@@ -3,7 +3,6 @@ module Internal.Solver exposing (solve)
 import Array exposing (Array)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.Contact exposing (ContactGroup)
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.World exposing (World)
@@ -35,8 +34,8 @@ makeSolverBodies nextBodyId bodies =
                 bodies
 
 
-solve : Float -> List (ContactGroup data) -> World data -> World data
-solve dt contactGroups world =
+solve : Float -> World data -> World data
+solve dt world =
     let
         -- make equations from contacts
         contactEquationsGroups =
@@ -49,7 +48,7 @@ solve dt contactGroups world =
                         :: groups
                 )
                 []
-                contactGroups
+                world.contactGroups
 
         -- add equations from constraints
         equationsGroups =
@@ -191,28 +190,29 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
 
 updateBodies : Float -> Array (SolverBody data) -> World data -> World data
 updateBodies dt bodies world =
-    { world
-        | bodies =
-            List.foldl
-                (\{ body, vlambda, wlambda } result ->
+    let
+        simulatedBodies =
+            Array.map
+                (\{ body, vlambda, wlambda } ->
                     -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
                     if body.id + 1 > 0 then
                         -- only dynamic bodies are updated
-                        (if body.mass > 0 then
+                        if body.mass > 0 then
                             Body.update
                                 dt
                                 vlambda
                                 wlambda
                                 body
 
-                         else
+                        else
                             body
-                        )
-                            :: result
 
                     else
-                        result
+                        body
                 )
-                []
-                (Array.toList bodies)
+                bodies
+    in
+    { world
+        | bodies = Array.toList simulatedBodies
+        , simulatedBodies = simulatedBodies
     }
