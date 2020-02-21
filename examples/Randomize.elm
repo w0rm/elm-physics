@@ -134,7 +134,7 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.getBodies world))
+            Fps.view fps (List.length (World.bodies world))
 
           else
             Html.text ""
@@ -144,7 +144,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Meshes
 initialWorld =
     World.empty
-        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
+        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add
             (box
@@ -191,7 +191,7 @@ box =
                 )
     in
     Body.block block3d (Meshes.fromTriangles (Meshes.block block3d))
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 sphere : Body Meshes
@@ -203,7 +203,7 @@ sphere =
     Body.sphere
         sphere3d
         (Meshes.fromTriangles (Meshes.sphere 2 sphere3d))
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 {-| A compound body made of three boxes
@@ -229,7 +229,7 @@ compound =
     Body.compound
         (List.map Shape.block blocks)
         (Meshes.fromTriangles (List.concatMap Meshes.block blocks))
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 {-| A random body raised above the plane, shifted or rotated to a random 3d angle

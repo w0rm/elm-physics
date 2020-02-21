@@ -11,7 +11,7 @@
         "Physics.Constraint",
         "Physics.Coordinates",
         "Physics.Shape",
-        "Physics.Debug"
+        "Physics.Contact"
     ],
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {

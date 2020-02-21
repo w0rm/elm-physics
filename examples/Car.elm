@@ -132,10 +132,10 @@ update msg model =
                     let
                         baseFrame =
                             model.world
-                                |> World.getBodies
-                                |> List.filter (\b -> (Body.getData b).name == "base")
+                                |> World.bodies
+                                |> List.filter (\b -> (Body.data b).name == "base")
                                 |> List.head
-                                |> Maybe.map (\b -> Body.getFrame3d b)
+                                |> Maybe.map (\b -> Body.frame b)
                                 |> Maybe.withDefault Frame3d.atOrigin
                     in
                     model.world
@@ -204,7 +204,7 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.getBodies world))
+            Fps.view fps (List.length (World.bodies world))
 
           else
             Html.text ""
@@ -214,7 +214,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
+        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add slope
         |> addCar (Point3d.meters 0 0 5)
@@ -248,7 +248,7 @@ addCar offset world =
 
 applySpeed : Float -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body Data -> Body Data
 applySpeed speed baseFrame body =
-    if speed /= 0 && ((Body.getData body).name == "wheel1" || (Body.getData body).name == "wheel2") then
+    if speed /= 0 && ((Body.data body).name == "wheel1" || (Body.data body).name == "wheel2") then
         let
             forward =
                 Frame3d.yDirection baseFrame
@@ -257,7 +257,7 @@ applySpeed speed baseFrame body =
                 Frame3d.zDirection baseFrame
 
             wheelPoint =
-                Frame3d.originPoint (Body.getFrame3d body)
+                Frame3d.originPoint (Body.frame body)
 
             pointOnTheWheel =
                 wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) up)
@@ -329,7 +329,7 @@ constrainCar steering b1 b2 =
                     (Direction3d.unsafe { x = -1, y = 0, z = 0 })
                 )
     in
-    case ( (Body.getData b1).name, (Body.getData b2).name ) of
+    case ( (Body.data b1).name, (Body.data b2).name ) of
         ( "base", "wheel1" ) ->
             [ hinge1 ]
 
@@ -400,7 +400,7 @@ base =
         { name = "base"
         , meshes = Meshes.fromTriangles (Meshes.block bottom ++ Meshes.block top)
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 80))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 80))
 
 
 wheel : String -> Body Data
@@ -413,4 +413,4 @@ wheel name =
         { name = name
         , meshes = Meshes.fromTriangles (Meshes.sphere 2 sphere)
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 2))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 2))

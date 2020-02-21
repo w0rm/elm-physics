@@ -138,7 +138,7 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.getBodies world))
+            Fps.view fps (List.length (World.bodies world))
 
           else
             Html.text ""
@@ -148,7 +148,7 @@ view { settings, fps, world, camera } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
+        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add (Body.moveTo (Point3d.meters 0 0 1) sphere)
         |> addCloth
@@ -185,7 +185,7 @@ addCloth world =
 -}
 constrainCloth : Body Data -> Body Data -> List Constraint
 constrainCloth body1 body2 =
-    case ( (Body.getData body1).kind, (Body.getData body2).kind ) of
+    case ( (Body.data body1).kind, (Body.data body2).kind ) of
         ( Particle x1 y1, Particle x2 y2 ) ->
             if x1 == x2 && y2 - y1 == 1 || y1 == y2 && x2 - x1 == 1 then
                 [ Constraint.distance (Length.meters distanceBetweenParticles) ]
@@ -226,7 +226,7 @@ sphere =
         { meshes = Meshes.fromTriangles (Meshes.sphere 3 sphere3d)
         , kind = Other
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 particle : Int -> Int -> Body Data
@@ -239,4 +239,4 @@ particle x y =
         { meshes = Meshes.fromTriangles (Meshes.sphere 1 sphere3d)
         , kind = Particle x y
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 5))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))

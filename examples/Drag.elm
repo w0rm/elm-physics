@@ -135,7 +135,7 @@ update msg model =
                         |> Maybe.andThen
                             -- only allow clicks on boxes
                             (\result ->
-                                case (Body.getData result.body).id of
+                                case (Body.data result.body).id of
                                     Box _ ->
                                         Just result
 
@@ -149,7 +149,7 @@ update msg model =
                     -- with selected body
                     let
                         worldPosition =
-                            Point3d.placeIn (Body.getFrame3d raycastResult.body) raycastResult.point
+                            Point3d.placeIn (Body.frame raycastResult.body) raycastResult.point
                     in
                     ( { model
                         | maybeRaycastResult = maybeRaycastResult
@@ -158,7 +158,7 @@ update msg model =
                                 |> World.add (Body.moveTo worldPosition mouse)
                                 |> World.constrain
                                     (\b1 b2 ->
-                                        if (Body.getData b1).id == Mouse && (Body.getData b2).id == (Body.getData raycastResult.body).id then
+                                        if (Body.data b1).id == Mouse && (Body.data b2).id == (Body.data raycastResult.body).id then
                                             [ Constraint.pointToPoint
                                                 Point3d.origin
                                                 raycastResult.point
@@ -190,7 +190,7 @@ update msg model =
                         p0 =
                             -- Transform local point on body into world coordinates
                             raycastResult.point
-                                |> Point3d.placeIn (Body.getFrame3d raycastResult.body)
+                                |> Point3d.placeIn (Body.frame raycastResult.body)
                                 |> Point3d.toMeters
 
                         n =
@@ -212,7 +212,7 @@ update msg model =
                         | world =
                             World.update
                                 (\b ->
-                                    if (Body.getData b).id == Mouse then
+                                    if (Body.data b).id == Mouse then
                                         Body.moveTo (Point3d.fromMeters intersection) b
 
                                     else
@@ -232,7 +232,7 @@ update msg model =
                 | maybeRaycastResult = Nothing
                 , world =
                     World.keepIf
-                        (Body.getData >> .id >> (/=) Mouse)
+                        (Body.data >> .id >> (/=) Mouse)
                         model.world
               }
             , Cmd.none
@@ -268,7 +268,7 @@ view { settings, fps, world, camera, maybeRaycastResult } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.getBodies world))
+            Fps.view fps (List.length (World.bodies world))
 
           else
             Html.text ""
@@ -278,7 +278,7 @@ view { settings, fps, world, camera, maybeRaycastResult } =
 initialWorld : World Data
 initialWorld =
     World.empty
-        |> World.setGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
+        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
         |> World.add
             (box 1
@@ -331,7 +331,7 @@ box id =
         { id = Box id
         , meshes = Meshes.fromTriangles (Meshes.block block3d)
         }
-        |> Body.setBehavior (Body.dynamic (Mass.kilograms 10))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 10))
 
 
 {-| An empty body with zero mass, rendered as a sphere.

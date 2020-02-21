@@ -17,8 +17,6 @@ import Html.Events exposing (onCheck, onClick)
 
 type alias Settings =
     { debugContacts : Bool -- Set to True to see collision points
-    , debugNormals : Bool -- Set to True to see normal spikes
-    , debugEdges : Bool -- Set to True to see edge markers
     , debugWireframes : Bool -- Set to True to see wireframes
     , debugCenterOfMass : Bool -- Set to True to see center of mass
     , showFpsMeter : Bool
@@ -28,8 +26,6 @@ type alias Settings =
 
 type SettingsMsg
     = ToggleContacts Bool
-    | ToggleNormals Bool
-    | ToggleEdges Bool
     | ToggleWireframes Bool
     | ToggleFpsMeter Bool
     | ToggleCenterOfMass Bool
@@ -39,8 +35,6 @@ type SettingsMsg
 settings : Settings
 settings =
     { debugContacts = False
-    , debugNormals = False
-    , debugEdges = False
     , debugWireframes = False
     , showSettings = False
     , showFpsMeter = False
@@ -57,12 +51,6 @@ update msg model =
         ToggleContacts debugContacts ->
             { model | debugContacts = debugContacts }
 
-        ToggleNormals debugNormals ->
-            { model | debugNormals = debugNormals }
-
-        ToggleEdges debugEdges ->
-            { model | debugEdges = debugEdges }
-
         ToggleWireframes debugWireframes ->
             { model | debugWireframes = debugWireframes }
 
@@ -74,7 +62,7 @@ update msg model =
 
 
 view : (SettingsMsg -> msg) -> Settings -> List (Html msg) -> Html msg
-view msg { showSettings, debugContacts, debugNormals, debugEdges, debugWireframes, debugCenterOfMass, showFpsMeter } extraContent =
+view msg { showSettings, debugContacts, debugWireframes, debugCenterOfMass, showFpsMeter } extraContent =
     Html.div
         [ style "position" "fixed"
         , style "right" "6px"
@@ -92,8 +80,6 @@ view msg { showSettings, debugContacts, debugNormals, debugEdges, debugWireframe
                 ]
                 ([ checkbox (ToggleContacts >> msg) debugContacts "collision points"
                  , checkbox (ToggleCenterOfMass >> msg) debugCenterOfMass "center of mass"
-                 , checkbox (ToggleNormals >> msg) debugNormals "normals"
-                 , checkbox (ToggleEdges >> msg) debugEdges "unique edges"
                  , checkbox (ToggleWireframes >> msg) debugWireframes "wireframes"
                  , checkbox (ToggleFpsMeter >> msg) showFpsMeter "fps meter"
                  ]
