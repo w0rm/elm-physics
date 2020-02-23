@@ -7,7 +7,8 @@ module ConvexTest exposing
     )
 
 import Array exposing (Array)
-import Expect exposing (Expectation)
+import Expect
+import Extra.Expect as Expect
 import Fixtures.Convex
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
@@ -135,7 +136,7 @@ initFaceNormal =
     describe "Convex.initFaceNormal"
         [ test "works for the box" <|
             \_ ->
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> (\{ faces } ->
                             List.map
                                 (\{ vertices } ->
@@ -148,7 +149,7 @@ initFaceNormal =
                     |> Expect.equal boxNormals
         , test "box-specific bypass optimization works identically" <|
             \_ ->
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> .faces
                     |> List.map .normal
                     |> Expect.equal boxNormals
@@ -156,86 +157,39 @@ initFaceNormal =
             \_ ->
                 xRotationRingSequence
                     |> toRightTriangles xyRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal faceIndices)
-                    |> expectListVec3WithinPrecision
-                        xNormalRingSequence
+                    |> List.map (legacyInitFaceNormal faceIndices)
+                    |> Expect.vec3s xNormalRingSequence
         , test "works for a left-handed triangle flipped around the x axis" <|
             \_ ->
                 xRotationRingSequence
                     |> toRightTriangles xyRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal backFaceIndices)
-                    |> expectListVec3WithinPrecision
-                        xAntiNormalRingSequence
+                    |> List.map (legacyInitFaceNormal backFaceIndices)
+                    |> Expect.vec3s xAntiNormalRingSequence
         , test "works for a right-handed triangle flipped around the y axis" <|
             \_ ->
                 yRotationRingSequence
                     |> toRightTriangles yzRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal faceIndices)
-                    |> expectListVec3WithinPrecision
-                        yNormalRingSequence
+                    |> List.map (legacyInitFaceNormal faceIndices)
+                    |> Expect.vec3s yNormalRingSequence
         , test "works for a left-handed triangle flipped around the y axis" <|
             \_ ->
                 yRotationRingSequence
                     |> toRightTriangles yzRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal backFaceIndices)
-                    |> expectListVec3WithinPrecision
-                        yAntiNormalRingSequence
+                    |> List.map (legacyInitFaceNormal backFaceIndices)
+                    |> Expect.vec3s yAntiNormalRingSequence
         , test "works for a right-handed triangle flipped around the z axis" <|
             \_ ->
                 zRotationRingSequence
                     |> toRightTriangles zxRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal faceIndices)
-                    |> expectListVec3WithinPrecision
-                        zNormalRingSequence
+                    |> List.map (legacyInitFaceNormal faceIndices)
+                    |> Expect.vec3s zNormalRingSequence
         , test "works for a left-handed triangle flipped around the z axis" <|
             \_ ->
                 zRotationRingSequence
                     |> toRightTriangles zxRightTriangle
-                    |> List.map
-                        (legacyInitFaceNormal backFaceIndices)
-                    |> expectListVec3WithinPrecision
-                        zAntiNormalRingSequence
+                    |> List.map (legacyInitFaceNormal backFaceIndices)
+                    |> Expect.vec3s zAntiNormalRingSequence
         ]
-
-
-{-| Force point equality for a point within a radius epsilon
-== sqrt (Const.precision) of its expected position.
--}
-normalizeVec3Towards : Vec3 -> Vec3 -> Vec3
-normalizeVec3Towards approximation canonical =
-    if
-        (approximation == canonical)
-            || ((Vec3.sub approximation canonical
-                    |> Vec3.lengthSquared
-                )
-                    - Const.precision
-                    < 0
-               )
-    then
-        canonical
-
-    else
-        approximation
-
-
-{-|
-
-    Substitute a less precise test for Equals without sacrificing
-    the detailed reporting on failure.
-
--}
-expectListVec3WithinPrecision : List Vec3 -> List Vec3 -> Expectation
-expectListVec3WithinPrecision actualList expectedList =
-    List.map2
-        normalizeVec3Towards
-        actualList
-        expectedList
-        |> Expect.equal expectedList
 
 
 listRingRotate : Int -> List a -> List a
@@ -267,7 +221,7 @@ initUniqueEdges =
         -- even with varying equivalent representations.
         [ test "gives the correct number of edges for a box" <|
             \_ ->
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> uniqueEdgesOfConvex
                     |> List.length
                     |> Expect.equal 3
@@ -328,7 +282,7 @@ addFaceEdges =
                         , Vec3.k
                         ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with negatively directed seeds" <|
@@ -340,7 +294,7 @@ addFaceEdges =
                         , { x = 0, y = 0, z = -1 }
                         ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with partial seeds" <|
@@ -354,7 +308,7 @@ addFaceEdges =
                         , Vec3.k
                         ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with different partial seeds" <|
@@ -366,7 +320,7 @@ addFaceEdges =
                     partialSeedSet =
                         [ Vec3.k ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with other different partial seeds" <|
@@ -378,7 +332,7 @@ addFaceEdges =
                     partialSeedSet =
                         [ Vec3.j ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with approximate seeds" <|
@@ -397,7 +351,7 @@ addFaceEdges =
                         , { x = 0, y = 0, z = -1 - Const.precision / 3.0 }
                         ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> addEdgesOfConvex validSeedSet
                     |> Expect.equal validSeedSet
         , test "works for the box with invalid seeds" <|
@@ -422,7 +376,7 @@ addFaceEdges =
                         , { x = 1, y = 0, z = Const.precision * 3.0 }
                         ]
                 in
-                Fixtures.Convex.boxHull 1
+                Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex invalidSeedSet
                     |> Expect.equal (List.length invalidSeedSet + 3)
 
@@ -473,7 +427,7 @@ boxUniqueEdges =
         [ test "works for the box" <|
             \_ ->
                 Expect.equal
-                    (Fixtures.Convex.boxHull 1).uniqueEdges
+                    (Convex.fromBlock 1 1 1).uniqueEdges
                     [ Vec3.i
                     , Vec3.j
                     , Vec3.k

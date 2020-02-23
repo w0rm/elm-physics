@@ -1,12 +1,10 @@
 module Fixtures.Convex exposing
     ( askewSquarePyramid
-    , boxHull
     , boxVertexIndices
     , nonSquareQuadPyramid
     , octoHull
     , octoVertexIndices
     , octoVertices
-    , originalBoxHull
     , originalOctoHull
     , squareLikePyramid
     , squarePyramid
@@ -20,19 +18,6 @@ import Internal.Vector3 exposing (Vec3)
 
 
 -- Test data generators
-
-
-{-| A Convex for a cube with the given half-extent, constructed
-using optimized box-specific initializers.
--}
-boxHull : Float -> Convex
-boxHull halfExtent =
-    Convex.fromBlock halfExtent halfExtent halfExtent
-
-
-originalBoxHull : Float -> Convex
-originalBoxHull halfExtent =
-    Convex.fromBlock halfExtent halfExtent halfExtent
 
 
 boxVertexIndices : List (List Int)

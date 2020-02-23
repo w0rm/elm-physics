@@ -1,6 +1,5 @@
 module Fixtures.NarrowPhase exposing
-    ( completeSphereContactEquation
-    , sphereContactBoxPositions
+    ( sphereContactBoxPositions
     , sphereContactOctohedronPositions
     )
 

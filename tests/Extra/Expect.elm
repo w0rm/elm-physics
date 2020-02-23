@@ -1,4 +1,4 @@
-module Extra.Expect exposing (contacts, frame3d, vec3)
+module Extra.Expect exposing (contacts, frame3d, vec3, vec3s)
 
 import Direction3d
 import Expect exposing (Expectation, FloatingPointTolerance(..))
@@ -11,6 +11,11 @@ import Point3d
 contacts : List Contact -> List Contact -> Expectation
 contacts =
     expectList contact
+
+
+vec3s : List Vec3 -> List Vec3 -> Expectation
+vec3s =
+    expectList vec3
 
 
 contact : Contact -> Contact -> Expectation
