@@ -2,7 +2,7 @@
 
 ![elm-physics](https://raw.githubusercontent.com/w0rm/elm-physics/master/elm-physics.gif)
 
-A highly experimental toy physics engine in [Elm](http://elm-lang.org/).
+Experimental toy physics engine.
 
 # Examples
 
