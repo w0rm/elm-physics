@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, withBehavior
-    , frame, originPoint, centerOfMass, velocity, angularVelocity
+    , frame, originPoint, velocity, angularVelocity, centerOfMass
     , moveTo, translateBy, rotateAround
     , data, withData
     , applyForce, applyImpulse
@@ -20,7 +20,7 @@ module Physics.Body exposing
 
 ## Properties
 
-@docs frame, originPoint, centerOfMass, velocity, angularVelocity
+@docs frame, originPoint, velocity, angularVelocity, centerOfMass
 
 
 ## Position and orientation
@@ -254,13 +254,6 @@ originPoint (Protected { transform3d, centerOfMassTransform3d }) =
         (Transform3d.originPoint bodyCoordinatesTransform3d)
 
 
-{-| Get the center of mass of a body.
--}
-centerOfMass : Body data -> Point3d Meters BodyCoordinates
-centerOfMass (Protected { centerOfMassTransform3d }) =
-    Point3d.fromMeters (Transform3d.originPoint centerOfMassTransform3d)
-
-
 {-| Get the linear velocity of a body
 -}
 velocity : Body data -> Vector3d MetersPerSecond WorldCoordinates
@@ -273,6 +266,13 @@ velocity (Protected body) =
 angularVelocity : Body data -> Vector3d RadiansPerSecond WorldCoordinates
 angularVelocity (Protected body) =
     Vector3d.unsafe body.angularVelocity
+
+
+{-| Get the center of mass of a body in the body coordinate system.
+-}
+centerOfMass : Body data -> Point3d Meters BodyCoordinates
+centerOfMass (Protected { centerOfMassTransform3d }) =
+    Point3d.fromMeters (Transform3d.originPoint centerOfMassTransform3d)
 
 
 {-| Set the position of the body in the world,
