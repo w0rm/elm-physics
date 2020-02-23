@@ -31,6 +31,7 @@ import Mass
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint
 import Physics.World as World exposing (RaycastResult, World)
+import Plane3d
 import Point3d
 import Sphere3d
 
@@ -127,20 +128,20 @@ update msg model =
             let
                 maybeRaycastResult =
                     model.world
+                        -- only allow clicks on boxes
+                        |> World.keepIf
+                            (\body ->
+                                case (Body.data body).id of
+                                    Box _ ->
+                                        True
+
+                                    _ ->
+                                        False
+                            )
                         |> World.raycast
                             (Axis3d.through
                                 (Point3d.fromMeters model.camera.from)
                                 (Direction3d.unsafe direction)
-                            )
-                        |> Maybe.andThen
-                            -- only allow clicks on boxes
-                            (\result ->
-                                case (Body.data result.body).id of
-                                    Box _ ->
-                                        Just result
-
-                                    _ ->
-                                        Nothing
                             )
             in
             case maybeRaycastResult of
@@ -183,40 +184,35 @@ update msg model =
                         -- of the newDirection from the camera and a plane,
                         -- that is defined by the camera direction
                         -- and a point from the raycastResult
-                        -- https://samsymons.com/blog/math-notes-ray-plane-intersection/
-                        r0 =
-                            model.camera.from
+                        mouseRay =
+                            Axis3d.through
+                                (Point3d.fromMeters model.camera.from)
+                                (Direction3d.unsafe newDirection)
 
-                        p0 =
-                            -- Transform local point on body into world coordinates
-                            raycastResult.point
-                                |> Point3d.placeIn (Body.frame raycastResult.body)
-                                |> Point3d.toMeters
+                        worldPoint =
+                            Point3d.placeIn
+                                (Body.frame raycastResult.body)
+                                raycastResult.point
 
-                        n =
-                            Direction3d.from (Point3d.fromMeters model.camera.from) (Point3d.fromMeters model.camera.to)
-                                |> Maybe.withDefault Direction3d.z
-                                |> Direction3d.unwrap
-
-                        t =
-                            ((n.x * (p0.x - r0.x)) + (n.y * (p0.y - r0.y)) + (n.z * (p0.z - r0.z)))
-                                / ((n.x * newDirection.x) + (n.y * newDirection.y) + (n.z * newDirection.z))
-
-                        intersection =
-                            { x = r0.x + newDirection.x * t
-                            , y = r0.y + newDirection.y * t
-                            , z = r0.z + newDirection.z * t
-                            }
+                        plane =
+                            Plane3d.through
+                                worldPoint
+                                (Direction3d.unsafe newDirection)
                     in
                     ( { model
                         | world =
                             World.update
-                                (\b ->
-                                    if (Body.data b).id == Mouse then
-                                        Body.moveTo (Point3d.fromMeters intersection) b
+                                (\body ->
+                                    if (Body.data body).id == Mouse then
+                                        case Axis3d.intersectionWithPlane plane mouseRay of
+                                            Just intersection ->
+                                                Body.moveTo intersection body
+
+                                            Nothing ->
+                                                body
 
                                     else
-                                        b
+                                        body
                                 )
                                 model.world
                       }
@@ -227,7 +223,7 @@ update msg model =
                     ( model, Cmd.none )
 
         MouseUp _ ->
-            -- remove temporary body on mouse up
+            -- remove the temporary body on mouse up
             ( { model
                 | maybeRaycastResult = Nothing
                 , world =
