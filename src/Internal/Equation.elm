@@ -16,40 +16,11 @@ import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-type alias ContactEquation =
-    { ri : Vec3 -- vector from the center of body1 to the contact point
-    , rj : Vec3 -- vector from body2 position to the contact point
-    , ni : Vec3 -- contact normal, pointing out of body1
-    , bounciness : Float -- u1 = -e*u0
-    }
-
-
-type alias RotationalEquation =
-    { ni : Vec3
-    , nj : Vec3
-    , maxAngle : Float
-    }
-
-
-type alias FrictionEquation =
-    { t : Vec3 -- tangent
-    , ri : Vec3
-    , rj : Vec3
-    }
-
-
-type EquationKind
-    = Contact ContactEquation
-    | Rotational RotationalEquation
-    | Friction FrictionEquation
-
-
 type alias Equation =
-    { kind : EquationKind
-    , minForce : Float
+    { minForce : Float
     , maxForce : Float
-    , solverBs : Float
-    , solverInvCs : Float
+    , solverB : Float
+    , solverInvC : Float
     , spookA : Float
     , spookB : Float
     , spookEps : Float
@@ -141,24 +112,25 @@ addDistanceConstraintEquations dt body1 body2 distance =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
     (::)
-        (initSolverParams dt
+        (initSolverParams
+            (computeContactB
+                0
+                { pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
+                , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
+                , ni = ni
+                }
+            )
+            dt
             body1
             body2
-            { kind =
-                Contact
-                    { ri = ri
-                    , rj = rj
-                    , ni = ni
-                    , bounciness = 0
-                    }
-            , minForce = -1000000
+            { minForce = -1000000
             , maxForce = 1000000
-            , solverBs = 0
-            , solverInvCs = 0
+            , solverB = 0
+            , solverInvC = 0
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.negate (Vec3.cross ri ni)
+            , wA = Vec3.cross ni ri
             , vB = ni
             , wB = Vec3.cross rj ni
             }
@@ -192,19 +164,20 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
         nj2 =
             worldAxis2
     in
-    initSolverParams dt
+    initSolverParams
+        (computeRotationalB
+            { ni = ni1
+            , nj = nj1
+            , maxAngleCos = 0 -- cos (pi / 2)
+            }
+        )
+        dt
         body1
         body2
-        { kind =
-            Rotational
-                { ni = ni1
-                , nj = nj1
-                , maxAngle = pi / 2
-                }
-        , minForce = -1000000
+        { minForce = -1000000
         , maxForce = 1000000
-        , solverBs = 0
-        , solverInvCs = 0
+        , solverB = 0
+        , solverInvC = 0
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
@@ -212,19 +185,20 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
         , vB = Vec3.zero
         , wB = Vec3.cross ni1 nj1
         }
-        :: initSolverParams dt
+        :: initSolverParams
+            (computeRotationalB
+                { ni = ni2
+                , nj = nj2
+                , maxAngleCos = 0 -- cos (pi / 2)
+                }
+            )
+            dt
             body1
             body2
-            { kind =
-                Rotational
-                    { ni = ni2
-                    , nj = nj2
-                    , maxAngle = pi / 2
-                    }
-            , minForce = -1000000
+            { minForce = -1000000
             , maxForce = 1000000
-            , solverBs = 0
-            , solverInvCs = 0
+            , solverB = 0
+            , solverInvC = 0
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
@@ -256,24 +230,24 @@ addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2 equations =
     List.foldl
         (\ni ->
             (::)
-                (initSolverParams dt
+                (initSolverParams
+                    (computeContactB 0
+                        { pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
+                        , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
+                        , ni = ni
+                        }
+                    )
+                    dt
                     body1
                     body2
-                    { kind =
-                        Contact
-                            { ri = ri
-                            , rj = rj
-                            , ni = ni
-                            , bounciness = 0
-                            }
-                    , minForce = -1000000
+                    { minForce = -1000000
                     , maxForce = 1000000
-                    , solverBs = 0
-                    , solverInvCs = 0
+                    , solverB = 0
+                    , solverInvC = 0
                     , spookA = spookA
                     , spookB = spookB
                     , spookEps = spookEps
-                    , wA = Vec3.negate (Vec3.cross ri ni)
+                    , wA = Vec3.cross ni ri
                     , vB = ni
                     , wB = Vec3.cross rj ni
                     }
@@ -304,54 +278,51 @@ addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations
         spookEps =
             4.0 / (dt * dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
-    initSolverParams dt
+    initSolverParams
+        (computeContactB bounciness contact)
+        dt
         body1
         body2
-        { kind =
-            Contact
-                { ri = ri
-                , rj = rj
-                , ni = contact.ni
-                , bounciness = bounciness
-                }
-        , minForce = 0
+        { minForce = 0
         , maxForce = 1000000
-        , solverBs = 0
-        , solverInvCs = 0
+        , solverB = 0
+        , solverInvC = 0
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , wA = Vec3.negate (Vec3.cross ri contact.ni)
+        , wA = Vec3.cross contact.ni ri
         , vB = contact.ni
         , wB = Vec3.cross rj contact.ni
         }
-        :: initSolverParams dt
+        :: initSolverParams
+            computeFrictionB
+            dt
             body1
             body2
-            { kind = Friction { ri = ri, rj = rj, t = t1 }
-            , minForce = -maxFrictionForce
+            { minForce = -maxFrictionForce
             , maxForce = maxFrictionForce
-            , solverBs = 0
-            , solverInvCs = 0
+            , solverB = 0
+            , solverInvC = 0
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.negate (Vec3.cross ri t1)
+            , wA = Vec3.cross t1 ri
             , vB = t1
             , wB = Vec3.cross rj t1
             }
-        :: initSolverParams dt
+        :: initSolverParams
+            computeFrictionB
+            dt
             body1
             body2
-            { kind = Friction { ri = ri, rj = rj, t = t2 }
-            , minForce = -maxFrictionForce
+            { minForce = -maxFrictionForce
             , maxForce = maxFrictionForce
-            , solverBs = 0
-            , solverInvCs = 0
+            , solverB = 0
+            , solverInvC = 0
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.negate (Vec3.cross ri t2)
+            , wA = Vec3.cross t2 ri
             , vB = t2
             , wB = Vec3.cross rj t2
             }
@@ -374,15 +345,17 @@ type alias SolverEquation =
     }
 
 
-initSolverParams : Float -> Body data -> Body data -> Equation -> SolverEquation
-initSolverParams dt bi bj solverEquation =
+initSolverParams : ComputeB data -> Float -> Body data -> Body data -> Equation -> SolverEquation
+initSolverParams computeB dt bi bj solverEquation =
     { solverLambda = 0
     , equation =
-        { kind = solverEquation.kind
-        , minForce = solverEquation.minForce
+        { minForce = solverEquation.minForce
         , maxForce = solverEquation.maxForce
-        , solverBs = computeB dt bi bj solverEquation
-        , solverInvCs = 1 / computeC bi bj solverEquation
+        , solverB =
+            -- the RHS of the SPOOK equation
+            computeB bi bj solverEquation
+                - (dt * computeGiMf bi bj solverEquation)
+        , solverInvC = 1 / computeC bi bj solverEquation
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
@@ -393,68 +366,53 @@ initSolverParams dt bi bj solverEquation =
     }
 
 
-{-| Computes the RHS of the SPOOK equation
--}
-computeB : Float -> Body data -> Body data -> Equation -> Float
-computeB dt bi bj solverEquation =
-    case solverEquation.kind of
-        Contact contactEquation ->
-            computeContactB dt bi bj solverEquation contactEquation
-
-        Rotational rotationalEquation ->
-            computeRotationalB dt bi bj solverEquation rotationalEquation
-
-        Friction frictionEquation ->
-            computeFrictionB dt bi bj solverEquation frictionEquation
+type alias ComputeB data =
+    Body data -> Body data -> Equation -> Float
 
 
-computeContactB : Float -> Body data -> Body data -> Equation -> ContactEquation -> Float
-computeContactB dt bi bj ({ spookA, spookB } as solverEquation) { bounciness, ri, rj, ni } =
+computeContactB : Float -> Contact -> ComputeB data
+computeContactB bounciness { pi, pj, ni } bi bj { spookA, spookB, wA, wB } =
     let
         g =
-            Transform3d.originPoint bj.transform3d
-                |> Vec3.add rj
-                |> Vec3.add (Vec3.negate (Transform3d.originPoint bi.transform3d))
-                |> Vec3.add (Vec3.negate ri)
-                |> Vec3.dot ni
+            ((pj.x - pi.x) * ni.x)
+                + ((pj.y - pi.y) * ni.y)
+                + ((pj.z - pi.z) * ni.z)
 
         gW =
             (bounciness + 1)
                 * (Vec3.dot bj.velocity ni - Vec3.dot bi.velocity ni)
-                + Vec3.dot bj.angularVelocity (Vec3.cross rj ni)
-                - Vec3.dot bi.angularVelocity (Vec3.cross ri ni)
-
-        giMf =
-            computeGiMf bi bj solverEquation
+                + Vec3.dot bj.angularVelocity wB
+                + Vec3.dot bi.angularVelocity wA
     in
-    -g * spookA - gW * spookB - dt * giMf
+    -g * spookA - gW * spookB
 
 
-computeRotationalB : Float -> Body data -> Body data -> Equation -> RotationalEquation -> Float
-computeRotationalB dt bi bj ({ spookA, spookB } as solverEquation) { ni, nj, maxAngle } =
+type alias RotationalEquation =
+    { ni : Vec3
+    , nj : Vec3
+    , maxAngleCos : Float
+    }
+
+
+computeRotationalB : RotationalEquation -> ComputeB data
+computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEquation) =
     let
         g =
-            cos maxAngle - Vec3.dot ni nj
+            maxAngleCos - Vec3.dot ni nj
 
         gW =
             computeGW bi bj solverEquation
-
-        giMf =
-            computeGiMf bi bj solverEquation
     in
-    -g * spookA - gW * spookB - dt * giMf
+    -g * spookA - gW * spookB
 
 
-computeFrictionB : Float -> Body data -> Body data -> Equation -> FrictionEquation -> Float
-computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
+computeFrictionB : ComputeB data
+computeFrictionB bi bj ({ spookB } as solverEquation) =
     let
         gW =
             computeGW bi bj solverEquation
-
-        giMf =
-            computeGiMf bi bj solverEquation
     in
-    -gW * spookB - dt * giMf
+    -gW * spookB
 
 
 {-| Computes G x inv(M) x f, where

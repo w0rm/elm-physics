@@ -164,7 +164,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
 
         { solverLambda, equation } :: remainingEquations ->
             let
-                { wA, vB, wB, minForce, maxForce, solverBs, spookEps, solverInvCs } =
+                { wA, vB, wB, minForce, maxForce, solverB, spookEps, solverInvC } =
                     equation
 
                 -- G x Wlambda, where W are the body velocities
@@ -175,7 +175,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         + (wB.x * body2.wX + wB.y * body2.wY + wB.z * body2.wZ)
 
                 deltalambdaPrev =
-                    solverInvCs * (solverBs - gWlambda - spookEps * solverLambda)
+                    solverInvC * (solverB - gWlambda - spookEps * solverLambda)
 
                 deltalambda =
                     if solverLambda + deltalambdaPrev - minForce < 0 then
