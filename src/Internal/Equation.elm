@@ -55,9 +55,8 @@ type alias Equation =
     , spookA : Float
     , spookB : Float
     , spookEps : Float
-    , vA : Vec3
     , wA : Vec3
-    , vB : Vec3
+    , vB : Vec3 -- vA = Vec3.negate vB
     , wB : Vec3
     }
 
@@ -161,7 +160,6 @@ addDistanceConstraintEquations dt body1 body2 distance =
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , vA = Vec3.negate ni
             , wA = Vec3.negate (Vec3.cross ri ni)
             , vB = ni
             , wB = Vec3.cross rj ni
@@ -212,7 +210,6 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , vA = Vec3.zero
         , wA = Vec3.cross nj1 ni1
         , vB = Vec3.zero
         , wB = Vec3.cross ni1 nj1
@@ -233,7 +230,6 @@ addRotationalConstraintEquations dt body1 body2 axis1 axis2 equations =
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , vA = Vec3.zero
             , wA = Vec3.cross nj2 ni2
             , vB = Vec3.zero
             , wB = Vec3.cross ni2 nj2
@@ -279,7 +275,6 @@ addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2 equations =
                     , spookA = spookA
                     , spookB = spookB
                     , spookEps = spookEps
-                    , vA = Vec3.negate ni
                     , wA = Vec3.negate (Vec3.cross ri ni)
                     , vB = ni
                     , wB = Vec3.cross rj ni
@@ -328,7 +323,6 @@ addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , vA = Vec3.negate contact.ni
         , wA = Vec3.negate (Vec3.cross ri contact.ni)
         , vB = contact.ni
         , wB = Vec3.cross rj contact.ni
@@ -344,7 +338,6 @@ addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , vA = Vec3.negate t1
             , wA = Vec3.negate (Vec3.cross ri t1)
             , vB = t1
             , wB = Vec3.cross rj t1
@@ -360,7 +353,6 @@ addContactEquations dt maxFrictionForce bounciness body1 body2 contact equations
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , vA = Vec3.negate t2
             , wA = Vec3.negate (Vec3.cross ri t2)
             , vB = t2
             , wB = Vec3.cross rj t2
@@ -396,7 +388,6 @@ initSolverParams dt bi bj solverEquation =
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
-        , vA = solverEquation.vA
         , wA = solverEquation.wA
         , vB = solverEquation.vB
         , wB = solverEquation.wB
@@ -475,7 +466,7 @@ computeFrictionB dt bi bj ({ spookB } as solverEquation) _ =
 
 -}
 computeGiMf : Body data -> Body data -> Equation -> Float
-computeGiMf bi bj { vA, wA, vB, wB } =
+computeGiMf bi bj { wA, vB, wB } =
     let
         biV =
             Vec3.scale bi.invMass bi.force
@@ -489,7 +480,7 @@ computeGiMf bi bj { vA, wA, vB, wB } =
         bjW =
             Mat3.transform bj.invInertiaWorld bj.torque
     in
-    (vA.x * biV.x + vA.y * biV.y + vA.z * biV.z)
+    -(vB.x * biV.x + vB.y * biV.y + vB.z * biV.z)
         + (wA.x * biW.x + wA.y * biW.y + wA.z * biW.z)
         + (vB.x * bjV.x + vB.y * bjV.y + vB.z * bjV.z)
         + (wB.x * bjW.x + wB.y * bjW.y + wB.z * bjW.z)
@@ -509,18 +500,18 @@ computeC bi bj { wA, wB, spookEps } =
 {-| Computes G x Wlambda, where W are the body velocities
 -}
 computeGWlambda : SolverBody data -> SolverBody data -> Equation -> Float
-computeGWlambda bi bj { vA, wA, vB, wB } =
-    (vA.x * bi.vlambda.x + vA.y * bi.vlambda.y + vA.z * bi.vlambda.z)
-        + (wA.x * bi.wlambda.x + wA.y * bi.wlambda.y + wA.z * bi.wlambda.z)
-        + (vB.x * bj.vlambda.x + vB.y * bj.vlambda.y + vB.z * bj.vlambda.z)
-        + (wB.x * bj.wlambda.x + wB.y * bj.wlambda.y + wB.z * bj.wlambda.z)
+computeGWlambda bi bj { wA, vB, wB } =
+    -(vB.x * bi.vX + vB.y * bi.vY + vB.z * bi.vZ)
+        + (wA.x * bi.wX + wA.y * bi.wY + wA.z * bi.wZ)
+        + (vB.x * bj.vX + vB.y * bj.vY + vB.z * bj.vZ)
+        + (wB.x * bj.wX + wB.y * bj.wY + wB.z * bj.wZ)
 
 
 {-| Computes G x W, where W are the body velocities
 -}
 computeGW : Body data -> Body data -> Equation -> Float
-computeGW bi bj { vA, wA, vB, wB } =
-    (vA.x * bi.velocity.x + vA.y * bi.velocity.y + vA.z * bi.velocity.z)
+computeGW bi bj { wA, vB, wB } =
+    -(vB.x * bi.velocity.x + vB.y * bi.velocity.y + vB.z * bi.velocity.z)
         + (wA.x * bi.angularVelocity.x + wA.y * bi.angularVelocity.y + wA.z * bi.angularVelocity.z)
         + (vB.x * bj.velocity.x + vB.y * bj.velocity.y + vB.z * bj.velocity.z)
         + (wB.x * bj.angularVelocity.x + wB.y * bj.angularVelocity.y + wB.z * bj.angularVelocity.z)
