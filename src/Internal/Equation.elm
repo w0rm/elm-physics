@@ -2,7 +2,6 @@ module Internal.Equation exposing
     ( Equation
     , EquationsGroup
     , SolverEquation
-    , computeGWlambda
     , constraintEquationsGroup
     , contactEquationsGroup
     )
@@ -13,7 +12,6 @@ import Internal.Contact exposing (Contact, ContactGroup)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material
 import Internal.Matrix3 as Mat3
-import Internal.SolverBody exposing (SolverBody)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -495,16 +493,6 @@ computeC bi bj { wA, wB, spookEps } =
         + Vec3.dot (Mat3.transform bi.invInertiaWorld wA) wA
         + Vec3.dot (Mat3.transform bj.invInertiaWorld wB) wB
         + spookEps
-
-
-{-| Computes G x Wlambda, where W are the body velocities
--}
-computeGWlambda : SolverBody data -> SolverBody data -> Equation -> Float
-computeGWlambda bi bj { wA, vB, wB } =
-    -(vB.x * bi.vX + vB.y * bi.vY + vB.z * bi.vZ)
-        + (wA.x * bi.wX + wA.y * bi.wY + wA.z * bi.wZ)
-        + (vB.x * bj.vX + vB.y * bj.vY + vB.z * bj.vZ)
-        + (wB.x * bj.wX + wB.y * bj.wY + wB.z * bj.wZ)
 
 
 {-| Computes G x W, where W are the body velocities

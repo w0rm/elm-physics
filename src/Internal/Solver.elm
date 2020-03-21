@@ -158,31 +158,64 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = List.reverse equations
+            , equations = equations -- reversing doesn’t impact simulation
             , deltalambdaTot = deltalambdaTot
             }
 
         { solverLambda, equation } :: remainingEquations ->
             let
+                { wA, vB, wB, minForce, maxForce, solverBs, spookEps, solverInvCs } =
+                    equation
+
+                -- G x Wlambda, where W are the body velocities
                 gWlambda =
-                    Equation.computeGWlambda body1 body2 equation
+                    -(vB.x * body1.vX + vB.y * body1.vY + vB.z * body1.vZ)
+                        + (wA.x * body1.wX + wA.y * body1.wY + wA.z * body1.wZ)
+                        + (vB.x * body2.vX + vB.y * body2.vY + vB.z * body2.vZ)
+                        + (wB.x * body2.wX + wB.y * body2.wY + wB.z * body2.wZ)
 
                 deltalambdaPrev =
-                    equation.solverInvCs * (equation.solverBs - gWlambda - equation.spookEps * solverLambda)
+                    solverInvCs * (solverBs - gWlambda - spookEps * solverLambda)
 
                 deltalambda =
-                    if solverLambda + deltalambdaPrev - equation.minForce < 0 then
-                        equation.minForce - solverLambda
+                    if solverLambda + deltalambdaPrev - minForce < 0 then
+                        minForce - solverLambda
 
-                    else if solverLambda + deltalambdaPrev - equation.maxForce > 0 then
-                        equation.maxForce - solverLambda
+                    else if solverLambda + deltalambdaPrev - maxForce > 0 then
+                        maxForce - solverLambda
 
                     else
                         deltalambdaPrev
+
+                invI1 =
+                    body1.body.invInertiaWorld
+
+                invI2 =
+                    body2.body.invInertiaWorld
+
+                k1 =
+                    deltalambda * body1.body.invMass
+
+                k2 =
+                    deltalambda * body2.body.invMass
             in
             solveEquationsGroup
-                (SolverBody.addToWlambda deltalambda -1 equation.vB equation.wA body1)
-                (SolverBody.addToWlambda deltalambda 1 equation.vB equation.wB body2)
+                { body = body1.body
+                , vX = body1.vX - k1 * vB.x
+                , vY = body1.vY - k1 * vB.y
+                , vZ = body1.vZ - k1 * vB.z
+                , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
+                , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
+                , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
+                }
+                { body = body2.body
+                , vX = body2.vX + k2 * vB.x
+                , vY = body2.vY + k2 * vB.y
+                , vZ = body2.vZ + k2 * vB.z
+                , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
+                , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
+                , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
+                }
                 ({ solverLambda = solverLambda + deltalambda
                  , equation = equation
                  }
