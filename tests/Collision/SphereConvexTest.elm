@@ -5,6 +5,7 @@ import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
 import Fixtures.NarrowPhase
+import Internal.Convex as Convex
 import Internal.Transform3d as Transform3d
 import Test exposing (Test, describe, test)
 
@@ -22,7 +23,10 @@ addContacts =
             3
 
         boxHull =
-            Fixtures.Convex.boxHull boxHalfExtent
+            Convex.fromBlock
+                boxHalfExtent
+                boxHalfExtent
+                boxHalfExtent
 
         boxFarPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions

@@ -5,7 +5,6 @@ module Internal.SolverBody exposing
     )
 
 import Internal.Body exposing (Body)
-import Internal.JacobianElement exposing (JacobianElement)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
@@ -24,8 +23,8 @@ fromBody body =
     }
 
 
-addToWlambda : Float -> JacobianElement -> SolverBody data -> SolverBody data
-addToWlambda deltalambda { spatial, rotational } { body, vlambda, wlambda } =
+addToWlambda : Float -> Vec3 -> Vec3 -> SolverBody data -> SolverBody data
+addToWlambda deltalambda spatial rotational { body, vlambda, wlambda } =
     { body = body
     , vlambda =
         {- spatial

@@ -5,6 +5,7 @@ import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
+import Internal.Vector3 as Vec3
 import Internal.World exposing (World)
 
 
@@ -37,13 +38,16 @@ makeSolverBodies nextBodyId bodies =
 solve : Float -> World data -> World data
 solve dt world =
     let
+        gravityLength =
+            Vec3.length world.gravity
+
         -- make equations from contacts
         contactEquationsGroups =
             List.foldl
                 (\contactGroup groups ->
                     Equation.contactEquationsGroup
                         dt
-                        world.gravity
+                        gravityLength
                         contactGroup
                         :: groups
                 )
@@ -93,7 +97,8 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
 
             else
                 -- requeue equationsGropus for the next step
-                step (number - 1) 0 [] (List.reverse equationsGroups) solverBodies
+                -- note this enqueues reversed equationsGroups
+                step (number - 1) 0 [] equationsGroups solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             case Array.get bodyId1 solverBodies of
@@ -154,7 +159,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = List.reverse equations
+            , equations = equations -- note this enqueues reversed equations
             , deltalambdaTot = deltalambdaTot
             }
 
@@ -177,8 +182,8 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         deltalambdaPrev
             in
             solveEquationsGroup
-                (SolverBody.addToWlambda deltalambda equation.jacobianElementA body1)
-                (SolverBody.addToWlambda deltalambda equation.jacobianElementB body2)
+                (SolverBody.addToWlambda deltalambda equation.vA equation.wA body1)
+                (SolverBody.addToWlambda deltalambda equation.vB equation.wB body2)
                 ({ solverLambda = solverLambda + deltalambda
                  , equation = equation
                  }
