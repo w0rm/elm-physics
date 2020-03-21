@@ -43,12 +43,6 @@ toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
             (1.0 - body.angularDamping) ^ dt
 
         newVelocity =
-            {- body.force
-               |> Vec3.scale (body.invMass * dt)
-               |> Vec3.add body.velocity
-               -- from the solver
-               |> Vec3.add vlambda
-            -}
             { x = body.force.x * body.invMass * dt + body.velocity.x * ld + vX
             , y = body.force.y * body.invMass * dt + body.velocity.y * ld + vY
             , z = body.force.z * body.invMass * dt + body.velocity.z * ld + vZ
@@ -72,14 +66,6 @@ toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
                 Vec3.scale (body.boundingSphereRadius / (velocityLength * dt)) newVelocity
 
         newAngularVelocity =
-            {-
-               body.torque
-                   |> Mat3.transform body.invInertiaWorld
-                   |> Vec3.scale dt
-                   |> Vec3.add body.angularVelocity
-                   -- from the solver
-                   |> Vec3.add wlambda
-            -}
             { x = (body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + wX
             , y = (body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + wY
             , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wZ

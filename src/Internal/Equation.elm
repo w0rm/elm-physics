@@ -11,7 +11,6 @@ import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material
-import Internal.Matrix3 as Mat3
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -423,23 +422,14 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
 -}
 computeGiMf : Body data -> Body data -> Equation -> Float
 computeGiMf bi bj { wA, vB, wB } =
-    let
-        biV =
-            Vec3.scale bi.invMass bi.force
-
-        biW =
-            Mat3.transform bi.invInertiaWorld bi.torque
-
-        bjV =
-            Vec3.scale bj.invMass bj.force
-
-        bjW =
-            Mat3.transform bj.invInertiaWorld bj.torque
-    in
-    -(vB.x * biV.x + vB.y * biV.y + vB.z * biV.z)
-        + (wA.x * biW.x + wA.y * biW.y + wA.z * biW.z)
-        + (vB.x * bjV.x + vB.y * bjV.y + vB.z * bjV.z)
-        + (wB.x * bjW.x + wB.y * bjW.y + wB.z * bjW.z)
+    -(vB.x * bi.invMass * bi.force.x + vB.y * bi.invMass * bi.force.y + vB.z * bi.invMass * bi.force.z)
+        + (vB.x * bj.invMass * bj.force.x + vB.y * bj.invMass * bj.force.y + vB.z * bj.invMass * bj.force.z)
+        + (wA.x * (bi.invInertiaWorld.m11 * bi.torque.x + bi.invInertiaWorld.m12 * bi.torque.y + bi.invInertiaWorld.m13 * bi.torque.z))
+        + (wA.y * (bi.invInertiaWorld.m21 * bi.torque.x + bi.invInertiaWorld.m22 * bi.torque.y + bi.invInertiaWorld.m23 * bi.torque.z))
+        + (wA.z * (bi.invInertiaWorld.m31 * bi.torque.x + bi.invInertiaWorld.m32 * bi.torque.y + bi.invInertiaWorld.m33 * bi.torque.z))
+        + (wB.x * (bj.invInertiaWorld.m11 * bj.torque.x + bj.invInertiaWorld.m12 * bj.torque.y + bj.invInertiaWorld.m13 * bj.torque.z))
+        + (wB.y * (bj.invInertiaWorld.m21 * bj.torque.x + bj.invInertiaWorld.m22 * bj.torque.y + bj.invInertiaWorld.m23 * bj.torque.z))
+        + (wB.z * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
 
 
 {-| Compute G x inv(M) x G' + eps, the denominator part of the SPOOK equation:
@@ -448,8 +438,12 @@ computeC : Body data -> Body data -> Equation -> Float
 computeC bi bj { wA, wB, spookEps } =
     bi.invMass
         + bj.invMass
-        + Vec3.dot (Mat3.transform bi.invInertiaWorld wA) wA
-        + Vec3.dot (Mat3.transform bj.invInertiaWorld wB) wB
+        + (wA.x * (bi.invInertiaWorld.m11 * wA.x + bi.invInertiaWorld.m12 * wA.y + bi.invInertiaWorld.m13 * wA.z))
+        + (wA.y * (bi.invInertiaWorld.m21 * wA.x + bi.invInertiaWorld.m22 * wA.y + bi.invInertiaWorld.m23 * wA.z))
+        + (wA.z * (bi.invInertiaWorld.m31 * wA.x + bi.invInertiaWorld.m32 * wA.y + bi.invInertiaWorld.m33 * wA.z))
+        + (wB.x * (bj.invInertiaWorld.m11 * wB.x + bj.invInertiaWorld.m12 * wB.y + bj.invInertiaWorld.m13 * wB.z))
+        + (wB.y * (bj.invInertiaWorld.m21 * wB.x + bj.invInertiaWorld.m22 * wB.y + bj.invInertiaWorld.m23 * wB.z))
+        + (wB.z * (bj.invInertiaWorld.m31 * wB.x + bj.invInertiaWorld.m32 * wB.y + bj.invInertiaWorld.m33 * wB.z))
         + spookEps
 
 
