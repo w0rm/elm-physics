@@ -64,7 +64,7 @@ addContactsHelp body1 currentBodies restBodies result =
 
 bodiesMayContact : Body data -> Body data -> Bool
 bodiesMayContact body1 body2 =
-    not (body1.mass == 0 && body2.mass == 0)
-        && (body1.boundingSphereRadius + body2.boundingSphereRadius)
+    (body1.boundingSphereRadius + body2.boundingSphereRadius)
         - Vec3.distance (Transform3d.originPoint body1.transform3d) (Transform3d.originPoint body2.transform3d)
         > 0
+        && (body1.mass /= 0 || body2.mass /= 0)
