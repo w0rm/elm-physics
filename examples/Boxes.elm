@@ -27,7 +27,7 @@ import Point3d
 
 boxesPerDimension : number
 boxesPerDimension =
-    4
+    5
 
 
 type alias Model =

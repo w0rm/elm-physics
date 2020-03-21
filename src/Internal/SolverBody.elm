@@ -1,13 +1,12 @@
 module Internal.SolverBody exposing
     ( SolverBody
-    , addToWlambda
     , fromBody
     , toBody
     )
 
 import Internal.Body as Body exposing (Body)
 import Internal.Transform3d as Transform3d
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 as Vec3
 
 
 type alias SolverBody data =
@@ -116,16 +115,4 @@ toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
     -- clear forces
     , force = Vec3.zero
     , torque = Vec3.zero
-    }
-
-
-addToWlambda : Float -> Float -> Vec3 -> Vec3 -> SolverBody data -> SolverBody data
-addToWlambda deltalambda k spatial rotational { body, vX, vY, vZ, wX, wY, wZ } =
-    { body = body
-    , vX = k * spatial.x * deltalambda * body.invMass + vX
-    , vY = k * spatial.y * deltalambda * body.invMass + vY
-    , vZ = k * spatial.z * deltalambda * body.invMass + vZ
-    , wX = (body.invInertiaWorld.m11 * rotational.x + body.invInertiaWorld.m12 * rotational.y + body.invInertiaWorld.m13 * rotational.z) * deltalambda + wX
-    , wY = (body.invInertiaWorld.m21 * rotational.x + body.invInertiaWorld.m22 * rotational.y + body.invInertiaWorld.m23 * rotational.z) * deltalambda + wY
-    , wZ = (body.invInertiaWorld.m31 * rotational.x + body.invInertiaWorld.m32 * rotational.y + body.invInertiaWorld.m33 * rotational.z) * deltalambda + wZ
     }
