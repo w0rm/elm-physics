@@ -1,7 +1,7 @@
 module Internal.Solver exposing (solve)
 
 import Array exposing (Array)
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
 import Internal.Const as Const
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
@@ -97,8 +97,7 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
 
             else
                 -- requeue equationsGropus for the next step
-                -- note this enqueues reversed equationsGroups
-                step (number - 1) 0 [] equationsGroups solverBodies
+                step (number - 1) 0 [] (List.reverse equationsGroups) solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             case Array.get bodyId1 solverBodies of
@@ -159,7 +158,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = equations -- note this enqueues reversed equations
+            , equations = List.reverse equations
             , deltalambdaTot = deltalambdaTot
             }
 
@@ -182,8 +181,8 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         deltalambdaPrev
             in
             solveEquationsGroup
-                (SolverBody.addToWlambda deltalambda equation.vA equation.wA body1)
-                (SolverBody.addToWlambda deltalambda equation.vB equation.wB body2)
+                (SolverBody.addToWlambda deltalambda -1 equation.vB equation.wA body1)
+                (SolverBody.addToWlambda deltalambda 1 equation.vB equation.wB body2)
                 ({ solverLambda = solverLambda + deltalambda
                  , equation = equation
                  }
@@ -198,22 +197,18 @@ updateBodies dt bodies world =
     let
         simulatedBodies =
             Array.map
-                (\{ body, vlambda, wlambda } ->
+                (\solverBody ->
                     -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
-                    if body.id + 1 > 0 then
+                    if solverBody.body.id + 1 > 0 then
                         -- only dynamic bodies are updated
-                        if body.mass > 0 then
-                            Body.update
-                                dt
-                                vlambda
-                                wlambda
-                                body
+                        if solverBody.body.mass > 0 then
+                            SolverBody.toBody dt solverBody
 
                         else
-                            body
+                            solverBody.body
 
                     else
-                        body
+                        solverBody.body
                 )
                 bodies
     in
