@@ -136,10 +136,6 @@ addGravity : Vec3 -> Body data -> Body data
 addGravity gravity body =
     { body
         | force =
-            {- gravity
-               |> Vec3.scale body.mass
-               |> Vec3.add body.force
-            -}
             { x = gravity.x * body.mass + body.force.x
             , y = gravity.y * body.mass + body.force.y
             , z = gravity.z * body.mass + body.force.z
@@ -274,15 +270,23 @@ applyImpulse amount direction point body =
         impulse =
             Vec3.scale amount direction
 
-        velocity =
-            Vec3.scale body.invMass impulse
+        { x, y, z } =
+            Vec3.cross relativePoint impulse
 
-        angularVelocity =
-            Mat3.transform body.invInertiaWorld (Vec3.cross relativePoint impulse)
+        { angularVelocity, invInertiaWorld, velocity, invMass } =
+            body
     in
     { body
-        | velocity = Vec3.add body.velocity velocity
-        , angularVelocity = Vec3.add body.angularVelocity angularVelocity
+        | velocity =
+            { x = velocity.x + invMass * impulse.x
+            , y = velocity.y + invMass * impulse.y
+            , z = velocity.z + invMass * impulse.z
+            }
+        , angularVelocity =
+            { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+            , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+            , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+            }
     }
 
 
