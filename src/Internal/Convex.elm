@@ -42,6 +42,7 @@ type alias Convex =
     , vertices : List Vec3 -- cached for performance
     , uniqueEdges : List Vec3 -- unique edges
     , uniqueNormals : List Vec3 -- unique face normals
+    , volume : Float
     }
 
 
@@ -55,6 +56,7 @@ init faceVertexLists vertices =
     , vertices = Array.toList vertices
     , uniqueEdges = initUniqueEdges faces
     , uniqueNormals = initUniqueNormals faces
+    , volume = 0
     }
 
 
@@ -287,6 +289,7 @@ fromBlock x y z =
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
     , uniqueEdges = [ Vec3.i, Vec3.j, Vec3.k ]
     , uniqueNormals = [ Vec3.i, Vec3.j, Vec3.k ]
+    , volume = x * y * z * 8
     }
 
 

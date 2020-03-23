@@ -76,7 +76,6 @@ block block3d =
     Protected
         { transform3d = Transform3d.fromOriginAndBasis origin x y z
         , kind = Internal.Convex (Convex.fromBlock halfX halfY halfZ)
-        , volume = Length.inMeters sizeX * Length.inMeters sizeY * Length.inMeters sizeZ
         }
 
 
@@ -93,5 +92,4 @@ sphere sphere3d =
     Protected
         { transform3d = Transform3d.atPoint origin
         , kind = Internal.Sphere radius
-        , volume = 4 / 3 * pi * (radius ^ 3)
         }

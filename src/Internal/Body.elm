@@ -55,14 +55,14 @@ centerOfMass : List (Shape BodyCoordinates) -> Vec3
 centerOfMass shapes =
     let
         totalVolume =
-            List.foldl (\{ volume } sum -> sum + volume) 0 shapes
+            List.foldl (\shape sum -> sum + Shape.volume shape) 0 shapes
     in
     if totalVolume > 0 then
         List.foldl
             (\shape ->
                 Vec3.add
                     (Vec3.scale
-                        (shape.volume / totalVolume)
+                        (Shape.volume shape / totalVolume)
                         (Transform3d.originPoint shape.transform3d)
                     )
             )
@@ -100,7 +100,6 @@ compound shapes data =
             List.map
                 (\shape ->
                     { kind = shape.kind
-                    , volume = shape.volume
                     , transform3d = Transform3d.placeIn inverseCenterOfMassTransform3d shape.transform3d
                     }
                 )

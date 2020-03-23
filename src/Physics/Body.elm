@@ -122,7 +122,6 @@ plane =
         [ InternalShape.Protected
             { transform3d = Transform3d.atOrigin
             , kind = InternalShape.Plane
-            , volume = 0
             }
         ]
 
@@ -152,7 +151,6 @@ particle =
         [ InternalShape.Protected
             { transform3d = Transform3d.atOrigin
             , kind = InternalShape.Particle
-            , volume = 0
             }
         ]
 

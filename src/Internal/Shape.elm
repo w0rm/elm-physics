@@ -5,6 +5,7 @@ module Internal.Shape exposing
     , aabbClosure
     , expandBoundingSphereRadius
     , raycast
+    , volume
     )
 
 import Internal.AABB as AABB
@@ -22,7 +23,6 @@ type Protected
 
 type alias Shape coordinates =
     { transform3d : Transform3d coordinates { defines : ShapeCoordinates }
-    , volume : Float
     , kind : Kind
     }
 
@@ -32,6 +32,22 @@ type Kind
     | Plane
     | Sphere Float
     | Particle
+
+
+volume : Shape coordinates -> Float
+volume { kind } =
+    case kind of
+        Sphere radius ->
+            4 / 3 * pi * (radius ^ 3)
+
+        Convex convex ->
+            convex.volume
+
+        Plane ->
+            0
+
+        Particle ->
+            0
 
 
 aabbClosure : Kind -> Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> AABB.AABB
