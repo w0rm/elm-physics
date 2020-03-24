@@ -11,15 +11,14 @@ module Internal.Convex exposing
     , fromBlock
     , init
     , initUniqueEdges
+    , placeIn
     , raycast
     )
 
 import Array exposing (Array)
 import Dict
-import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeCoordinates)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Physics.Coordinates exposing (WorldCoordinates)
 import Set
 
 
@@ -42,7 +41,35 @@ type alias Convex =
     , vertices : List Vec3 -- cached for performance
     , uniqueEdges : List Vec3 -- unique edges
     , uniqueNormals : List Vec3 -- unique face normals
+    , position : Vec3
     , volume : Float
+    }
+
+
+placeIn : Transform3d coordinates defines -> Convex -> Convex
+placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume } =
+    { faces = List.map (facePlaceIn transform3d) faces
+    , vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
+    , uniqueEdges = List.map (Transform3d.directionPlaceIn transform3d) uniqueEdges
+    , uniqueNormals = List.map (Transform3d.directionPlaceIn transform3d) uniqueNormals
+    , volume = volume
+    , position = Transform3d.pointPlaceIn transform3d position
+    }
+
+
+facePlaceIn : Transform3d coordinates defines -> Face -> Face
+facePlaceIn transform3d { vertices, normal, point, adjacentFaces } =
+    { vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
+    , normal = Transform3d.directionPlaceIn transform3d normal
+    , point = Transform3d.pointPlaceIn transform3d point
+    , adjacentFaces = List.map (adjacentFacePlaceIn transform3d) adjacentFaces
+    }
+
+
+adjacentFacePlaceIn : Transform3d coordinates defines -> AdjacentFace -> AdjacentFace
+adjacentFacePlaceIn transform3d { normal, point } =
+    { normal = Transform3d.directionPlaceIn transform3d normal
+    , point = Transform3d.pointPlaceIn transform3d point
     }
 
 
@@ -56,6 +83,7 @@ init faceVertexLists vertices =
     , vertices = Array.toList vertices
     , uniqueEdges = initUniqueEdges faces
     , uniqueNormals = initUniqueNormals faces
+    , position = Vec3.zero
     , volume = 0
     }
 
@@ -290,6 +318,7 @@ fromBlock x y z =
     , uniqueEdges = [ Vec3.i, Vec3.j, Vec3.k ]
     , uniqueNormals = [ Vec3.i, Vec3.j, Vec3.k ]
     , volume = x * y * z * 8
+    , position = Vec3.zero
     }
 
 
@@ -368,41 +397,32 @@ foldUniqueEdges fn acc { vertices, uniqueEdges } =
             acc
 
 
-expandBoundingSphereRadius : Transform3d CenterOfMassCoordinates { defines : ShapeCoordinates } -> Convex -> Float -> Float
-expandBoundingSphereRadius transform3d { vertices } boundingSphereRadius =
+expandBoundingSphereRadius : Convex -> Float -> Float
+expandBoundingSphereRadius { vertices } boundingSphereRadius =
     vertices
         |> List.foldl
             (\vertex ->
-                vertex
-                    |> Transform3d.pointPlaceIn transform3d
-                    |> Vec3.lengthSquared
-                    |> max
+                max (Vec3.lengthSquared vertex)
             )
             (boundingSphereRadius * boundingSphereRadius)
         |> sqrt
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Transform3d WorldCoordinates { defines : ShapeCoordinates } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycast { direction, from } transform3d convex =
+raycast : { from : Vec3, direction : Vec3 } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast { direction, from } convex =
     List.foldl
-        (\face maybeHit ->
+        (\{ normal, point, vertices } maybeHit ->
             let
-                faceNormalWS =
-                    Transform3d.directionPlaceIn transform3d face.normal
-
                 dot =
-                    Vec3.dot direction faceNormalWS
+                    Vec3.dot direction normal
             in
             if dot < 0 then
                 let
-                    pointOnFaceWS =
-                        Transform3d.pointPlaceIn transform3d face.point
-
                     pointToFrom =
-                        Vec3.sub pointOnFaceWS from
+                        Vec3.sub point from
 
                     scalar =
-                        Vec3.dot faceNormalWS pointToFrom / dot
+                        Vec3.dot normal pointToFrom / dot
                 in
                 if scalar >= 0 then
                     let
@@ -413,10 +433,9 @@ raycast { direction, from } transform3d convex =
                             }
 
                         isInsidePolygon =
-                            face.vertices
-                                |> List.foldl
-                                    (\p acc1 -> Transform3d.pointPlaceIn transform3d p :: acc1)
-                                    []
+                            vertices
+                                -- TODO: remove foldl
+                                |> List.foldl (\p acc1 -> p :: acc1) []
                                 |> foldFaceEdges
                                     (\p1 p2 result ->
                                         result
@@ -435,7 +454,7 @@ raycast { direction, from } transform3d convex =
                                     Just
                                         { distance = scalar
                                         , point = intersectionPoint
-                                        , normal = faceNormalWS
+                                        , normal = normal
                                         }
 
                                 else
@@ -445,7 +464,7 @@ raycast { direction, from } transform3d convex =
                                 Just
                                     { distance = scalar
                                     , point = intersectionPoint
-                                    , normal = faceNormalWS
+                                    , normal = normal
                                     }
 
                     else

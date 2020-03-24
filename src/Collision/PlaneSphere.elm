@@ -1,31 +1,28 @@
 module Collision.PlaneSphere exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Coordinates exposing (ShapeWorldTransform3d)
-import Internal.Transform3d as Transform3d
+import Internal.Plane exposing (Plane)
+import Internal.Sphere exposing (Sphere)
 import Internal.Vector3 as Vec3
 
 
-addContacts : (Contact -> Contact) -> ShapeWorldTransform3d -> ShapeWorldTransform3d -> Float -> List Contact -> List Contact
-addContacts orderContact planeTransform3d sphereTransform3d radius contacts =
+addContacts : (Contact -> Contact) -> Plane -> Sphere -> List Contact -> List Contact
+addContacts orderContact plane sphere contacts =
     let
-        worldPlaneNormal =
-            Transform3d.directionPlaceIn planeTransform3d Vec3.k
-
         worldVertex =
-            worldPlaneNormal
-                |> Vec3.scale radius
-                |> Vec3.sub (Transform3d.originPoint sphereTransform3d)
+            plane.normal
+                |> Vec3.scale sphere.radius
+                |> Vec3.sub sphere.position
 
         dot =
-            Transform3d.originPoint planeTransform3d
+            plane.position
                 |> Vec3.sub worldVertex
-                |> Vec3.dot worldPlaneNormal
+                |> Vec3.dot plane.normal
     in
     if dot <= 0 then
         orderContact
-            { ni = worldPlaneNormal
-            , pi = Vec3.sub worldVertex (Vec3.scale dot worldPlaneNormal)
+            { ni = plane.normal
+            , pi = Vec3.sub worldVertex (Vec3.scale dot plane.normal)
             , pj = worldVertex
             }
             :: contacts

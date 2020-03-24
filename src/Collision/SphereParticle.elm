@@ -1,19 +1,15 @@
 module Collision.SphereParticle exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Coordinates exposing (ShapeWorldTransform3d)
-import Internal.Transform3d as Transform3d
-import Internal.Vector3 as Vec3
+import Internal.Sphere exposing (Sphere)
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-addContacts : (Contact -> Contact) -> ShapeWorldTransform3d -> Float -> ShapeWorldTransform3d -> List Contact -> List Contact
-addContacts orderContact sphereTransform3d radius pointTransform3d contacts =
+addContacts : (Contact -> Contact) -> Sphere -> Vec3 -> List Contact -> List Contact
+addContacts orderContact { radius, position } center2 contacts =
     let
         center1 =
-            Transform3d.originPoint sphereTransform3d
-
-        center2 =
-            Transform3d.originPoint pointTransform3d
+            position
 
         distance =
             Vec3.distance center2 center1 - radius

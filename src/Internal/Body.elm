@@ -15,7 +15,7 @@ import Internal.AABB as AABB exposing (AABB)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.Shape as Shape exposing (Shape)
+import Internal.Shape as Shape exposing (Shape(..))
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
@@ -63,7 +63,19 @@ centerOfMass shapes =
                 Vec3.add
                     (Vec3.scale
                         (Shape.volume shape / totalVolume)
-                        (Transform3d.originPoint shape.transform3d)
+                        (case shape of
+                            Convex { position } ->
+                                position
+
+                            Particle position ->
+                                position
+
+                            Sphere { position } ->
+                                position
+
+                            Plane { position } ->
+                                position
+                        )
                     )
             )
             Vec3.zero
@@ -98,11 +110,7 @@ compound shapes data =
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
             List.map
-                (\shape ->
-                    { kind = shape.kind
-                    , transform3d = Transform3d.placeIn inverseCenterOfMassTransform3d shape.transform3d
-                    }
-                )
+                (Shape.placeIn inverseCenterOfMassTransform3d)
                 shapes
     in
     updateMassProperties
@@ -311,7 +319,7 @@ computeAABB : Body data -> AABB
 computeAABB body =
     List.foldl
         (\shape ->
-            Shape.aabbClosure shape.kind shape.transform3d
+            Shape.aabbClosure shape
                 |> AABB.extend
         )
         AABB.impossible
@@ -325,7 +333,7 @@ raycast :
 raycast ray body =
     List.foldl
         (\shape maybeClosestRaycastResult ->
-            case Shape.raycast ray (Transform3d.placeIn body.transform3d shape.transform3d) shape of
+            case Shape.raycast ray body.transform3d shape of
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
