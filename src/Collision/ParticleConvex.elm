@@ -22,8 +22,16 @@ convexContact particlePosition faces bestDepth bestContact =
         [] ->
             bestContact
 
-        { point, normal } :: remainingFaces ->
+        { vertices, normal } :: remainingFaces ->
             let
+                point =
+                    case vertices of
+                        first :: _ ->
+                            first
+
+                        [] ->
+                            Vec3.zero
+
                 dot =
                     Vec3.dot
                         normal

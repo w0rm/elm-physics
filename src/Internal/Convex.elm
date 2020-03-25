@@ -22,7 +22,6 @@ import Set
 type alias Face =
     { vertices : List Vec3
     , normal : Vec3
-    , point : Vec3 -- the first point on the face
     }
 
 
@@ -48,10 +47,9 @@ placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, vol
 
 
 facePlaceIn : Transform3d coordinates defines -> Face -> Face
-facePlaceIn transform3d { vertices, normal, point } =
+facePlaceIn transform3d { vertices, normal } =
     { vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
     , normal = Transform3d.directionPlaceIn transform3d normal
-    , point = Transform3d.pointPlaceIn transform3d point
     }
 
 
@@ -78,18 +76,17 @@ initFaces faceVertexLists convexVertices =
                 vertices =
                     List.filterMap (\i -> Array.get i convexVertices) vertexIndices
 
-                ( point, normal ) =
+                normal =
                     case vertices of
                         v1 :: v2 :: v3 :: _ ->
-                            ( v1, computeNormal v1 v2 v3 )
+                            computeNormal v1 v2 v3
 
                         _ ->
                             -- Shouldn’t happen
-                            ( Vec3.zero, Vec3.zero )
+                            Vec3.zero
             in
             { vertices = vertices
             , normal = normal
-            , point = point
             }
         )
         faceVertexLists
@@ -188,76 +185,41 @@ fromBlock x y z =
         v7 =
             { x = -x, y = y, z = z }
 
-        p0 =
-            v3
-
         n0 =
             { x = 0, y = 0, z = -1 }
-
-        p1 =
-            v4
 
         n1 =
             Vec3.k
 
-        p2 =
-            v5
-
         n2 =
             { x = 0, y = -1, z = 0 }
-
-        p3 =
-            v2
 
         n3 =
             Vec3.j
 
-        p4 =
-            v0
-
         n4 =
             { x = -1, y = 0, z = 0 }
-
-        p5 =
-            v1
 
         n5 =
             Vec3.i
     in
     { faces =
-        [ -- face 0
-          { vertices = [ v3, v2, v1, v0 ]
-          , point = p0
+        [ { vertices = [ v3, v2, v1, v0 ]
           , normal = n0
           }
-
-        -- face 1
         , { vertices = [ v4, v5, v6, v7 ]
-          , point = p1
           , normal = n1
           }
-
-        -- face 2
         , { vertices = [ v5, v4, v0, v1 ]
-          , point = p2
           , normal = n2
           }
-
-        -- face 3
         , { vertices = [ v2, v3, v7, v6 ]
-          , point = p3
           , normal = n3
           }
-
-        -- face 4
         , { vertices = [ v0, v4, v7, v3 ]
-          , point = p4
           , normal = n4
           }
-
-        -- face 5
         , { vertices = [ v1, v2, v6, v5 ]
-          , point = p5
           , normal = n5
           }
         ]
@@ -331,10 +293,18 @@ expandBoundingSphereRadius { vertices } boundingSphereRadius =
 raycast : { from : Vec3, direction : Vec3 } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } convex =
     List.foldl
-        (\{ normal, point, vertices } maybeHit ->
+        (\{ normal, vertices } maybeHit ->
             let
                 dot =
                     Vec3.dot direction normal
+
+                point =
+                    case vertices of
+                        first :: _ ->
+                            first
+
+                        [] ->
+                            Vec3.zero
             in
             if dot < 0 then
                 let

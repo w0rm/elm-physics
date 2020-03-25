@@ -48,8 +48,16 @@ addContacts convex1 convex2 contacts =
 clipTwoFaces : Face -> Face -> Vec3 -> List Contact -> List Contact
 clipTwoFaces face { vertices } separatingAxis contacts =
     let
+        point =
+            case face.vertices of
+                first :: _ ->
+                    first
+
+                [] ->
+                    Vec3.zero
+
         worldPlaneConstant =
-            -(Vec3.dot face.normal face.point)
+            -(Vec3.dot face.normal point)
     in
     List.foldl
         (\vertex result ->
