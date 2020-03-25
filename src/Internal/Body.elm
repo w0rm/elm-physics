@@ -354,4 +354,4 @@ raycast ray body =
                     maybeClosestRaycastResult
         )
         Nothing
-        body.shapes
+        body.worldShapes

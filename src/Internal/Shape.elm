@@ -94,17 +94,17 @@ expandBoundingSphereRadius shape boundingSphereRadius =
             max boundingSphereRadius (Vec3.length position)
 
 
-raycast : { from : Vec3, direction : Vec3 } -> Transform3d WorldCoordinates { defines : CenterOfMassCoordinates } -> Shape CenterOfMassCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycast ray transform3d shape =
+raycast : { from : Vec3, direction : Vec3 } -> Shape WorldCoordinates -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycast ray shape =
     case shape of
         Plane plane ->
-            Plane.raycast ray (Plane.placeIn transform3d plane)
+            Plane.raycast ray plane
 
         Sphere sphere ->
-            Sphere.raycast ray (Sphere.placeIn transform3d sphere)
+            Sphere.raycast ray sphere
 
         Convex convex ->
-            Convex.raycast ray (Convex.placeIn transform3d convex)
+            Convex.raycast ray convex
 
         Particle _ ->
             Nothing
