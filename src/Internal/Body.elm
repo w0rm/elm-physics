@@ -108,6 +108,9 @@ compound shapes data =
         transform3d =
             Transform3d.placeIn bodyTransform3d centerOfMassTransform3d
 
+        shapeTransform =
+            Transform3d.placeIn transform3d inverseCenterOfMassTransform3d
+
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
             List.map
@@ -124,9 +127,7 @@ compound shapes data =
         , angularVelocity = Vec3.zero
         , mass = 0
         , shapes = movedShapes
-
-        -- TODO: what to do when a body is moved?
-        , worldShapes = List.map (Shape.placeIn transform3d) movedShapes
+        , worldShapes = List.map (Shape.placeIn shapeTransform) shapes
         , force = Vec3.zero
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
@@ -337,7 +338,7 @@ raycast :
 raycast ray body =
     List.foldl
         (\shape maybeClosestRaycastResult ->
-            case Shape.raycast ray body.transform3d shape of
+            case Shape.raycast ray shape of
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
