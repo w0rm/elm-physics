@@ -7,7 +7,7 @@ module Collision.ConvexConvex exposing
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Convex as Convex exposing (AdjacentFace, Convex, Face)
+import Internal.Convex as Convex exposing (Convex, Face)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
@@ -46,20 +46,20 @@ addContacts convex1 convex2 contacts =
 
 
 clipTwoFaces : Face -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces { point, normal, adjacentFaces } { vertices } separatingAxis contacts =
+clipTwoFaces face { vertices } separatingAxis contacts =
     let
         worldPlaneConstant =
-            -(Vec3.dot normal point)
+            -(Vec3.dot face.normal face.point)
     in
     List.foldl
         (\vertex result ->
             let
                 depth =
-                    max minDist (Vec3.dot normal vertex + worldPlaneConstant)
+                    max minDist (Vec3.dot face.normal vertex + worldPlaneConstant)
             in
             if depth <= maxDist && depth <= 0 then
                 { ni = separatingAxis
-                , pi = Vec3.sub vertex (Vec3.scale depth normal)
+                , pi = Vec3.sub vertex (Vec3.scale depth face.normal)
                 , pj = vertex
                 }
                     :: result
@@ -68,7 +68,7 @@ clipTwoFaces { point, normal, adjacentFaces } { vertices } separatingAxis contac
                 result
         )
         contacts
-        (clipAgainstAdjacentFaces adjacentFaces vertices)
+        (clipAgainstAdjacentFaces face vertices)
 
 
 bestFace : List Face -> Vec3 -> Maybe Face
@@ -113,24 +113,26 @@ bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
             currentBestFace
 
 
-clipAgainstAdjacentFaces : List AdjacentFace -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces adjacentFaces worldVertices =
-    case adjacentFaces of
-        { point, normal } :: remainingFaces ->
+clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3
+clipAgainstAdjacentFaces { vertices, normal } worldVertices =
+    Convex.foldFaceEdges
+        (\v1 v2 ->
             let
-                worldPlaneConstant =
-                    -(Vec3.dot point normal)
+                edge =
+                    Vec3.sub v1 v2
 
-                vertices =
-                    Convex.foldFaceEdges
-                        (clipFaceAgainstPlaneAdd normal worldPlaneConstant)
-                        []
-                        worldVertices
+                planeNormal =
+                    Vec3.cross normal edge
+
+                planeConstant =
+                    -(Vec3.dot v1 planeNormal)
             in
-            clipAgainstAdjacentFaces remainingFaces vertices
-
-        [] ->
-            worldVertices
+            Convex.foldFaceEdges
+                (clipFaceAgainstPlaneAdd planeNormal planeConstant)
+                []
+        )
+        worldVertices
+        vertices
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
@@ -162,61 +164,48 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 findSeparatingAxis : Convex -> Convex -> Maybe Vec3
 findSeparatingAxis convex1 convex2 =
     let
-        -- group to reduce the number of arguments
-        ctx =
-            { convex1 = convex1
-            , convex2 = convex2
-            }
-
         -- normals from both convexes converted in the world coordinates
         worldNormals =
             convex1.uniqueNormals ++ convex2.uniqueNormals
     in
-    case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
+    case testUniqueNormals convex1 convex2 worldNormals Vec3.zero Const.maxNumber of
         Just { target, dmin } ->
-            let
-                worldEdges1 =
-                    ctx.convex1.uniqueEdges
-
-                worldEdges2 =
-                    ctx.convex2.uniqueEdges
-            in
-            testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
+            testUniqueEdges convex1
+                convex2
+                convex2.uniqueEdges
+                convex1.uniqueEdges
+                convex2.uniqueEdges
+                target
+                dmin
 
         _ ->
             Nothing
 
 
-type alias TestContext =
-    { convex1 : Convex
-    , convex2 : Convex
-    }
-
-
-testUniqueNormals : TestContext -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
-testUniqueNormals ctx normals target dmin =
+testUniqueNormals : Convex -> Convex -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
+testUniqueNormals convex1 convex2 normals target dmin =
     case normals of
         [] ->
             Just { target = target, dmin = dmin }
 
         normal :: restNormals ->
-            case testSeparatingAxis ctx normal of
+            case testSeparatingAxis convex1 convex2 normal of
                 Nothing ->
                     Nothing
 
                 Just d ->
                     if d - dmin < 0 then
-                        testUniqueNormals ctx restNormals normal d
+                        testUniqueNormals convex1 convex2 restNormals normal d
 
                     else
-                        testUniqueNormals ctx restNormals target dmin
+                        testUniqueNormals convex1 convex2 restNormals target dmin
 
 
-testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
+testUniqueEdges : Convex -> Convex -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges convex1 convex2 initEdges2 edges1 edges2 target dmin =
     case edges1 of
         [] ->
-            if Vec3.dot (Vec3.sub ctx.convex2.position ctx.convex1.position) target > 0 then
+            if Vec3.dot (Vec3.sub convex2.position convex1.position) target > 0 then
                 Just (Vec3.negate target)
 
             else
@@ -226,7 +215,7 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
             case edges2 of
                 [] ->
                     -- requeue edges2
-                    testUniqueEdges ctx initEdges2 remainingEdges1 initEdges2 target dmin
+                    testUniqueEdges convex1 convex2 initEdges2 remainingEdges1 initEdges2 target dmin
 
                 worldEdge2 :: remainingEdges2 ->
                     let
@@ -235,14 +224,14 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                     in
                     if Vec3.almostZero cross then
                         -- continue because edges are parallel
-                        testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                        testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
 
                     else
                         let
                             normalizedCross =
                                 Vec3.normalize cross
                         in
-                        case testSeparatingAxis ctx normalizedCross of
+                        case testSeparatingAxis convex1 convex2 normalizedCross of
                             Nothing ->
                                 -- exit because hulls don't collide
                                 Nothing
@@ -250,17 +239,17 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                             Just dist ->
                                 if dist - dmin < 0 then
                                     -- update target and dmin
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 normalizedCross dist
+                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 normalizedCross dist
 
                                 else
                                     -- continue
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
 
 
 {-| If projections of two convexes don’t overlap, then they don’t collide.
 -}
-testSeparatingAxis : TestContext -> Vec3 -> Maybe Float
-testSeparatingAxis { convex1, convex2 } separatingAxis =
+testSeparatingAxis : Convex -> Convex -> Vec3 -> Maybe Float
+testSeparatingAxis convex1 convex2 separatingAxis =
     let
         p1 =
             project convex1.vertices separatingAxis

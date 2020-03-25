@@ -1,13 +1,10 @@
 module Internal.Convex exposing
-    ( AdjacentFace
-    , Convex
+    ( Convex
     , Face
     , addFaceEdges
     , expandBoundingSphereRadius
     , faceAdjacency
     , foldFaceEdges
-    , foldFaceNormals
-    , foldUniqueEdges
     , fromBlock
     , init
     , initUniqueEdges
@@ -22,17 +19,10 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 import Set
 
 
-type alias AdjacentFace =
-    { point : Vec3
-    , normal : Vec3
-    }
-
-
 type alias Face =
     { vertices : List Vec3
     , normal : Vec3
     , point : Vec3 -- the first point on the face
-    , adjacentFaces : List AdjacentFace
     }
 
 
@@ -48,27 +38,19 @@ type alias Convex =
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
 placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume } =
-    { faces = List.map (facePlaceIn transform3d) faces
-    , vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
-    , uniqueEdges = List.map (Transform3d.directionPlaceIn transform3d) uniqueEdges
-    , uniqueNormals = List.map (Transform3d.directionPlaceIn transform3d) uniqueNormals
+    { faces = List.foldl (\face result -> facePlaceIn transform3d face :: result) [] faces
+    , vertices = List.foldl (\vertex result -> Transform3d.pointPlaceIn transform3d vertex :: result) [] vertices
+    , uniqueEdges = List.foldl (\edge result -> Transform3d.directionPlaceIn transform3d edge :: result) [] uniqueEdges
+    , uniqueNormals = List.foldl (\normal result -> Transform3d.directionPlaceIn transform3d normal :: result) [] uniqueNormals
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
     }
 
 
 facePlaceIn : Transform3d coordinates defines -> Face -> Face
-facePlaceIn transform3d { vertices, normal, point, adjacentFaces } =
+facePlaceIn transform3d { vertices, normal, point } =
     { vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
     , normal = Transform3d.directionPlaceIn transform3d normal
-    , point = Transform3d.pointPlaceIn transform3d point
-    , adjacentFaces = List.map (adjacentFacePlaceIn transform3d) adjacentFaces
-    }
-
-
-adjacentFacePlaceIn : Transform3d coordinates defines -> AdjacentFace -> AdjacentFace
-adjacentFacePlaceIn transform3d { normal, point } =
-    { normal = Transform3d.directionPlaceIn transform3d normal
     , point = Transform3d.pointPlaceIn transform3d point
     }
 
@@ -90,56 +72,27 @@ init faceVertexLists vertices =
 
 initFaces : List (List Int) -> Array Vec3 -> List Face
 initFaces faceVertexLists convexVertices =
-    let
-        adjacents =
-            faceAdjacency faceVertexLists
+    List.map
+        (\vertexIndices ->
+            let
+                vertices =
+                    List.filterMap (\i -> Array.get i convexVertices) vertexIndices
 
-        facesWithoutAdjacentFaces =
-            List.map
-                (\vertexIndices ->
-                    let
-                        vertices =
-                            List.filterMap (\i -> Array.get i convexVertices) vertexIndices
+                ( point, normal ) =
+                    case vertices of
+                        v1 :: v2 :: v3 :: _ ->
+                            ( v1, computeNormal v1 v2 v3 )
 
-                        ( point, normal ) =
-                            case vertices of
-                                v1 :: v2 :: v3 :: _ ->
-                                    ( v1, computeNormal v1 v2 v3 )
-
-                                _ ->
-                                    -- Shouldn’t happen
-                                    ( Vec3.zero, Vec3.zero )
-                    in
-                    { vertices = vertices
-                    , normal = normal
-                    , point = point
-                    , adjacentFaces = []
-                    }
-                )
-                faceVertexLists
-
-        facesWithoutAdjacentFacesArray =
-            Array.fromList facesWithoutAdjacentFaces
-    in
-    List.map2
-        (\face adjacentIndices ->
-            { face
-                | adjacentFaces =
-                    List.foldl
-                        (\index ->
-                            case Array.get index facesWithoutAdjacentFacesArray of
-                                Just { point, normal } ->
-                                    (::) { point = point, normal = normal }
-
-                                Nothing ->
-                                    identity
-                        )
-                        []
-                        adjacentIndices
+                        _ ->
+                            -- Shouldn’t happen
+                            ( Vec3.zero, Vec3.zero )
+            in
+            { vertices = vertices
+            , normal = normal
+            , point = point
             }
         )
-        facesWithoutAdjacentFaces
-        adjacents
+        faceVertexLists
 
 
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
@@ -276,42 +229,36 @@ fromBlock x y z =
           { vertices = [ v3, v2, v1, v0 ]
           , point = p0
           , normal = n0
-          , adjacentFaces = [ { point = p2, normal = n2 }, { point = p3, normal = n3 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
           }
 
         -- face 1
         , { vertices = [ v4, v5, v6, v7 ]
           , point = p1
           , normal = n1
-          , adjacentFaces = [ { point = p2, normal = n2 }, { point = p3, normal = n3 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
           }
 
         -- face 2
         , { vertices = [ v5, v4, v0, v1 ]
           , point = p2
           , normal = n2
-          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
           }
 
         -- face 3
         , { vertices = [ v2, v3, v7, v6 ]
           , point = p3
           , normal = n3
-          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p4, normal = n4 }, { point = p5, normal = n5 } ]
           }
 
         -- face 4
         , { vertices = [ v0, v4, v7, v3 ]
           , point = p4
           , normal = n4
-          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p2, normal = n2 }, { point = p3, normal = n3 } ]
           }
 
         -- face 5
         , { vertices = [ v1, v2, v6, v5 ]
           , point = p5
           , normal = n5
-          , adjacentFaces = [ { point = p0, normal = n0 }, { point = p1, normal = n1 }, { point = p2, normal = n2 }, { point = p3, normal = n3 } ]
           }
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
@@ -370,33 +317,6 @@ addEdgeIfDistinct prevVertex currentVertex uniques =
         candidateEdge :: uniques
 
 
-foldFaceNormals : (Vec3 -> Vec3 -> a -> a) -> a -> Convex -> a
-foldFaceNormals fn acc { faces } =
-    List.foldl
-        (\{ vertices, normal } acc1 ->
-            let
-                vsum =
-                    List.foldl Vec3.add Vec3.zero vertices
-
-                vcount =
-                    List.length vertices
-            in
-            fn normal (Vec3.scale (1.0 / toFloat vcount) vsum) acc1
-        )
-        acc
-        faces
-
-
-foldUniqueEdges : (Vec3 -> Vec3 -> a -> a) -> a -> Convex -> a
-foldUniqueEdges fn acc { vertices, uniqueEdges } =
-    case vertices of
-        vertex0 :: _ ->
-            List.foldl (fn vertex0) acc uniqueEdges
-
-        [] ->
-            acc
-
-
 expandBoundingSphereRadius : Convex -> Float -> Float
 expandBoundingSphereRadius { vertices } boundingSphereRadius =
     vertices
@@ -433,19 +353,17 @@ raycast { direction, from } convex =
                             }
 
                         isInsidePolygon =
-                            vertices
-                                -- TODO: remove foldl
-                                |> List.foldl (\p acc1 -> p :: acc1) []
-                                |> foldFaceEdges
-                                    (\p1 p2 result ->
-                                        result
-                                            && (Vec3.dot
-                                                    (Vec3.sub intersectionPoint p1)
-                                                    (Vec3.sub p2 p1)
-                                                    > 0
-                                               )
-                                    )
-                                    True
+                            foldFaceEdges
+                                (\p1 p2 result ->
+                                    result
+                                        && (Vec3.dot
+                                                (Vec3.sub intersectionPoint p1)
+                                                (Vec3.sub p2 p1)
+                                                > 0
+                                           )
+                                )
+                                True
+                                vertices
                     in
                     if isInsidePolygon then
                         case maybeHit of
