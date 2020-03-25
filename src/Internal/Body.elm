@@ -35,6 +35,7 @@ type alias Body data =
     , angularVelocity : Vec3
     , mass : Float
     , shapes : List (Shape CenterOfMassCoordinates)
+    , worldShapes : List (Shape WorldCoordinates)
     , force : Vec3
     , torque : Vec3
     , boundingSphereRadius : Float
@@ -123,6 +124,9 @@ compound shapes data =
         , angularVelocity = Vec3.zero
         , mass = 0
         , shapes = movedShapes
+
+        -- TODO: what to do when a body is moved?
+        , worldShapes = List.map (Shape.placeIn transform3d) movedShapes
         , force = Vec3.zero
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes

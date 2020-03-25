@@ -10,7 +10,7 @@ import Collision.SphereParticle
 import Collision.SphereSphere
 import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
-import Internal.Shape as Shape exposing (Shape(..))
+import Internal.Shape exposing (Shape(..))
 import Physics.Coordinates exposing (WorldCoordinates)
 
 
@@ -19,16 +19,12 @@ getContacts body1 body2 =
     List.foldl
         (\shape1 currentContactEquations1 ->
             List.foldl
-                (\shape2 ->
-                    addShapeContacts
-                        (Shape.placeIn body1.transform3d shape1)
-                        (Shape.placeIn body2.transform3d shape2)
-                )
+                (\shape2 -> addShapeContacts shape1 shape2)
                 currentContactEquations1
-                body2.shapes
+                body2.worldShapes
         )
         []
-        body1.shapes
+        body1.worldShapes
 
 
 addShapeContacts : Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
