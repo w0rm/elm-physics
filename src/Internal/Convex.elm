@@ -3,7 +3,6 @@ module Internal.Convex exposing
     , Face
     , addFaceEdges
     , expandBoundingSphereRadius
-    , faceAdjacency
     , foldFaceEdges
     , fromBlock
     , init
@@ -13,10 +12,8 @@ module Internal.Convex exposing
     )
 
 import Array exposing (Array)
-import Dict
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Set
 
 
 type alias Face =
@@ -59,7 +56,7 @@ init faceVertexLists vertices =
         faces =
             initFaces faceVertexLists vertices
     in
-    { faces = initFaces faceVertexLists vertices
+    { faces = faces
     , vertices = Array.toList vertices
     , uniqueEdges = initUniqueEdges faces
     , uniqueNormals = initUniqueNormals faces
@@ -95,67 +92,6 @@ initFaces faceVertexLists convexVertices =
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
 computeNormal v1 v2 v3 =
     Vec3.normalize (Vec3.cross (Vec3.sub v3 v2) (Vec3.sub v1 v2))
-
-
-faceAdjacency : List (List Int) -> List (List Int)
-faceAdjacency faceVertexLists =
-    let
-        {- Like faceVertexLists, but with each vertex
-           annotated with the list's face number.
-        -}
-        faceIndexedLists : List (List ( Int, Int ))
-        faceIndexedLists =
-            List.indexedMap
-                (\face vertexList ->
-                    List.map (\b -> ( face, b )) vertexList
-                )
-                faceVertexLists
-
-        {- Invert the collections of vertices listed by face into
-           a collection of faces indexed by vertex
-        -}
-        vertexToFacesMap : Dict.Dict Int (List Int)
-        vertexToFacesMap =
-            List.foldl
-                (\indexedList acc ->
-                    List.foldl
-                        (\( face, vertex ) acc1 ->
-                            Dict.insert
-                                vertex
-                                (face
-                                    :: (case Dict.get vertex acc1 of
-                                            Nothing ->
-                                                []
-
-                                            Just existingList ->
-                                                existingList
-                                       )
-                                )
-                                acc1
-                        )
-                        acc
-                        indexedList
-                )
-                Dict.empty
-                faceIndexedLists
-
-        {- Merge each listed vertex's containing faces into a set,
-           excluding the self-references to the current face.
-        -}
-        addUniqueContainingFaces : ( Int, Int ) -> Set.Set Int -> Set.Set Int
-        addUniqueContainingFaces ( face, vertex ) acc =
-            Dict.get vertex vertexToFacesMap
-                |> Maybe.withDefault []
-                |> List.foldl Set.insert acc
-                |> Set.remove face
-    in
-    List.map
-        (List.foldl
-            addUniqueContainingFaces
-            Set.empty
-            >> Set.toList
-        )
-        faceIndexedLists
 
 
 fromBlock : Float -> Float -> Float -> Convex
