@@ -3,7 +3,7 @@ module Collision.PlaneSphereTest exposing (addContacts)
 import Collision.PlaneSphere
 import Expect
 import Extra.Expect as Expect
-import Internal.Transform3d as Transform3d
+import Internal.Vector3 as Vec3
 import Test exposing (Test, describe, test)
 
 
@@ -13,25 +13,25 @@ addContacts =
         radius =
             1
 
-        planeTransform3d =
-            Transform3d.atOrigin
+        plane =
+            { position = Vec3.zero, normal = Vec3.k }
 
-        sphereTransform3d =
-            Transform3d.atPoint { x = 0, y = 0, z = radius }
+        sphere =
+            { radius = radius, position = { x = 0, y = 0, z = radius } }
 
         delta =
             0.3
 
-        overlappingSphereTransform3d =
-            Transform3d.atPoint { x = 0, y = 0, z = radius - delta }
+        overlappingSphere =
+            { radius = radius, position = { x = 0, y = 0, z = radius - delta } }
 
-        nonCollidingSphereTransform3d =
-            Transform3d.atPoint { x = 0, y = 0, z = radius + delta }
+        nonCollidingSphere =
+            { radius = radius, position = { x = 0, y = 0, z = radius + delta } }
     in
     describe "Collision.PlaneSphere.addContacts"
         [ test "exact collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity planeTransform3d sphereTransform3d radius []
+                Collision.PlaneSphere.addContacts identity plane sphere []
                     |> Expect.contacts
                         [ { ni = { x = 0, y = 0, z = 1 }
                           , pi = { x = 0, y = 0, z = 0 }
@@ -40,7 +40,7 @@ addContacts =
                         ]
         , test "overlapping collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity planeTransform3d overlappingSphereTransform3d radius []
+                Collision.PlaneSphere.addContacts identity plane overlappingSphere []
                     |> Expect.contacts
                         [ { ni = { x = 0, y = 0, z = 1 }
                           , pi = { x = 0, y = 0, z = 0 }
@@ -49,6 +49,6 @@ addContacts =
                         ]
         , test "no collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity planeTransform3d nonCollidingSphereTransform3d radius []
+                Collision.PlaneSphere.addContacts identity plane nonCollidingSphere []
                     |> Expect.contacts []
         ]

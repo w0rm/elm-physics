@@ -5,7 +5,6 @@ import Internal.Body as Body
 import Internal.Const as Const
 import Internal.Convex as Convex
 import Internal.Shape as Shape exposing (Shape)
-import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Physics.Coordinates exposing (BodyCoordinates)
 import Test exposing (Test, describe, test)
@@ -37,15 +36,9 @@ boundingSphereRadius =
 
 box : Float -> Float -> Float -> Shape BodyCoordinates
 box x y z =
-    { transform3d = Transform3d.atOrigin
-    , volume = x * y * z
-    , kind = Shape.Convex (Convex.fromBlock x y z)
-    }
+    Shape.Convex (Convex.fromBlock x y z)
 
 
 plane : Shape BodyCoordinates
 plane =
-    { transform3d = Transform3d.atOrigin
-    , volume = 0
-    , kind = Shape.Plane
-    }
+    Shape.Plane { position = Vec3.zero, normal = Vec3.k }
