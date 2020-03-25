@@ -128,8 +128,25 @@ atPoint point =
 
 
 pointPlaceIn : Transform3d coordinates defines -> Vec3 -> Vec3
-pointPlaceIn (Transform3d globalOrigin globalOrientation) localPoint =
-    Vec3.add globalOrigin (rotate globalOrientation localPoint)
+pointPlaceIn (Transform3d globalOrigin (Orientation3d qx qy qz qw)) { x, y, z } =
+    let
+        ix =
+            qw * x + qy * z - qz * y
+
+        iy =
+            qw * y + qz * x - qx * z
+
+        iz =
+            qw * z + qx * y - qy * x
+
+        iw =
+            -qx * x - qy * y - qz * z
+    in
+    -- Vec3.add globalOrigin (rotate globalOrientation localPoint)
+    { x = ix * qw + iw * -qx + iy * -qz - iz * -qy + globalOrigin.x
+    , y = iy * qw + iw * -qy + iz * -qx - ix * -qz + globalOrigin.y
+    , z = iz * qw + iw * -qz + ix * -qy - iy * -qx + globalOrigin.z
+    }
 
 
 pointRelativeTo : Transform3d coordinates defines -> Vec3 -> Vec3
