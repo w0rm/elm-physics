@@ -127,7 +127,7 @@ clipAgainstAdjacentFaces { vertices, normal } worldVertices =
         (\v1 v2 ->
             let
                 edge =
-                    Vec3.sub v1 v2
+                    Vec3.normalize (Vec3.sub v1 v2)
 
                 planeNormal =
                     Vec3.cross normal edge
