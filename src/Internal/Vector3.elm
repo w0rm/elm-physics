@@ -2,6 +2,7 @@ module Internal.Vector3 exposing
     ( Vec3
     , add
     , almostZero
+    , basis
     , cross
     , direction
     , distance
@@ -38,6 +39,13 @@ type alias Vec3 =
     , y : Float
     , z : Float
     }
+
+
+{-| x, y and z directions
+-}
+basis : List Vec3
+basis =
+    [ i, j, k ]
 
 
 {-| The zero vector

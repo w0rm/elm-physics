@@ -113,8 +113,9 @@ compound shapes data =
 
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
-            List.map
-                (Shape.placeIn inverseCenterOfMassTransform3d)
+            List.foldl
+                (\shape result -> Shape.placeIn inverseCenterOfMassTransform3d shape :: result)
+                []
                 shapes
     in
     updateMassProperties
@@ -127,7 +128,7 @@ compound shapes data =
         , angularVelocity = Vec3.zero
         , mass = 0
         , shapes = movedShapes
-        , worldShapes = List.map (Shape.placeIn shapeTransform) shapes
+        , worldShapes = List.foldl (\shape result -> Shape.placeIn shapeTransform shape :: result) [] shapes
         , force = Vec3.zero
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes

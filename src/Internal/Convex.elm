@@ -43,9 +43,13 @@ placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, vol
     }
 
 
+{-| Places a face into the frame.
+Note that this reverses face vertices list,
+but it is reversed originally so this is fine
+-}
 facePlaceIn : Transform3d coordinates defines -> Face -> Face
 facePlaceIn transform3d { vertices, normal } =
-    { vertices = List.map (Transform3d.pointPlaceIn transform3d) vertices
+    { vertices = List.foldl (\point result -> Transform3d.pointPlaceIn transform3d point :: result) [] vertices
     , normal = Transform3d.directionPlaceIn transform3d normal
     }
 
@@ -82,7 +86,7 @@ initFaces faceVertexLists convexVertices =
                             -- Shouldn’t happen
                             Vec3.zero
             in
-            { vertices = vertices
+            { vertices = List.reverse vertices
             , normal = normal
             }
         )
@@ -120,48 +124,33 @@ fromBlock x y z =
 
         v7 =
             { x = -x, y = y, z = z }
-
-        n0 =
-            { x = 0, y = 0, z = -1 }
-
-        n1 =
-            Vec3.k
-
-        n2 =
-            { x = 0, y = -1, z = 0 }
-
-        n3 =
-            Vec3.j
-
-        n4 =
-            { x = -1, y = 0, z = 0 }
-
-        n5 =
-            Vec3.i
     in
     { faces =
-        [ { vertices = [ v3, v2, v1, v0 ]
-          , normal = n0
+        -- faces vertices are reversed for local coordinates
+        -- then they become correct after transformation
+        -- this is needed for performance
+        [ { vertices = List.reverse [ v3, v2, v1, v0 ]
+          , normal = { x = 0, y = 0, z = -1 }
           }
-        , { vertices = [ v4, v5, v6, v7 ]
-          , normal = n1
+        , { vertices = List.reverse [ v4, v5, v6, v7 ]
+          , normal = Vec3.k
           }
-        , { vertices = [ v5, v4, v0, v1 ]
-          , normal = n2
+        , { vertices = List.reverse [ v5, v4, v0, v1 ]
+          , normal = { x = 0, y = -1, z = 0 }
           }
-        , { vertices = [ v2, v3, v7, v6 ]
-          , normal = n3
+        , { vertices = List.reverse [ v2, v3, v7, v6 ]
+          , normal = Vec3.j
           }
-        , { vertices = [ v0, v4, v7, v3 ]
-          , normal = n4
+        , { vertices = List.reverse [ v0, v4, v7, v3 ]
+          , normal = { x = -1, y = 0, z = 0 }
           }
-        , { vertices = [ v1, v2, v6, v5 ]
-          , normal = n5
+        , { vertices = List.reverse [ v1, v2, v6, v5 ]
+          , normal = Vec3.i
           }
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
-    , uniqueEdges = [ Vec3.i, Vec3.j, Vec3.k ]
-    , uniqueNormals = [ Vec3.i, Vec3.j, Vec3.k ]
+    , uniqueEdges = Vec3.basis
+    , uniqueNormals = Vec3.basis
     , volume = x * y * z * 8
     , position = Vec3.zero
     }

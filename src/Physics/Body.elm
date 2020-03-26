@@ -300,7 +300,7 @@ moveTo point3d (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.map (InternalShape.placeIn newTransform3d) body.shapes
+                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
             }
         )
 
@@ -333,7 +333,7 @@ translateBy vector3d (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.map (InternalShape.placeIn newTransform3d) body.shapes
+                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
             }
         )
 
@@ -379,7 +379,7 @@ rotateAround axis angle (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.map (InternalShape.placeIn newTransform3d) body.shapes
+                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
             }
         )
 
@@ -486,7 +486,10 @@ compound : List Shape -> data -> Body data
 compound shapes newData =
     let
         unprotectedShapes =
-            List.map (\(InternalShape.Protected shape) -> shape) shapes
+            List.foldl
+                (\(InternalShape.Protected shape) result -> shape :: result)
+                []
+                shapes
     in
     Protected (Internal.compound unprotectedShapes newData)
 

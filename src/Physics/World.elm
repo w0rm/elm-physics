@@ -143,7 +143,10 @@ e.g. WebGL entities.
 -}
 bodies : World data -> List (Body data)
 bodies (Protected world) =
-    List.map InternalBody.Protected world.bodies
+    List.foldl
+        (\body result -> InternalBody.Protected body :: result)
+        []
+        world.bodies
 
 
 {-| Get all contacts from the last simulation frame.
@@ -185,7 +188,10 @@ contacts (Protected { contactGroups, simulatedBodies }) =
                                 (InternalContact.Protected
                                     { body1 = newBody1
                                     , body2 = newBody2
-                                    , points = List.map (mapContact contactGroup.body1 newBody1) contactGroup.contacts
+                                    , points =
+                                        List.foldl (\point result -> mapContact contactGroup.body1 newBody1 point :: result)
+                                            []
+                                            contactGroup.contacts
                                     }
                                 )
 
@@ -268,7 +274,14 @@ update fn (Protected world) =
             in
             { updatedBody | id = body.id }
     in
-    Protected { world | bodies = List.map internalUpdate world.bodies }
+    Protected
+        { world
+            | bodies =
+                List.foldl
+                    (\body result -> internalUpdate body :: result)
+                    []
+                    world.bodies
+        }
 
 
 {-| Configure constraints between pairs of bodies. Constraints allow to limit the
@@ -359,7 +372,17 @@ constrainIf test fn (Protected world) =
                 constraints ->
                     { bodyId1 = body1.id
                     , bodyId2 = body2.id
-                    , constraints = List.map (InternalConstraint.relativeToCenterOfMass body1.centerOfMassTransform3d body2.centerOfMassTransform3d) constraints
+                    , constraints =
+                        List.foldl
+                            (\constraint result ->
+                                InternalConstraint.relativeToCenterOfMass
+                                    body1.centerOfMassTransform3d
+                                    body2.centerOfMassTransform3d
+                                    constraint
+                                    :: result
+                            )
+                            []
+                            constraints
                     }
                         :: constraintGroup
 

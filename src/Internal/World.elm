@@ -30,7 +30,11 @@ type alias World data =
 addGravityForces : World data -> World data
 addGravityForces world =
     { world
-        | bodies = List.map (Body.addGravity world.gravity) world.bodies
+        | bodies =
+            List.foldl
+                (\body result -> Body.addGravity world.gravity body :: result)
+                []
+                world.bodies
     }
 
 

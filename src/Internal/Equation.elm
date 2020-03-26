@@ -67,11 +67,6 @@ contactEquationsGroup dt gravityLength { body1, body2, contacts } =
     }
 
 
-axes : List Vec3
-axes =
-    [ Vec3.i, Vec3.j, Vec3.k ]
-
-
 addConstraintEquations : Float -> Body data -> Body data -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
 addConstraintEquations dt body1 body2 constraint =
     case constraint of
@@ -253,7 +248,7 @@ addPointToPointConstraintEquations dt body1 body2 pivot1 pivot2 equations =
                 )
         )
         equations
-        axes
+        Vec3.basis
 
 
 addContactEquations : Float -> Float -> Float -> Body data -> Body data -> Contact -> List SolverEquation -> List SolverEquation

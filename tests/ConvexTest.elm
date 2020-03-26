@@ -141,7 +141,7 @@ initFaceNormal =
                                 (\{ vertices } ->
                                     legacyInitFaceNormal
                                         (List.range 0 (List.length vertices - 1))
-                                        (Array.fromList vertices)
+                                        (Array.fromList (List.reverse vertices))
                                 )
                                 faces
                        )
