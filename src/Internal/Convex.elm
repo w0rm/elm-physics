@@ -34,24 +34,35 @@ type alias Convex =
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
 placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume } =
-    { faces = List.foldl (\face result -> facePlaceIn transform3d face :: result) [] faces
-    , vertices = List.foldl (\vertex result -> Transform3d.pointPlaceIn transform3d vertex :: result) [] vertices
-    , uniqueEdges = List.foldl (\edge result -> Transform3d.directionPlaceIn transform3d edge :: result) [] uniqueEdges
-    , uniqueNormals = List.foldl (\normal result -> Transform3d.directionPlaceIn transform3d normal :: result) [] uniqueNormals
+    { faces = facesPlaceInHelp transform3d faces []
+    , vertices = Transform3d.pointsPlaceIn transform3d vertices
+    , uniqueEdges = Transform3d.directionsPlaceIn transform3d uniqueEdges
+    , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
     }
 
 
-{-| Places a face into the frame.
-Note that this reverses face vertices list,
-but it is reversed originally so this is fine
+{-| Places faces into the frame.
+Note that this reverses the faces list.
+It reversces vertices list of each face,
+but it is reversed originally so this is fine!
 -}
-facePlaceIn : Transform3d coordinates defines -> Face -> Face
-facePlaceIn transform3d { vertices, normal } =
-    { vertices = List.foldl (\point result -> Transform3d.pointPlaceIn transform3d point :: result) [] vertices
-    , normal = Transform3d.directionPlaceIn transform3d normal
-    }
+facesPlaceInHelp : Transform3d coordinates defines -> List Face -> List Face -> List Face
+facesPlaceInHelp transform3d faces result =
+    case faces of
+        { vertices, normal } :: remainingFaces ->
+            facesPlaceInHelp
+                transform3d
+                remainingFaces
+                ({ vertices = Transform3d.pointsPlaceIn transform3d vertices
+                 , normal = Transform3d.directionPlaceIn transform3d normal
+                 }
+                    :: result
+                )
+
+        [] ->
+            result
 
 
 init : List (List Int) -> Array Vec3 -> Convex

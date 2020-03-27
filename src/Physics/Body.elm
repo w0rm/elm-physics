@@ -300,7 +300,7 @@ moveTo point3d (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
+                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
             }
         )
 
@@ -333,7 +333,7 @@ translateBy vector3d (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
+                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
             }
         )
 
@@ -379,7 +379,7 @@ rotateAround axis angle (Protected body) =
         (Internal.updateMassProperties
             { body
                 | transform3d = newTransform3d
-                , worldShapes = List.foldl (\shape result -> InternalShape.placeIn newTransform3d shape :: result) [] body.shapes
+                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
             }
         )
 

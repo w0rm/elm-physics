@@ -3,8 +3,8 @@ module Internal.Shape exposing
     , Shape(..)
     , aabbClosure
     , expandBoundingSphereRadius
-    , placeIn
     , raycast
+    , shapesPlaceIn
     , volume
     )
 
@@ -62,20 +62,38 @@ aabbClosure shape =
             AABB.particle position
 
 
-placeIn : Transform3d coordinates { defines : originalCoords } -> Shape originalCoords -> Shape coordinates
-placeIn transform3d shape =
-    case shape of
-        Convex convex ->
-            Convex (Convex.placeIn transform3d convex)
+{-| Transforms shapes, reverses the original order
+-}
+shapesPlaceIn : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates)
+shapesPlaceIn transform3d shapes =
+    shapesPlaceInHelp transform3d shapes []
 
-        Plane plane ->
-            Plane (Plane.placeIn transform3d plane)
 
-        Sphere sphere ->
-            Sphere (Sphere.placeIn transform3d sphere)
+shapesPlaceInHelp : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates) -> List (Shape coordinates)
+shapesPlaceInHelp transform3d shapes result =
+    case shapes of
+        shape :: remainingShapes ->
+            shapesPlaceInHelp
+                transform3d
+                remainingShapes
+                ((case shape of
+                    Convex convex ->
+                        Convex (Convex.placeIn transform3d convex)
 
-        Particle position ->
-            Particle (Transform3d.pointPlaceIn transform3d position)
+                    Plane plane ->
+                        Plane (Plane.placeIn transform3d plane)
+
+                    Sphere sphere ->
+                        Sphere (Sphere.placeIn transform3d sphere)
+
+                    Particle position ->
+                        Particle (Transform3d.pointPlaceIn transform3d position)
+                 )
+                    :: result
+                )
+
+        [] ->
+            result
 
 
 expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float
