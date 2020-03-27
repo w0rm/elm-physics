@@ -144,14 +144,7 @@ e.g. WebGL entities.
 bodies : World data -> List (Body data)
 bodies (Protected world) =
     List.foldl
-        (\body result ->
-            -- id == -1 is to skip the filling body in Solver.elm
-            if body.id + 1 > 0 then
-                InternalBody.Protected body :: result
-
-            else
-                result
-        )
+        (\body result -> InternalBody.Protected body :: result)
         []
         world.bodies
 

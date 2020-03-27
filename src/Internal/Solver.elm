@@ -246,6 +246,8 @@ updateBodies dt bodies world =
                 bodies
     in
     { world
-        | bodies = Array.toList simulatedBodies
+        | bodies =
+            Array.toList simulatedBodies
+                |> List.filter (\{ id } -> id + 1 > 0)
         , simulatedBodies = simulatedBodies
     }
