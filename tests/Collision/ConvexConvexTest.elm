@@ -7,6 +7,7 @@ module Collision.ConvexConvexTest exposing
 
 import Collision.ConvexConvex
 import Expect
+import Internal.Const as Const
 import Internal.Convex as Convex
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
@@ -160,46 +161,56 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.i
+                        Const.maxNumber
+                        -Const.maxNumber
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the negative x axis" <|
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         { x = -1, y = 0, z = 0 }
+                        Const.maxNumber
+                        -Const.maxNumber
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the positive y axis" <|
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                         Vec3.j
+                        Const.maxNumber
+                        -Const.maxNumber
+                        (Convex.fromBlock 0.5 0.5 0.5).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the offset" <|
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
+                        Vec3.j
+                        Const.maxNumber
+                        -Const.maxNumber
                         (Convex.fromBlock 0.5 0.5 0.5
                             |> Convex.placeIn (Transform3d.atPoint { x = 0, y = 1, z = 0 })
                         ).vertices
-                        Vec3.j
                     )
                     { min = 0.5, max = 1.5 }
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
+                    Vec3.j
+                    Const.maxNumber
+                    -Const.maxNumber
                     (Convex.fromBlock 0.5 0.5 0.5
                         |> Convex.placeIn
                             (Transform3d.atPoint { x = 0, y = 1, z = 0 }
                                 |> Transform3d.rotateAroundOwn Vec3.i (pi / 2)
                             )
                     ).vertices
-                    Vec3.j
                     |> Expect.all
                         [ .min >> Expect.within (Expect.Absolute 0.00001) 0.5
                         , .max >> Expect.within (Expect.Absolute 0.00001) 1.5

@@ -260,10 +260,10 @@ testSeparatingAxis : Convex -> Convex -> Vec3 -> Maybe Float
 testSeparatingAxis convex1 convex2 separatingAxis =
     let
         p1 =
-            project convex1.vertices separatingAxis
+            project separatingAxis Const.maxNumber -Const.maxNumber convex1.vertices
 
         p2 =
-            project convex2.vertices separatingAxis
+            project separatingAxis Const.maxNumber -Const.maxNumber convex2.vertices
 
         d1 =
             p1.max - p2.min
@@ -283,26 +283,18 @@ testSeparatingAxis convex1 convex2 separatingAxis =
 
 {-| Get max and min dot product of a convex hull at ShapeWorldTransform3d projected onto an axis.
 -}
-project : List Vec3 -> Vec3 -> { min : Float, max : Float }
-project vertices axis =
-    projectHelp axis Const.maxNumber -Const.maxNumber vertices
-
-
-projectHelp : Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }
-projectHelp localAxis minVal maxVal currentVertices =
+project : Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }
+project localAxis minVal maxVal currentVertices =
     case currentVertices of
         [] ->
             { min = minVal, max = maxVal }
 
         vec :: remainingVertices ->
             let
-                {- val =
-                   Vec3.dot vec localAxis
-                -}
                 val =
                     vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
             in
-            projectHelp
+            project
                 localAxis
                 (if minVal - val > 0 then
                     val
