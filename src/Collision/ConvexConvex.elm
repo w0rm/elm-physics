@@ -170,7 +170,6 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 findSeparatingAxis : Convex -> Convex -> Maybe Vec3
 findSeparatingAxis convex1 convex2 =
     let
-        -- normals from both convexes converted in the world coordinates
         uniqueNormals =
             convex1.uniqueNormals ++ convex2.uniqueNormals
     in

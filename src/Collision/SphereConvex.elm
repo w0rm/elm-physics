@@ -9,19 +9,23 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 addContacts : (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
 addContacts orderContact { radius, position } hull2 contacts =
     let
-        ( maybeWorldContact, penetration ) =
+        ( maybeContact, penetration ) =
             sphereContact position radius hull2
     in
-    case maybeWorldContact of
-        Just worldContact2 ->
+    case maybeContact of
+        Just contact2 ->
             let
-                worldNormal =
-                    Vec3.direction worldContact2 position
+                normal =
+                    Vec3.direction contact2 position
             in
             orderContact
-                { ni = worldNormal
-                , pi = Vec3.add worldContact2 (Vec3.scale penetration worldNormal)
-                , pj = worldContact2
+                { ni = normal
+                , pi =
+                    { x = contact2.x + penetration * normal.x
+                    , y = contact2.y + penetration * normal.y
+                    , z = contact2.z + penetration * normal.z
+                    }
+                , pj = contact2
                 }
                 :: contacts
 
@@ -69,8 +73,8 @@ sphereContact center radius { faces } =
     let
         sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
         sphereFaceContact normal distance =
-            -- The world frame contact is located distance away from
-            -- the world frame sphere center in the OPPOSITE direction of
+            -- The contact is located distance away from
+            -- the sphere center in the OPPOSITE direction of
             -- the normal.
             ( Just (Vec3.sub center (Vec3.scale distance normal))
             , radius - distance
