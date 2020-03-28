@@ -10,9 +10,8 @@ import Collision.SphereParticle
 import Collision.SphereSphere
 import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
-import Internal.Coordinates exposing (CenterOfMassCoordinates, ShapeWorldTransform3d)
-import Internal.Shape exposing (Kind(..), Shape)
-import Internal.Transform3d as Transform3d
+import Internal.Shape exposing (Shape(..))
+import Physics.Coordinates exposing (WorldCoordinates)
 
 
 getContacts : Body data -> Body data -> List Contact
@@ -20,147 +19,125 @@ getContacts body1 body2 =
     List.foldl
         (\shape1 currentContactEquations1 ->
             List.foldl
-                (\shape2 ->
-                    addShapeContacts
-                        (Transform3d.placeIn body1.transform3d shape1.transform3d)
-                        shape1
-                        (Transform3d.placeIn body2.transform3d shape2.transform3d)
-                        shape2
-                )
+                (\shape2 -> addShapeContacts shape1 shape2)
                 currentContactEquations1
-                body2.shapes
+                body2.worldShapes
         )
         []
-        body1.shapes
+        body1.worldShapes
 
 
-addShapeContacts : ShapeWorldTransform3d -> Shape CenterOfMassCoordinates -> ShapeWorldTransform3d -> Shape CenterOfMassCoordinates -> List Contact -> List Contact
-addShapeContacts transform3d1 shape1 transform3d2 shape2 contacts =
-    case shape1.kind of
+addShapeContacts : Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
+addShapeContacts shape1 shape2 contacts =
+    case shape1 of
         Convex convex1 ->
-            case shape2.kind of
+            case shape2 of
                 Convex convex2 ->
                     Collision.ConvexConvex.addContacts
-                        transform3d1
                         convex1
-                        transform3d2
                         convex2
                         contacts
 
-                Plane ->
+                Plane plane2 ->
                     Collision.PlaneConvex.addContacts
                         Contact.flip
-                        transform3d2
-                        transform3d1
+                        plane2
                         convex1
                         contacts
 
-                Sphere radius2 ->
+                Sphere sphere2 ->
                     Collision.SphereConvex.addContacts
                         Contact.flip
-                        transform3d2
-                        radius2
-                        transform3d1
+                        sphere2
                         convex1
                         contacts
 
-                Particle ->
+                Particle particle2 ->
                     Collision.ParticleConvex.addContacts
                         Contact.flip
-                        transform3d2
-                        transform3d1
+                        particle2
                         convex1
                         contacts
 
-        Plane ->
-            case shape2.kind of
-                Plane ->
+        Plane plane1 ->
+            case shape2 of
+                Plane _ ->
                     -- don't collide two planes
                     contacts
 
                 Convex convex2 ->
                     Collision.PlaneConvex.addContacts
                         identity
-                        transform3d1
-                        transform3d2
+                        plane1
                         convex2
                         contacts
 
-                Sphere radius2 ->
+                Sphere sphere2 ->
                     Collision.PlaneSphere.addContacts
                         identity
-                        transform3d1
-                        transform3d2
-                        radius2
+                        plane1
+                        sphere2
                         contacts
 
-                Particle ->
+                Particle particle2 ->
                     Collision.PlaneParticle.addContacts
                         identity
-                        transform3d1
-                        transform3d2
+                        plane1
+                        particle2
                         contacts
 
-        Sphere radius1 ->
-            case shape2.kind of
-                Plane ->
+        Sphere sphere1 ->
+            case shape2 of
+                Plane plane2 ->
                     Collision.PlaneSphere.addContacts
                         Contact.flip
-                        transform3d2
-                        transform3d1
-                        radius1
+                        plane2
+                        sphere1
                         contacts
 
                 Convex convex2 ->
                     Collision.SphereConvex.addContacts
                         identity
-                        transform3d1
-                        radius1
-                        transform3d2
+                        sphere1
                         convex2
                         contacts
 
-                Sphere radius2 ->
+                Sphere sphere2 ->
                     Collision.SphereSphere.addContacts
-                        transform3d1
-                        radius1
-                        transform3d2
-                        radius2
+                        sphere1
+                        sphere2
                         contacts
 
-                Particle ->
+                Particle particle2 ->
                     Collision.SphereParticle.addContacts
                         identity
-                        transform3d1
-                        radius1
-                        transform3d2
+                        sphere1
+                        particle2
                         contacts
 
-        Particle ->
-            case shape2.kind of
-                Plane ->
+        Particle particle1 ->
+            case shape2 of
+                Plane plane2 ->
                     Collision.PlaneParticle.addContacts
                         Contact.flip
-                        transform3d2
-                        transform3d1
+                        plane2
+                        particle1
                         contacts
 
                 Convex convex2 ->
                     Collision.ParticleConvex.addContacts
                         identity
-                        transform3d1
-                        transform3d2
+                        particle1
                         convex2
                         contacts
 
-                Sphere radius2 ->
+                Sphere sphere2 ->
                     Collision.SphereParticle.addContacts
                         Contact.flip
-                        transform3d2
-                        radius2
-                        transform3d1
+                        sphere2
+                        particle1
                         contacts
 
-                Particle ->
+                Particle _ ->
                     -- don't collide two particles
                     contacts

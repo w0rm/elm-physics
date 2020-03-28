@@ -56,10 +56,8 @@ addContacts =
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                boxHull
+                                { radius = radius, position = center }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                                 |> Expect.contacts expectedContacts
                     )
@@ -72,10 +70,8 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                boxHull
+                                { radius = radius, position = center }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
                     |> Expect.equal []
@@ -86,10 +82,8 @@ addContacts =
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                octoHull
+                                { radius = radius, position = center }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                                 |> Expect.contacts expectedContacts
                     )
@@ -102,10 +96,8 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                octoHull
+                                { radius = radius, position = center }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )
                     |> Expect.equal []

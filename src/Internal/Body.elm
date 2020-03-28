@@ -15,7 +15,7 @@ import Internal.AABB as AABB exposing (AABB)
 import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.Shape as Shape exposing (Shape)
+import Internal.Shape as Shape exposing (Shape(..))
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
@@ -35,6 +35,7 @@ type alias Body data =
     , angularVelocity : Vec3
     , mass : Float
     , shapes : List (Shape CenterOfMassCoordinates)
+    , worldShapes : List (Shape WorldCoordinates)
     , force : Vec3
     , torque : Vec3
     , boundingSphereRadius : Float
@@ -55,15 +56,27 @@ centerOfMass : List (Shape BodyCoordinates) -> Vec3
 centerOfMass shapes =
     let
         totalVolume =
-            List.foldl (\{ volume } sum -> sum + volume) 0 shapes
+            List.foldl (\shape sum -> sum + Shape.volume shape) 0 shapes
     in
     if totalVolume > 0 then
         List.foldl
             (\shape ->
                 Vec3.add
                     (Vec3.scale
-                        (shape.volume / totalVolume)
-                        (Transform3d.originPoint shape.transform3d)
+                        (Shape.volume shape / totalVolume)
+                        (case shape of
+                            Convex { position } ->
+                                position
+
+                            Particle position ->
+                                position
+
+                            Sphere { position } ->
+                                position
+
+                            Plane { position } ->
+                                position
+                        )
                     )
             )
             Vec3.zero
@@ -95,16 +108,12 @@ compound shapes data =
         transform3d =
             Transform3d.placeIn bodyTransform3d centerOfMassTransform3d
 
+        shapeTransform =
+            Transform3d.placeIn transform3d inverseCenterOfMassTransform3d
+
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
-            List.map
-                (\shape ->
-                    { kind = shape.kind
-                    , volume = shape.volume
-                    , transform3d = Transform3d.placeIn inverseCenterOfMassTransform3d shape.transform3d
-                    }
-                )
-                shapes
+            Shape.shapesPlaceIn inverseCenterOfMassTransform3d shapes
     in
     updateMassProperties
         { id = -1
@@ -116,6 +125,7 @@ compound shapes data =
         , angularVelocity = Vec3.zero
         , mass = 0
         , shapes = movedShapes
+        , worldShapes = Shape.shapesPlaceIn shapeTransform shapes
         , force = Vec3.zero
         , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
@@ -312,7 +322,7 @@ computeAABB : Body data -> AABB
 computeAABB body =
     List.foldl
         (\shape ->
-            Shape.aabbClosure shape.kind shape.transform3d
+            Shape.aabbClosure shape
                 |> AABB.extend
         )
         AABB.impossible
@@ -326,7 +336,7 @@ raycast :
 raycast ray body =
     List.foldl
         (\shape maybeClosestRaycastResult ->
-            case Shape.raycast ray (Transform3d.placeIn body.transform3d shape.transform3d) shape of
+            case Shape.raycast ray shape of
                 Just raycastResult ->
                     case maybeClosestRaycastResult of
                         Just closestRaycastResult ->
@@ -343,4 +353,4 @@ raycast ray body =
                     maybeClosestRaycastResult
         )
         Nothing
-        body.shapes
+        body.worldShapes

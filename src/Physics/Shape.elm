@@ -72,12 +72,16 @@ block block3d =
 
         z =
             Direction3d.unwrap (Frame3d.zDirection rightHandedFrame3d)
+
+        tranform3d =
+            Transform3d.fromOriginAndBasis origin x y z
     in
     Protected
-        { transform3d = Transform3d.fromOriginAndBasis origin x y z
-        , kind = Internal.Convex (Convex.fromBlock halfX halfY halfZ)
-        , volume = Length.inMeters sizeX * Length.inMeters sizeY * Length.inMeters sizeZ
-        }
+        (Internal.Convex
+            (Convex.fromBlock halfX halfY halfZ
+                |> Convex.placeIn tranform3d
+            )
+        )
 
 
 {-| -}
@@ -91,7 +95,4 @@ sphere sphere3d =
             Point3d.toMeters (Sphere3d.centerPoint sphere3d)
     in
     Protected
-        { transform3d = Transform3d.atPoint origin
-        , kind = Internal.Sphere radius
-        , volume = 4 / 3 * pi * (radius ^ 3)
-        }
+        (Internal.Sphere { radius = radius, position = origin })

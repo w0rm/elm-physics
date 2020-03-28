@@ -1,7 +1,6 @@
 module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
-    , faceAdjacency
     , initFaceNormal
     , initUniqueEdges
     )
@@ -142,7 +141,7 @@ initFaceNormal =
                                 (\{ vertices } ->
                                     legacyInitFaceNormal
                                         (List.range 0 (List.length vertices - 1))
-                                        (Array.fromList vertices)
+                                        (Array.fromList (List.reverse vertices))
                                 )
                                 faces
                        )
@@ -432,40 +431,6 @@ boxUniqueEdges =
                     , Vec3.j
                     , Vec3.k
                     ]
-        ]
-
-
-faceAdjacency : Test
-faceAdjacency =
-    describe "Convex.faceAdjacency"
-        [ test "works for the box" <|
-            \_ ->
-                Fixtures.Convex.boxVertexIndices
-                    |> Convex.faceAdjacency
-                    |> List.map List.sort
-                    |> Expect.equal
-                        [ [ 2, 3, 4, 5 ]
-                        , [ 2, 3, 4, 5 ]
-                        , [ 0, 1, 4, 5 ]
-                        , [ 0, 1, 4, 5 ]
-                        , [ 0, 1, 2, 3 ]
-                        , [ 0, 1, 2, 3 ]
-                        ]
-        , test "works for the octohedron" <|
-            \_ ->
-                Fixtures.Convex.octoVertexIndices
-                    |> Convex.faceAdjacency
-                    |> List.map List.sort
-                    |> Expect.equal
-                        [ [ 1, 2, 3, 4, 5, 6 ]
-                        , [ 0, 2, 3, 4, 6, 7 ]
-                        , [ 0, 1, 3, 4, 5, 7 ]
-                        , [ 0, 1, 2, 5, 6, 7 ]
-                        , [ 0, 1, 2, 5, 6, 7 ]
-                        , [ 0, 2, 3, 4, 6, 7 ]
-                        , [ 0, 1, 3, 4, 5, 7 ]
-                        , [ 1, 2, 3, 4, 5, 6 ]
-                        ]
         ]
 
 

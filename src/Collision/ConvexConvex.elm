@@ -7,9 +7,7 @@ module Collision.ConvexConvex exposing
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Convex as Convex exposing (AdjacentFace, Convex, Face)
-import Internal.Coordinates exposing (ShapeWorldTransform3d)
-import Internal.Transform3d as Transform3d
+import Internal.Convex as Convex exposing (Convex, Face)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
@@ -23,19 +21,19 @@ maxDist =
     100
 
 
-addContacts : ShapeWorldTransform3d -> Convex -> ShapeWorldTransform3d -> Convex -> List Contact -> List Contact
-addContacts transform3d1 convex1 transform3d2 convex2 contacts =
-    case findSeparatingAxis transform3d1 convex1 transform3d2 convex2 of
+addContacts : Convex -> Convex -> List Contact -> List Contact
+addContacts convex1 convex2 contacts =
+    case findSeparatingAxis convex1 convex2 of
         Just separatingAxis ->
             let
                 reversedSeparatingAxis =
                     Vec3.negate separatingAxis
             in
-            case bestFace convex1.faces (Transform3d.directionRelativeTo transform3d1 separatingAxis) of
+            case bestFace convex1.faces separatingAxis of
                 Just face1 ->
-                    case bestFace convex2.faces (Transform3d.directionRelativeTo transform3d2 reversedSeparatingAxis) of
+                    case bestFace convex2.faces reversedSeparatingAxis of
                         Just face2 ->
-                            clipTwoFaces transform3d1 face1 transform3d2 face2 reversedSeparatingAxis contacts
+                            clipTwoFaces face1 face2 reversedSeparatingAxis contacts
 
                         Nothing ->
                             contacts
@@ -47,27 +45,29 @@ addContacts transform3d1 convex1 transform3d2 convex2 contacts =
             contacts
 
 
-clipTwoFaces : ShapeWorldTransform3d -> Face -> ShapeWorldTransform3d -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces transform3d1 { point, normal, adjacentFaces } transform3d2 { vertices } separatingAxis contacts =
+clipTwoFaces : Face -> Face -> Vec3 -> List Contact -> List Contact
+clipTwoFaces face { vertices } separatingAxis contacts =
     let
-        worldPlaneNormal =
-            Transform3d.directionPlaceIn transform3d1 normal
+        point =
+            case face.vertices of
+                first :: _ ->
+                    first
+
+                [] ->
+                    Vec3.zero
 
         worldPlaneConstant =
-            -(Vec3.dot normal point) - Vec3.dot worldPlaneNormal (Transform3d.originPoint transform3d1)
-
-        worldVertices =
-            List.map (\v -> Transform3d.pointPlaceIn transform3d2 v) vertices
+            -(Vec3.dot face.normal point)
     in
     List.foldl
         (\vertex result ->
             let
                 depth =
-                    max minDist (Vec3.dot worldPlaneNormal vertex + worldPlaneConstant)
+                    max minDist (Vec3.dot face.normal vertex + worldPlaneConstant)
             in
             if depth <= maxDist && depth <= 0 then
                 { ni = separatingAxis
-                , pi = Vec3.sub vertex (Vec3.scale depth worldPlaneNormal)
+                , pi = Vec3.sub vertex (Vec3.scale depth face.normal)
                 , pj = vertex
                 }
                     :: result
@@ -76,7 +76,7 @@ clipTwoFaces transform3d1 { point, normal, adjacentFaces } transform3d2 { vertic
                 result
         )
         contacts
-        (clipAgainstAdjacentFaces transform3d1 adjacentFaces worldVertices)
+        (clipAgainstAdjacentFaces face vertices)
 
 
 bestFace : List Face -> Vec3 -> Maybe Face
@@ -121,27 +121,26 @@ bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
             currentBestFace
 
 
-clipAgainstAdjacentFaces : ShapeWorldTransform3d -> List AdjacentFace -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces transform3d adjacentFaces worldVertices =
-    case adjacentFaces of
-        { point, normal } :: remainingFaces ->
+clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3
+clipAgainstAdjacentFaces { vertices, normal } worldVertices =
+    Convex.foldFaceEdges
+        (\v1 v2 ->
             let
-                worldPlaneNormal =
-                    Transform3d.directionPlaceIn transform3d normal
+                edge =
+                    Vec3.normalize (Vec3.sub v1 v2)
 
-                worldPlaneConstant =
-                    -(Vec3.dot point normal) - Vec3.dot worldPlaneNormal (Transform3d.originPoint transform3d)
+                planeNormal =
+                    Vec3.cross normal edge
 
-                vertices =
-                    Convex.foldFaceEdges
-                        (clipFaceAgainstPlaneAdd worldPlaneNormal worldPlaneConstant)
-                        []
-                        worldVertices
+                planeConstant =
+                    -(Vec3.dot v1 planeNormal)
             in
-            clipAgainstAdjacentFaces transform3d remainingFaces vertices
-
-        [] ->
-            worldVertices
+            Convex.foldFaceEdges
+                (clipFaceAgainstPlaneAdd planeNormal planeConstant)
+                []
+        )
+        worldVertices
+        vertices
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
@@ -170,79 +169,51 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
         result
 
 
-findSeparatingAxis : ShapeWorldTransform3d -> Convex -> ShapeWorldTransform3d -> Convex -> Maybe Vec3
-findSeparatingAxis transform3d1 convex1 transform3d2 convex2 =
+findSeparatingAxis : Convex -> Convex -> Maybe Vec3
+findSeparatingAxis convex1 convex2 =
     let
-        -- group to reduce the number of arguments
-        ctx =
-            { transform3d1 = transform3d1
-            , convex1 = convex1
-            , transform3d2 = transform3d2
-            , convex2 = convex2
-            }
-
         -- normals from both convexes converted in the world coordinates
-        worldVector frame3d normal =
-            Transform3d.directionPlaceIn frame3d normal
-
         worldNormals =
-            List.foldl (worldVector transform3d1 >> (::))
-                (List.foldl (worldVector transform3d2 >> (::)) [] convex2.uniqueNormals)
-                convex1.uniqueNormals
+            convex1.uniqueNormals ++ convex2.uniqueNormals
     in
-    case testUniqueNormals ctx worldNormals Vec3.zero Const.maxNumber of
+    case testUniqueNormals convex1 convex2 worldNormals Vec3.zero Const.maxNumber of
         Just { target, dmin } ->
-            let
-                worldEdges1 =
-                    List.foldl
-                        (worldVector transform3d1 >> (::))
-                        []
-                        ctx.convex1.uniqueEdges
-
-                worldEdges2 =
-                    List.foldl
-                        (worldVector transform3d2 >> (::))
-                        []
-                        ctx.convex2.uniqueEdges
-            in
-            testUniqueEdges ctx worldEdges2 worldEdges1 worldEdges2 target dmin
+            testUniqueEdges convex1
+                convex2
+                convex2.uniqueEdges
+                convex1.uniqueEdges
+                convex2.uniqueEdges
+                target
+                dmin
 
         _ ->
             Nothing
 
 
-type alias TestContext =
-    { transform3d1 : ShapeWorldTransform3d
-    , convex1 : Convex
-    , transform3d2 : ShapeWorldTransform3d
-    , convex2 : Convex
-    }
-
-
-testUniqueNormals : TestContext -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
-testUniqueNormals ctx normals target dmin =
+testUniqueNormals : Convex -> Convex -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
+testUniqueNormals convex1 convex2 normals target dmin =
     case normals of
         [] ->
             Just { target = target, dmin = dmin }
 
         normal :: restNormals ->
-            case testSeparatingAxis ctx normal of
+            case testSeparatingAxis convex1 convex2 normal of
                 Nothing ->
                     Nothing
 
                 Just d ->
                     if d - dmin < 0 then
-                        testUniqueNormals ctx restNormals normal d
+                        testUniqueNormals convex1 convex2 restNormals normal d
 
                     else
-                        testUniqueNormals ctx restNormals target dmin
+                        testUniqueNormals convex1 convex2 restNormals target dmin
 
 
-testUniqueEdges : TestContext -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
+testUniqueEdges : Convex -> Convex -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges convex1 convex2 initEdges2 edges1 edges2 target dmin =
     case edges1 of
         [] ->
-            if Vec3.dot (Vec3.sub (Transform3d.originPoint ctx.transform3d2) (Transform3d.originPoint ctx.transform3d1)) target > 0 then
+            if Vec3.dot (Vec3.sub convex2.position convex1.position) target > 0 then
                 Just (Vec3.negate target)
 
             else
@@ -252,7 +223,7 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
             case edges2 of
                 [] ->
                     -- requeue edges2
-                    testUniqueEdges ctx initEdges2 remainingEdges1 initEdges2 target dmin
+                    testUniqueEdges convex1 convex2 initEdges2 remainingEdges1 initEdges2 target dmin
 
                 worldEdge2 :: remainingEdges2 ->
                     let
@@ -261,14 +232,14 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                     in
                     if Vec3.almostZero cross then
                         -- continue because edges are parallel
-                        testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                        testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
 
                     else
                         let
                             normalizedCross =
                                 Vec3.normalize cross
                         in
-                        case testSeparatingAxis ctx normalizedCross of
+                        case testSeparatingAxis convex1 convex2 normalizedCross of
                             Nothing ->
                                 -- exit because hulls don't collide
                                 Nothing
@@ -276,23 +247,23 @@ testUniqueEdges ctx initEdges2 edges1 edges2 target dmin =
                             Just dist ->
                                 if dist - dmin < 0 then
                                     -- update target and dmin
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 normalizedCross dist
+                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 normalizedCross dist
 
                                 else
                                     -- continue
-                                    testUniqueEdges ctx initEdges2 edges1 remainingEdges2 target dmin
+                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
 
 
 {-| If projections of two convexes don’t overlap, then they don’t collide.
 -}
-testSeparatingAxis : TestContext -> Vec3 -> Maybe Float
-testSeparatingAxis { transform3d1, convex1, transform3d2, convex2 } separatingAxis =
+testSeparatingAxis : Convex -> Convex -> Vec3 -> Maybe Float
+testSeparatingAxis convex1 convex2 separatingAxis =
     let
         p1 =
-            project transform3d1 convex1.vertices separatingAxis
+            project separatingAxis Const.maxNumber -Const.maxNumber convex1.vertices
 
         p2 =
-            project transform3d2 convex2.vertices separatingAxis
+            project separatingAxis Const.maxNumber -Const.maxNumber convex2.vertices
 
         d1 =
             p1.max - p2.min
@@ -312,37 +283,18 @@ testSeparatingAxis { transform3d1, convex1, transform3d2, convex2 } separatingAx
 
 {-| Get max and min dot product of a convex hull at ShapeWorldTransform3d projected onto an axis.
 -}
-project : ShapeWorldTransform3d -> List Vec3 -> Vec3 -> { min : Float, max : Float }
-project frame3d vertices separatingAxis =
-    let
-        localAxis =
-            Transform3d.directionRelativeTo frame3d separatingAxis
-
-        point =
-            Transform3d.pointRelativeTo frame3d Vec3.zero
-
-        add =
-            (point.x * localAxis.x) + (point.y * localAxis.y) + (point.z * localAxis.z)
-    in
-    projectHelp -add localAxis Const.maxNumber -Const.maxNumber vertices
-
-
-projectHelp : Float -> Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }
-projectHelp add localAxis minVal maxVal currentVertices =
+project : Vec3 -> Float -> Float -> List Vec3 -> { min : Float, max : Float }
+project localAxis minVal maxVal currentVertices =
     case currentVertices of
         [] ->
-            { min = minVal + add, max = maxVal + add }
+            { min = minVal, max = maxVal }
 
         vec :: remainingVertices ->
             let
-                {- val =
-                   Vec3.dot vec localAxis
-                -}
                 val =
                     vec.x * localAxis.x + vec.y * localAxis.y + vec.z * localAxis.z
             in
-            projectHelp
-                add
+            project
                 localAxis
                 (if minVal - val > 0 then
                     val

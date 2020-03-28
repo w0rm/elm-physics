@@ -56,6 +56,7 @@ import Internal.Body as Internal exposing (Protected(..))
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
 import Internal.Transform3d as Transform3d
+import Internal.Vector3 as Vec3
 import Length exposing (Meters)
 import Mass exposing (Mass)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
@@ -120,10 +121,11 @@ plane : data -> Body data
 plane =
     compound
         [ InternalShape.Protected
-            { transform3d = Transform3d.atOrigin
-            , kind = InternalShape.Plane
-            , volume = 0
-            }
+            (InternalShape.Plane
+                { position = Vec3.zero
+                , normal = Vec3.k
+                }
+            )
         ]
 
 
@@ -150,10 +152,7 @@ particle : data -> Body data
 particle =
     compound
         [ InternalShape.Protected
-            { transform3d = Transform3d.atOrigin
-            , kind = InternalShape.Particle
-            , volume = 0
-            }
+            (InternalShape.Particle Vec3.zero)
         ]
 
 
@@ -202,12 +201,13 @@ withBehavior behavior (Protected body) =
                 [] ->
                     Protected body
 
-                [ { kind } ] ->
-                    if kind == InternalShape.Plane then
-                        Protected body
+                [ shape ] ->
+                    case shape of
+                        InternalShape.Plane _ ->
+                            Protected body
 
-                    else
-                        Protected (Internal.updateMassProperties { body | mass = mass })
+                        _ ->
+                            Protected (Internal.updateMassProperties { body | mass = mass })
 
                 _ ->
                     Protected (Internal.updateMassProperties { body | mass = mass })
@@ -296,7 +296,11 @@ moveTo point3d (Protected body) =
                 (Transform3d.moveTo (Point3d.toMeters point3d) bodyCoordinatesTransform3d)
                 body.centerOfMassTransform3d
     in
-    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+    Protected
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Move the body in the world relative to its current position,
@@ -323,7 +327,11 @@ translateBy vector3d (Protected body) =
                 )
                 body.centerOfMassTransform3d
     in
-    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+    Protected
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Rotate the body in the world around axis,
@@ -363,7 +371,11 @@ rotateAround axis angle (Protected body) =
                 newBodyCoordinatesTransform3d
                 body.centerOfMassTransform3d
     in
-    Protected (Internal.updateMassProperties { body | transform3d = newTransform3d })
+    Protected
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Update user-defined data.
@@ -468,7 +480,10 @@ compound : List Shape -> data -> Body data
 compound shapes newData =
     let
         unprotectedShapes =
-            List.map (\(InternalShape.Protected shape) -> shape) shapes
+            List.foldl
+                (\(InternalShape.Protected shape) result -> shape :: result)
+                []
+                shapes
     in
     Protected (Internal.compound unprotectedShapes newData)
 

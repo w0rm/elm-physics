@@ -5,6 +5,7 @@ module Internal.SolverBody exposing
     )
 
 import Internal.Body as Body exposing (Body)
+import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 
@@ -86,6 +87,7 @@ toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
     , centerOfMassTransform3d = body.centerOfMassTransform3d
     , mass = body.mass
     , shapes = body.shapes
+    , worldShapes = Shape.shapesPlaceIn newTransform3d body.shapes
     , boundingSphereRadius = body.boundingSphereRadius
     , linearDamping = body.linearDamping
     , angularDamping = body.angularDamping
