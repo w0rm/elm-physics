@@ -19,12 +19,12 @@ initFaceNormal : Test
 initFaceNormal =
     let
         boxNormals =
-            [ { x = 0, y = 0, z = -1 }
-            , Vec3.k
-            , { x = 0, y = -1, z = 0 }
-            , Vec3.j
-            , { x = -1, y = 0, z = 0 }
-            , Vec3.i
+            [ Vec3.zNegative
+            , Vec3.zAxis
+            , Vec3.yNegative
+            , Vec3.yAxis
+            , Vec3.xNegative
+            , Vec3.xAxis
             ]
 
         -- The direction of each triangle's first angle.
@@ -34,13 +34,13 @@ initFaceNormal =
         -- can be found four entries down --
         -- looping back around as needed.
         xRotationRingSequence =
-            [ Vec3.j
+            [ Vec3.yAxis
             , { x = 0, y = 1, z = 1 } |> Vec3.normalize
-            , Vec3.k
+            , Vec3.zAxis
             , { x = 0, y = -1, z = 1 } |> Vec3.normalize
-            , { x = 0, y = -1, z = 0 }
+            , Vec3.yNegative
             , { x = 0, y = -1, z = -1 } |> Vec3.normalize
-            , { x = 0, y = 0, z = -1 }
+            , Vec3.zNegative
             , { x = 0, y = 1, z = -1 } |> Vec3.normalize
             ]
 
@@ -52,8 +52,8 @@ initFaceNormal =
 
         xyRightTriangle rightAngleTurn =
             [ Vec3.zero
-            , Vec3.i
-            , Vec3.i |> Vec3.add rightAngleTurn
+            , Vec3.xAxis
+            , Vec3.xAxis |> Vec3.add rightAngleTurn
             ]
 
         -- Variations around the y axis.
@@ -63,13 +63,13 @@ initFaceNormal =
         -- (Vec3.normalize (vec3 1 1 1)).
         -- For now, they are hard-coded.
         yRotationRingSequence =
-            [ Vec3.k
+            [ Vec3.zAxis
             , { x = 1, y = 0, z = 1 } |> Vec3.normalize
-            , Vec3.i
+            , Vec3.xAxis
             , { x = 1, y = 0, z = -1 } |> Vec3.normalize
-            , { x = 0, y = 0, z = -1 }
+            , Vec3.zNegative
             , { x = -1, y = 0, z = -1 } |> Vec3.normalize
-            , { x = -1, y = 0, z = 0 }
+            , Vec3.xNegative
             , { x = -1, y = 0, z = 1 } |> Vec3.normalize
             ]
 
@@ -81,19 +81,19 @@ initFaceNormal =
 
         yzRightTriangle rightAngleTurn =
             [ Vec3.zero
-            , Vec3.j
-            , Vec3.j |> Vec3.add rightAngleTurn
+            , Vec3.yAxis
+            , Vec3.yAxis |> Vec3.add rightAngleTurn
             ]
 
         -- Variations around the z axis.
         zRotationRingSequence =
-            [ Vec3.i
+            [ Vec3.xAxis
             , { x = 1, y = 1, z = 0 } |> Vec3.normalize
-            , Vec3.j
+            , Vec3.yAxis
             , { x = -1, y = 1, z = 0 } |> Vec3.normalize
-            , { x = -1, y = 0, z = 0 }
+            , Vec3.xNegative
             , { x = -1, y = -1, z = 0 } |> Vec3.normalize
-            , { x = 0, y = -1, z = 0 }
+            , Vec3.yNegative
             , { x = 1, y = -1, z = 0 } |> Vec3.normalize
             ]
 
@@ -105,8 +105,8 @@ initFaceNormal =
 
         zxRightTriangle rightAngleTurn =
             [ Vec3.zero
-            , Vec3.k
-            , Vec3.k |> Vec3.add rightAngleTurn
+            , Vec3.zAxis
+            , Vec3.zAxis |> Vec3.add rightAngleTurn
             ]
 
         faceIndices =
@@ -276,9 +276,9 @@ addFaceEdges =
                     -- other valid results and should mask them in the final
                     -- result.
                     fullSeedSet =
-                        [ Vec3.i
-                        , Vec3.j
-                        , Vec3.k
+                        [ Vec3.xAxis
+                        , Vec3.yAxis
+                        , Vec3.zAxis
                         ]
                 in
                 Convex.fromBlock 1 1 1
@@ -288,9 +288,9 @@ addFaceEdges =
             \_ ->
                 let
                     fullSeedSet =
-                        [ { x = -1, y = 0, z = 0 }
-                        , { x = 0, y = -1, z = 0 }
-                        , { x = 0, y = 0, z = -1 }
+                        [ Vec3.xNegative
+                        , Vec3.yNegative
+                        , Vec3.zNegative
                         ]
                 in
                 Convex.fromBlock 1 1 1
@@ -303,8 +303,8 @@ addFaceEdges =
                     -- addition of complementary edges. This tests that the
                     -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
-                        [ { x = -1, y = 0, z = 0 }
-                        , Vec3.k
+                        [ Vec3.xNegative
+                        , Vec3.zAxis
                         ]
                 in
                 Convex.fromBlock 1 1 1
@@ -317,7 +317,7 @@ addFaceEdges =
                     -- addition of complementary edges. This tests that the
                     -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
-                        [ Vec3.k ]
+                        [ Vec3.zAxis ]
                 in
                 Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex partialSeedSet
@@ -329,7 +329,7 @@ addFaceEdges =
                     -- addition of complementary edges. This tests that the
                     -- de-duping is not wildly over- or under- aggressive.
                     partialSeedSet =
-                        [ Vec3.j ]
+                        [ Vec3.yAxis ]
                 in
                 Convex.fromBlock 1 1 1
                     |> countEdgesOfConvex partialSeedSet
@@ -387,8 +387,8 @@ addFaceEdges =
             \_ ->
                 let
                     partialSeedSet =
-                        [ Vec3.i
-                        , Vec3.j
+                        [ Vec3.xAxis
+                        , Vec3.yAxis
                         ]
                 in
                 Fixtures.Convex.squarePyramid
@@ -398,8 +398,8 @@ addFaceEdges =
             \_ ->
                 let
                     partialSeedSet =
-                        [ Vec3.i
-                        , Vec3.j
+                        [ Vec3.xAxis
+                        , Vec3.yAxis
                         ]
                 in
                 Fixtures.Convex.askewSquarePyramid
@@ -409,8 +409,8 @@ addFaceEdges =
             \_ ->
                 let
                     partialSeedSet =
-                        [ Vec3.i
-                        , Vec3.j
+                        [ Vec3.xAxis
+                        , Vec3.yAxis
                         ]
                 in
                 Fixtures.Convex.nonSquareQuadPyramid
@@ -427,9 +427,9 @@ boxUniqueEdges =
             \_ ->
                 Expect.equal
                     (Convex.fromBlock 1 1 1).uniqueEdges
-                    [ Vec3.i
-                    , Vec3.j
-                    , Vec3.k
+                    [ Vec3.xAxis
+                    , Vec3.yAxis
+                    , Vec3.zAxis
                     ]
         ]
 
@@ -446,7 +446,17 @@ cached in Convex.edges.
 -}
 uniqueEdgesOfConvex : Convex -> List Vec3
 uniqueEdgesOfConvex { faces } =
-    Convex.initUniqueEdges faces
+    List.foldl
+        (\face edges ->
+            Convex.foldFaceEdges
+                (\v1 v2 ->
+                    Convex.addDirectionIfDistinct (Vec3.direction v1 v2)
+                )
+                edges
+                face.vertices
+        )
+        []
+        faces
 
 
 {-| This test helper function is intended as a more flexible variant of
@@ -459,7 +469,17 @@ Keep this code in sync with any changes to Convex.initUniqueEdges.
 -}
 addEdgesOfConvex : List Vec3 -> Convex -> List Vec3
 addEdgesOfConvex seedEdges { faces } =
-    List.foldl Convex.addFaceEdges seedEdges faces
+    List.foldl
+        (\face edges ->
+            Convex.foldFaceEdges
+                (\v1 v2 ->
+                    Convex.addDirectionIfDistinct (Vec3.direction v1 v2)
+                )
+                edges
+                face.vertices
+        )
+        seedEdges
+        faces
 
 
 {-| Useful variant of addEdgesOfConvex that abstracts out the count

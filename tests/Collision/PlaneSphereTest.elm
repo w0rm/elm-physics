@@ -14,7 +14,7 @@ addContacts =
             1
 
         plane =
-            { position = Vec3.zero, normal = Vec3.k }
+            { position = Vec3.zero, normal = Vec3.zAxis }
 
         sphere =
             { radius = radius, position = { x = 0, y = 0, z = radius } }

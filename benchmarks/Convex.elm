@@ -1,61 +1,39 @@
 module Convex exposing (main)
 
-{- For a useful benchmark,
-   copy and rename an older baseline version of Physics/Convex.elm
-   to Physics/OriginalConvex.elm and uncomment the import below,
-   then toggle the usage in benchmarks.
-
-   Switching it back to use the (current) Convex.elm through the
-   OriginalConvex alias keeps obsolete or redundant code out of
-   the repo while the comparison benchmarks continue to be maintained and
-   built and run essentially as absolute non-comparison benchmarks until
-   they are needed again in another round of performance work.
--}
-{- import Physics.OriginalConvex as OriginalConvex -}
-
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Internal.Convex as Convex
-import Internal.Vector3 exposing (Vec3)
+import Internal.Transform3d as Transform3d
+import Internal.Vector3 as Vec3
 
 
 main : BenchmarkProgram
 main =
     program <|
         describe "Convex"
-            [ foldFaceNormals
+            [ placeIn
             ]
 
 
-foldFaceNormals : Benchmark
-foldFaceNormals =
+
+placeIn : Benchmark
+placeIn =
     let
         sampleHull =
             Convex.fromBlock 1 1 1
 
-        originalSampleHull =
-            {- OriginalConvex.fromBlock -}
-            Convex.fromBlock 1 1 1
-
-        trivialVisitor : Vec3 -> Vec3 -> Int -> Int
-        trivialVisitor _ _ _ =
-            0
+        transform =
+            Transform3d.atPoint { x = 0, y = 0, z = 2.5 }
+                |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 4)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 20)
     in
-    Benchmark.compare "foldFaceNormals"
+    Benchmark.compare "placeIn"
         "baseline"
         (\_ ->
-            {- OriginalConvex.foldFaceNormals -}
-            Convex.foldFaceNormals
-                -- fold a function with minimal overhead
-                trivialVisitor
-                0
-                originalSampleHull
+            {- Convex.placeInOld -}
+            Convex.placeIn transform sampleHull
         )
         "latest code"
         (\_ ->
-            Convex.foldFaceNormals
-                -- fold a function with minimal overhead
-                trivialVisitor
-                0
-                sampleHull
+            Convex.placeIn transform sampleHull
         )

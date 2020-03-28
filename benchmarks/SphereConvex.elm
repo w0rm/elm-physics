@@ -1,18 +1,5 @@
 module SphereConvex exposing (main)
 
-{- For a useful benchmark,
-   copy and rename an older baseline version of Collision/SphereConvex.elm
-   to Collision/OriginalSphereConvex.elm and uncomment the import below,
-   then toggle the usage in benchmarks.
-
-   Switching it back to use the (current) SphereConvex.elm through the
-   OriginalSphereConvex alias keeps obsolete or redundant code out of
-   the repo while the comparison benchmarks continue to be maintained and
-   built and run essentially as absolute non-comparison benchmarks until
-   they are needed again in another round of performance work.
--}
-{- import Collision.OriginalSphereConvex -}
-
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
@@ -39,13 +26,7 @@ suite =
         boxHalfExtent =
             1
 
-        originTransform3d =
-            Transform3d.atOrigin
-
         boxHull =
-            Convex.fromBlock boxHalfExtent boxHalfExtent boxHalfExtent
-
-        originalBoxHull =
             Convex.fromBlock boxHalfExtent boxHalfExtent boxHalfExtent
 
         boxPositions =
@@ -62,9 +43,6 @@ suite =
         octoHull =
             Fixtures.Convex.octoHull octoHalfExtent
 
-        originalOctoHull =
-            Fixtures.Convex.originalOctoHull octoHalfExtent
-
         octoPositions =
             Fixtures.NarrowPhase.sphereContactOctohedronPositions center radius octoHalfExtent
                 |> List.map Tuple.first
@@ -80,13 +58,11 @@ suite =
                 boxPositions
                     |> List.map
                         (\position ->
-                            {- Collision.OriginalSphereConvex.addContacts -}
+                            {- Collision.SphereConvex.oldAddContacts -}
                             Collision.SphereConvex.addContacts
                                 identity
-                                originTransform3d
-                                radius
-                                (Transform3d.atPoint position)
-                                originalBoxHull
+                                { position = { x = 0, y = 0, z = 0 }, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
             )
@@ -97,10 +73,8 @@ suite =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                boxHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
             )
@@ -110,13 +84,11 @@ suite =
                 boxFarPositions
                     |> List.map
                         (\position ->
-                            {- Collision.OriginalSphereConvex.addContacts -}
+                            {- Collision.SphereConvex.oldAddContacts -}
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                originalBoxHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
             )
@@ -127,10 +99,8 @@ suite =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                boxHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
             )
@@ -140,13 +110,11 @@ suite =
                 octoPositions
                     |> List.map
                         (\position ->
-                            {- Collision.OriginalSphereConvex.addContacts -}
+                            {- Collision.SphereConvex.oldAddContacts -}
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                originalOctoHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )
             )
@@ -157,10 +125,8 @@ suite =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                octoHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )
             )
@@ -170,13 +136,11 @@ suite =
                 octoFarPositions
                     |> List.map
                         (\position ->
-                            {- Collision.OriginalSphereConvex.addContacts -}
+                            {- Collision.SphereConvex.oldAddContacts -}
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                originalOctoHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )
             )
@@ -187,10 +151,8 @@ suite =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Transform3d.atPoint center)
-                                radius
-                                (Transform3d.atPoint position)
-                                octoHull
+                                { position = center, radius = radius }
+                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )
             )

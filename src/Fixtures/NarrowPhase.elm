@@ -72,22 +72,22 @@ sphereContactBoxPositions center radius boxHalfExtent =
     , ceq { cj = { x = -edgeDimension, y = 0, z = -edgeDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt2, y = 0, z = -invSqrt2 }, rj = { x = boxHalfExtent, y = 0, z = boxHalfExtent } }
 
     -- the 6 face (center) contacts
-    , ceq { cj = { x = faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.i, rj = { x = -boxHalfExtent, y = 0, z = 0 } }
-    , ceq { cj = { x = 0, y = faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.j, rj = { x = 0, y = -boxHalfExtent, z = 0 } }
-    , ceq { cj = { x = 0, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.k, rj = { x = 0, y = 0, z = -boxHalfExtent } }
-    , ceq { cj = { x = -faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = { x = -1, y = 0, z = 0 }, rj = { x = boxHalfExtent, y = 0, z = 0 } }
-    , ceq { cj = { x = 0, y = -faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = boxHalfExtent, z = 0 } }
-    , ceq { cj = { x = 0, y = 0, z = -faceDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = 0, z = -1 }, rj = { x = 0, y = 0, z = boxHalfExtent } }
+    , ceq { cj = { x = faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.xAxis, rj = { x = -boxHalfExtent, y = 0, z = 0 } }
+    , ceq { cj = { x = 0, y = faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.yAxis, rj = { x = 0, y = -boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.zAxis, rj = { x = 0, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = -faceDimension, y = 0, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.xNegative, rj = { x = boxHalfExtent, y = 0, z = 0 } }
+    , ceq { cj = { x = 0, y = -faceDimension, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.yNegative, rj = { x = 0, y = boxHalfExtent, z = 0 } }
+    , ceq { cj = { x = 0, y = 0, z = -faceDimension } |> Vec3.add center, ci = center, ni = Vec3.zNegative, rj = { x = 0, y = 0, z = boxHalfExtent } }
 
     -- 3 sample face contacts very near a vertex
-    , ceq { cj = { x = nearEdgeOffset, y = faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = Vec3.j, rj = { x = -nearEdgeOffset, y = -boxHalfExtent, z = -nearEdgeOffset } }
-    , ceq { cj = { x = -faceDimension, y = nearEdgeOffset, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = -1, y = 0, z = 0 }, rj = { x = boxHalfExtent, y = -nearEdgeOffset, z = -nearEdgeOffset } }
-    , ceq { cj = { x = nearEdgeOffset, y = nearEdgeOffset, z = -faceDimension } |> Vec3.add center, ci = center, ni = { x = 0, y = 0, z = -1 }, rj = { x = -nearEdgeOffset, y = -nearEdgeOffset, z = boxHalfExtent } }
+    , ceq { cj = { x = nearEdgeOffset, y = faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = Vec3.yAxis, rj = { x = -nearEdgeOffset, y = -boxHalfExtent, z = -nearEdgeOffset } }
+    , ceq { cj = { x = -faceDimension, y = nearEdgeOffset, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = Vec3.xNegative, rj = { x = boxHalfExtent, y = -nearEdgeOffset, z = -nearEdgeOffset } }
+    , ceq { cj = { x = nearEdgeOffset, y = nearEdgeOffset, z = -faceDimension } |> Vec3.add center, ci = center, ni = Vec3.zNegative, rj = { x = -nearEdgeOffset, y = -nearEdgeOffset, z = boxHalfExtent } }
 
     -- 3 sample face contacts very near an edge (midpoint)
-    , ceq { cj = { x = faceDimension, y = nearEdgeOffset, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.i, rj = { x = -boxHalfExtent, y = -nearEdgeOffset, z = 0 } }
-    , ceq { cj = { x = nearEdgeOffset, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.k, rj = { x = -nearEdgeOffset, y = 0, z = -boxHalfExtent } }
-    , ceq { cj = { x = 0, y = -faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = boxHalfExtent, z = -nearEdgeOffset } }
+    , ceq { cj = { x = faceDimension, y = nearEdgeOffset, z = 0 } |> Vec3.add center, ci = center, ni = Vec3.xAxis, rj = { x = -boxHalfExtent, y = -nearEdgeOffset, z = 0 } }
+    , ceq { cj = { x = nearEdgeOffset, y = 0, z = faceDimension } |> Vec3.add center, ci = center, ni = Vec3.zAxis, rj = { x = -nearEdgeOffset, y = 0, z = -boxHalfExtent } }
+    , ceq { cj = { x = 0, y = -faceDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = Vec3.yNegative, rj = { x = 0, y = boxHalfExtent, z = -nearEdgeOffset } }
 
     -- 3 sample edge contacts very near a vertex
     , ceq { cj = { x = edgeDimension, y = edgeDimension, z = nearEdgeOffset } |> Vec3.add center, ci = center, ni = { x = invSqrt2, y = invSqrt2, z = 0 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = -nearEdgeOffset } }
@@ -106,8 +106,6 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
     let
         delta =
             3 * Const.precision
-
-
 
         -- Reposition the octohedron so that it contacts the sphere at each:
         -- vertex
@@ -137,12 +135,12 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
     in
     [ -- Octohedron positions and their contacts
       -- 6 vertex contacts
-      ceq { ci = center, cj = { x = vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = Vec3.i, rj = { x = -octoHalfExtent, y = 0, z = 0 } }
-    , ceq { ci = center, cj = { x = 0, y = vertexDimension, z = 0 } |> Vec3.add center, ni = Vec3.j, rj = { x = 0, y = -octoHalfExtent, z = 0 } }
-    , ceq { ci = center, cj = { x = 0, y = 0, z = vertexDimension } |> Vec3.add center, ni = Vec3.k, rj = { x = 0, y = 0, z = -octoHalfExtent } }
-    , ceq { ci = center, cj = { x = 0, y = 0, z = -vertexDimension } |> Vec3.add center, ni = { x = 0, y = 0, z = -1 }, rj = { x = 0, y = 0, z = octoHalfExtent } }
-    , ceq { ci = center, cj = { x = 0, y = -vertexDimension, z = 0 } |> Vec3.add center, ni = { x = 0, y = -1, z = 0 }, rj = { x = 0, y = octoHalfExtent, z = 0 } }
-    , ceq { ci = center, cj = { x = -vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = { x = -1, y = 0, z = 0 }, rj = { x = octoHalfExtent, y = 0, z = 0 } }
+      ceq { ci = center, cj = { x = vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = Vec3.xAxis, rj = { x = -octoHalfExtent, y = 0, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = vertexDimension, z = 0 } |> Vec3.add center, ni = Vec3.yAxis, rj = { x = 0, y = -octoHalfExtent, z = 0 } }
+    , ceq { ci = center, cj = { x = 0, y = 0, z = vertexDimension } |> Vec3.add center, ni = Vec3.zAxis, rj = { x = 0, y = 0, z = -octoHalfExtent } }
+    , ceq { ci = center, cj = { x = 0, y = 0, z = -vertexDimension } |> Vec3.add center, ni = Vec3.zNegative, rj = { x = 0, y = 0, z = octoHalfExtent } }
+    , ceq { ci = center, cj = { x = 0, y = -vertexDimension, z = 0 } |> Vec3.add center, ni = Vec3.yNegative, rj = { x = 0, y = octoHalfExtent, z = 0 } }
+    , ceq { ci = center, cj = { x = -vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = Vec3.xNegative, rj = { x = octoHalfExtent, y = 0, z = 0 } }
 
     -- 12 edge (midpoint) contacts
     , ceq { ci = center, cj = { x = edgeDimension, y = edgeDimension, z = 0 } |> Vec3.add center, ni = { x = invSqrt2, y = invSqrt2, z = 0 }, rj = { x = -octoHalfExtent / 2, y = -octoHalfExtent / 2, z = 0 } }

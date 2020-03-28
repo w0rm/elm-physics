@@ -8,9 +8,6 @@ module Internal.Vector3 exposing
     , distance
     , distanceSquared
     , dot
-    , i
-    , j
-    , k
     , length
     , lengthSquared
     , lerp
@@ -19,6 +16,12 @@ module Internal.Vector3 exposing
     , scale
     , sub
     , tangents
+    , xAxis
+    , xNegative
+    , yAxis
+    , yNegative
+    , zAxis
+    , zNegative
     , zero
     )
 
@@ -45,7 +48,7 @@ type alias Vec3 =
 -}
 basis : List Vec3
 basis =
-    [ i, j, k ]
+    [ xAxis, yAxis, zAxis ]
 
 
 {-| The zero vector
@@ -55,25 +58,46 @@ zero =
     { x = 0, y = 0, z = 0 }
 
 
-{-| The unit vector &icirc; which points in the x direction: `vec3 1 0 0`
+{-| The unit vector which points in the x direction: `vec3 1 0 0`
 -}
-i : Vec3
-i =
+xAxis : Vec3
+xAxis =
     { x = 1, y = 0, z = 0 }
 
 
-{-| The unit vector &jcirc; which points in the y direction: `vec3 0 1 0`
+{-| The unit vector which points in the y direction: `vec3 0 1 0`
 -}
-j : Vec3
-j =
+yAxis : Vec3
+yAxis =
     { x = 0, y = 1, z = 0 }
 
 
-{-| The unit vector k&#0770; which points in the z direction: `vec3 0 0 1`
+{-| The unit vector which points in the z direction: `vec3 0 0 1`
 -}
-k : Vec3
-k =
+zAxis : Vec3
+zAxis =
     { x = 0, y = 0, z = 1 }
+
+
+{-| The unit vector which points in the direction opposite to x: `vec3 -1 0 0`
+-}
+xNegative : Vec3
+xNegative =
+    { x = -1, y = 0, z = 0 }
+
+
+{-| The unit vector which points in the direction opposite to y: `vec3 0 -1 0`
+-}
+yNegative : Vec3
+yNegative =
+    { x = 0, y = -1, z = 0 }
+
+
+{-| The unit vector which points in the direction opposite to z: `vec3 0 0 -1`
+-}
+zNegative : Vec3
+zNegative =
+    { x = 0, y = 0, z = -1 }
 
 
 {-| Vector addition: a + b
@@ -195,15 +219,15 @@ tangents vec =
 
             v =
                 if abs normalized.x < 0.9 then
-                    cross normalized i
+                    cross normalized xAxis
 
                 else
-                    cross normalized j
+                    cross normalized yAxis
         in
         ( v, cross normalized v )
 
     else
-        ( i, j )
+        ( xAxis, yAxis )
 
 
 lerp : Float -> Vec3 -> Vec3 -> Vec3

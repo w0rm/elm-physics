@@ -26,11 +26,11 @@ addContacts =
                     t1 =
                         -- going slightly into another box
                         Transform3d.atPoint { x = 0, y = 0, z = 2.1 }
-                            |> Transform3d.rotateAroundOwn Vec3.j (pi / 2)
+                            |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 2)
 
                     t2 =
                         Transform3d.atPoint { x = 0, y = 0, z = 4 }
-                            |> Transform3d.rotateAroundOwn Vec3.j (pi / 2)
+                            |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 2)
                 in
                 Collision.ConvexConvex.addContacts (Convex.placeIn t1 convex) (Convex.placeIn t2 convex) []
                     |> List.length
@@ -46,11 +46,11 @@ addContacts =
 
                     transform3d1 =
                         Transform3d.atPoint { x = -0.5, y = 0, z = 0 }
-                            |> Transform3d.rotateAroundOwn Vec3.k (pi / 2)
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 2)
 
                     transform3d2 =
                         Transform3d.atPoint { x = 0.5, y = 0, z = 0 }
-                            |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                 in
                 Collision.ConvexConvex.addContacts
                     (Convex.placeIn transform3d1 convex1)
@@ -76,7 +76,7 @@ testSeparatingAxis =
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
-                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.i)
+                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis)
                     (Just 0.6)
         , test "returns Nothing" <|
             \_ ->
@@ -90,7 +90,7 @@ testSeparatingAxis =
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
-                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.i)
+                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis)
                     Nothing
         , test "works with rotation" <|
             \_ ->
@@ -104,10 +104,10 @@ testSeparatingAxis =
                             Convex.fromBlock 0.5 0.5 0.5
                                 |> Convex.placeIn
                                     (Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
-                                        |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
+                                        |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                                     )
                     in
-                    Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.i
+                    Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis
                 of
                     Nothing ->
                         Expect.fail "expected depth"
@@ -145,7 +145,7 @@ findSeparatingAxis =
                         Convex.fromBlock 0.5 0.5 0.5
                             |> Convex.placeIn
                                 (Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
-                                    |> Transform3d.rotateAroundOwn Vec3.k (pi / 4)
+                                    |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                                 )
                 in
                 Expect.equal
@@ -161,7 +161,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Vec3.i
+                        Vec3.xAxis
                         Const.maxNumber
                         -Const.maxNumber
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
@@ -181,7 +181,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Vec3.j
+                        Vec3.yAxis
                         Const.maxNumber
                         -Const.maxNumber
                         (Convex.fromBlock 0.5 0.5 0.5).vertices
@@ -191,7 +191,7 @@ project =
             \_ ->
                 Expect.equal
                     (Collision.ConvexConvex.project
-                        Vec3.j
+                        Vec3.yAxis
                         Const.maxNumber
                         -Const.maxNumber
                         (Convex.fromBlock 0.5 0.5 0.5
@@ -202,13 +202,13 @@ project =
         , test "works for the rotation and offset" <|
             \_ ->
                 Collision.ConvexConvex.project
-                    Vec3.j
+                    Vec3.yAxis
                     Const.maxNumber
                     -Const.maxNumber
                     (Convex.fromBlock 0.5 0.5 0.5
                         |> Convex.placeIn
                             (Transform3d.atPoint { x = 0, y = 1, z = 0 }
-                                |> Transform3d.rotateAroundOwn Vec3.i (pi / 2)
+                                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 2)
                             )
                     ).vertices
                     |> Expect.all

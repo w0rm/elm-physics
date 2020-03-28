@@ -41,4 +41,4 @@ box x y z =
 
 plane : Shape BodyCoordinates
 plane =
-    Shape.Plane { position = Vec3.zero, normal = Vec3.k }
+    Shape.Plane { position = Vec3.zero, normal = Vec3.zAxis }

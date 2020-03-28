@@ -1,18 +1,5 @@
 module ConvexConvex exposing (main)
 
-{- For a useful benchmark,
-   copy and rename an older baseline version of Collision/ConvexConvex.elm
-   to Collision/OriginalConvexConvex.elm and uncomment the import below,
-   then toggle the usage in benchmarks.
-
-   Switching it back to use the (current) ConvexConvex.elm through the
-   OriginalConvexConvex alias keeps obsolete or redundant code out of
-   the repo while the comparison benchmarks continue to be maintained and
-   built and run essentially as absolute non-comparison benchmarks until
-   they are needed again in another round of performance work.
--}
-{- import Collision.OriginalConvexConvex -}
-
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.ConvexConvex
@@ -38,31 +25,24 @@ colliding =
         -- we expect 4 collision points
         transform3d =
             Transform3d.atPoint { x = 0, y = 0, z = 0.9 }
-                |> Transform3d.rotateAroundOwn Vec3.j (pi / 4)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 20)
+                |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 4)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 20)
 
-        originTransform3d =
-            Transform3d.atOrigin
+        firstConvex =
+            Convex.placeIn transform3d box
+
+        secondConvex =
+            Convex.placeIn Transform3d.atOrigin box
     in
     Benchmark.compare "colliding"
         "baseline"
         (\_ ->
-            {- Collision.OriginalConvexConvex.addContacts -}
-            Collision.ConvexConvex.addContacts
-                transform3d
-                box
-                originTransform3d
-                box
-                []
+            {- Collision.ConvexConvex.oldAddContacts -}
+            Collision.ConvexConvex.addContacts firstConvex secondConvex []
         )
         "latest code"
         (\_ ->
-            Collision.ConvexConvex.addContacts
-                transform3d
-                box
-                originTransform3d
-                box
-                []
+            Collision.ConvexConvex.addContacts firstConvex secondConvex []
         )
 
 
@@ -73,31 +53,24 @@ separated =
         -- so that boxes don’t overlap
         transform3d =
             Transform3d.atPoint { x = 0, y = 0, z = 2.5 }
-                |> Transform3d.rotateAroundOwn Vec3.j (pi / 4)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 20)
+                |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 4)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 20)
 
-        originTransform3d =
-            Transform3d.atOrigin
+        firstConvex =
+            Convex.placeIn transform3d box
+
+        secondConvex =
+            Convex.placeIn Transform3d.atOrigin box
     in
     Benchmark.compare "separated"
         "baseline"
         (\_ ->
-            {- Collision.OriginalConvexConvex.addContacts -}
-            Collision.ConvexConvex.addContacts
-                transform3d
-                box
-                originTransform3d
-                box
-                []
+            {- Collision.ConvexConvex.oldAddContacts -}
+            Collision.ConvexConvex.addContacts firstConvex secondConvex []
         )
         "latest code"
         (\_ ->
-            Collision.ConvexConvex.addContacts
-                transform3d
-                box
-                originTransform3d
-                box
-                []
+            Collision.ConvexConvex.addContacts firstConvex secondConvex []
         )
 
 

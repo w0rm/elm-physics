@@ -8,23 +8,22 @@ import Collision.PlaneSphere
 import Collision.SphereConvex
 import Collision.SphereParticle
 import Collision.SphereSphere
-import Internal.Body exposing (Body)
 import Internal.Contact as Contact exposing (Contact)
 import Internal.Shape exposing (Shape(..))
 import Physics.Coordinates exposing (WorldCoordinates)
 
 
-getContacts : Body data -> Body data -> List Contact
-getContacts body1 body2 =
+getContacts : List (Shape WorldCoordinates) -> List (Shape WorldCoordinates) -> List Contact
+getContacts shapes1 shapes2 =
     List.foldl
         (\shape1 currentContactEquations1 ->
             List.foldl
                 (\shape2 -> addShapeContacts shape1 shape2)
                 currentContactEquations1
-                body2.worldShapes
+                shapes2
         )
         []
-        body1.worldShapes
+        shapes1
 
 
 addShapeContacts : Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact

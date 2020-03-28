@@ -123,7 +123,7 @@ plane =
         [ InternalShape.Protected
             (InternalShape.Plane
                 { position = Vec3.zero
-                , normal = Vec3.k
+                , normal = Vec3.zAxis
                 }
             )
         ]

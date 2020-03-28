@@ -1,12 +1,11 @@
 module Internal.Convex exposing
     ( Convex
     , Face
-    , addFaceEdges
+    , addDirectionIfDistinct
     , expandBoundingSphereRadius
     , foldFaceEdges
     , fromBlock
     , init
-    , initUniqueEdges
     , placeIn
     , raycast
     )
@@ -73,8 +72,25 @@ init faceVertexLists vertices =
     in
     { faces = faces
     , vertices = Array.toList vertices
-    , uniqueEdges = initUniqueEdges faces
-    , uniqueNormals = initUniqueNormals faces
+    , uniqueEdges =
+        List.foldl
+            (\face edges ->
+                foldFaceEdges
+                    (\v1 v2 ->
+                        addDirectionIfDistinct (Vec3.direction v1 v2)
+                    )
+                    edges
+                    face.vertices
+            )
+            []
+            faces
+    , uniqueNormals =
+        List.foldl
+            (\{ normal } ->
+                addDirectionIfDistinct normal
+            )
+            []
+            faces
     , position = Vec3.zero
     , volume = 0
     }
@@ -86,7 +102,9 @@ initFaces faceVertexLists convexVertices =
         (\vertexIndices ->
             let
                 vertices =
-                    List.filterMap (\i -> Array.get i convexVertices) vertexIndices
+                    List.filterMap
+                        (\i -> Array.get i convexVertices)
+                        vertexIndices
 
                 normal =
                     case vertices of
@@ -141,22 +159,22 @@ fromBlock x y z =
         -- then they become correct after transformation
         -- this is needed for performance
         [ { vertices = List.reverse [ v3, v2, v1, v0 ]
-          , normal = { x = 0, y = 0, z = -1 }
+          , normal = Vec3.zNegative
           }
         , { vertices = List.reverse [ v4, v5, v6, v7 ]
-          , normal = Vec3.k
+          , normal = Vec3.zAxis
           }
         , { vertices = List.reverse [ v5, v4, v0, v1 ]
-          , normal = { x = 0, y = -1, z = 0 }
+          , normal = Vec3.yNegative
           }
         , { vertices = List.reverse [ v2, v3, v7, v6 ]
-          , normal = Vec3.j
+          , normal = Vec3.yAxis
           }
         , { vertices = List.reverse [ v0, v4, v7, v3 ]
-          , normal = { x = -1, y = 0, z = 0 }
+          , normal = Vec3.xNegative
           }
         , { vertices = List.reverse [ v1, v2, v6, v5 ]
-          , normal = Vec3.i
+          , normal = Vec3.xAxis
           }
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
@@ -167,52 +185,26 @@ fromBlock x y z =
     }
 
 
-initUniqueNormals : List Face -> List Vec3
-initUniqueNormals faces =
-    List.foldl (\{ normal } -> addNormalIfDistinct normal) [] faces
-
-
-alreadyInTheSet : Vec3 -> List Vec3 -> Bool
-alreadyInTheSet vec =
-    List.any (Vec3.cross vec >> Vec3.almostZero)
-
-
-addNormalIfDistinct : Vec3 -> List Vec3 -> List Vec3
-addNormalIfDistinct currentNormal uniques =
-    if alreadyInTheSet currentNormal uniques then
+{-| Add a candidate direction to a set if it is not a
+near duplicate or near opposite of a direction already in the set.
+-}
+addDirectionIfDistinct : Vec3 -> List Vec3 -> List Vec3
+addDirectionIfDistinct currentNormal uniques =
+    if
+        List.any
+            (\direction ->
+                Vec3.almostZero
+                    (Vec3.cross
+                        direction
+                        currentNormal
+                    )
+            )
+            uniques
+    then
         uniques
 
     else
         currentNormal :: uniques
-
-
-initUniqueEdges : List Face -> List Vec3
-initUniqueEdges faces =
-    List.foldl addFaceEdges [] faces
-
-
-addFaceEdges : Face -> List Vec3 -> List Vec3
-addFaceEdges { vertices } edges =
-    foldFaceEdges
-        addEdgeIfDistinct
-        edges
-        vertices
-
-
-{-| Add a candidate edge between two vertices to a set if it is not a
-near duplicate or near opposite of an edge already in the set.
--}
-addEdgeIfDistinct : Vec3 -> Vec3 -> List Vec3 -> List Vec3
-addEdgeIfDistinct prevVertex currentVertex uniques =
-    let
-        candidateEdge =
-            Vec3.direction prevVertex currentVertex
-    in
-    if alreadyInTheSet candidateEdge uniques then
-        uniques
-
-    else
-        candidateEdge :: uniques
 
 
 expandBoundingSphereRadius : Convex -> Float -> Float

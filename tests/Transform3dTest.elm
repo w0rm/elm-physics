@@ -12,8 +12,8 @@ pointRelativeTo =
     let
         transform3d =
             Transform3d.atPoint { x = 0.5, y = 0.6, z = 0.7 }
-                |> Transform3d.rotateAroundOwn Vec3.k (pi / 5)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
 
         point =
             { x = 0.4, y = 0.6, z = 0.8 }
@@ -33,8 +33,8 @@ directionRelativeTo =
     let
         transform3d =
             Transform3d.atPoint { x = 0.5, y = 0.6, z = 0.7 }
-                |> Transform3d.rotateAroundOwn Vec3.k (pi / 5)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
 
         direction =
             { x = 0.4, y = 0.6, z = 0.8 }
@@ -54,8 +54,8 @@ relativeTo =
     let
         transform3d =
             Transform3d.atPoint { x = 0.5, y = 0.6, z = 0.7 }
-                |> Transform3d.rotateAroundOwn Vec3.k (pi / 5)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
 
         transform3dInverse =
             Transform3d.relativeTo transform3d Transform3d.atOrigin
@@ -87,8 +87,8 @@ inverse =
     let
         transform3d =
             Transform3d.atPoint { x = 0.5, y = 0.6, z = 0.7 }
-                |> Transform3d.rotateAroundOwn Vec3.k (pi / 5)
-                |> Transform3d.rotateAroundOwn Vec3.i (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
 
         transform3dInverse =
             Transform3d.inverse transform3d

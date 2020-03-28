@@ -34,7 +34,11 @@ addContactsHelp body1 currentBodies restBodies result =
                 currentBodies
                 newRestBodies
                 (if bodiesMayContact body1 body2 then
-                    case NarrowPhase.getContacts body1 body2 of
+                    case
+                        NarrowPhase.getContacts
+                            body1.worldShapes
+                            body2.worldShapes
+                    of
                         [] ->
                             result
 
