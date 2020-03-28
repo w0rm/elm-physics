@@ -11,16 +11,6 @@ import Internal.Convex as Convex exposing (Convex, Face)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-minDist : Float
-minDist =
-    -100
-
-
-maxDist : Float
-maxDist =
-    100
-
-
 addContacts : Convex -> Convex -> List Contact -> List Contact
 addContacts convex1 convex2 contacts =
     case findSeparatingAxis convex1 convex2 of
@@ -56,18 +46,26 @@ clipTwoFaces face { vertices } separatingAxis contacts =
                 [] ->
                     Vec3.zero
 
-        worldPlaneConstant =
-            -(Vec3.dot face.normal point)
+        planeConstant =
+            -(Vec3.dot normal point)
+
+        normal =
+            face.normal
     in
     List.foldl
         (\vertex result ->
             let
+                -- used to be (max minDist depth), where minDist = -100
                 depth =
-                    max minDist (Vec3.dot face.normal vertex + worldPlaneConstant)
+                    Vec3.dot normal vertex + planeConstant
             in
-            if depth <= maxDist && depth <= 0 then
+            if depth <= 0 then
                 { ni = separatingAxis
-                , pi = Vec3.sub vertex (Vec3.scale depth face.normal)
+                , pi =
+                    { x = vertex.x - depth * normal.x
+                    , y = vertex.y - depth * normal.y
+                    , z = vertex.z - depth * normal.z
+                    }
                 , pj = vertex
                 }
                     :: result
@@ -122,7 +120,7 @@ bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
 
 
 clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces { vertices, normal } worldVertices =
+clipAgainstAdjacentFaces { vertices, normal } faceVertices =
     Convex.foldFaceEdges
         (\v1 v2 ->
             let
@@ -139,7 +137,7 @@ clipAgainstAdjacentFaces { vertices, normal } worldVertices =
                 (clipFaceAgainstPlaneAdd planeNormal planeConstant)
                 []
         )
-        worldVertices
+        faceVertices
         vertices
 
 
@@ -173,10 +171,10 @@ findSeparatingAxis : Convex -> Convex -> Maybe Vec3
 findSeparatingAxis convex1 convex2 =
     let
         -- normals from both convexes converted in the world coordinates
-        worldNormals =
+        uniqueNormals =
             convex1.uniqueNormals ++ convex2.uniqueNormals
     in
-    case testUniqueNormals convex1 convex2 worldNormals Vec3.zero Const.maxNumber of
+    case testUniqueNormals convex1 convex2 uniqueNormals Vec3.zero Const.maxNumber of
         Just { target, dmin } ->
             testUniqueEdges convex1
                 convex2
@@ -219,16 +217,16 @@ testUniqueEdges convex1 convex2 initEdges2 edges1 edges2 target dmin =
             else
                 Just target
 
-        worldEdge1 :: remainingEdges1 ->
+        edge1 :: remainingEdges1 ->
             case edges2 of
                 [] ->
                     -- requeue edges2
                     testUniqueEdges convex1 convex2 initEdges2 remainingEdges1 initEdges2 target dmin
 
-                worldEdge2 :: remainingEdges2 ->
+                edge2 :: remainingEdges2 ->
                     let
                         cross =
-                            Vec3.cross worldEdge1 worldEdge2
+                            Vec3.cross edge1 edge2
                     in
                     if Vec3.almostZero cross then
                         -- continue because edges are parallel
