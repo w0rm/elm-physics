@@ -297,12 +297,10 @@ moveTo point3d (Protected body) =
                 body.centerOfMassTransform3d
     in
     Protected
-        (Internal.updateMassProperties
-            { body
-                | transform3d = newTransform3d
-                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
-            }
-        )
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Move the body in the world relative to its current position,
@@ -330,12 +328,10 @@ translateBy vector3d (Protected body) =
                 body.centerOfMassTransform3d
     in
     Protected
-        (Internal.updateMassProperties
-            { body
-                | transform3d = newTransform3d
-                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
-            }
-        )
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Rotate the body in the world around axis,
@@ -376,12 +372,10 @@ rotateAround axis angle (Protected body) =
                 body.centerOfMassTransform3d
     in
     Protected
-        (Internal.updateMassProperties
-            { body
-                | transform3d = newTransform3d
-                , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
-            }
-        )
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Update user-defined data.
