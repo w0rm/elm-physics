@@ -1,5 +1,6 @@
 module Internal.Shape exposing
-    ( Protected(..)
+    ( CenterOfMassCoordinates
+    , Protected(..)
     , Shape(..)
     , aabbClosure
     , expandBoundingSphereRadius
@@ -11,7 +12,6 @@ module Internal.Shape exposing
 import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Convex as Convex exposing (Convex)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Plane as Plane exposing (Plane)
 import Internal.Sphere as Sphere exposing (Sphere)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
@@ -21,6 +21,10 @@ import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 
 type Protected
     = Protected (Shape BodyCoordinates)
+
+
+type CenterOfMassCoordinates
+    = CenterOfMassCoordinates
 
 
 type Shape coordinates

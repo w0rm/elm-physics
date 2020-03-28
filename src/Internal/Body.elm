@@ -12,10 +12,9 @@ module Internal.Body exposing
     )
 
 import Internal.AABB as AABB exposing (AABB)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
-import Internal.Shape as Shape exposing (Shape(..))
+import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)

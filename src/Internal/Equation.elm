@@ -9,8 +9,8 @@ module Internal.Equation exposing
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup)
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
 import Internal.Material as Material
+import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 

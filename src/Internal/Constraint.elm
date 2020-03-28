@@ -1,6 +1,6 @@
 module Internal.Constraint exposing (Constraint(..), ConstraintGroup, Protected(..), relativeToCenterOfMass)
 
-import Internal.Coordinates exposing (CenterOfMassCoordinates)
+import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
