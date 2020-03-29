@@ -3,7 +3,6 @@ module Collision.PlaneConvex exposing (addContacts)
 import Internal.Contact exposing (Contact)
 import Internal.Convex exposing (Convex)
 import Internal.Plane exposing (Plane)
-import Internal.Vector3 as Vec3
 
 
 addContacts : (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact
@@ -12,17 +11,18 @@ addContacts orderContact { position, normal } { vertices } contacts =
         (\vertex currentContacts ->
             let
                 dot =
-                    position
-                        |> Vec3.sub vertex
-                        |> Vec3.dot normal
+                    ((vertex.x - position.x) * normal.x)
+                        + ((vertex.y - position.y) * normal.y)
+                        + ((vertex.z - position.z) * normal.z)
             in
             if dot <= 0 then
                 orderContact
                     { ni = normal
                     , pi =
-                        normal
-                            |> Vec3.scale dot
-                            |> Vec3.sub vertex
+                        { x = vertex.x - dot * normal.x
+                        , y = vertex.y - dot * normal.y
+                        , z = vertex.z - dot * normal.z
+                        }
                     , pj = vertex
                     }
                     :: currentContacts

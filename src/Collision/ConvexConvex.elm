@@ -169,12 +169,18 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 
 findSeparatingAxis : Convex -> Convex -> Maybe Vec3
 findSeparatingAxis convex1 convex2 =
-    let
-        uniqueNormals =
-            convex1.uniqueNormals ++ convex2.uniqueNormals
-    in
-    case testUniqueNormals convex1 convex2 uniqueNormals Vec3.zero Const.maxNumber of
-        Just { target, dmin } ->
+    testUniqueNormals
+        convex1
+        convex2
+        (convex1.uniqueNormals ++ convex2.uniqueNormals)
+        Vec3.zero
+        Const.maxNumber
+
+
+testUniqueNormals : Convex -> Convex -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
+testUniqueNormals convex1 convex2 normals target dmin =
+    case normals of
+        [] ->
             testUniqueEdges convex1
                 convex2
                 convex2.uniqueEdges
@@ -183,24 +189,14 @@ findSeparatingAxis convex1 convex2 =
                 target
                 dmin
 
-        _ ->
-            Nothing
-
-
-testUniqueNormals : Convex -> Convex -> List Vec3 -> Vec3 -> Float -> Maybe { target : Vec3, dmin : Float }
-testUniqueNormals convex1 convex2 normals target dmin =
-    case normals of
-        [] ->
-            Just { target = target, dmin = dmin }
-
         normal :: restNormals ->
             case testSeparatingAxis convex1 convex2 normal of
                 Nothing ->
                     Nothing
 
-                Just d ->
-                    if d - dmin < 0 then
-                        testUniqueNormals convex1 convex2 restNormals normal d
+                Just dist ->
+                    if dist - dmin < 0 then
+                        testUniqueNormals convex1 convex2 restNormals normal dist
 
                     else
                         testUniqueNormals convex1 convex2 restNormals target dmin
