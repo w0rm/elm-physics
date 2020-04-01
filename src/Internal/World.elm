@@ -1,7 +1,6 @@
 module Internal.World exposing
     ( Protected(..)
     , World
-    , addGravityForces
     , raycast
     )
 
@@ -24,17 +23,6 @@ type alias World data =
     , gravity : Vec3
     , contactGroups : List (ContactGroup data)
     , simulatedBodies : Array (Body data)
-    }
-
-
-addGravityForces : World data -> World data
-addGravityForces world =
-    { world
-        | bodies =
-            List.foldl
-                (\body result -> Body.addGravity world.gravity body :: result)
-                []
-                world.bodies
     }
 
 

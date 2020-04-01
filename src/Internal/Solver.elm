@@ -5,7 +5,7 @@ import Internal.Body exposing (Body)
 import Internal.Const as Const
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.Vector3 as Vec3
+import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.World exposing (World)
 
 
@@ -38,16 +38,18 @@ makeSolverBodies nextBodyId bodies =
 solve : Float -> World data -> World data
 solve dt world =
     let
-        gravityLength =
-            Vec3.length world.gravity
+        ctx =
+            { dt = dt
+            , gravity = world.gravity
+            , gravityLength = Vec3.length world.gravity
+            }
 
         -- make equations from contacts
         contactEquationsGroups =
             List.foldl
                 (\contactGroup groups ->
                     Equation.contactEquationsGroup
-                        dt
-                        gravityLength
+                        ctx
                         contactGroup
                         :: groups
                 )
@@ -69,7 +71,7 @@ solve dt world =
 
                                 Just body2 ->
                                     Equation.constraintEquationsGroup
-                                        dt
+                                        ctx
                                         body1.body
                                         body2.body
                                         constraints
@@ -84,7 +86,7 @@ solve dt world =
         solvedBodies =
             step maxIterations 0 [] equationsGroups solverBodies
     in
-    updateBodies dt solvedBodies world
+    updateBodies ctx solvedBodies world
 
 
 step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (SolverBody data) -> Array (SolverBody data)
@@ -225,8 +227,8 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 remainingEquations
 
 
-updateBodies : Float -> Array (SolverBody data) -> World data -> World data
-updateBodies dt bodies world =
+updateBodies : { dt : Float, gravity : Vec3, gravityLength : Float } -> Array (SolverBody data) -> World data -> World data
+updateBodies ctx bodies world =
     let
         simulatedBodies =
             Array.map
@@ -235,7 +237,7 @@ updateBodies dt bodies world =
                     if solverBody.body.id + 1 > 0 then
                         -- only dynamic bodies are updated
                         if solverBody.body.mass > 0 then
-                            SolverBody.toBody dt solverBody
+                            SolverBody.toBody ctx solverBody
 
                         else
                             solverBody.body

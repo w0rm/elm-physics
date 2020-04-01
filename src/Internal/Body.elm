@@ -1,7 +1,6 @@
 module Internal.Body exposing
     ( Body
     , Protected(..)
-    , addGravity
     , applyForce
     , applyImpulse
     , centerOfMass
@@ -139,17 +138,6 @@ compound shapes data =
         , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.identity
         }
-
-
-addGravity : Vec3 -> Body data -> Body data
-addGravity gravity body =
-    { body
-        | force =
-            { x = gravity.x * body.mass + body.force.x
-            , y = gravity.y * body.mass + body.force.y
-            , z = gravity.z * body.mass + body.force.z
-            }
-    }
 
 
 {-| Should be called whenever you change the body shapes or mass.
