@@ -29,6 +29,13 @@ type alias Equation =
     }
 
 
+type alias Ctx =
+    { dt : Float
+    , gravity : Vec3
+    , gravityLength : Float
+    }
+
+
 type alias EquationsGroup =
     { bodyId1 : Int
     , bodyId2 : Int
@@ -41,13 +48,6 @@ constraintEquationsGroup ctx body1 body2 constraints =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
     , equations = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
-    }
-
-
-type alias Ctx =
-    { dt : Float
-    , gravity : Vec3
-    , gravityLength : Float
     }
 
 
