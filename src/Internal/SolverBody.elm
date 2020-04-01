@@ -7,7 +7,7 @@ module Internal.SolverBody exposing
 import Internal.Body as Body exposing (Body)
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
-import Internal.Vector3 as Vec3
+import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias SolverBody data =
@@ -33,8 +33,8 @@ fromBody body =
     }
 
 
-toBody : Float -> SolverBody data -> Body data
-toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
+toBody : { dt : Float, gravity : Vec3, gravityLength : Float } -> SolverBody data -> Body data
+toBody { dt, gravity } { body, vX, vY, vZ, wX, wY, wZ } =
     let
         -- Apply damping https://code.google.com/archive/p/bullet/issues/74
         ld =
@@ -44,9 +44,9 @@ toBody dt { body, vX, vY, vZ, wX, wY, wZ } =
             (1.0 - body.angularDamping) ^ dt
 
         newVelocity =
-            { x = body.force.x * body.invMass * dt + body.velocity.x * ld + vX
-            , y = body.force.y * body.invMass * dt + body.velocity.y * ld + vY
-            , z = body.force.z * body.invMass * dt + body.velocity.z * ld + vZ
+            { x = (gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + vX
+            , y = (gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + vY
+            , z = (gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + vZ
             }
 
         velocityLength =
