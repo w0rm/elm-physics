@@ -129,13 +129,12 @@ size and maximum velocity.
 simulate : Duration -> World data -> World data
 simulate dt (Protected world) =
     world
-        |> Internal.addGravityForces
         |> BroadPhase.addContacts
         |> Solver.solve (Duration.inSeconds dt)
         |> Protected
 
 
-{-| Get all bodies from the world.
+{-| Get all bodies from the world in unspecified order.
 
 Use this to convert bodies into visual representation,
 e.g. WebGL entities.
