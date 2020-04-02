@@ -18,6 +18,12 @@ type alias SolverBody data =
     , wX : Float
     , wY : Float
     , wZ : Float
+    , vX_ : Float
+    , vY_ : Float
+    , vZ_ : Float
+    , wX_ : Float
+    , wY_ : Float
+    , wZ_ : Float
     }
 
 
@@ -30,6 +36,12 @@ fromBody body =
     , wX = 0
     , wY = 0
     , wZ = 0
+    , vX_ = 0
+    , vY_ = 0
+    , vZ_ = 0
+    , wX_ = 0
+    , wY_ = 0
+    , wZ_ = 0
     }
 
 

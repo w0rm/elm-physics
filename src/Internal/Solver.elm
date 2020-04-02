@@ -95,11 +95,50 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
         [] ->
             if number == 0 || deltalambdaTot - Const.precision < 0 then
                 -- the max number of steps elapsed or tolerance reached
-                solverBodies
+                Array.map
+                    (\b ->
+                        { body = b.body
+                        , vX = b.vX_
+                        , vY = b.vY_
+                        , vZ = b.vZ_
+                        , wX = b.wX_
+                        , wY = b.wY_
+                        , wZ = b.wZ_
+                        , vX_ = b.vX_
+                        , vY_ = b.vY_
+                        , vZ_ = b.vZ_
+                        , wX_ = b.wX_
+                        , wY_ = b.wY_
+                        , wZ_ = b.wZ_
+                        }
+                    )
+                    solverBodies
 
             else
                 -- requeue equationsGropus for the next step
-                step (number - 1) 0 [] (List.reverse equationsGroups) solverBodies
+                step (number - 1)
+                    0
+                    []
+                    (List.reverse equationsGroups)
+                    (Array.map
+                        (\b ->
+                            { body = b.body
+                            , vX = b.vX_
+                            , vY = b.vY_
+                            , vZ = b.vZ_
+                            , wX = b.wX_
+                            , wY = b.wY_
+                            , wZ = b.wZ_
+                            , vX_ = b.vX_
+                            , vY_ = b.vY_
+                            , vZ_ = b.vZ_
+                            , wX_ = b.wX_
+                            , wY_ = b.wY_
+                            , wZ_ = b.wZ_
+                            }
+                        )
+                        solverBodies
+                    )
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             case Array.get bodyId1 solverBodies of
@@ -203,20 +242,32 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
             in
             solveEquationsGroup
                 { body = body1.body
-                , vX = body1.vX - k1 * vB.x
-                , vY = body1.vY - k1 * vB.y
-                , vZ = body1.vZ - k1 * vB.z
-                , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
-                , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
-                , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
+                , vX = body1.vX
+                , vY = body1.vY
+                , vZ = body1.vZ
+                , wX = body1.wX
+                , wY = body1.wY
+                , wZ = body1.wZ
+                , vX_ = body1.vX_ - k1 * vB.x
+                , vY_ = body1.vY_ - k1 * vB.y
+                , vZ_ = body1.vZ_ - k1 * vB.z
+                , wX_ = body1.wX_ + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
+                , wY_ = body1.wY_ + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
+                , wZ_ = body1.wZ_ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
                 }
                 { body = body2.body
-                , vX = body2.vX + k2 * vB.x
-                , vY = body2.vY + k2 * vB.y
-                , vZ = body2.vZ + k2 * vB.z
-                , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
-                , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
-                , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
+                , vX = body2.vX
+                , vY = body2.vY
+                , vZ = body2.vZ
+                , wX = body2.wX
+                , wY = body2.wY
+                , wZ = body2.wZ
+                , vX_ = body2.vX_ + k2 * vB.x
+                , vY_ = body2.vY_ + k2 * vB.y
+                , vZ_ = body2.vZ_ + k2 * vB.z
+                , wX_ = body2.wX_ + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
+                , wY_ = body2.wY_ + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
+                , wZ_ = body2.wZ_ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
                 }
                 ({ solverLambda = solverLambda + deltalambda
                  , equation = equation
