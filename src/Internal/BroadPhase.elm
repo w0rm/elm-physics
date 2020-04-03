@@ -25,6 +25,9 @@ addContacts world =
     }
 
 
+{-| This will generate all pairs for body1, then all pairs for body2, etc.
+We rely on this order in the Solver.elm
+-}
 addContactsHelp : Body data -> List (Body data) -> List (Body data) -> List (ContactGroup data) -> List (ContactGroup data)
 addContactsHelp body1 currentBodies restBodies result =
     case restBodies of
