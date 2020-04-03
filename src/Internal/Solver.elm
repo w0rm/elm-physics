@@ -14,25 +14,28 @@ maxIterations =
     20
 
 
-makeSolverBodies : Int -> List (Body data) -> Array (SolverBody data)
+makeSolverBodies : Int -> List (Body data) -> ( Array (SolverBody data), Maybe (SolverBody data) )
 makeSolverBodies nextBodyId bodies =
     case bodies of
         [] ->
-            Array.empty
+            ( Array.empty, Nothing )
 
         firstBody :: _ ->
             let
                 -- a hack to use an empty body to fill the gaps
                 -- in the array and avoid extra boxing (Array (Maybe (SolverBody data)))
+                fillingBody =
+                    SolverBody.fromBody { firstBody | id = -1 }
+
                 allBodies =
-                    { firstBody | id = -1 }
-                        |> SolverBody.fromBody
-                        |> Array.repeat nextBodyId
+                    Array.repeat nextBodyId fillingBody
             in
-            List.foldl
+            ( List.foldl
                 (\body -> Array.set body.id (SolverBody.fromBody body))
                 allBodies
                 bodies
+            , Just fillingBody
+            )
 
 
 solve : Float -> World data -> World data
@@ -80,29 +83,54 @@ solve dt world =
                 contactEquationsGroups
                 world.constraints
 
-        solverBodies =
+        ( solverBodies, maybeFillingBody ) =
             makeSolverBodies world.nextBodyId world.bodies
 
         solvedBodies =
-            step maxIterations 0 [] equationsGroups solverBodies
+            case maybeFillingBody of
+                Just fillingBody ->
+                    step maxIterations 0 [] equationsGroups fillingBody solverBodies
+
+                Nothing ->
+                    solverBodies
     in
     updateBodies ctx solvedBodies world
 
 
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> Array (SolverBody data) -> Array (SolverBody data)
-step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody data -> Array (SolverBody data) -> Array (SolverBody data)
+step number deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
     case currentEquationsGroups of
         [] ->
             if number == 0 || deltalambdaTot - Const.precision < 0 then
                 -- the max number of steps elapsed or tolerance reached
-                solverBodies
+                -- put back the first body from the last equation
+                Array.set prevBody1.body.id prevBody1 solverBodies
 
             else
                 -- requeue equationsGropus for the next step
-                step (number - 1) 0 [] (List.reverse equationsGroups) solverBodies
+                step (number - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
-            case Array.get bodyId1 solverBodies of
+            let
+                maybeBody1 =
+                    if bodyId1 - prevBody1.body.id == 0 then
+                        -- if the next equations group has the same body
+                        -- then no need to get it from the array
+                        Just prevBody1
+
+                    else
+                        Array.get bodyId1 solverBodies
+
+                newSolverBodies =
+                    if bodyId1 - prevBody1.body.id == 0 then
+                        -- if the next equations group has the same body
+                        -- then no need to set it to the array
+                        solverBodies
+
+                    else
+                        Array.set prevBody1.body.id prevBody1 solverBodies
+            in
+            case maybeBody1 of
                 Just body1 ->
                     case Array.get bodyId2 solverBodies of
                         Just body2 ->
@@ -124,10 +152,12 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
                                     :: equationsGroups
                                 )
                                 remainingEquationsGroups
-                                (solverBodies
-                                    |> Array.set bodyId1 groupContext.body1
-                                    |> Array.set bodyId2 groupContext.body2
-                                )
+                                -- we don't put body1 in the array, because we might need it
+                                -- in the next iteration, because this is the order in
+                                -- which we generated the contact equation groups (b1, b2), (b1, b3)
+                                -- this let's us reduce Array operations
+                                groupContext.body1
+                                (Array.set bodyId2 groupContext.body2 newSolverBodies)
 
                         _ ->
                             -- Should never happen
@@ -135,7 +165,8 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
                                 deltalambdaTot
                                 equationsGroups
                                 remainingEquationsGroups
-                                solverBodies
+                                prevBody1
+                                newSolverBodies
 
                 _ ->
                     -- Should never happen
@@ -143,7 +174,8 @@ step number deltalambdaTot equationsGroups currentEquationsGroups solverBodies =
                         deltalambdaTot
                         equationsGroups
                         remainingEquationsGroups
-                        solverBodies
+                        prevBody1
+                        newSolverBodies
 
 
 type alias GroupSolveResult data =
