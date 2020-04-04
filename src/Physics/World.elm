@@ -164,7 +164,9 @@ contacts (Protected { contactGroups, simulatedBodies }) =
         mapContact oldBody newBody =
             let
                 transform =
-                    Transform3d.relativeTo oldBody.transform3d newBody.transform3d
+                    Transform3d.atOrigin
+                        |> Transform3d.relativeTo oldBody.transform3d
+                        |> Transform3d.placeIn newBody.transform3d
             in
             \{ ni, pi } ->
                 { point =
@@ -188,7 +190,14 @@ contacts (Protected { contactGroups, simulatedBodies }) =
                                     { body1 = newBody1
                                     , body2 = newBody2
                                     , points =
-                                        List.foldl (\point result -> mapContact contactGroup.body1 newBody1 point :: result)
+                                        List.foldl
+                                            (\point result ->
+                                                mapContact
+                                                    contactGroup.body1
+                                                    newBody1
+                                                    point
+                                                    :: result
+                                            )
                                             []
                                             contactGroup.contacts
                                     }
@@ -250,6 +259,7 @@ type alias RaycastResult data =
 keepIf : (Body data -> Bool) -> World data -> World data
 keepIf fn (Protected world) =
     let
+        -- TODO: remove constraints too
         ( keptBodies, removedBodies ) =
             List.partition (InternalBody.Protected >> fn) world.bodies
     in
