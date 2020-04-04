@@ -259,14 +259,29 @@ type alias RaycastResult data =
 keepIf : (Body data -> Bool) -> World data -> World data
 keepIf fn (Protected world) =
     let
-        -- TODO: remove constraints too
         ( keptBodies, removedBodies ) =
             List.partition (InternalBody.Protected >> fn) world.bodies
+
+        removedIds =
+            List.foldl (.id >> (::)) [] removedBodies
+
+        keptConstraints =
+            List.foldl
+                (\c result ->
+                    if List.member c.bodyId1 removedIds || List.member c.bodyId2 removedIds then
+                        result
+
+                    else
+                        c :: result
+                )
+                []
+                world.constraints
     in
     Protected
         { world
             | bodies = keptBodies
-            , freeIds = List.foldl (.id >> (::)) world.freeIds removedBodies
+            , constraints = keptConstraints
+            , freeIds = removedIds ++ world.freeIds
         }
 
 
