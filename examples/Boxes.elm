@@ -21,6 +21,7 @@ import Html.Events exposing (onClick)
 import Length
 import Mass
 import Physics.Body as Body exposing (Body)
+import Physics.Material as Material
 import Physics.World as World exposing (World)
 import Point3d
 
@@ -196,4 +197,5 @@ box =
     in
     Body.block block3d
         (Meshes.fromTriangles (Meshes.block block3d))
+        |> Body.withMaterial (Material.custom { friction = 0.4, bounciness = 0.5 })
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
