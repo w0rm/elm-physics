@@ -1,4 +1,4 @@
-module Internal.Sphere exposing
+module Shapes.Sphere exposing
     ( Sphere
     , expandBoundingSphereRadius
     , placeIn

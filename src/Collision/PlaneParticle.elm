@@ -1,8 +1,8 @@
 module Collision.PlaneParticle exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Plane exposing (Plane)
 import Internal.Vector3 exposing (Vec3)
+import Shapes.Plane exposing (Plane)
 
 
 addContacts : (Contact -> Contact) -> Plane -> Vec3 -> List Contact -> List Contact

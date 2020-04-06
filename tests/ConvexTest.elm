@@ -10,8 +10,8 @@ import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
 import Internal.Const as Const
-import Internal.Convex as Convex exposing (Convex)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
 
 

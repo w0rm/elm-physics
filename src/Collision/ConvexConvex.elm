@@ -7,8 +7,8 @@ module Collision.ConvexConvex exposing
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Convex as Convex exposing (Convex, Face)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Convex as Convex exposing (Convex, Face)
 
 
 addContacts : Convex -> Convex -> List Contact -> List Contact

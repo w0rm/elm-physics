@@ -1,4 +1,4 @@
-module Internal.Plane exposing (Plane, placeIn, raycast)
+module Shapes.Plane exposing (Plane, placeIn, raycast)
 
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)

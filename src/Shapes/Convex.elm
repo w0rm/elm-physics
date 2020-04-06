@@ -1,4 +1,4 @@
-module Internal.Convex exposing
+module Shapes.Convex exposing
     ( Convex
     , Face
     , addDirectionIfDistinct

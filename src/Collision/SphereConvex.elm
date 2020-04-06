@@ -1,9 +1,9 @@
 module Collision.SphereConvex exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Convex as Convex exposing (Convex)
-import Internal.Sphere exposing (Sphere)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Convex as Convex exposing (Convex)
+import Shapes.Sphere exposing (Sphere)
 
 
 addContacts : (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact

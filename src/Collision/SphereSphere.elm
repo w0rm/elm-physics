@@ -1,8 +1,8 @@
 module Collision.SphereSphere exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Sphere exposing (Sphere)
 import Internal.Vector3 as Vec3
+import Shapes.Sphere exposing (Sphere)
 
 
 addContacts : Sphere -> Sphere -> List Contact -> List Contact

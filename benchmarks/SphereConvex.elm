@@ -5,7 +5,7 @@ import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.SphereConvex
 import Fixtures.Convex
 import Fixtures.NarrowPhase
-import Internal.Convex as Convex
+import Shapes.Convex as Convex
 import Internal.Transform3d as Transform3d
 
 

@@ -1,9 +1,9 @@
 module Collision.PlaneConvex exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Convex exposing (Convex)
-import Internal.Plane exposing (Plane)
 import Internal.Vector3 exposing (Vec3)
+import Shapes.Convex exposing (Convex)
+import Shapes.Plane exposing (Plane)
 
 
 addContacts : (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact

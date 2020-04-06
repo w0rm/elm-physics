@@ -1,8 +1,8 @@
 module Collision.PlaneSphere exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
-import Internal.Plane exposing (Plane)
-import Internal.Sphere exposing (Sphere)
+import Shapes.Plane exposing (Plane)
+import Shapes.Sphere exposing (Sphere)
 
 
 addContacts : (Contact -> Contact) -> Plane -> Sphere -> List Contact -> List Contact

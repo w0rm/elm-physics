@@ -8,9 +8,9 @@ module Collision.ConvexConvexTest exposing
 import Collision.ConvexConvex
 import Expect
 import Internal.Const as Const
-import Internal.Convex as Convex
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
 

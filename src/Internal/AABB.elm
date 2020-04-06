@@ -10,10 +10,10 @@ module Internal.AABB exposing
     )
 
 import Internal.Const as Const
-import Internal.Convex exposing (Convex)
-import Internal.Plane exposing (Plane)
-import Internal.Sphere exposing (Sphere)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Convex exposing (Convex)
+import Shapes.Plane exposing (Plane)
+import Shapes.Sphere exposing (Sphere)
 
 
 type alias AABB =

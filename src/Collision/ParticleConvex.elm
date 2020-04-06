@@ -2,8 +2,8 @@ module Collision.ParticleConvex exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
-import Internal.Convex exposing (Convex, Face)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Convex exposing (Convex, Face)
 
 
 addContacts : (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact

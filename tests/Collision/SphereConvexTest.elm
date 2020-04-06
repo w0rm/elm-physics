@@ -5,8 +5,8 @@ import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
 import Fixtures.NarrowPhase
-import Internal.Convex as Convex
 import Internal.Transform3d as Transform3d
+import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
 

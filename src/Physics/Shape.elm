@@ -9,12 +9,12 @@ module Physics.Shape exposing (Shape, block, sphere)
 import Block3d exposing (Block3d)
 import Direction3d
 import Frame3d
-import Internal.Convex as Convex
 import Internal.Shape as Internal exposing (Protected(..))
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d
+import Shapes.Convex as Convex
 import Sphere3d exposing (Sphere3d)
 
 
