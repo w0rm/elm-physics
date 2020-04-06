@@ -46,35 +46,53 @@ clipTwoFaces face { vertices } separatingAxis contacts =
                 [] ->
                     Vec3.zero
 
-        planeConstant =
-            -(Vec3.dot normal point)
-
-        normal =
-            face.normal
+        facePlaneConstant =
+            -(Vec3.dot face.normal point)
     in
-    List.foldl
-        (\vertex result ->
+    clipTwoFacesHelp
+        separatingAxis
+        face
+        facePlaneConstant
+        (clipAgainstAdjacentFaces face vertices)
+        contacts
+
+
+clipTwoFacesHelp : Vec3 -> Face -> Float -> List Vec3 -> List Contact -> List Contact
+clipTwoFacesHelp separatingAxis face facePlaneConstant vertices result =
+    case vertices of
+        vertex :: remainingVertices ->
             let
                 -- used to be (max minDist depth), where minDist = -100
                 depth =
-                    Vec3.dot normal vertex + planeConstant
+                    Vec3.dot face.normal vertex + facePlaneConstant
             in
             if depth <= 0 then
-                { ni = separatingAxis
-                , pi =
-                    { x = vertex.x - depth * normal.x
-                    , y = vertex.y - depth * normal.y
-                    , z = vertex.z - depth * normal.z
-                    }
-                , pj = vertex
-                }
-                    :: result
+                clipTwoFacesHelp
+                    separatingAxis
+                    face
+                    facePlaneConstant
+                    remainingVertices
+                    ({ ni = separatingAxis
+                     , pi =
+                        { x = vertex.x - depth * face.normal.x
+                        , y = vertex.y - depth * face.normal.y
+                        , z = vertex.z - depth * face.normal.z
+                        }
+                     , pj = vertex
+                     }
+                        :: result
+                    )
 
             else
-                result
-        )
-        contacts
-        (clipAgainstAdjacentFaces face vertices)
+                clipTwoFacesHelp
+                    separatingAxis
+                    face
+                    facePlaneConstant
+                    remainingVertices
+                    result
+
+        [] ->
+            result
 
 
 bestFace : List Face -> Vec3 -> Maybe Face
