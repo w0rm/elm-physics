@@ -122,9 +122,10 @@ step number deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solv
                         Array.get bodyId1 solverBodies
 
                 newSolverBodies =
-                    if bodyId1 - prevBody1.body.id == 0 then
-                        -- if the next equations group has the same body
+                    if bodyId1 - prevBody1.body.id == 0 || prevBody1.body.mass == 0 then
+                        -- if the next equations group has the same body,
                         -- then no need to set it to the array
+                        -- also no need to update the static body
                         solverBodies
 
                     else
@@ -157,7 +158,13 @@ step number deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solv
                                 -- which we generated the contact equation groups (b1, b2), (b1, b3)
                                 -- this let's us reduce Array operations
                                 groupContext.body1
-                                (Array.set bodyId2 groupContext.body2 newSolverBodies)
+                                (if groupContext.body2.body.mass > 0 then
+                                    Array.set bodyId2 groupContext.body2 newSolverBodies
+
+                                 else
+                                    -- static bodies don’t change
+                                    newSolverBodies
+                                )
 
                         _ ->
                             -- Should never happen
@@ -232,24 +239,40 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
 
                 k2 =
                     deltalambda * body2.body.invMass
+
+                newBody1 =
+                    if body1.body.mass > 0 then
+                        { body = body1.body
+                        , vX = body1.vX - k1 * vB.x
+                        , vY = body1.vY - k1 * vB.y
+                        , vZ = body1.vZ - k1 * vB.z
+                        , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
+                        , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
+                        , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
+                        }
+
+                    else
+                        -- static bodies don’t move
+                        body1
+
+                newBody2 =
+                    if body2.body.mass > 0 then
+                        { body = body2.body
+                        , vX = body2.vX + k2 * vB.x
+                        , vY = body2.vY + k2 * vB.y
+                        , vZ = body2.vZ + k2 * vB.z
+                        , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
+                        , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
+                        , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
+                        }
+
+                    else
+                        -- static bodies don’t move
+                        body2
             in
             solveEquationsGroup
-                { body = body1.body
-                , vX = body1.vX - k1 * vB.x
-                , vY = body1.vY - k1 * vB.y
-                , vZ = body1.vZ - k1 * vB.z
-                , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
-                , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
-                , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
-                }
-                { body = body2.body
-                , vX = body2.vX + k2 * vB.x
-                , vY = body2.vY + k2 * vB.y
-                , vZ = body2.vZ + k2 * vB.z
-                , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
-                , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
-                , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
-                }
+                newBody1
+                newBody2
                 ({ solverLambda = solverLambda + deltalambda
                  , equation = equation
                  }
@@ -267,11 +290,11 @@ updateBodies ctx bodies world =
                 (\solverBody ->
                     -- id == -1 is to skip the filling body to avoid (Array (Maybe (SolverBody data)))
                     if solverBody.body.id + 1 > 0 then
-                        -- only dynamic bodies are updated
                         if solverBody.body.mass > 0 then
                             SolverBody.toBody ctx solverBody
 
                         else
+                            -- static bodies don’t move
                             solverBody.body
 
                     else
