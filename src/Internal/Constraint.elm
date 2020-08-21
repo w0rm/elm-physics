@@ -13,6 +13,7 @@ type Protected
 type Constraint coordinates
     = PointToPoint Vec3 Vec3
     | Hinge Vec3 Vec3 Vec3 Vec3
+    | Lock Vec3 Vec3 Vec3 Vec3 Vec3 Vec3 Vec3 Vec3
     | Distance Float
 
 
@@ -41,6 +42,17 @@ relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected cons
                 (Transform3d.directionRelativeTo centerOfMassFrame3d1 axis1)
                 (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot2)
                 (Transform3d.directionRelativeTo centerOfMassFrame3d2 axis2)
+
+        Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2 ->
+            Lock
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 x1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 y1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 z1)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 x2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 y2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 z2)
 
         Distance length ->
             Distance length

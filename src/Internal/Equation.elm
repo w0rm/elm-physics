@@ -82,7 +82,11 @@ addConstraintEquations ctx body1 body2 constraint =
 
         Hinge pivot1 axis1 pivot2 axis2 ->
             addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2
-                >> addRotationalConstraintEquations ctx body1 body2 axis1 axis2
+                >> addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2
+
+        Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2 ->
+            addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2
+                >> addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2
 
         Distance distance ->
             addDistanceConstraintEquations ctx body1 body2 distance
@@ -138,8 +142,8 @@ addDistanceConstraintEquations ctx body1 body2 distance =
         )
 
 
-addRotationalConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
-addRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
+addHingeRotationalConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
     let
         spookA =
             4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
@@ -206,6 +210,102 @@ addRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
             , wA = Vec3.cross nj2 ni2
             , vB = Vec3.zero
             , wB = Vec3.cross ni2 nj2
+            }
+        :: equations
+
+
+addLockRotationalConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations =
+    let
+        spookA =
+            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+
+        ni1 =
+            Transform3d.directionPlaceIn body1.transform3d x1
+
+        nj1 =
+            Transform3d.directionPlaceIn body2.transform3d y2
+
+        ni2 =
+            Transform3d.directionPlaceIn body1.transform3d y1
+
+        nj2 =
+            Transform3d.directionPlaceIn body2.transform3d z2
+
+        ni3 =
+            Transform3d.directionPlaceIn body1.transform3d z1
+
+        nj3 =
+            Transform3d.directionPlaceIn body2.transform3d x2
+    in
+    initSolverParams
+        (computeRotationalB
+            { ni = ni1
+            , nj = nj1
+            , maxAngleCos = 0 -- cos (pi / 2)
+            }
+        )
+        ctx
+        body1
+        body2
+        { minForce = -1000000
+        , maxForce = 1000000
+        , solverB = 0
+        , solverInvC = 0
+        , spookA = spookA
+        , spookB = spookB
+        , spookEps = spookEps
+        , wA = Vec3.cross nj1 ni1
+        , vB = Vec3.zero
+        , wB = Vec3.cross ni1 nj1
+        }
+        :: initSolverParams
+            (computeRotationalB
+                { ni = ni2
+                , nj = nj2
+                , maxAngleCos = 0 -- cos (pi / 2)
+                }
+            )
+            ctx
+            body1
+            body2
+            { minForce = -1000000
+            , maxForce = 1000000
+            , solverB = 0
+            , solverInvC = 0
+            , spookA = spookA
+            , spookB = spookB
+            , spookEps = spookEps
+            , wA = Vec3.cross nj2 ni2
+            , vB = Vec3.zero
+            , wB = Vec3.cross ni2 nj2
+            }
+        :: initSolverParams
+            (computeRotationalB
+                { ni = ni3
+                , nj = nj3
+                , maxAngleCos = 0 -- cos (pi / 2)
+                }
+            )
+            ctx
+            body1
+            body2
+            { minForce = -1000000
+            , maxForce = 1000000
+            , solverB = 0
+            , solverInvC = 0
+            , spookA = spookA
+            , spookB = spookB
+            , spookEps = spookEps
+            , wA = Vec3.cross nj3 ni3
+            , vB = Vec3.zero
+            , wB = Vec3.cross ni3 nj3
             }
         :: equations
 
