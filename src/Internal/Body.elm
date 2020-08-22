@@ -44,7 +44,6 @@ type alias Body data =
 
     -- mass props
     , invMass : Float
-    , inertia : Vec3
     , invInertia : Vec3
     , invInertiaWorld : Mat3
     }
@@ -134,7 +133,6 @@ compound shapes data =
 
         -- mass props
         , invMass = 0
-        , inertia = Vec3.zero
         , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.identity
         }
@@ -164,9 +162,6 @@ updateMassProperties ({ mass } as body) =
         iz =
             1.0 / 12.0 * mass * (e.y * e.y + e.x * e.x)
 
-        inertia =
-            { x = ix, y = iy, z = iz }
-
         invInertia =
             { x =
                 if ix > 0 then
@@ -190,7 +185,6 @@ updateMassProperties ({ mass } as body) =
     in
     { body
         | invMass = invMass
-        , inertia = inertia
         , invInertia = invInertia
         , invInertiaWorld =
             updateInvInertiaWorld True

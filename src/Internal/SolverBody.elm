@@ -92,7 +92,6 @@ toBody { dt, gravity } { body, vX, vY, vZ, wX, wY, wZ } =
     , linearDamping = body.linearDamping
     , angularDamping = body.angularDamping
     , invMass = body.invMass
-    , inertia = body.inertia
     , invInertia = body.invInertia
     , invInertiaWorld =
         Body.updateInvInertiaWorld False
