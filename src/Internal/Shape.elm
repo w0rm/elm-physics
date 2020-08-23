@@ -2,7 +2,6 @@ module Internal.Shape exposing
     ( CenterOfMassCoordinates
     , Protected(..)
     , Shape(..)
-    , aabbClosure
     , expandBoundingSphereRadius
     , inertia
     , raycast
@@ -10,7 +9,6 @@ module Internal.Shape exposing
     , volume
     )
 
-import Internal.AABB as AABB
 import Internal.Const as Const
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
@@ -66,22 +64,6 @@ inertia shape =
 
         Particle _ ->
             Mat3.zero
-
-
-aabbClosure : Shape CenterOfMassCoordinates -> AABB.AABB
-aabbClosure shape =
-    case shape of
-        Convex convex ->
-            AABB.convex convex
-
-        Plane plane ->
-            AABB.plane plane
-
-        Sphere sphere ->
-            AABB.sphere sphere
-
-        Particle position ->
-            AABB.particle position
 
 
 {-| Transforms shapes, reverses the original order

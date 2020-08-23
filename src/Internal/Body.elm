@@ -9,7 +9,6 @@ module Internal.Body exposing
     , updateMassProperties
     )
 
-import Internal.AABB as AABB exposing (AABB)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
@@ -214,17 +213,6 @@ applyForce amount direction point body =
         | force = Vec3.add body.force force
         , torque = Vec3.add body.torque torque
     }
-
-
-computeAABB : Body data -> AABB
-computeAABB body =
-    List.foldl
-        (\shape ->
-            Shape.aabbClosure shape
-                |> AABB.extend
-        )
-        AABB.impossible
-        body.shapes
 
 
 raycast :
