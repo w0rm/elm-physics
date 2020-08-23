@@ -3,7 +3,9 @@ module Collision.PlaneSphereTest exposing (addContacts)
 import Collision.PlaneSphere
 import Expect
 import Extra.Expect as Expect
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Shapes.Sphere as Sphere
 import Test exposing (Test, describe, test)
 
 
@@ -17,16 +19,19 @@ addContacts =
             { position = Vec3.zero, normal = Vec3.zAxis }
 
         sphere =
-            { radius = radius, position = { x = 0, y = 0, z = radius } }
+            Sphere.atOrigin radius
+                |> Sphere.placeIn (Transform3d.atPoint { x = 0, y = 0, z = radius })
 
         delta =
             0.3
 
         overlappingSphere =
-            { radius = radius, position = { x = 0, y = 0, z = radius - delta } }
+            Sphere.atOrigin radius
+                |> Sphere.placeIn (Transform3d.atPoint { x = 0, y = 0, z = radius - delta })
 
         nonCollidingSphere =
-            { radius = radius, position = { x = 0, y = 0, z = radius + delta } }
+            Sphere.atOrigin radius
+                |> Sphere.placeIn (Transform3d.atPoint { x = 0, y = 0, z = radius + delta })
     in
     describe "Collision.PlaneSphere.addContacts"
         [ test "exact collision" <|

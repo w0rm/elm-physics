@@ -1,10 +1,12 @@
 module Shapes.Sphere exposing
     ( Sphere
+    , atOrigin
     , expandBoundingSphereRadius
     , placeIn
     , raycast
     )
 
+import Internal.Matrix3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -12,12 +14,44 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 type alias Sphere =
     { radius : Float
     , position : Vec3
+    , volume : Float
+    , inertia : Mat3
+    }
+
+
+atOrigin : Float -> Sphere
+atOrigin radius =
+    let
+        volume =
+            4 / 3 * pi * (radius ^ 3)
+
+        i =
+            2 / 5 * volume * radius * radius
+
+        inertia =
+            { m11 = i
+            , m21 = 0
+            , m31 = 0
+            , m12 = 0
+            , m22 = i
+            , m32 = 0
+            , m13 = 0
+            , m23 = 0
+            , m33 = i
+            }
+    in
+    { radius = radius
+    , position = Vec3.zero
+    , volume = volume
+    , inertia = inertia
     }
 
 
 placeIn : Transform3d coordinates defines -> Sphere -> Sphere
-placeIn transform3d { radius, position } =
+placeIn transform3d { radius, position, volume, inertia } =
     { radius = radius
+    , volume = volume
+    , inertia = Transform3d.inertiaPlaceIn transform3d volume inertia
     , position = Transform3d.pointPlaceIn transform3d position
     }
 

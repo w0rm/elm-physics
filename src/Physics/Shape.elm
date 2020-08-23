@@ -15,6 +15,7 @@ import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d
 import Shapes.Convex as Convex
+import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 
 
@@ -41,15 +42,6 @@ block block3d =
     let
         ( sizeX, sizeY, sizeZ ) =
             Block3d.dimensions block3d
-
-        halfX =
-            Length.inMeters sizeX * 0.5
-
-        halfY =
-            Length.inMeters sizeY * 0.5
-
-        halfZ =
-            Length.inMeters sizeZ * 0.5
 
         frame3d =
             Block3d.axes block3d
@@ -78,7 +70,10 @@ block block3d =
     in
     Protected
         (Internal.Convex
-            (Convex.fromBlock halfX halfY halfZ
+            (Convex.fromBlock
+                (Length.inMeters sizeX)
+                (Length.inMeters sizeY)
+                (Length.inMeters sizeZ)
                 |> Convex.placeIn tranform3d
             )
         )
@@ -95,4 +90,8 @@ sphere sphere3d =
             Point3d.toMeters (Sphere3d.centerPoint sphere3d)
     in
     Protected
-        (Internal.Sphere { radius = radius, position = origin })
+        (Internal.Sphere
+            (Sphere.atOrigin radius
+                |> Sphere.placeIn (Transform3d.atPoint origin)
+            )
+        )

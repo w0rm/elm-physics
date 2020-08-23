@@ -4,6 +4,7 @@ module Internal.Shape exposing
     , Shape(..)
     , aabbClosure
     , expandBoundingSphereRadius
+    , inertia
     , raycast
     , shapesPlaceIn
     , volume
@@ -11,6 +12,7 @@ module Internal.Shape exposing
 
 import Internal.AABB as AABB
 import Internal.Const as Const
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
@@ -37,8 +39,8 @@ type Shape coordinates
 volume : Shape coordinates -> Float
 volume shape =
     case shape of
-        Sphere { radius } ->
-            4 / 3 * pi * (radius ^ 3)
+        Sphere sphere ->
+            sphere.volume
 
         Convex convex ->
             convex.volume
@@ -48,6 +50,22 @@ volume shape =
 
         Particle _ ->
             0
+
+
+inertia : Shape coordinates -> Mat3
+inertia shape =
+    case shape of
+        Sphere sphere ->
+            sphere.inertia
+
+        Convex convex ->
+            convex.inertia
+
+        Plane _ ->
+            Mat3.zero
+
+        Particle _ ->
+            Mat3.zero
 
 
 aabbClosure : Shape CenterOfMassCoordinates -> AABB.AABB

@@ -18,12 +18,12 @@ boundingSphereRadius =
                 Expect.equal 0 (Body.compound [] () |> .boundingSphereRadius)
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box 1 1 1 ] ()
+                Body.compound [ box 2 2 2 ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 1, y = 1, z = 1 })
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
-                Body.compound [ box 1 1 1, box 2 2 2 ] ()
+                Body.compound [ box 2 2 2, box 4 4 4 ] ()
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 2, y = 2, z = 2 })
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
@@ -35,8 +35,8 @@ boundingSphereRadius =
 
 
 box : Float -> Float -> Float -> Shape BodyCoordinates
-box x y z =
-    Shape.Convex (Convex.fromBlock x y z)
+box sizeX sizeY sizeZ =
+    Shape.Convex (Convex.fromBlock sizeX sizeY sizeZ)
 
 
 plane : Shape BodyCoordinates

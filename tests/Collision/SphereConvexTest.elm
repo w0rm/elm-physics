@@ -7,6 +7,7 @@ import Fixtures.Convex
 import Fixtures.NarrowPhase
 import Internal.Transform3d as Transform3d
 import Shapes.Convex as Convex
+import Shapes.Sphere as Sphere
 import Test exposing (Test, describe, test)
 
 
@@ -24,9 +25,9 @@ addContacts =
 
         boxHull =
             Convex.fromBlock
-                boxHalfExtent
-                boxHalfExtent
-                boxHalfExtent
+                (boxHalfExtent * 2)
+                (boxHalfExtent * 2)
+                (boxHalfExtent * 2)
 
         boxFarPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions
@@ -56,7 +57,7 @@ addContacts =
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { radius = radius, position = center }
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                                 |> Expect.contacts expectedContacts
@@ -70,7 +71,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { radius = radius, position = center }
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
                                 []
                         )
@@ -82,7 +83,7 @@ addContacts =
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { radius = radius, position = center }
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                                 |> Expect.contacts expectedContacts
@@ -96,7 +97,7 @@ addContacts =
                         (\position ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                { radius = radius, position = center }
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)
                                 []
                         )

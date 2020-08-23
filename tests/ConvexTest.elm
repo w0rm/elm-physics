@@ -135,7 +135,7 @@ initFaceNormal =
     describe "Convex.initFaceNormal"
         [ test "works for the box" <|
             \_ ->
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> (\{ faces } ->
                             List.map
                                 (\{ vertices } ->
@@ -148,7 +148,7 @@ initFaceNormal =
                     |> Expect.equal boxNormals
         , test "box-specific bypass optimization works identically" <|
             \_ ->
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> .faces
                     |> List.map .normal
                     |> Expect.equal boxNormals
@@ -220,7 +220,7 @@ initUniqueEdges =
         -- even with varying equivalent representations.
         [ test "gives the correct number of edges for a box" <|
             \_ ->
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> uniqueEdgesOfConvex
                     |> List.length
                     |> Expect.equal 3
@@ -281,7 +281,7 @@ addFaceEdges =
                         , Vec3.zAxis
                         ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with negatively directed seeds" <|
@@ -293,7 +293,7 @@ addFaceEdges =
                         , Vec3.zNegative
                         ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> addEdgesOfConvex fullSeedSet
                     |> Expect.equal fullSeedSet
         , test "works for the box with partial seeds" <|
@@ -307,7 +307,7 @@ addFaceEdges =
                         , Vec3.zAxis
                         ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with different partial seeds" <|
@@ -319,7 +319,7 @@ addFaceEdges =
                     partialSeedSet =
                         [ Vec3.zAxis ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with other different partial seeds" <|
@@ -331,7 +331,7 @@ addFaceEdges =
                     partialSeedSet =
                         [ Vec3.yAxis ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> countEdgesOfConvex partialSeedSet
                     |> Expect.equal 3
         , test "works for the box with approximate seeds" <|
@@ -350,7 +350,7 @@ addFaceEdges =
                         , { x = 0, y = 0, z = -1 - Const.precision / 3.0 }
                         ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> addEdgesOfConvex validSeedSet
                     |> Expect.equal validSeedSet
         , test "works for the box with invalid seeds" <|
@@ -375,7 +375,7 @@ addFaceEdges =
                         , { x = 1, y = 0, z = Const.precision * 3.0 }
                         ]
                 in
-                Convex.fromBlock 1 1 1
+                Convex.fromBlock 2 2 2
                     |> countEdgesOfConvex invalidSeedSet
                     |> Expect.equal (List.length invalidSeedSet + 3)
 
@@ -426,7 +426,7 @@ boxUniqueEdges =
         [ test "works for the box" <|
             \_ ->
                 Expect.equal
-                    (Convex.fromBlock 1 1 1).uniqueEdges
+                    (Convex.fromBlock 2 2 2).uniqueEdges
                     [ Vec3.xAxis
                     , Vec3.yAxis
                     , Vec3.zAxis

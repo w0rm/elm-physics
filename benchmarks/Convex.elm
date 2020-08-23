@@ -20,7 +20,7 @@ placeIn : Benchmark
 placeIn =
     let
         sampleHull =
-            Convex.fromBlock 1 1 1
+            Convex.fromBlock 2 2 2
 
         transform =
             Transform3d.atPoint { x = 0, y = 0, z = 2.5 }

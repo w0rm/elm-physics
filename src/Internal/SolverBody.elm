@@ -4,7 +4,7 @@ module Internal.SolverBody exposing
     , toBody
     )
 
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -93,11 +93,7 @@ toBody { dt, gravity } { body, vX, vY, vZ, wX, wY, wZ } =
     , angularDamping = body.angularDamping
     , invMass = body.invMass
     , invInertia = body.invInertia
-    , invInertiaWorld =
-        Body.updateInvInertiaWorld False
-            body.invInertia
-            newTransform3d
-            body.invInertiaWorld
+    , invInertiaWorld = Transform3d.inertiaRotateIn newTransform3d body.invInertia
 
     -- clear forces
     , force = Vec3.zero
