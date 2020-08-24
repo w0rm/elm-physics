@@ -76,4 +76,4 @@ separated =
 
 box : Convex
 box =
-    Convex.fromBlock 1 1 1
+    Convex.fromBlock 2 2 2

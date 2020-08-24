@@ -6,11 +6,9 @@ module Internal.Body exposing
     , centerOfMass
     , compound
     , raycast
-    , updateInvInertiaWorld
     , updateMassProperties
     )
 
-import Internal.AABB as AABB exposing (AABB)
 import Internal.Material as Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
@@ -44,8 +42,7 @@ type alias Body data =
 
     -- mass props
     , invMass : Float
-    , inertia : Vec3
-    , invInertia : Vec3
+    , invInertia : Mat3
     , invInertiaWorld : Mat3
     }
 
@@ -134,128 +131,41 @@ compound shapes data =
 
         -- mass props
         , invMass = 0
-        , inertia = Vec3.zero
-        , invInertia = Vec3.zero
-        , invInertiaWorld = Mat3.identity
+        , invInertia = Mat3.zero
+        , invInertiaWorld = Mat3.zero
         }
 
 
 {-| Should be called whenever you change the body shapes or mass.
 -}
 updateMassProperties : Body data -> Body data
-updateMassProperties ({ mass } as body) =
+updateMassProperties ({ mass, shapes } as body) =
     let
+        totalVolume =
+            List.foldl (\shape result -> Shape.volume shape + result) 0 shapes
+
+        density =
+            mass / totalVolume
+
+        inertia =
+            List.foldl (\shape -> Mat3.add (Shape.inertia shape)) Mat3.zero shapes
+                |> Mat3.scale density
+
         invMass =
             if mass == 0 then
                 0
 
             else
-                1.0 / mass
-
-        e =
-            AABB.dimensions (computeAABB body)
-
-        ix =
-            1.0 / 12.0 * mass * (e.y * e.y + e.z * e.z)
-
-        iy =
-            1.0 / 12.0 * mass * (e.x * e.x + e.z * e.z)
-
-        iz =
-            1.0 / 12.0 * mass * (e.y * e.y + e.x * e.x)
-
-        inertia =
-            { x = ix, y = iy, z = iz }
+                1 / mass
 
         invInertia =
-            { x =
-                if ix > 0 then
-                    1.0 / ix
-
-                else
-                    0
-            , y =
-                if iy > 0 then
-                    1.0 / iy
-
-                else
-                    0
-            , z =
-                if iz > 0 then
-                    1.0 / iz
-
-                else
-                    0
-            }
+            Mat3.inverse inertia
     in
     { body
         | invMass = invMass
-        , inertia = inertia
-        , invInertia = invInertia
-        , invInertiaWorld =
-            updateInvInertiaWorld True
-                invInertia
-                body.transform3d
-                body.invInertiaWorld
+        , invInertia = Mat3.inverse inertia
+        , invInertiaWorld = Transform3d.inertiaRotateIn body.transform3d invInertia
     }
-
-
-updateInvInertiaWorld : Bool -> Vec3 -> Transform3d WorldCoordinates { defines : CenterOfMassCoordinates } -> Mat3 -> Mat3
-updateInvInertiaWorld force invInertia transform3d invInertiaWorld =
-    if not force && invInertia.x == invInertia.y && invInertia.y == invInertia.z then
-        invInertiaWorld
-
-    else
-        {-
-           let
-               m =
-                   Quaternion.toMat3 orientation
-           in
-           Mat3.mul
-               (Mat3.transpose m)
-               (Mat3.scale invInertia m)
-        -}
-        let
-            { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
-                Transform3d.orientation transform3d
-
-            bm11 =
-                m11 * invInertia.x
-
-            bm21 =
-                m12 * invInertia.x
-
-            bm31 =
-                m13 * invInertia.x
-
-            bm12 =
-                m21 * invInertia.y
-
-            bm22 =
-                m22 * invInertia.y
-
-            bm32 =
-                m23 * invInertia.y
-
-            bm13 =
-                m31 * invInertia.z
-
-            bm23 =
-                m32 * invInertia.z
-
-            bm33 =
-                m33 * invInertia.z
-        in
-        { m11 = m11 * bm11 + m12 * bm21 + m13 * bm31
-        , m21 = m21 * bm11 + m22 * bm21 + m23 * bm31
-        , m31 = m31 * bm11 + m32 * bm21 + m33 * bm31
-        , m12 = m11 * bm12 + m12 * bm22 + m13 * bm32
-        , m22 = m21 * bm12 + m22 * bm22 + m23 * bm32
-        , m32 = m31 * bm12 + m32 * bm22 + m33 * bm32
-        , m13 = m11 * bm13 + m12 * bm23 + m13 * bm33
-        , m23 = m21 * bm13 + m22 * bm23 + m23 * bm33
-        , m33 = m31 * bm13 + m32 * bm23 + m33 * bm33
-        }
 
 
 applyImpulse : Float -> Vec3 -> Vec3 -> Body data -> Body data
@@ -303,17 +213,6 @@ applyForce amount direction point body =
         | force = Vec3.add body.force force
         , torque = Vec3.add body.torque torque
     }
-
-
-computeAABB : Body data -> AABB
-computeAABB body =
-    List.foldl
-        (\shape ->
-            Shape.aabbClosure shape
-                |> AABB.extend
-        )
-        AABB.impossible
-        body.shapes
 
 
 raycast :

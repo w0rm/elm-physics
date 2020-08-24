@@ -11,6 +11,7 @@ module Shapes.Convex exposing
     )
 
 import Array exposing (Array)
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -27,18 +28,20 @@ type alias Convex =
     , uniqueEdges : List Vec3 -- unique edges
     , uniqueNormals : List Vec3 -- unique face normals
     , position : Vec3
+    , inertia : Mat3
     , volume : Float
     }
 
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
-placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume } =
+placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume, inertia } =
     { faces = facesPlaceInHelp transform3d faces []
     , vertices = Transform3d.pointsPlaceIn transform3d vertices
     , uniqueEdges = Transform3d.directionsPlaceIn transform3d uniqueEdges
     , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
+    , inertia = Transform3d.inertiaPlaceIn transform3d volume inertia
     }
 
 
@@ -92,6 +95,9 @@ init faceVertexLists vertices =
             []
             faces
     , position = Vec3.zero
+
+    -- TODO: calculate inertia for a convex
+    , inertia = Mat3.zero
     , volume = 0
     }
 
@@ -128,8 +134,17 @@ computeNormal v1 v2 v3 =
 
 
 fromBlock : Float -> Float -> Float -> Convex
-fromBlock x y z =
+fromBlock sizeX sizeY sizeZ =
     let
+        x =
+            sizeX / 2
+
+        y =
+            sizeY / 2
+
+        z =
+            sizeZ / 2
+
         v0 =
             { x = -x, y = -y, z = -z }
 
@@ -153,6 +168,21 @@ fromBlock x y z =
 
         v7 =
             { x = -x, y = y, z = z }
+
+        volume =
+            x * y * z * 8
+
+        inertia =
+            { m11 = 1.0 / 12.0 * volume * (sizeY * sizeY + sizeZ * sizeZ)
+            , m21 = 0
+            , m31 = 0
+            , m12 = 0
+            , m22 = 1.0 / 12.0 * volume * (sizeX * sizeX + sizeZ * sizeZ)
+            , m32 = 0
+            , m13 = 0
+            , m23 = 0
+            , m33 = 1.0 / 12.0 * volume * (sizeY * sizeY + sizeX * sizeX)
+            }
     in
     { faces =
         -- faces vertices are reversed for local coordinates
@@ -180,8 +210,9 @@ fromBlock x y z =
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
     , uniqueEdges = Vec3.basis
     , uniqueNormals = Vec3.basis
-    , volume = x * y * z * 8
+    , volume = volume
     , position = Vec3.zero
+    , inertia = inertia
     }
 
 

@@ -1,9 +1,10 @@
-module Extra.Expect exposing (contacts, frame3d, vec3, vec3s)
+module Extra.Expect exposing (contacts, frame3d, mat3, vec3, vec3s)
 
 import Direction3d
 import Expect exposing (Expectation, FloatingPointTolerance(..))
 import Frame3d exposing (Frame3d)
 import Internal.Contact exposing (Contact)
+import Internal.Matrix3 exposing (Mat3)
 import Internal.Vector3 exposing (Vec3)
 import Point3d
 
@@ -26,6 +27,14 @@ contact =
 vec3 : Vec3 -> Vec3 -> Expectation
 vec3 =
     expectAll (List.map (Tuple.pair (Expect.within tolerance)) [ .x, .y, .z ])
+
+
+mat3 : Mat3 -> Mat3 -> Expectation
+mat3 =
+    expectAll
+        (List.map (Tuple.pair (Expect.within tolerance))
+            [ .m11, .m21, .m31, .m12, .m22, .m32, .m13, .m23, .m33 ]
+        )
 
 
 frame3d : Frame3d units coords define -> Frame3d units coords define -> Expectation

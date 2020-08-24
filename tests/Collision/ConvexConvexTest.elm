@@ -21,7 +21,7 @@ addContacts =
             \_ ->
                 let
                     convex =
-                        Convex.fromBlock 1 1 1
+                        Convex.fromBlock 2 2 2
 
                     t1 =
                         -- going slightly into another box
@@ -39,10 +39,10 @@ addContacts =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBlock 0.6 0.6 0.6
+                        Convex.fromBlock 1.2 1.2 1.2
 
                     convex2 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
 
                     transform3d1 =
                         Transform3d.atPoint { x = -0.5, y = 0, z = 0 }
@@ -68,11 +68,11 @@ testSeparatingAxis =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = -0.2, y = 0, z = 0 })
 
                     convex2 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
@@ -82,11 +82,11 @@ testSeparatingAxis =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = -5.2, y = 0, z = 0 })
 
                     convex2 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
@@ -97,11 +97,11 @@ testSeparatingAxis =
                 case
                     let
                         convex1 =
-                            Convex.fromBlock 0.5 0.5 0.5
+                            Convex.fromBlock 1 1 1
                                 |> Convex.placeIn (Transform3d.atPoint { x = 1, y = 0, z = 0 })
 
                         convex2 =
-                            Convex.fromBlock 0.5 0.5 0.5
+                            Convex.fromBlock 1 1 1
                                 |> Convex.placeIn
                                     (Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
                                         |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
@@ -124,11 +124,11 @@ findSeparatingAxis =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = -0.2, y = 0, z = 0 })
 
                     convex2 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
@@ -138,11 +138,11 @@ findSeparatingAxis =
             \_ ->
                 let
                     convex1 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = -0.2, y = 0, z = 0 })
 
                     convex2 =
-                        Convex.fromBlock 0.5 0.5 0.5
+                        Convex.fromBlock 1 1 1
                             |> Convex.placeIn
                                 (Transform3d.atPoint { x = 0.2, y = 0, z = 0 }
                                     |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
@@ -164,7 +164,7 @@ project =
                         Vec3.xAxis
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
+                        (Convex.fromBlock 1 1 1).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the negative x axis" <|
@@ -174,7 +174,7 @@ project =
                         { x = -1, y = 0, z = 0 }
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
+                        (Convex.fromBlock 1 1 1).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the positive y axis" <|
@@ -184,7 +184,7 @@ project =
                         Vec3.yAxis
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 0.5 0.5 0.5).vertices
+                        (Convex.fromBlock 1 1 1).vertices
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the offset" <|
@@ -194,7 +194,7 @@ project =
                         Vec3.yAxis
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 0.5 0.5 0.5
+                        (Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0, y = 1, z = 0 })
                         ).vertices
                     )
@@ -205,7 +205,7 @@ project =
                     Vec3.yAxis
                     Const.maxNumber
                     -Const.maxNumber
-                    (Convex.fromBlock 0.5 0.5 0.5
+                    (Convex.fromBlock 1 1 1
                         |> Convex.placeIn
                             (Transform3d.atPoint { x = 0, y = 1, z = 0 }
                                 |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 2)

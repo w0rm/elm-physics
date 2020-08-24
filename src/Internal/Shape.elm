@@ -2,15 +2,15 @@ module Internal.Shape exposing
     ( CenterOfMassCoordinates
     , Protected(..)
     , Shape(..)
-    , aabbClosure
     , expandBoundingSphereRadius
+    , inertia
     , raycast
     , shapesPlaceIn
     , volume
     )
 
-import Internal.AABB as AABB
 import Internal.Const as Const
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
@@ -37,8 +37,8 @@ type Shape coordinates
 volume : Shape coordinates -> Float
 volume shape =
     case shape of
-        Sphere { radius } ->
-            4 / 3 * pi * (radius ^ 3)
+        Sphere sphere ->
+            sphere.volume
 
         Convex convex ->
             convex.volume
@@ -50,20 +50,20 @@ volume shape =
             0
 
 
-aabbClosure : Shape CenterOfMassCoordinates -> AABB.AABB
-aabbClosure shape =
+inertia : Shape coordinates -> Mat3
+inertia shape =
     case shape of
-        Convex convex ->
-            AABB.convex convex
-
-        Plane plane ->
-            AABB.plane plane
-
         Sphere sphere ->
-            AABB.sphere sphere
+            sphere.inertia
 
-        Particle position ->
-            AABB.particle position
+        Convex convex ->
+            convex.inertia
+
+        Plane _ ->
+            Mat3.zero
+
+        Particle _ ->
+            Mat3.zero
 
 
 {-| Transforms shapes, reverses the original order

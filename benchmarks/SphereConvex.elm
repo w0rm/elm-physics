@@ -23,11 +23,11 @@ suite =
         radius =
             5
 
-        boxHalfExtent =
-            1
+        boxSize =
+            2
 
         boxHull =
-            Convex.fromBlock boxHalfExtent boxHalfExtent boxHalfExtent
+            Convex.fromBlock boxSize boxSize boxSize
 
         boxPositions =
             Fixtures.NarrowPhase.sphereContactBoxPositions center radius boxHalfExtent
