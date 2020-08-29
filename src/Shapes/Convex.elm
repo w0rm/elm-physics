@@ -5,7 +5,7 @@ module Shapes.Convex exposing
     , expandBoundingSphereRadius
     , foldFaceEdges
     , fromBlock
-    , init
+    , fromTriangularMesh
     , placeIn
     , raycast
     )
@@ -67,14 +67,28 @@ facesPlaceInHelp transform3d faces result =
             result
 
 
-init : List (List Int) -> Array Vec3 -> Convex
-init faceVertexLists vertices =
+fromTriangularMesh : List ( Int, Int, Int ) -> Array Vec3 -> Convex
+fromTriangularMesh faceIndices vertices =
     let
         faces =
-            initFaces faceVertexLists vertices
+            initFaces faceIndices vertices
+
+        allVertices =
+            Array.toList vertices
+
+        averageCenter =
+            case allVertices of
+                { x, y, z } :: rest ->
+                    averageCenterHelp rest 1 x y z
+
+                [] ->
+                    Vec3.zero
+
+        ( volume, position, inertia ) =
+            convexMassProperties averageCenter faceIndices vertices 0 0 0 0 Mat3.zero
     in
     { faces = faces
-    , vertices = Array.toList vertices
+    , vertices = allVertices
     , uniqueEdges =
         List.foldl
             (\face edges ->
@@ -94,23 +108,91 @@ init faceVertexLists vertices =
             )
             []
             faces
-    , position = Vec3.zero
-
-    -- TODO: calculate inertia for a convex
-    , inertia = Mat3.zero
-    , volume = 0
+    , position = position
+    , volume = volume
+    , inertia = inertia
     }
 
 
-initFaces : List (List Int) -> Array Vec3 -> List Face
-initFaces faceVertexLists convexVertices =
+convexMassProperties : Vec3 -> List ( Int, Int, Int ) -> Array Vec3 -> Float -> Float -> Float -> Float -> Mat3 -> ( Float, Vec3, Mat3 )
+convexMassProperties center faceIndices vertices cX cY cZ totalVolume totalInertia =
+    case faceIndices of
+        ( i1, i2, i3 ) :: rest ->
+            case ( Array.get i1 vertices, Array.get i2 vertices, Array.get i3 vertices ) of
+                ( Just p1, Just p2, Just p3 ) ->
+                    let
+                        newX =
+                            (center.x + p1.x + p2.x + p3.x) / 4
+
+                        newY =
+                            (center.y + p1.y + p2.y + p3.y) / 4
+
+                        newZ =
+                            (center.z + p1.z + p2.z + p3.z) / 4
+
+                        volume =
+                            Vec3.dot (Vec3.sub p1 center) (Vec3.cross (Vec3.sub p2 center) (Vec3.sub p3 center)) / 6
+
+                        newInertia =
+                            Mat3.tetrahedronInertia volume
+                                center
+                                p1
+                                p2
+                                p3
+                    in
+                    convexMassProperties
+                        center
+                        rest
+                        vertices
+                        (cX + newX * volume)
+                        (cY + newY * volume)
+                        (cZ + newZ * volume)
+                        (totalVolume + volume)
+                        (Mat3.add totalInertia newInertia)
+
+                _ ->
+                    convexMassProperties center rest vertices cX cY cZ totalVolume totalInertia
+
+        [] ->
+            let
+                centerOfMass =
+                    { x = cX / totalVolume
+                    , y = cY / totalVolume
+                    , z = cZ / totalVolume
+                    }
+
+                offsetInertia =
+                    Mat3.pointInertia totalVolume
+                        (centerOfMass.x - center.x)
+                        (centerOfMass.y - center.y)
+                        (centerOfMass.z - center.z)
+            in
+            ( totalVolume
+            , centerOfMass
+            , Mat3.add offsetInertia totalInertia
+            )
+
+
+averageCenterHelp : List Vec3 -> Float -> Float -> Float -> Float -> Vec3
+averageCenterHelp vertices n cX cY cZ =
+    case vertices of
+        { x, y, z } :: rest ->
+            averageCenterHelp rest (n + 1) (cX + x) (cY + y) (cZ + z)
+
+        [] ->
+            { x = cX / n, y = cY / n, z = cZ / n }
+
+
+initFaces : List ( Int, Int, Int ) -> Array Vec3 -> List Face
+initFaces vertexIndices convexVertices =
+    -- TODO: join adjacent coplanar triangles
     List.map
-        (\vertexIndices ->
+        (\( i1, i2, i3 ) ->
             let
                 vertices =
                     List.filterMap
                         (\i -> Array.get i convexVertices)
-                        vertexIndices
+                        [ i1, i2, i3 ]
 
                 normal =
                     case vertices of
@@ -121,11 +203,11 @@ initFaces faceVertexLists convexVertices =
                             -- Shouldn’t happen
                             Vec3.zero
             in
-            { vertices = List.reverse vertices
+            { vertices = vertices
             , normal = normal
             }
         )
-        faceVertexLists
+        vertexIndices
 
 
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3

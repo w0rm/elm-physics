@@ -46,25 +46,25 @@ octoVertices halfExtent =
 octoHull : Float -> Convex.Convex
 octoHull halfExtent =
     octoVertices halfExtent
-        |> Convex.init octoVertexIndices
+        |> Convex.fromTriangularMesh octoVertexIndices
 
 
 originalOctoHull : Float -> Convex.Convex
 originalOctoHull halfExtent =
     octoVertices halfExtent
-        |> Convex.init octoVertexIndices
+        |> Convex.fromTriangularMesh octoVertexIndices
 
 
-octoVertexIndices : List (List Int)
+octoVertexIndices : List ( Int, Int, Int )
 octoVertexIndices =
-    [ [ 2, 1, 0 ]
-    , [ 0, 5, 2 ]
-    , [ 1, 2, 4 ]
-    , [ 3, 0, 1 ]
-    , [ 2, 5, 4 ]
-    , [ 4, 3, 1 ]
-    , [ 5, 0, 3 ]
-    , [ 3, 4, 5 ]
+    [ ( 2, 1, 0 )
+    , ( 0, 5, 2 )
+    , ( 1, 2, 4 )
+    , ( 3, 0, 1 )
+    , ( 2, 5, 4 )
+    , ( 4, 3, 1 )
+    , ( 5, 0, 3 )
+    , ( 3, 4, 5 )
     ]
 
 
@@ -104,12 +104,13 @@ squareLikePyramid epsilon =
         zOffset =
             z * (0.5 ^ (1.0 / 3.0))
 
-        faces =
-            [ [ 3, 2, 1, 0 ]
-            , [ 0, 1, 4 ]
-            , [ 1, 2, 4 ]
-            , [ 2, 3, 4 ]
-            , [ 3, 0, 4 ]
+        vertexIndices =
+            [ ( 3, 2, 1 )
+            , ( 2, 1, 0 )
+            , ( 0, 1, 4 )
+            , ( 1, 2, 4 )
+            , ( 2, 3, 4 )
+            , ( 3, 0, 4 )
             ]
 
         vertices =
@@ -125,4 +126,4 @@ squareLikePyramid epsilon =
                 , { x = 0, y = 0, z = z - zOffset }
                 ]
     in
-    Convex.init faces vertices
+    Convex.fromTriangularMesh vertexIndices vertices

@@ -1,8 +1,8 @@
-module Physics.Shape exposing (Shape, block, sphere)
+module Physics.Shape exposing (Shape, block, sphere, unsafeConvex)
 
 {-|
 
-@docs Shape, block, sphere
+@docs Shape, block, sphere, unsafeConvex
 
 -}
 
@@ -13,10 +13,11 @@ import Internal.Shape as Internal exposing (Protected(..))
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
-import Point3d
+import Point3d exposing (Point3d)
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
+import TriangularMesh exposing (TriangularMesh)
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -94,4 +95,22 @@ sphere sphere3d =
             (Sphere.atOrigin radius
                 |> Sphere.placeIn (Transform3d.atPoint origin)
             )
+        )
+
+
+{-| -}
+unsafeConvex : TriangularMesh (Point3d Meters BodyCoordinates) -> Shape
+unsafeConvex triangularMesh =
+    let
+        faceIndices =
+            TriangularMesh.faceIndices triangularMesh
+
+        vertices =
+            triangularMesh
+                |> TriangularMesh.mapVertices Point3d.toMeters
+                |> TriangularMesh.vertices
+    in
+    Protected
+        (Internal.Convex
+            (Convex.fromTriangularMesh faceIndices vertices)
         )
