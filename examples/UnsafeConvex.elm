@@ -130,7 +130,7 @@ initialWorld =
     World.empty
         |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
         |> World.add floor
-        |> World.add (icoSphere |> Body.moveTo (Point3d.meters 0 0 8))
+        |> World.add (cube |> Body.moveTo (Point3d.meters 0 0 8))
         |> World.add (icoSphere |> Body.moveTo (Point3d.meters 0.3 0 5))
 
 
@@ -159,6 +159,39 @@ icoSphere =
 
         Err _ ->
             Body.compound [] (Meshes.fromTriangles [])
+
+cube : Body Meshes
+cube =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
+        Ok triangularMesh ->
+            Body.compound [ Shape.unsafeConvex triangularMesh ] (Meshes.fromTriangles (Meshes.triangularMesh triangularMesh))
+                |> Body.withMaterial (Material.custom { friction = 0.4, bounciness = 0.5 })
+                |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+
+        Err _ ->
+            Body.compound [] (Meshes.fromTriangles [])
+
+
+
+cubeObj : String
+cubeObj =
+    """# Blender v2.83.3 OBJ File: 'cube'
+# www.blender.org
+v 1.000000 1.000000 -1.000000
+v 1.000000 -1.000000 -1.000000
+v 1.000000 1.000000 1.000000
+v 1.000000 -1.000000 1.000000
+v -1.000000 1.000000 -1.000000
+v -1.000000 -1.000000 -1.000000
+v -1.000000 1.000000 1.000000
+v -1.000000 -1.000000 1.000000
+f 1 5 7 3
+f 4 3 7 8
+f 8 7 5 6
+f 6 2 4 8
+f 2 1 3 4
+f 6 5 1 2
+"""
 
 
 icoSphereObj : String

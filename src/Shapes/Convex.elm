@@ -3,6 +3,7 @@ module Shapes.Convex exposing
     , Face
     , addDirectionIfDistinct
     , expandBoundingSphereRadius
+    , extendContour
     , foldFaceEdges
     , fromBlock
     , fromTriangularMesh
@@ -11,9 +12,11 @@ module Shapes.Convex exposing
     )
 
 import Array exposing (Array)
+import Dict exposing (Dict)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Set exposing (Set)
 
 
 type alias Face =
@@ -185,29 +188,205 @@ averageCenterHelp vertices n cX cY cZ =
 
 initFaces : List ( Int, Int, Int ) -> Array Vec3 -> List Face
 initFaces vertexIndices convexVertices =
-    -- TODO: join adjacent coplanar triangles
-    List.map
-        (\( i1, i2, i3 ) ->
-            let
-                vertices =
-                    List.filterMap
-                        (\i -> Array.get i convexVertices)
-                        [ i1, i2, i3 ]
+    let
+        faceByEdgeIndex =
+            List.foldl
+                (\(( i1, i2, i3 ) as indices) dict ->
+                    case Array.get i1 convexVertices of
+                        Just p1 ->
+                            case Array.get i2 convexVertices of
+                                Just p2 ->
+                                    case Array.get i3 convexVertices of
+                                        Just p3 ->
+                                            let
+                                                face =
+                                                    { indices = indices
+                                                    , normal = computeNormal p1 p2 p3
+                                                    }
+                                            in
+                                            dict
+                                                |> Dict.insert ( i1, i2 ) face
+                                                |> Dict.insert ( i2, i3 ) face
+                                                |> Dict.insert ( i3, i1 ) face
 
-                normal =
-                    case vertices of
-                        v1 :: v2 :: v3 :: _ ->
-                            computeNormal v1 v2 v3
+                                        Nothing ->
+                                            dict
 
-                        _ ->
-                            -- Shouldn’t happen
-                            Vec3.zero
-            in
-            { vertices = vertices
-            , normal = normal
-            }
-        )
-        vertexIndices
+                                Nothing ->
+                                    dict
+
+                        Nothing ->
+                            dict
+                )
+                Dict.empty
+                vertexIndices
+    in
+    case vertexIndices of
+        (( i1, i2, i3 ) as indices) :: _ ->
+            case Array.get i1 convexVertices of
+                Just p1 ->
+                    case Array.get i2 convexVertices of
+                        Just p2 ->
+                            case Array.get i3 convexVertices of
+                                Just p3 ->
+                                    initFacesHelp
+                                        (Set.singleton indices)
+                                        convexVertices
+                                        faceByEdgeIndex
+                                        []
+                                        [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
+                                        (computeNormal p1 p2 p3)
+                                        [ i1, i2, i3 ]
+                                        []
+
+                                Nothing ->
+                                    []
+
+                        Nothing ->
+                            []
+
+                Nothing ->
+                    []
+
+        [] ->
+            []
+
+
+initFacesHelp :
+    Set ( Int, Int, Int )
+    -> Array Vec3
+    -> Dict ( Int, Int ) { indices : ( Int, Int, Int ), normal : Vec3 }
+    -> List { indices : ( Int, Int, Int ), normal : Vec3 }
+    -> List ( Int, Int )
+    -> Vec3
+    -> List Int
+    -> List Face
+    -> List Face
+initFacesHelp visited vertices faceByEdgeIndex facesToCheck edgesToCheck currentNormal currentContour result =
+    let
+        adjacentFaces =
+            edgesToCheck
+                |> List.filterMap (\edge -> Dict.get edge faceByEdgeIndex)
+                |> List.filter (\{ indices } -> not (Set.member indices visited))
+
+        ( coplanar, nonCoplanar ) =
+            List.partition
+                (\{ normal } -> Vec3.almostZero (Vec3.sub normal currentNormal))
+                adjacentFaces
+
+        newVisited =
+            List.foldl (\{ indices } -> Set.insert indices) visited coplanar
+
+        newEdgesToCheck =
+            List.foldl
+                (\{ indices } res ->
+                    case indices of
+                        ( i1, i2, i3 ) ->
+                            ( i2, i1 ) :: ( i3, i2 ) :: ( i1, i3 ) :: res
+                )
+                []
+                coplanar
+
+        newFacesToCheck =
+            nonCoplanar ++ facesToCheck
+
+        newContour =
+            List.foldl (\{ indices } -> extendContour indices) currentContour coplanar
+    in
+    if coplanar /= [] then
+        -- grow the contour
+        initFacesHelp
+            newVisited
+            vertices
+            faceByEdgeIndex
+            newFacesToCheck
+            newEdgesToCheck
+            currentNormal
+            newContour
+            result
+
+    else
+        -- couldn’t grow the contour
+        let
+            faceToAdd =
+                { normal = currentNormal
+                , vertices = List.filterMap (\i -> Array.get i vertices) newContour
+                }
+
+            updatedFacesToCheck =
+                List.filter
+                    (\{ indices } -> not (Set.member indices newVisited))
+                    newFacesToCheck
+        in
+        case updatedFacesToCheck of
+            -- pick a non coplanar face
+            face :: remainingFacesToCheck ->
+                case face.indices of
+                    ( i1, i2, i3 ) ->
+                        initFacesHelp
+                            (Set.insert face.indices newVisited)
+                            vertices
+                            faceByEdgeIndex
+                            remainingFacesToCheck
+                            [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
+                            face.normal
+                            [ i1, i2, i3 ]
+                            (faceToAdd :: result)
+
+            -- end the recursion
+            [] ->
+                faceToAdd :: result
+
+
+extendContour : ( Int, Int, Int ) -> List Int -> List Int
+extendContour triangle currentContour =
+    case currentContour of
+        i1 :: _ :: _ ->
+            extendContourHelp triangle i1 currentContour []
+
+        _ ->
+            currentContour
+
+
+extendContourHelp : ( Int, Int, Int ) -> Int -> List Int -> List Int -> List Int
+extendContourHelp (( ti1, ti2, ti3 ) as triangle) i1 currentContour result =
+    case currentContour of
+        ci1 :: rest1 ->
+            case rest1 of
+                ci2 :: _ ->
+                    if (ci1 == ti2) && (ci2 == ti1) then
+                        -- insert ti3
+                        List.reverse result ++ (ci1 :: ti3 :: rest1)
+
+                    else if (ci1 == ti3) && (ci2 == ti2) then
+                        -- insert ti1
+                        List.reverse result ++ (ci1 :: ti1 :: rest1)
+
+                    else if (ci1 == ti1) && (ci2 == ti3) then
+                        -- insert ti2
+                        List.reverse result ++ (ci1 :: ti2 :: rest1)
+
+                    else
+                        extendContourHelp triangle i1 rest1 (ci1 :: result)
+
+                [] ->
+                    if (ci1 == ti2) && (i1 == ti1) then
+                        -- insert ti3
+                        List.reverse (ti3 :: ci1 :: result)
+
+                    else if (ci1 == ti3) && (i1 == ti2) then
+                        -- insert ti1
+                        List.reverse (ti1 :: ci1 :: result)
+
+                    else if (ci1 == ti1) && (i1 == ti3) then
+                        -- insert ti2
+                        List.reverse (ti2 :: ci1 :: result)
+
+                    else
+                        List.reverse result
+
+        [] ->
+            List.reverse result
 
 
 computeNormal : Vec3 -> Vec3 -> Vec3 -> Vec3

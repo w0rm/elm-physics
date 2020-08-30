@@ -1,6 +1,7 @@
 module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
+    , extendContour
     , initFaceNormal
     , initUniqueEdges
     )
@@ -13,6 +14,36 @@ import Internal.Const as Const
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
+
+
+extendContour : Test
+extendContour =
+    describe "Convex.extendContour"
+        [ test "works for the first point" <|
+            \_ ->
+                Convex.extendContour ( 666, 4, 3 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the second point" <|
+            \_ ->
+                Convex.extendContour ( 3, 666, 4 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the third point" <|
+            \_ ->
+                Convex.extendContour ( 4, 3, 666 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the first point at the end" <|
+            \_ ->
+                Convex.extendContour ( 666, 1, 6 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        , test "works for the second point at the end" <|
+            \_ ->
+                Convex.extendContour ( 6, 666, 1 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        , test "works for the third point at the end" <|
+            \_ ->
+                Convex.extendContour ( 1, 6, 666 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        ]
 
 
 initFaceNormal : Test
@@ -110,10 +141,10 @@ initFaceNormal =
             ]
 
         faceIndices =
-            [ 0, 1, 2 ]
+            ( 0, 1, 2 )
 
         backFaceIndices =
-            [ 2, 1, 0 ]
+            ( 2, 1, 0 )
 
         toRightTriangles rightTriangle =
             List.map
@@ -124,9 +155,9 @@ initFaceNormal =
                 )
 
         -- TODO: test the public api of Convex.init instead
-        legacyInitFaceNormal : List Int -> Array Vec3 -> Vec3
+        legacyInitFaceNormal : ( Int, Int, Int ) -> Array Vec3 -> Vec3
         legacyInitFaceNormal indices vertices =
-            Convex.init [ indices ] vertices
+            Convex.fromTriangularMesh [ indices ] vertices
                 |> .faces
                 |> List.head
                 |> Maybe.map .normal
@@ -140,7 +171,7 @@ initFaceNormal =
                             List.map
                                 (\{ vertices } ->
                                     legacyInitFaceNormal
-                                        (List.range 0 (List.length vertices - 1))
+                                        ( 0, 1, 2 )
                                         (Array.fromList (List.reverse vertices))
                                 )
                                 faces
