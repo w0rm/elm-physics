@@ -1,18 +1,12 @@
 module Fixtures.Convex exposing
     ( askewSquarePyramid
-    , boxVertexIndices
     , nonSquareQuadPyramid
     , octoHull
-    , octoVertexIndices
-    , octoVertices
-    , originalOctoHull
-    , squareLikePyramid
     , squarePyramid
     )
 
-import Array exposing (Array)
+import Array
 import Internal.Const as Const
-import Internal.Vector3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex)
 
 
@@ -20,52 +14,27 @@ import Shapes.Convex as Convex exposing (Convex)
 -- Test data generators
 
 
-boxVertexIndices : List (List Int)
-boxVertexIndices =
-    [ [ 3, 2, 1, 0 ]
-    , [ 4, 5, 6, 7 ]
-    , [ 5, 4, 0, 1 ]
-    , [ 2, 3, 7, 6 ]
-    , [ 0, 4, 7, 3 ]
-    , [ 1, 2, 6, 5 ]
-    ]
-
-
-octoVertices : Float -> Array Vec3
-octoVertices halfExtent =
-    Array.fromList
-        [ { x = 0, y = 0, z = halfExtent }
-        , { x = 0, y = halfExtent, z = 0 }
-        , { x = halfExtent, y = 0, z = 0 }
-        , { x = -halfExtent, y = 0, z = 0 }
-        , { x = 0, y = 0, z = -halfExtent }
-        , { x = 0, y = -halfExtent, z = 0 }
-        ]
-
-
 octoHull : Float -> Convex.Convex
 octoHull halfExtent =
-    octoVertices halfExtent
-        |> Convex.fromTriangularMesh octoVertexIndices
-
-
-originalOctoHull : Float -> Convex.Convex
-originalOctoHull halfExtent =
-    octoVertices halfExtent
-        |> Convex.fromTriangularMesh octoVertexIndices
-
-
-octoVertexIndices : List ( Int, Int, Int )
-octoVertexIndices =
-    [ ( 2, 1, 0 )
-    , ( 0, 5, 2 )
-    , ( 1, 2, 4 )
-    , ( 3, 0, 1 )
-    , ( 2, 5, 4 )
-    , ( 4, 3, 1 )
-    , ( 5, 0, 3 )
-    , ( 3, 4, 5 )
-    ]
+    Convex.fromTriangularMesh
+        [ ( 2, 1, 0 )
+        , ( 0, 5, 2 )
+        , ( 1, 2, 4 )
+        , ( 3, 0, 1 )
+        , ( 2, 5, 4 )
+        , ( 4, 3, 1 )
+        , ( 5, 0, 3 )
+        , ( 3, 4, 5 )
+        ]
+        (Array.fromList
+            [ { x = 0, y = 0, z = halfExtent }
+            , { x = 0, y = halfExtent, z = 0 }
+            , { x = halfExtent, y = 0, z = 0 }
+            , { x = -halfExtent, y = 0, z = 0 }
+            , { x = 0, y = 0, z = -halfExtent }
+            , { x = 0, y = -halfExtent, z = 0 }
+            ]
+        )
 
 
 squarePyramid : Convex
@@ -106,7 +75,7 @@ squareLikePyramid epsilon =
 
         vertexIndices =
             [ ( 3, 2, 1 )
-            , ( 2, 1, 0 )
+            , ( 3, 1, 0 )
             , ( 0, 1, 4 )
             , ( 1, 2, 4 )
             , ( 2, 3, 4 )

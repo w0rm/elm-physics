@@ -17,48 +17,28 @@ addContacts =
         center =
             { x = 0, y = 0, z = 7 }
 
-        radius =
+        sphereRadius =
             5
 
-        boxHalfExtent =
-            3
-
-        boxHull =
-            Convex.fromBlock
-                (boxHalfExtent * 2)
-                (boxHalfExtent * 2)
-                (boxHalfExtent * 2)
-
-        boxFarPositions =
-            Fixtures.NarrowPhase.sphereContactBoxPositions
-                center
-                (radius * 2)
-                boxHalfExtent
-                |> List.map Tuple.first
+        boxSize =
+            6
 
         octoHalfExtent =
             1
 
-        octoHull =
-            Fixtures.Convex.octoHull octoHalfExtent
-
-        octoFarPositions =
-            Fixtures.NarrowPhase.sphereContactOctohedronPositions
-                center
-                (radius * 2)
-                octoHalfExtent
-                |> List.map Tuple.first
+        placeInWithCorrectWinding position convex =
+            Convex.placeIn Transform3d.atOrigin (Convex.placeIn (Transform3d.atPoint position) convex)
     in
     describe "Collision.SphereConvex.addContacts"
         [ test "for a box"
-            (Fixtures.NarrowPhase.sphereContactBoxPositions center radius boxHalfExtent
+            (Fixtures.NarrowPhase.sphereContactBoxPositions center sphereRadius boxSize
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
-                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
+                                (Convex.placeIn (Transform3d.atPoint position) (Convex.fromBlock boxSize boxSize boxSize))
                                 []
                                 |> Expect.contacts expectedContacts
                     )
@@ -66,25 +46,25 @@ addContacts =
             )
         , test "fail for a far box" <|
             \_ ->
-                boxFarPositions
+                Fixtures.NarrowPhase.sphereContactBoxPositions center (sphereRadius * 2) boxSize
                     |> List.concatMap
-                        (\position ->
+                        (\( position, _ ) ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
-                                (Convex.placeIn (Transform3d.atPoint position) boxHull)
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
+                                (placeInWithCorrectWinding position (Convex.fromBlock boxSize boxSize boxSize))
                                 []
                         )
                     |> Expect.equal []
         , test "for an octohedron"
-            (Fixtures.NarrowPhase.sphereContactOctohedronPositions center radius octoHalfExtent
+            (Fixtures.NarrowPhase.sphereContactOctohedronPositions center sphereRadius octoHalfExtent
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
-                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
+                                (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))
                                 []
                                 |> Expect.contacts expectedContacts
                     )
@@ -92,13 +72,13 @@ addContacts =
             )
         , test "fail for a far octohedron" <|
             \_ ->
-                octoFarPositions
+                Fixtures.NarrowPhase.sphereContactOctohedronPositions center (sphereRadius * 2) octoHalfExtent
                     |> List.concatMap
-                        (\position ->
+                        (\( position, _ ) ->
                             Collision.SphereConvex.addContacts
                                 identity
-                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
-                                (Convex.placeIn (Transform3d.atPoint position) octoHull)
+                                (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
+                                (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))
                                 []
                         )
                     |> Expect.equal []

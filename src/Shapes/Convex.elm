@@ -447,7 +447,8 @@ fromBlock sizeX sizeY sizeZ =
     in
     { faces =
         -- faces vertices are reversed for local coordinates
-        -- then they become correct after transformation
+        -- then they become correct after the initial transformation
+        -- that is applied to the block shape in the constructor
         -- this is needed for performance
         [ { vertices = List.reverse [ v3, v2, v1, v0 ]
           , normal = Vec3.zNegative
