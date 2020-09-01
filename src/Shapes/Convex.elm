@@ -431,18 +431,18 @@ fromBlock sizeX sizeY sizeZ =
             { x = -x, y = y, z = z }
 
         volume =
-            x * y * z * 8
+            sizeX * sizeY * sizeZ
 
         inertia =
-            { m11 = 1.0 / 12.0 * volume * (sizeY * sizeY + sizeZ * sizeZ)
+            { m11 = volume / 12 * (sizeY * sizeY + sizeZ * sizeZ)
             , m21 = 0
             , m31 = 0
             , m12 = 0
-            , m22 = 1.0 / 12.0 * volume * (sizeX * sizeX + sizeZ * sizeZ)
+            , m22 = volume / 12 * (sizeX * sizeX + sizeZ * sizeZ)
             , m32 = 0
             , m13 = 0
             , m23 = 0
-            , m33 = 1.0 / 12.0 * volume * (sizeY * sizeY + sizeX * sizeX)
+            , m33 = volume / 12 * (sizeY * sizeY + sizeX * sizeX)
             }
     in
     { faces =

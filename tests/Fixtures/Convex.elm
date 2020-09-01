@@ -1,5 +1,6 @@
 module Fixtures.Convex exposing
     ( askewSquarePyramid
+    , cube
     , nonSquareQuadPyramid
     , octoHull
     , squarePyramid
@@ -12,6 +13,39 @@ import Shapes.Convex as Convex exposing (Convex)
 
 
 -- Test data generators
+
+
+cube : Float -> Convex.Convex
+cube size =
+    let
+        halfExtent =
+            size / 2
+    in
+    Convex.fromTriangularMesh
+        [ ( 1, 7, 5 )
+        , ( 1, 2, 7 )
+        , ( 4, 7, 6 )
+        , ( 4, 5, 7 )
+        , ( 6, 2, 3 )
+        , ( 6, 7, 2 )
+        , ( 3, 4, 6 )
+        , ( 3, 0, 4 )
+        , ( 0, 5, 4 )
+        , ( 0, 1, 5 )
+        , ( 3, 1, 0 )
+        , ( 3, 2, 1 )
+        ]
+        (Array.fromList
+            [ { x = halfExtent, y = -halfExtent, z = -halfExtent }
+            , { x = halfExtent, y = halfExtent, z = -halfExtent }
+            , { x = -halfExtent, y = halfExtent, z = -halfExtent }
+            , { x = -halfExtent, y = -halfExtent, z = -halfExtent }
+            , { x = halfExtent, y = -halfExtent, z = halfExtent }
+            , { x = halfExtent, y = halfExtent, z = halfExtent }
+            , { x = -halfExtent, y = -halfExtent, z = halfExtent }
+            , { x = -halfExtent, y = halfExtent, z = halfExtent }
+            ]
+        )
 
 
 octoHull : Float -> Convex.Convex

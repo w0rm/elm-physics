@@ -215,13 +215,13 @@ tetrahedronInertia m p0 p1 p2 p3 =
             ix + iy
 
         ixy =
-            m / 10 * (2 * (x1 * y1 + x2 * y2 + x3 * y3) + x1 * y2 + x2 * y1 + x1 * y3 + x3 * y1 + x2 * y3 + x3 * y2)
+            m / 20 * (2 * (x1 * y1 + x2 * y2 + x3 * y3) + x1 * y2 + x2 * y1 + x1 * y3 + x3 * y1 + x2 * y3 + x3 * y2)
 
         iyz =
-            m / 10 * (2 * (z1 * y1 + z2 * y2 + z3 * y3) + z1 * y2 + z2 * y1 + z1 * y3 + z3 * y1 + z2 * y3 + z3 * y2)
+            m / 20 * (2 * (z1 * y1 + z2 * y2 + z3 * y3) + z1 * y2 + z2 * y1 + z1 * y3 + z3 * y1 + z2 * y3 + z3 * y2)
 
         izx =
-            m / 10 * (2 * (x1 * z1 + x2 * z2 + x3 * z3) + x1 * z2 + x2 * z1 + x1 * z3 + x3 * z1 + x2 * z3 + x3 * z2)
+            m / 20 * (2 * (x1 * z1 + x2 * z2 + x3 * z3) + x1 * z2 + x2 * z1 + x1 * z3 + x3 * z1 + x2 * z3 + x3 * z2)
     in
     { m11 = ixx
     , m12 = ixy

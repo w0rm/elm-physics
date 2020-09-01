@@ -2,8 +2,10 @@ module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
     , extendContour
+    , inertia
     , initFaceNormal
     , initUniqueEdges
+    , volume
     )
 
 import Array exposing (Array)
@@ -14,6 +16,26 @@ import Internal.Const as Const
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
+
+
+inertia : Test
+inertia =
+    describe "inertia"
+        [ test "inertia of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
+            \_ ->
+                (Fixtures.Convex.cube 2).inertia
+                    |> Expect.mat3 (Convex.fromBlock 2 2 2).inertia
+        ]
+
+
+volume : Test
+volume =
+    describe "volume"
+        [ test "volume of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
+            \_ ->
+                (Fixtures.Convex.cube 2).volume
+                    |> Expect.equal (Convex.fromBlock 2 2 2).volume
+        ]
 
 
 extendContour : Test
@@ -220,21 +242,6 @@ initFaceNormal =
                     |> List.map (legacyInitFaceNormal backFaceIndices)
                     |> Expect.vec3s zAntiNormalRingSequence
         ]
-
-
-listRingRotate : Int -> List a -> List a
-listRingRotate offset ring =
-    -- This brute force implementation doubles the list and uses
-    -- modulus indexing to ensure enough elements to carve out the
-    -- desired slice at any non-negative offset.
-    let
-        resultLength =
-            List.length ring
-    in
-    ring
-        ++ ring
-        |> List.drop (modBy resultLength offset)
-        |> List.take resultLength
 
 
 initUniqueEdges : Test
@@ -467,6 +474,22 @@ boxUniqueEdges =
 
 
 -- Test helper functions
+
+
+{-| This brute force implementation doubles the list and uses
+modulus indexing to ensure enough elements to carve out the
+desired slice at any non-negative offset.
+-}
+listRingRotate : Int -> List a -> List a
+listRingRotate offset ring =
+    let
+        resultLength =
+            List.length ring
+    in
+    ring
+        ++ ring
+        |> List.drop (modBy resultLength offset)
+        |> List.take resultLength
 
 
 {-| Provide convenient test access to initUniqueEdges based on the faces and
