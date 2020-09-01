@@ -164,7 +164,7 @@ convexMassProperties center faceIndices vertices cX cY cZ totalVolume totalInert
                     , z = cZ / totalVolume
                     }
 
-                offsetInertia =
+                pointInertia =
                     Mat3.pointInertia totalVolume
                         (centerOfMass.x - center.x)
                         (centerOfMass.y - center.y)
@@ -172,7 +172,9 @@ convexMassProperties center faceIndices vertices cX cY cZ totalVolume totalInert
             in
             ( totalVolume
             , centerOfMass
-            , Mat3.add offsetInertia totalInertia
+              -- inertia about origin = inertia about center of mass + point inertia about origin
+              -- inertia about center of mass = inertia about origin - point inertia about origin
+            , Mat3.sub totalInertia pointInertia
             )
 
 

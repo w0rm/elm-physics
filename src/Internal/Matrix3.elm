@@ -6,6 +6,7 @@ module Internal.Matrix3 exposing
     , pointInertia
     , rotateInertia
     , scale
+    , sub
     , tetrahedronInertia
     , transpose
     , zero
@@ -114,6 +115,20 @@ add a b =
     }
 
 
+sub : Mat3 -> Mat3 -> Mat3
+sub a b =
+    { m11 = a.m11 - b.m11
+    , m21 = a.m21 - b.m21
+    , m31 = a.m31 - b.m31
+    , m12 = a.m12 - b.m12
+    , m22 = a.m22 - b.m22
+    , m32 = a.m32 - b.m32
+    , m13 = a.m13 - b.m13
+    , m23 = a.m23 - b.m23
+    , m33 = a.m33 - b.m33
+    }
+
+
 {-| Flip the matrix across the diagonal by swapping row index and column
 index.
 -}
@@ -197,13 +212,13 @@ tetrahedronInertia m p0 p1 p2 p3 =
             p3.z - p0.z
 
         ix =
-            m / 10 * (x1 * x1 + x2 * x2 + x1 * x2 + x1 * x3 + x2 * x3)
+            m / 10 * (x1 * x1 + x2 * x2 + x3 * x3 + x1 * x2 + x1 * x3 + x2 * x3)
 
         iy =
-            m / 10 * (x1 * x1 + x2 * x2 + x1 * x2 + x1 * x3 + x2 * x3)
+            m / 10 * (y1 * y1 + y2 * y2 + y3 * y3 + y1 * y2 + y1 * y3 + y2 * y3)
 
         iz =
-            m / 10 * (x1 * x1 + x2 * x2 + x1 * x2 + x1 * x3 + x2 * x3)
+            m / 10 * (z1 * z1 + z2 * z2 + z3 * z3 + z1 * z2 + z1 * z3 + z2 * z3)
 
         ixx =
             iy + iz
