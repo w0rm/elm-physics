@@ -25,10 +25,12 @@ import TriangularMesh exposing (TriangularMesh)
 If you need a body with a single shape, use the corresponding functions
 from the [Physics.Body](Physics-Body) module.
 
-The only supported shapes are:
+The supported primitive shapes are:
 
   - [block](#block),
   - [sphere](#sphere).
+
+For the more complex cases use the [unsafeConvex](#unsafeConvex) shape.
 
 Shapes are defined in the body coordinate system.
 
@@ -98,7 +100,16 @@ sphere sphere3d =
         )
 
 
-{-| -}
+{-| Create a shape from the triangular mesh. This is useful if you want
+to import from Blender using [elm-obj-file](https://package.elm-lang.org/packages/w0rm/elm-obj-file/latest).
+
+**Note:** this may cause unexpected behavior, unless you make sure that:
+
+  - the mesh is a [convex polyhedron](https://en.wikipedia.org/wiki/Convex_polytope);
+  - the mesh is watertight, consisting of one closed surface;
+  - all faces have counterclockwise [winding order](https://cmichel.io/understanding-front-faces-winding-order-and-normals).
+
+-}
 unsafeConvex : TriangularMesh (Point3d Meters BodyCoordinates) -> Shape
 unsafeConvex triangularMesh =
     let
