@@ -8,6 +8,7 @@ module Shapes.Convex exposing
     , fromBlock
     , fromTriangularMesh
     , placeIn
+    , placeInWithInertia
     , raycast
     )
 
@@ -44,7 +45,21 @@ placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, vol
     , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
-    , inertia = Transform3d.inertiaPlaceIn transform3d volume inertia
+    , inertia = Transform3d.inertiaRotateIn transform3d inertia
+    }
+
+
+placeInWithInertia : Transform3d coordinates defines -> Convex -> Convex
+placeInWithInertia transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume, inertia } =
+    { faces = facesPlaceInHelp transform3d faces []
+    , vertices = Transform3d.pointsPlaceIn transform3d vertices
+    , uniqueEdges = Transform3d.directionsPlaceIn transform3d uniqueEdges
+    , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
+    , volume = volume
+    , position = Transform3d.pointPlaceIn transform3d position
+
+    -- TODO: take this out only when we need to combine inertias in compound body
+    , inertia = Transform3d.inertiaPlaceIn transform3d position volume inertia
     }
 
 

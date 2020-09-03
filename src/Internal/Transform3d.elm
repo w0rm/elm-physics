@@ -9,6 +9,7 @@ module Internal.Transform3d exposing
     , inertiaPlaceIn
     , inertiaRotateIn
     , inverse
+    , invertedInertiaRotateIn
     , moveTo
     , normalize
     , orientation
@@ -173,17 +174,16 @@ pointPlaceIn (Transform3d globalOrigin (Orientation3d qx qy qz qw)) { x, y, z } 
     }
 
 
-inertiaPlaceIn : Transform3d coordinates defines -> Float -> Mat3 -> Mat3
-inertiaPlaceIn ((Transform3d { x, y, z } _) as transform3d) mass inertia =
+inertiaPlaceIn : Transform3d coordinates defines -> Vec3 -> Float -> Mat3 -> Mat3
+inertiaPlaceIn ((Transform3d { x, y, z } _) as transform3d) centerOfMass mass inertia =
     let
         -- rotate inertia into the frame
         rotatedInertia =
             inertiaRotateIn transform3d inertia
 
         -- calculate the translation of inertia
-        -- TODO: do we need to substract previous position?
         inertiaOffset =
-            Mat3.pointInertia mass x y z
+            Mat3.pointInertia mass (x - centerOfMass.x) (y - centerOfMass.y) (z - centerOfMass.z)
     in
     Mat3.add rotatedInertia inertiaOffset
 
@@ -195,8 +195,17 @@ inertiaRotateIn transform3d inertia =
             orientation transform3d
     in
     Mat3.mul
-        (Mat3.transpose rotation)
-        (Mat3.mul inertia rotation)
+        rotation
+        (Mat3.mul inertia (Mat3.transpose rotation))
+
+
+invertedInertiaRotateIn : Transform3d coordinates defines -> Mat3 -> Mat3
+invertedInertiaRotateIn transform3d inertia =
+    let
+        rotation =
+            orientation transform3d
+    in
+    Mat3.mul (Mat3.transpose rotation) (Mat3.mul inertia rotation)
 
 
 pointRelativeTo : Transform3d coordinates defines -> Vec3 -> Vec3

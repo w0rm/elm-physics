@@ -108,7 +108,7 @@ compound shapes data =
 
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
-            Shape.shapesPlaceIn inverseCenterOfMassTransform3d shapes
+            Shape.shapesPlaceInWithInertia inverseCenterOfMassTransform3d shapes
     in
     updateMassProperties
         { id = -1
@@ -163,8 +163,8 @@ updateMassProperties ({ mass, shapes } as body) =
     in
     { body
         | invMass = invMass
-        , invInertia = Mat3.inverse inertia
-        , invInertiaWorld = Transform3d.inertiaRotateIn body.transform3d invInertia
+        , invInertia = invInertia
+        , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d invInertia
     }
 
 

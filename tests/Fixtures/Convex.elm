@@ -1,6 +1,7 @@
 module Fixtures.Convex exposing
     ( askewSquarePyramid
-    , cube
+    , block
+    , blockOfTetrahedrons
     , nonSquareQuadPyramid
     , octoHull
     , squarePyramid
@@ -8,6 +9,7 @@ module Fixtures.Convex exposing
 
 import Array
 import Internal.Const as Const
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Shapes.Convex as Convex exposing (Convex)
 
 
@@ -15,11 +17,20 @@ import Shapes.Convex as Convex exposing (Convex)
 -- Test data generators
 
 
-cube : Float -> Convex.Convex
-cube size =
+block : Transform3d coord define -> Float -> Float -> Float -> Convex.Convex
+block transform sizeX sizeY sizeZ =
     let
-        halfExtent =
-            size / 2
+        halfExtentX =
+            sizeX / 2
+
+        halfExtentY =
+            sizeY / 2
+
+        halfExtentZ =
+            sizeZ / 2
+
+        t p =
+            Transform3d.pointPlaceIn transform p
     in
     Convex.fromTriangularMesh
         [ ( 1, 7, 5 )
@@ -36,16 +47,52 @@ cube size =
         , ( 3, 2, 1 )
         ]
         (Array.fromList
-            [ { x = halfExtent, y = -halfExtent, z = -halfExtent }
-            , { x = halfExtent, y = halfExtent, z = -halfExtent }
-            , { x = -halfExtent, y = halfExtent, z = -halfExtent }
-            , { x = -halfExtent, y = -halfExtent, z = -halfExtent }
-            , { x = halfExtent, y = -halfExtent, z = halfExtent }
-            , { x = halfExtent, y = halfExtent, z = halfExtent }
-            , { x = -halfExtent, y = -halfExtent, z = halfExtent }
-            , { x = -halfExtent, y = halfExtent, z = halfExtent }
+            [ t { x = halfExtentX, y = -halfExtentY, z = -halfExtentZ }
+            , t { x = halfExtentX, y = halfExtentY, z = -halfExtentZ }
+            , t { x = -halfExtentX, y = halfExtentY, z = -halfExtentZ }
+            , t { x = -halfExtentX, y = -halfExtentY, z = -halfExtentZ }
+            , t { x = halfExtentX, y = -halfExtentY, z = halfExtentZ }
+            , t { x = halfExtentX, y = halfExtentY, z = halfExtentZ }
+            , t { x = -halfExtentX, y = -halfExtentY, z = halfExtentZ }
+            , t { x = -halfExtentX, y = halfExtentY, z = halfExtentZ }
             ]
         )
+
+
+blockOfTetrahedrons : Float -> Float -> Float -> List Convex.Convex
+blockOfTetrahedrons sizeX sizeY sizeZ =
+    let
+        lX =
+            sizeX / 2
+
+        lY =
+            sizeY / 2
+
+        lZ =
+            sizeZ / 2
+
+        p0 =
+            { x = 0, y = 0, z = 0 }
+    in
+    List.map
+        (\( p1, p2, p3 ) ->
+            Convex.fromTriangularMesh
+                [ ( 1, 0, 2 ), ( 2, 0, 3 ), ( 3, 0, 1 ), ( 3, 1, 2 ) ]
+                (Array.fromList [ p0, p1, p2, p3 ])
+        )
+        [ ( { x = lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = lZ }, { x = lX, y = lY, z = lZ } )
+        , ( { x = lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = lZ }, { x = -lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = lZ }, { x = lX, y = lY, z = lZ }, { x = -lX, y = lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = -lZ }, { x = -lX, y = -lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = lZ }, { x = -lX, y = lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = lZ }, { x = -lX, y = -lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = lZ }, { x = lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = -lZ }, { x = lX, y = lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = -lZ }, { x = lX, y = -lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = -lX, y = lY, z = -lZ }, { x = lX, y = lY, z = -lZ } )
+        ]
 
 
 octoHull : Float -> Convex.Convex

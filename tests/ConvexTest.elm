@@ -1,6 +1,7 @@
 module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
+    , centerOfMass
     , extendContour
     , inertia
     , initFaceNormal
@@ -13,6 +14,7 @@ import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
 import Internal.Const as Const
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
@@ -23,8 +25,34 @@ inertia =
     describe "inertia"
         [ test "inertia of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
             \_ ->
-                (Fixtures.Convex.cube 2).inertia
-                    |> Expect.mat3 (Convex.fromBlock 2 2 2).inertia
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).inertia
+                    |> Expect.mat3 (Convex.fromBlock 2 3 5).inertia
+        , test "inertia of transformed geometry is the same as transformed inertia of original geometry" <|
+            \_ ->
+                let
+                    transform3d =
+                        Transform3d.atPoint { x = 12, y = 2, z = -3 }
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                            |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
+                in
+                (Fixtures.Convex.block transform3d 2 3 5).inertia
+                    |> Expect.mat3 (Transform3d.inertiaRotateIn transform3d (Convex.fromBlock 2 3 5).inertia)
+        ]
+
+
+centerOfMass : Test
+centerOfMass =
+    describe "centerOfMass"
+        [ test "centerOfMass of transformed geometry is the same as transformed centerOfMass" <|
+            \_ ->
+                let
+                    transform3d =
+                        Transform3d.atPoint { x = 2, y = 1, z = -2 }
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                            |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
+                in
+                (Fixtures.Convex.block transform3d 2 3 5).position
+                    |> Expect.vec3 (Convex.placeIn transform3d (Convex.fromBlock 2 3 5)).position
         ]
 
 
@@ -33,8 +61,8 @@ volume =
     describe "volume"
         [ test "volume of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
             \_ ->
-                (Fixtures.Convex.cube 2).volume
-                    |> Expect.equal (Convex.fromBlock 2 2 2).volume
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 1).volume
+                    |> Expect.equal (Convex.fromBlock 2 3 1).volume
         ]
 
 

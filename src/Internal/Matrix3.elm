@@ -239,12 +239,12 @@ tetrahedronInertia m p0 p1 p2 p3 =
             m / 20 * (2 * (x1 * z1 + x2 * z2 + x3 * z3) + x1 * z2 + x2 * z1 + x1 * z3 + x3 * z1 + x2 * z3 + x3 * z2)
     in
     { m11 = ixx
-    , m12 = ixy
-    , m13 = izx
-    , m21 = ixy
+    , m12 = -ixy
+    , m13 = -izx
+    , m21 = -ixy
     , m22 = iyy
-    , m23 = iyz
-    , m31 = izx
-    , m32 = iyz
+    , m23 = -iyz
+    , m31 = -izx
+    , m32 = -iyz
     , m33 = izz
     }
