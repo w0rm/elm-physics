@@ -9,8 +9,11 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 sphereContactBoxPositions : Vec3 -> Float -> Float -> List ( Vec3, List Contact )
-sphereContactBoxPositions center radius boxHalfExtent =
+sphereContactBoxPositions center radius boxSize =
     let
+        boxHalfExtent =
+            boxSize / 2
+
         delta =
             3 * Const.precision
 

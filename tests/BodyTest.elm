@@ -1,14 +1,15 @@
-module BodyTest exposing (boundingSphereRadius, invInertia)
+module BodyTest exposing (boundingSphereRadius, updateMassProperties)
 
 import Expect
 import Extra.Expect as Expect
+import Fixtures.Convex as Convex
 import Internal.Body as Body
 import Internal.Const as Const
 import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Physics.Coordinates exposing (BodyCoordinates)
-import Shapes.Convex as Convex
+import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
 
 
@@ -36,23 +37,47 @@ boundingSphereRadius =
         ]
 
 
-invInertia : Test
-invInertia =
-    describe ".invInertia"
+updateMassProperties : Test
+updateMassProperties =
+    describe "Body.updateMassProperties"
         [ test "compound body out of two cubes has the same invInertia as a block with twice the length" <|
             \_ ->
+                let
+                    body1 =
+                        Body.compound
+                            [ Convex.fromBlock 2 2 2
+                                |> Convex.placeIn (Transform3d.atPoint { x = -1, y = 0, z = 0 })
+                                |> Shape.Convex
+                            , Convex.fromBlock 2 2 2
+                                |> Convex.placeIn (Transform3d.atPoint { x = 1, y = 0, z = 0 })
+                                |> Shape.Convex
+                            ]
+                            ()
+
+                    body2 =
+                        Body.compound [ box 4 2 2 ] ()
+                in
                 Expect.mat3
-                    (Body.compound
-                        [ Convex.fromBlock 2 2 2
-                            |> Convex.placeIn (Transform3d.atPoint { x = -1, y = 0, z = 0 })
-                            |> Shape.Convex
-                        , Convex.fromBlock 2 2 2
-                            |> Convex.placeIn (Transform3d.atPoint { x = 1, y = 0, z = 0 })
-                            |> Shape.Convex
-                        ]
-                        ()
-                    ).invInertia
-                    (Body.compound [ box 4 2 2 ] ()).invInertia
+                    (Body.updateMassProperties { body1 | mass = 1 }).invInertia
+                    (Body.updateMassProperties { body2 | mass = 1 }).invInertia
+        , test "cube box body should have the same inInertia as a compound body out of tetrahedrons" <|
+            \_ ->
+                let
+                    body1 =
+                        Body.compound
+                            (Convex.blockOfTetrahedrons 2 3 1
+                                |> List.map Shape.Convex
+                            )
+                            ()
+
+                    body2 =
+                        Body.compound
+                            [ Shape.Convex (Convex.block Transform3d.atOrigin 2 3 1) ]
+                            ()
+                in
+                Expect.mat3
+                    (Body.updateMassProperties { body1 | mass = 1 }).invInertia
+                    (Body.updateMassProperties { body2 | mass = 1 }).invInertia
         ]
 
 

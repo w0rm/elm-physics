@@ -1,8 +1,12 @@
 module ConvexTest exposing
     ( addFaceEdges
     , boxUniqueEdges
+    , centerOfMass
+    , extendContour
+    , inertia
     , initFaceNormal
     , initUniqueEdges
+    , volume
     )
 
 import Array exposing (Array)
@@ -10,9 +14,86 @@ import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
 import Internal.Const as Const
+import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex)
 import Test exposing (Test, describe, test)
+
+
+inertia : Test
+inertia =
+    describe "inertia"
+        [ test "inertia of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
+            \_ ->
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).inertia
+                    |> Expect.mat3 (Convex.fromBlock 2 3 5).inertia
+        , test "inertia of transformed geometry is the same as transformed inertia of original geometry" <|
+            \_ ->
+                let
+                    transform3d =
+                        Transform3d.atPoint { x = 12, y = 2, z = -3 }
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                            |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
+                in
+                (Fixtures.Convex.block transform3d 2 3 5).inertia
+                    |> Expect.mat3 (Transform3d.inertiaRotateIn transform3d (Convex.fromBlock 2 3 5).inertia)
+        ]
+
+
+centerOfMass : Test
+centerOfMass =
+    describe "centerOfMass"
+        [ test "centerOfMass of transformed geometry is the same as transformed centerOfMass" <|
+            \_ ->
+                let
+                    transform3d =
+                        Transform3d.atPoint { x = 2, y = 1, z = -2 }
+                            |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 5)
+                            |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 5)
+                in
+                (Fixtures.Convex.block transform3d 2 3 5).position
+                    |> Expect.vec3 (Convex.placeIn transform3d (Convex.fromBlock 2 3 5)).position
+        ]
+
+
+volume : Test
+volume =
+    describe "volume"
+        [ test "volume of a Convex.fromBlock is the same as Convex.fromTriangularMesh" <|
+            \_ ->
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 1).volume
+                    |> Expect.equal (Convex.fromBlock 2 3 1).volume
+        ]
+
+
+extendContour : Test
+extendContour =
+    describe "Convex.extendContour"
+        [ test "works for the first point" <|
+            \_ ->
+                Convex.extendContour ( 666, 4, 3 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the second point" <|
+            \_ ->
+                Convex.extendContour ( 3, 666, 4 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the third point" <|
+            \_ ->
+                Convex.extendContour ( 4, 3, 666 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 666, 4, 5, 6 ]
+        , test "works for the first point at the end" <|
+            \_ ->
+                Convex.extendContour ( 666, 1, 6 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        , test "works for the second point at the end" <|
+            \_ ->
+                Convex.extendContour ( 6, 666, 1 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        , test "works for the third point at the end" <|
+            \_ ->
+                Convex.extendContour ( 1, 6, 666 ) [ 1, 2, 3, 4, 5, 6 ]
+                    |> Expect.equal [ 1, 2, 3, 4, 5, 6, 666 ]
+        ]
 
 
 initFaceNormal : Test
@@ -110,10 +191,10 @@ initFaceNormal =
             ]
 
         faceIndices =
-            [ 0, 1, 2 ]
+            ( 0, 1, 2 )
 
         backFaceIndices =
-            [ 2, 1, 0 ]
+            ( 2, 1, 0 )
 
         toRightTriangles rightTriangle =
             List.map
@@ -124,9 +205,9 @@ initFaceNormal =
                 )
 
         -- TODO: test the public api of Convex.init instead
-        legacyInitFaceNormal : List Int -> Array Vec3 -> Vec3
+        legacyInitFaceNormal : ( Int, Int, Int ) -> Array Vec3 -> Vec3
         legacyInitFaceNormal indices vertices =
-            Convex.init [ indices ] vertices
+            Convex.fromTriangularMesh [ indices ] vertices
                 |> .faces
                 |> List.head
                 |> Maybe.map .normal
@@ -140,7 +221,7 @@ initFaceNormal =
                             List.map
                                 (\{ vertices } ->
                                     legacyInitFaceNormal
-                                        (List.range 0 (List.length vertices - 1))
+                                        ( 0, 1, 2 )
                                         (Array.fromList (List.reverse vertices))
                                 )
                                 faces
@@ -189,21 +270,6 @@ initFaceNormal =
                     |> List.map (legacyInitFaceNormal backFaceIndices)
                     |> Expect.vec3s zAntiNormalRingSequence
         ]
-
-
-listRingRotate : Int -> List a -> List a
-listRingRotate offset ring =
-    -- This brute force implementation doubles the list and uses
-    -- modulus indexing to ensure enough elements to carve out the
-    -- desired slice at any non-negative offset.
-    let
-        resultLength =
-            List.length ring
-    in
-    ring
-        ++ ring
-        |> List.drop (modBy resultLength offset)
-        |> List.take resultLength
 
 
 initUniqueEdges : Test
@@ -436,6 +502,22 @@ boxUniqueEdges =
 
 
 -- Test helper functions
+
+
+{-| This brute force implementation doubles the list and uses
+modulus indexing to ensure enough elements to carve out the
+desired slice at any non-negative offset.
+-}
+listRingRotate : Int -> List a -> List a
+listRingRotate offset ring =
+    let
+        resultLength =
+            List.length ring
+    in
+    ring
+        ++ ring
+        |> List.drop (modBy resultLength offset)
+        |> List.take resultLength
 
 
 {-| Provide convenient test access to initUniqueEdges based on the faces and

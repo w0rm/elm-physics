@@ -1,8 +1,8 @@
-module Physics.Shape exposing (Shape, block, sphere)
+module Physics.Shape exposing (Shape, block, sphere, unsafeConvex)
 
 {-|
 
-@docs Shape, block, sphere
+@docs Shape, block, sphere, unsafeConvex
 
 -}
 
@@ -13,10 +13,11 @@ import Internal.Shape as Internal exposing (Protected(..))
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
-import Point3d
+import Point3d exposing (Point3d)
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
+import TriangularMesh exposing (TriangularMesh)
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -24,10 +25,12 @@ import Sphere3d exposing (Sphere3d)
 If you need a body with a single shape, use the corresponding functions
 from the [Physics.Body](Physics-Body) module.
 
-The only supported shapes are:
+The supported primitive shapes are:
 
   - [block](#block),
   - [sphere](#sphere).
+
+For the more complex cases use the [unsafeConvex](#unsafeConvex) shape.
 
 Shapes are defined in the body coordinate system.
 
@@ -94,4 +97,31 @@ sphere sphere3d =
             (Sphere.atOrigin radius
                 |> Sphere.placeIn (Transform3d.atPoint origin)
             )
+        )
+
+
+{-| Create a shape from the triangular mesh. This is useful if you want
+to import from Blender using [elm-obj-file](https://package.elm-lang.org/packages/w0rm/elm-obj-file/latest).
+
+**Note:** this may cause unexpected behavior, unless you make sure that:
+
+  - the mesh is a [convex polyhedron](https://en.wikipedia.org/wiki/Convex_polytope);
+  - the mesh is watertight, consisting of one closed surface;
+  - all faces have counterclockwise [winding order](https://cmichel.io/understanding-front-faces-winding-order-and-normals).
+
+-}
+unsafeConvex : TriangularMesh (Point3d Meters BodyCoordinates) -> Shape
+unsafeConvex triangularMesh =
+    let
+        faceIndices =
+            TriangularMesh.faceIndices triangularMesh
+
+        vertices =
+            triangularMesh
+                |> TriangularMesh.mapVertices Point3d.toMeters
+                |> TriangularMesh.vertices
+    in
+    Protected
+        (Internal.Convex
+            (Convex.fromTriangularMesh faceIndices vertices)
         )

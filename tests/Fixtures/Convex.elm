@@ -1,18 +1,15 @@
 module Fixtures.Convex exposing
     ( askewSquarePyramid
-    , boxVertexIndices
+    , block
+    , blockOfTetrahedrons
     , nonSquareQuadPyramid
     , octoHull
-    , octoVertexIndices
-    , octoVertices
-    , originalOctoHull
-    , squareLikePyramid
     , squarePyramid
     )
 
-import Array exposing (Array)
+import Array
 import Internal.Const as Const
-import Internal.Vector3 exposing (Vec3)
+import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Shapes.Convex as Convex exposing (Convex)
 
 
@@ -20,52 +17,105 @@ import Shapes.Convex as Convex exposing (Convex)
 -- Test data generators
 
 
-boxVertexIndices : List (List Int)
-boxVertexIndices =
-    [ [ 3, 2, 1, 0 ]
-    , [ 4, 5, 6, 7 ]
-    , [ 5, 4, 0, 1 ]
-    , [ 2, 3, 7, 6 ]
-    , [ 0, 4, 7, 3 ]
-    , [ 1, 2, 6, 5 ]
-    ]
+block : Transform3d coord define -> Float -> Float -> Float -> Convex.Convex
+block transform sizeX sizeY sizeZ =
+    let
+        halfExtentX =
+            sizeX / 2
+
+        halfExtentY =
+            sizeY / 2
+
+        halfExtentZ =
+            sizeZ / 2
+
+        t p =
+            Transform3d.pointPlaceIn transform p
+    in
+    Convex.fromTriangularMesh
+        [ ( 1, 7, 5 )
+        , ( 1, 2, 7 )
+        , ( 4, 7, 6 )
+        , ( 4, 5, 7 )
+        , ( 6, 2, 3 )
+        , ( 6, 7, 2 )
+        , ( 3, 4, 6 )
+        , ( 3, 0, 4 )
+        , ( 0, 5, 4 )
+        , ( 0, 1, 5 )
+        , ( 3, 1, 0 )
+        , ( 3, 2, 1 )
+        ]
+        (Array.fromList
+            [ t { x = halfExtentX, y = -halfExtentY, z = -halfExtentZ }
+            , t { x = halfExtentX, y = halfExtentY, z = -halfExtentZ }
+            , t { x = -halfExtentX, y = halfExtentY, z = -halfExtentZ }
+            , t { x = -halfExtentX, y = -halfExtentY, z = -halfExtentZ }
+            , t { x = halfExtentX, y = -halfExtentY, z = halfExtentZ }
+            , t { x = halfExtentX, y = halfExtentY, z = halfExtentZ }
+            , t { x = -halfExtentX, y = -halfExtentY, z = halfExtentZ }
+            , t { x = -halfExtentX, y = halfExtentY, z = halfExtentZ }
+            ]
+        )
 
 
-octoVertices : Float -> Array Vec3
-octoVertices halfExtent =
-    Array.fromList
-        [ { x = 0, y = 0, z = halfExtent }
-        , { x = 0, y = halfExtent, z = 0 }
-        , { x = halfExtent, y = 0, z = 0 }
-        , { x = -halfExtent, y = 0, z = 0 }
-        , { x = 0, y = 0, z = -halfExtent }
-        , { x = 0, y = -halfExtent, z = 0 }
+blockOfTetrahedrons : Float -> Float -> Float -> List Convex.Convex
+blockOfTetrahedrons sizeX sizeY sizeZ =
+    let
+        lX =
+            sizeX / 2
+
+        lY =
+            sizeY / 2
+
+        lZ =
+            sizeZ / 2
+
+        p0 =
+            { x = 0, y = 0, z = 0 }
+    in
+    List.map
+        (\( p1, p2, p3 ) ->
+            Convex.fromTriangularMesh
+                [ ( 1, 0, 2 ), ( 2, 0, 3 ), ( 3, 0, 1 ), ( 3, 1, 2 ) ]
+                (Array.fromList [ p0, p1, p2, p3 ])
+        )
+        [ ( { x = lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = lZ }, { x = lX, y = lY, z = lZ } )
+        , ( { x = lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = -lZ }, { x = -lX, y = lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = lZ }, { x = -lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = lZ }, { x = lX, y = lY, z = lZ }, { x = -lX, y = lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = -lZ }, { x = -lX, y = -lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = lZ }, { x = -lX, y = lY, z = lZ }, { x = -lX, y = lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = lZ }, { x = -lX, y = -lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = -lZ }, { x = lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = lZ }, { x = lX, y = -lY, z = lZ } )
+        , ( { x = lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = -lZ }, { x = lX, y = lY, z = lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = lX, y = lY, z = -lZ }, { x = lX, y = -lY, z = -lZ } )
+        , ( { x = -lX, y = -lY, z = -lZ }, { x = -lX, y = lY, z = -lZ }, { x = lX, y = lY, z = -lZ } )
         ]
 
 
 octoHull : Float -> Convex.Convex
 octoHull halfExtent =
-    octoVertices halfExtent
-        |> Convex.init octoVertexIndices
-
-
-originalOctoHull : Float -> Convex.Convex
-originalOctoHull halfExtent =
-    octoVertices halfExtent
-        |> Convex.init octoVertexIndices
-
-
-octoVertexIndices : List (List Int)
-octoVertexIndices =
-    [ [ 2, 1, 0 ]
-    , [ 0, 5, 2 ]
-    , [ 1, 2, 4 ]
-    , [ 3, 0, 1 ]
-    , [ 2, 5, 4 ]
-    , [ 4, 3, 1 ]
-    , [ 5, 0, 3 ]
-    , [ 3, 4, 5 ]
-    ]
+    Convex.fromTriangularMesh
+        [ ( 2, 1, 0 )
+        , ( 0, 5, 2 )
+        , ( 1, 2, 4 )
+        , ( 3, 0, 1 )
+        , ( 2, 5, 4 )
+        , ( 4, 3, 1 )
+        , ( 5, 0, 3 )
+        , ( 3, 4, 5 )
+        ]
+        (Array.fromList
+            [ { x = 0, y = 0, z = halfExtent }
+            , { x = 0, y = halfExtent, z = 0 }
+            , { x = halfExtent, y = 0, z = 0 }
+            , { x = -halfExtent, y = 0, z = 0 }
+            , { x = 0, y = 0, z = -halfExtent }
+            , { x = 0, y = -halfExtent, z = 0 }
+            ]
+        )
 
 
 squarePyramid : Convex
@@ -104,12 +154,13 @@ squareLikePyramid epsilon =
         zOffset =
             z * (0.5 ^ (1.0 / 3.0))
 
-        faces =
-            [ [ 3, 2, 1, 0 ]
-            , [ 0, 1, 4 ]
-            , [ 1, 2, 4 ]
-            , [ 2, 3, 4 ]
-            , [ 3, 0, 4 ]
+        vertexIndices =
+            [ ( 3, 2, 1 )
+            , ( 3, 1, 0 )
+            , ( 0, 1, 4 )
+            , ( 1, 2, 4 )
+            , ( 2, 3, 4 )
+            , ( 3, 0, 4 )
             ]
 
         vertices =
@@ -125,4 +176,4 @@ squareLikePyramid epsilon =
                 , { x = 0, y = 0, z = z - zOffset }
                 ]
     in
-    Convex.init faces vertices
+    Convex.fromTriangularMesh vertexIndices vertices

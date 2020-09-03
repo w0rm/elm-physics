@@ -3,6 +3,7 @@ module Shapes.Sphere exposing
     , atOrigin
     , expandBoundingSphereRadius
     , placeIn
+    , placeInWithInertia
     , raycast
     )
 
@@ -51,7 +52,16 @@ placeIn : Transform3d coordinates defines -> Sphere -> Sphere
 placeIn transform3d { radius, position, volume, inertia } =
     { radius = radius
     , volume = volume
-    , inertia = Transform3d.inertiaPlaceIn transform3d volume inertia
+    , inertia = inertia
+    , position = Transform3d.pointPlaceIn transform3d position
+    }
+
+
+placeInWithInertia : Transform3d coordinates defines -> Sphere -> Sphere
+placeInWithInertia transform3d { radius, position, volume, inertia } =
+    { radius = radius
+    , volume = volume
+    , inertia = Transform3d.inertiaPlaceIn transform3d position volume inertia
     , position = Transform3d.pointPlaceIn transform3d position
     }
 

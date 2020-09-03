@@ -6,11 +6,13 @@ module Internal.Matrix3 exposing
     , pointInertia
     , rotateInertia
     , scale
+    , sub
+    , tetrahedronInertia
     , transpose
     , zero
     )
 
-{-| -}
+import Internal.Vector3 exposing (Vec3)
 
 
 {-| 3x3 matrix type
@@ -113,6 +115,20 @@ add a b =
     }
 
 
+sub : Mat3 -> Mat3 -> Mat3
+sub a b =
+    { m11 = a.m11 - b.m11
+    , m21 = a.m21 - b.m21
+    , m31 = a.m31 - b.m31
+    , m12 = a.m12 - b.m12
+    , m22 = a.m22 - b.m22
+    , m32 = a.m32 - b.m32
+    , m13 = a.m13 - b.m13
+    , m23 = a.m23 - b.m23
+    , m33 = a.m33 - b.m33
+    }
+
+
 {-| Flip the matrix across the diagonal by swapping row index and column
 index.
 -}
@@ -162,4 +178,73 @@ pointInertia m x y z =
     , m13 = m31
     , m23 = m32
     , m33 = m * (x * x + y * y)
+    }
+
+
+tetrahedronInertia : Float -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Mat3
+tetrahedronInertia m p0 p1 p2 p3 =
+    let
+        x1 =
+            p1.x - p0.x
+
+        x2 =
+            p2.x - p0.x
+
+        x3 =
+            p3.x - p0.x
+
+        y1 =
+            p1.y - p0.y
+
+        y2 =
+            p2.y - p0.y
+
+        y3 =
+            p3.y - p0.y
+
+        z1 =
+            p1.z - p0.z
+
+        z2 =
+            p2.z - p0.z
+
+        z3 =
+            p3.z - p0.z
+
+        ix =
+            m / 10 * (x1 * x1 + x2 * x2 + x3 * x3 + x1 * x2 + x1 * x3 + x2 * x3)
+
+        iy =
+            m / 10 * (y1 * y1 + y2 * y2 + y3 * y3 + y1 * y2 + y1 * y3 + y2 * y3)
+
+        iz =
+            m / 10 * (z1 * z1 + z2 * z2 + z3 * z3 + z1 * z2 + z1 * z3 + z2 * z3)
+
+        ixx =
+            iy + iz
+
+        iyy =
+            ix + iz
+
+        izz =
+            ix + iy
+
+        ixy =
+            m / 20 * (2 * (x1 * y1 + x2 * y2 + x3 * y3) + x1 * y2 + x2 * y1 + x1 * y3 + x3 * y1 + x2 * y3 + x3 * y2)
+
+        iyz =
+            m / 20 * (2 * (z1 * y1 + z2 * y2 + z3 * y3) + z1 * y2 + z2 * y1 + z1 * y3 + z3 * y1 + z2 * y3 + z3 * y2)
+
+        izx =
+            m / 20 * (2 * (x1 * z1 + x2 * z2 + x3 * z3) + x1 * z2 + x2 * z1 + x1 * z3 + x3 * z1 + x2 * z3 + x3 * z2)
+    in
+    { m11 = ixx
+    , m12 = -ixy
+    , m13 = -izx
+    , m21 = -ixy
+    , m22 = iyy
+    , m23 = -iyz
+    , m31 = -izx
+    , m32 = -iyz
+    , m33 = izz
     }

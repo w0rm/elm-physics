@@ -7,14 +7,16 @@ module Common.Meshes exposing
     , fromTriangles
     , normal
     , sphere
+    , triangularMesh
     )
 
 import Block3d exposing (Block3d)
 import Length exposing (Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
-import Point3d
+import Point3d exposing (Point3d)
 import Sphere3d exposing (Sphere3d)
+import TriangularMesh exposing (TriangularMesh)
 import WebGL exposing (Mesh)
 
 
@@ -134,6 +136,19 @@ block block3d =
     , facet v1 v2 v6
     , facet v6 v5 v1
     ]
+
+
+triangularMesh : TriangularMesh (Point3d Meters BodyCoordinates) -> List ( Attributes, Attributes, Attributes )
+triangularMesh mesh =
+    mesh
+        |> TriangularMesh.mapVertices Point3d.toMeters
+        |> TriangularMesh.faceVertices
+        |> List.map
+            (\( v1, v2, v3 ) ->
+                facet (Vec3.fromRecord v1)
+                    (Vec3.fromRecord v2)
+                    (Vec3.fromRecord v3)
+            )
 
 
 pyramid : Float -> Float -> List ( Attributes, Attributes, Attributes )

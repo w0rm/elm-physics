@@ -93,7 +93,7 @@ toBody { dt, gravity } { body, vX, vY, vZ, wX, wY, wZ } =
     , angularDamping = body.angularDamping
     , invMass = body.invMass
     , invInertia = body.invInertia
-    , invInertiaWorld = Transform3d.inertiaRotateIn newTransform3d body.invInertia
+    , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
     -- clear forces
     , force = Vec3.zero
