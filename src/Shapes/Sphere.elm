@@ -52,7 +52,7 @@ placeIn : Transform3d coordinates defines -> Sphere -> Sphere
 placeIn transform3d { radius, position, volume, inertia } =
     { radius = radius
     , volume = volume
-    , inertia = inertia
+    , inertia = inertia -- doesn’t need to be rotated for a sphere
     , position = Transform3d.pointPlaceIn transform3d position
     }
 
