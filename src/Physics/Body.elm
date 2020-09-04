@@ -475,6 +475,9 @@ For example, the [sphere](#sphere) from above can be defined like this:
 
 We only support [rigid bodies](https://en.wikipedia.org/wiki/Rigid_body).
 
+Under the hood, we find the center of mass and the [inertia tensor](https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor).
+It is assumed, that the shapes have the same dencity and do not overlap.
+
 -}
 compound : List Shape -> data -> Body data
 compound shapes newData =
