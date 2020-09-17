@@ -15,6 +15,9 @@ for example in *.elm; do
   elm make $example --optimize --output ../gh-pages/examples/$lower/index.html
 done
 
+# Copy the duckling mesh and texture
+cp Duckling.obj.txt Duckling.png ../gh-pages/examples/duckling
+
 # Deploy to GH Pages
 cd ../gh-pages
 git init
