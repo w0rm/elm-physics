@@ -99,7 +99,7 @@ the body, call this:
     cubeBody =
         block
             (Block3d.centeredOn
-                Frame3d.origin
+                Frame3d.atOrigin
                 ( meters 1, meters 1, meters 1 )
             )
             data
