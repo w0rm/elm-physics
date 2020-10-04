@@ -6,6 +6,7 @@ module Internal.Matrix3 exposing
     , pointInertia
     , rotateInertia
     , scale
+    , sphereInertia
     , sub
     , tetrahedronInertia
     , transpose
@@ -178,6 +179,24 @@ pointInertia m x y z =
     , m13 = m31
     , m23 = m32
     , m33 = m * (x * x + y * y)
+    }
+
+
+sphereInertia : Float -> Float -> Mat3
+sphereInertia m radius =
+    let
+        i =
+            m * 2 / 5 * radius * radius
+    in
+    { m11 = i
+    , m21 = 0
+    , m31 = 0
+    , m12 = 0
+    , m22 = i
+    , m32 = 0
+    , m13 = 0
+    , m23 = 0
+    , m33 = i
     }
 
 

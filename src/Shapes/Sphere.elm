@@ -7,7 +7,7 @@ module Shapes.Sphere exposing
     , raycast
     )
 
-import Internal.Matrix3 exposing (Mat3)
+import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -25,26 +25,11 @@ atOrigin radius =
     let
         volume =
             4 / 3 * pi * (radius ^ 3)
-
-        i =
-            2 / 5 * volume * radius * radius
-
-        inertia =
-            { m11 = i
-            , m21 = 0
-            , m31 = 0
-            , m12 = 0
-            , m22 = i
-            , m32 = 0
-            , m13 = 0
-            , m23 = 0
-            , m33 = i
-            }
     in
     { radius = radius
     , position = Vec3.zero
     , volume = volume
-    , inertia = inertia
+    , inertia = Mat3.sphereInertia volume radius
     }
 
 
