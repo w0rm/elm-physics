@@ -64,9 +64,6 @@ placeInWithInertia transform3d { faces, vertices, uniqueEdges, uniqueNormals, po
 
 
 {-| Places faces into the frame.
-Note that this reverses the faces list.
-It reversces vertices list of each face,
-but it is reversed originally so this is fine!
 -}
 facesPlaceInHelp : Transform3d coordinates defines -> List Face -> List Face -> List Face
 facesPlaceInHelp transform3d faces result =
@@ -75,7 +72,7 @@ facesPlaceInHelp transform3d faces result =
             facesPlaceInHelp
                 transform3d
                 remainingFaces
-                ({ vertices = Transform3d.pointsPlaceIn transform3d vertices
+                ({ vertices = List.reverse (Transform3d.pointsPlaceIn transform3d vertices)
                  , normal = Transform3d.directionPlaceIn transform3d normal
                  }
                     :: result
@@ -463,28 +460,12 @@ fromBlock sizeX sizeY sizeZ =
             }
     in
     { faces =
-        -- faces vertices are reversed for local coordinates
-        -- then they become correct after the initial transformation
-        -- that is applied to the block shape in the constructor
-        -- this is needed for performance
-        [ { vertices = List.reverse [ v3, v2, v1, v0 ]
-          , normal = Vec3.zNegative
-          }
-        , { vertices = List.reverse [ v4, v5, v6, v7 ]
-          , normal = Vec3.zAxis
-          }
-        , { vertices = List.reverse [ v5, v4, v0, v1 ]
-          , normal = Vec3.yNegative
-          }
-        , { vertices = List.reverse [ v2, v3, v7, v6 ]
-          , normal = Vec3.yAxis
-          }
-        , { vertices = List.reverse [ v0, v4, v7, v3 ]
-          , normal = Vec3.xNegative
-          }
-        , { vertices = List.reverse [ v1, v2, v6, v5 ]
-          , normal = Vec3.xAxis
-          }
+        [ { vertices = [ v3, v2, v1, v0 ], normal = Vec3.zNegative }
+        , { vertices = [ v4, v5, v6, v7 ], normal = Vec3.zAxis }
+        , { vertices = [ v5, v4, v0, v1 ], normal = Vec3.yNegative }
+        , { vertices = [ v2, v3, v7, v6 ], normal = Vec3.yAxis }
+        , { vertices = [ v0, v4, v7, v3 ], normal = Vec3.xNegative }
+        , { vertices = [ v1, v2, v6, v5 ], normal = Vec3.xAxis }
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
     , uniqueEdges = Vec3.basis

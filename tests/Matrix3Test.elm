@@ -17,6 +17,14 @@ inverse =
                 Expect.mat3
                     { m11 = -24, m21 = 20, m31 = -5, m12 = 18, m22 = -15, m32 = 4, m13 = 5, m23 = -4, m33 = 1 }
                     (Mat3.inverse { m11 = 1, m21 = 0, m31 = 5, m12 = 2, m22 = 1, m32 = 6, m13 = 3, m23 = 4, m33 = 0 })
+        , test "matrix multiplied by its inverse should result in the indentity matrix" <|
+            \_ ->
+                Expect.mat3
+                    identity
+                    (Mat3.mul
+                        { m11 = -24, m21 = 20, m31 = -5, m12 = 18, m22 = -15, m32 = 4, m13 = 5, m23 = -4, m33 = 1 }
+                        (Mat3.inverse { m11 = -24, m21 = 20, m31 = -5, m12 = 18, m22 = -15, m32 = 4, m13 = 5, m23 = -4, m33 = 1 })
+                    )
         , test "inverse of inverse is the matrix itself" <|
             \_ ->
                 Expect.mat3
