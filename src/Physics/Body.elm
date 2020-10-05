@@ -85,6 +85,7 @@ The supported bodies are:
   - [block](#block),
   - [plane](#plane),
   - [sphere](#sphere),
+  - [cylinder](#cylinder),
   - [particle](#particle).
 
 For complex bodies check [compound](#compound).
@@ -112,6 +113,21 @@ block block3d =
     compound [ Shape.block block3d ]
 
 
+{-| A cylinder is created from elm-geometry [Cylinder3d](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Cylinder3d).
+To create a vertical cylinder, centered at the origin of
+the body, call this:
+
+    cylinderBody =
+        cylinder
+            12
+            (Cylinder3d.centeredOn
+                Point3d.origin
+                Direction3d.z
+                { radius = Length.meter, length = Length.meter }
+            )
+            data
+
+-}
 cylinder : Int -> Cylinder3d Meters BodyCoordinates -> data -> Body data
 cylinder detail cylinder3d =
     compound [ Shape.cylinder detail cylinder3d ]
