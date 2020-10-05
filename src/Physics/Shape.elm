@@ -177,11 +177,11 @@ cylinder detail cylinder3d =
                     )
     in
     { faces =
-        { vertices = List.reverse <| cap bottom, normal = { x = 0, y = 0, z = -1 } }
-            :: { vertices = cap top, normal = { x = 0, y = 0, z = 1 } }
+        { vertices = cap bottom, normal = { x = 0, y = 0, z = -1 } }
+            :: { vertices = List.reverse <| cap top, normal = { x = 0, y = 0, z = 1 } }
             :: List.map
                 (\face ->
-                    { vertices = List.reverse [ face.v0, face.v1, face.v2, face.v3 ]
+                    { vertices = [ face.v0, face.v1, face.v2, face.v3 ]
                     , normal = face.normal
                     }
                 )
