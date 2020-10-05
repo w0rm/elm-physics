@@ -114,6 +114,8 @@ sphere sphere3d =
 
     cylinder 2 myCylinder -- Too few faces so it has 3 faces instead
 
+Note that it's more efficient to simulate cylinders with an even number of faces than an odd number of faces.
+
 -}
 cylinder : Int -> Cylinder3d Meters BodyCoordinates -> Shape
 cylinder detail cylinder3d =
