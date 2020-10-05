@@ -1,6 +1,7 @@
 module Internal.Matrix3 exposing
     ( Mat3
     , add
+    , cylinderInertia
     , inverse
     , mul
     , pointInertia
@@ -197,6 +198,24 @@ sphereInertia m radius =
     , m13 = 0
     , m23 = 0
     , m33 = i
+    }
+
+
+cylinderInertia : Float -> Float -> Float -> Mat3
+cylinderInertia m radius height =
+    let
+        a =
+            (m * (3 * radius ^ 2 + height ^ 2)) / 12
+    in
+    { m11 = a
+    , m21 = 0
+    , m31 = 0
+    , m12 = 0
+    , m22 = a
+    , m32 = 0
+    , m13 = 0
+    , m23 = 0
+    , m33 = (m * radius ^ 2) / 2
     }
 
 

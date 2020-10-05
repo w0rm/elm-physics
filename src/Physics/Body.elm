@@ -6,6 +6,7 @@ module Physics.Body exposing
     , data, withData
     , applyForce, applyImpulse
     , withMaterial, compound, withDamping
+    , cylinder
     )
 
 {-|
@@ -48,6 +49,7 @@ import Angle exposing (Angle)
 import AngularSpeed exposing (RadiansPerSecond)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
+import Cylinder3d exposing (Cylinder3d)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Seconds)
 import Force exposing (Newtons)
@@ -108,6 +110,11 @@ the body, call this:
 block : Block3d Meters BodyCoordinates -> data -> Body data
 block block3d =
     compound [ Shape.block block3d ]
+
+
+cylinder : Int -> Cylinder3d Meters BodyCoordinates -> data -> Body data
+cylinder detail cylinder3d =
+    compound [ Shape.cylinder detail cylinder3d ]
 
 
 {-| A plane with the normal that points
