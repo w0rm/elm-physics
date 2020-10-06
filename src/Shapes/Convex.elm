@@ -6,6 +6,7 @@ module Shapes.Convex exposing
     , extendContour
     , foldFaceEdges
     , fromBlock
+    , fromCylinder
     , fromTriangularMesh
     , placeIn
     , placeInWithInertia
@@ -13,10 +14,13 @@ module Shapes.Convex exposing
     )
 
 import Array exposing (Array)
+import Cylinder3d exposing (Cylinder3d)
 import Dict exposing (Dict)
+import Direction3d
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Quantity
 import Set exposing (Set)
 
 
@@ -473,6 +477,97 @@ fromBlock sizeX sizeY sizeZ =
     , volume = volume
     , position = Vec3.zero
     , inertia = inertia
+    }
+
+
+fromCylinder : Int -> Cylinder3d units coordinates -> Convex
+fromCylinder detail cylinder3d =
+    let
+        detail_ =
+            max 3 detail
+
+        top =
+            Cylinder3d.length cylinder3d |> Quantity.unwrap |> (*) 0.5
+
+        bottom =
+            Cylinder3d.length cylinder3d |> Quantity.unwrap |> (*) -0.5
+
+        radius =
+            Cylinder3d.radius cylinder3d |> Quantity.unwrap
+
+        faces =
+            List.range 0 (detail_ - 1)
+                |> List.map
+                    (\value ->
+                        let
+                            r0 =
+                                2 * pi * (toFloat value - 0.5) / toFloat detail_
+
+                            r1 =
+                                2 * pi * toFloat value / toFloat detail_
+
+                            r2 =
+                                2 * pi * (toFloat value + 0.5) / toFloat detail_
+                        in
+                        { normal = { x = sin r1, y = cos r1, z = 0 }
+                        , v0 = { x = sin r0 * radius, y = cos r0 * radius, z = top }
+                        , v1 = { x = sin r2 * radius, y = cos r2 * radius, z = top }
+                        , v2 = { x = sin r2 * radius, y = cos r2 * radius, z = bottom }
+                        , v3 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
+                        }
+                    )
+
+        volume =
+            Cylinder3d.volume cylinder3d |> Quantity.unwrap
+
+        cap z =
+            List.range 0 (detail_ - 1)
+                |> List.map
+                    (\value ->
+                        let
+                            r0 =
+                                2 * pi * (toFloat value - 0.5) / toFloat detail_
+                        in
+                        { x = sin r0 * radius, y = cos r0 * radius, z = z }
+                    )
+    in
+    { faces =
+        { vertices = cap bottom, normal = { x = 0, y = 0, z = -1 } }
+            :: { vertices = List.reverse <| cap top, normal = { x = 0, y = 0, z = 1 } }
+            :: List.map
+                (\face ->
+                    { vertices = [ face.v0, face.v1, face.v2, face.v3 ]
+                    , normal = face.normal
+                    }
+                )
+                faces
+    , vertices = List.concatMap (\face -> [ face.v1, face.v2 ]) faces
+    , uniqueEdges =
+        { x = 0, y = 0, z = 1 }
+            -- Rotate normals by 90 degrees to get edge directions
+            :: List.map (\{ normal } -> { x = -normal.y, y = normal.x, z = 0 })
+                (if modBy 2 detail_ == 0 then
+                    List.take (detail_ // 2) faces
+
+                 else
+                    faces
+                )
+    , uniqueNormals =
+        { x = 0, y = 0, z = -1 }
+            :: { x = 0, y = 0, z = 1 }
+            :: (if modBy 2 detail_ == 0 then
+                    List.take (detail_ // 2) faces |> List.map .normal
+
+                else
+                    List.map .normal faces
+               )
+    , position = { x = 0, y = 0, z = 0 }
+    , inertia =
+        Mat3.cylinderInertia
+            volume
+            radius
+            (Cylinder3d.length cylinder3d |> Quantity.unwrap)
+    , volume = volume
     }
 
 
