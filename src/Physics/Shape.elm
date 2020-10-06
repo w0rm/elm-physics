@@ -1,4 +1,7 @@
-module Physics.Shape exposing (Shape, block, sphere, unsafeConvex)
+module Physics.Shape exposing
+    ( Shape, block, sphere, unsafeConvex
+    , cylinder
+    )
 
 {-|
 
@@ -7,6 +10,7 @@ module Physics.Shape exposing (Shape, block, sphere, unsafeConvex)
 -}
 
 import Block3d exposing (Block3d)
+import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
 import Internal.Shape as Internal exposing (Protected(..))
@@ -14,10 +18,12 @@ import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
+import Quantity
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
+import Vector3d
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
@@ -98,6 +104,37 @@ sphere sphere3d =
                 |> Sphere.placeIn (Transform3d.atPoint origin)
             )
         )
+
+
+{-|
+
+    cylinder 12 myCylinder -- A cylinder with 12 faces (not counting the top and bottom face)
+
+    cylinder 2 myCylinder -- Too few faces so it has 3 faces instead
+
+Note that it's more efficient to simulate cylinders with an even number of faces than an odd number of faces.
+
+-}
+cylinder : Int -> Cylinder3d Meters BodyCoordinates -> Shape
+cylinder detail cylinder3d =
+    let
+        ( a, b ) =
+            Cylinder3d.axialDirection cylinder3d |> Direction3d.perpendicularBasis
+
+        transform3d =
+            Transform3d.fromOriginAndBasis
+                (Cylinder3d.centerPoint cylinder3d |> Point3d.unwrap)
+                (Direction3d.unwrap a)
+                (Direction3d.unwrap b)
+                (Cylinder3d.axialDirection cylinder3d |> Direction3d.toVector |> Vector3d.unwrap)
+    in
+    Convex.fromCylinder
+        detail
+        (Cylinder3d.radius cylinder3d |> Quantity.unwrap)
+        (Cylinder3d.length cylinder3d |> Quantity.unwrap)
+        |> Convex.placeIn transform3d
+        |> Internal.Convex
+        |> Protected
 
 
 {-| Create a shape from the triangular mesh. This is useful if you want

@@ -16,6 +16,7 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Meshes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Cylinder3d
 import Direction3d
 import Duration
 import Frame3d
@@ -156,6 +157,13 @@ initialWorld =
                 |> Body.moveTo (Point3d.meters 0.5 0 8)
             )
         |> World.add
+            (cylinder
+                |> Body.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 2))
+                |> Body.moveTo (Point3d.meters 0.5 0 11)
+            )
+        |> World.add
             (compound
                 |> Body.rotateAround
                     (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
@@ -206,6 +214,22 @@ sphere =
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
+cylinder : Body Meshes
+cylinder =
+    let
+        length =
+            Length.meters 2
+
+        radius =
+            Length.meters 0.5
+    in
+    Body.cylinder
+        12
+        (Cylinder3d.centeredOn Point3d.origin Direction3d.z { radius = radius, length = length })
+        (Meshes.fromTriangles (Meshes.cylinder 12 radius length))
+        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+
+
 {-| A compound body made of three boxes
 -}
 compound : Body Meshes
@@ -245,6 +269,9 @@ randomBody =
                 1 ->
                     sphere
 
+                2 ->
+                    cylinder
+
                 _ ->
                     compound
             )
@@ -257,4 +284,4 @@ randomBody =
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
-        (Random.int 0 2)
+        (Random.int 0 3)

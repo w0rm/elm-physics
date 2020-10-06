@@ -3,6 +3,7 @@ module Common.Meshes exposing
     , Meshes
     , block
     , contact
+    , cylinder
     , edge
     , fromTriangles
     , normal
@@ -10,13 +11,19 @@ module Common.Meshes exposing
     , triangularMesh
     )
 
+import Angle
 import Block3d exposing (Block3d)
-import Length exposing (Meters, inMeters)
+import Direction2d
+import Direction3d
+import Length exposing (Length, Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
+import Quantity exposing (zero)
+import SketchPlane3d
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
+import Vector3d
 import WebGL exposing (Mesh)
 
 
@@ -176,6 +183,116 @@ pyramid halfbase baserise =
     , facet top lbb lfb
     , facet top rbb lbb
     ]
+
+
+{-| Code taken from elm-3d-scene's Primitives module.
+-}
+cylinder : Int -> Length -> Length -> List ( Attributes, Attributes, Attributes )
+cylinder subdivisions radius height =
+    let
+        wedgeAngle =
+            Angle.turns 1 |> Quantity.divideBy (toFloat subdivisions)
+
+        negativeZVector =
+            Direction3d.negativeZ |> Direction3d.toVector
+
+        positiveZVector =
+            Direction3d.positiveZ |> Direction3d.toVector
+
+        bottomZ =
+            Quantity.multiplyBy -0.5 height
+
+        topZ =
+            Quantity.multiplyBy 0.5 height
+
+        bottomCenter =
+            Point3d.xyz zero zero bottomZ
+
+        topCenter =
+            Point3d.xyz zero zero topZ
+
+        wedge startIndex =
+            let
+                startAngle =
+                    wedgeAngle |> Quantity.multiplyBy (toFloat startIndex)
+
+                endIndex =
+                    startIndex + 1 |> modBy subdivisions
+
+                endAngle =
+                    wedgeAngle |> Quantity.multiplyBy (toFloat endIndex)
+
+                startX =
+                    radius |> Quantity.multiplyBy (Angle.cos startAngle)
+
+                endX =
+                    radius |> Quantity.multiplyBy (Angle.cos endAngle)
+
+                startY =
+                    radius |> Quantity.multiplyBy (Angle.sin startAngle)
+
+                endY =
+                    radius |> Quantity.multiplyBy (Angle.sin endAngle)
+
+                p0 =
+                    Point3d.xyz startX startY bottomZ
+
+                p1 =
+                    Point3d.xyz endX endY bottomZ
+
+                p2 =
+                    Point3d.xyz startX startY topZ
+
+                p3 =
+                    Point3d.xyz endX endY topZ
+
+                startNormal =
+                    Direction3d.on SketchPlane3d.xy
+                        (Direction2d.fromAngle startAngle)
+                        |> Direction3d.toVector
+
+                endNormal =
+                    Direction3d.on SketchPlane3d.xy
+                        (Direction2d.fromAngle endAngle)
+                        |> Direction3d.toVector
+            in
+            [ ( { position = bottomCenter, normal = negativeZVector }
+              , { position = p1, normal = negativeZVector }
+              , { position = p0, normal = negativeZVector }
+              )
+            , ( { position = p0, normal = startNormal }
+              , { position = p1, normal = endNormal }
+              , { position = p3, normal = endNormal }
+              )
+            , ( { position = p0, normal = startNormal }
+              , { position = p3, normal = endNormal }
+              , { position = p2, normal = startNormal }
+              )
+            , ( { position = topCenter, normal = positiveZVector }
+              , { position = p2, normal = positiveZVector }
+              , { position = p3, normal = positiveZVector }
+              )
+            ]
+
+        wedges =
+            List.range 0 (subdivisions - 1)
+                |> List.map wedge
+
+        mapTriple mapFunc ( a, b, c ) =
+            ( mapFunc a, mapFunc b, mapFunc c )
+
+        recordToVec3 { x, y, z } =
+            Vec3.vec3 x y z
+    in
+    List.concat wedges
+        |> List.map
+            (mapTriple
+                (\a ->
+                    { position = Point3d.unwrap a.position |> recordToVec3
+                    , normal = Vector3d.unwrap (Vector3d.reverse a.normal) |> recordToVec3
+                    }
+                )
+            )
 
 
 sphere : Int -> Sphere3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
