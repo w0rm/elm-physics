@@ -18,6 +18,7 @@ import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
+import Quantity
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
@@ -127,7 +128,10 @@ cylinder detail cylinder3d =
                 (Direction3d.unwrap b)
                 (Cylinder3d.axialDirection cylinder3d |> Direction3d.toVector |> Vector3d.unwrap)
     in
-    Convex.fromCylinder detail cylinder3d
+    Convex.fromCylinder
+        detail
+        (Cylinder3d.radius cylinder3d |> Quantity.unwrap)
+        (Cylinder3d.length cylinder3d |> Quantity.unwrap)
         |> Convex.placeIn transform3d
         |> Internal.Convex
         |> Protected

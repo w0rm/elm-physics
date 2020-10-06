@@ -14,13 +14,10 @@ module Shapes.Convex exposing
     )
 
 import Array exposing (Array)
-import Cylinder3d exposing (Cylinder3d)
 import Dict exposing (Dict)
-import Direction3d
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Quantity
 import Set exposing (Set)
 
 
@@ -480,20 +477,17 @@ fromBlock sizeX sizeY sizeZ =
     }
 
 
-fromCylinder : Int -> Cylinder3d units coordinates -> Convex
-fromCylinder detail cylinder3d =
+fromCylinder : Int -> Float -> Float -> Convex
+fromCylinder detail radius length =
     let
         detail_ =
             max 3 detail
 
         top =
-            Cylinder3d.length cylinder3d |> Quantity.unwrap |> (*) 0.5
+            length * 0.5
 
         bottom =
-            Cylinder3d.length cylinder3d |> Quantity.unwrap |> (*) -0.5
-
-        radius =
-            Cylinder3d.radius cylinder3d |> Quantity.unwrap
+            length * -0.5
 
         faces =
             List.range 0 (detail_ - 1)
@@ -518,7 +512,7 @@ fromCylinder detail cylinder3d =
                     )
 
         volume =
-            Cylinder3d.volume cylinder3d |> Quantity.unwrap
+            2 * pi * length * radius ^ 2
 
         cap z =
             List.range 0 (detail_ - 1)
@@ -565,7 +559,7 @@ fromCylinder detail cylinder3d =
         Mat3.cylinderInertia
             volume
             radius
-            (Cylinder3d.length cylinder3d |> Quantity.unwrap)
+            length
     , volume = volume
     }
 
