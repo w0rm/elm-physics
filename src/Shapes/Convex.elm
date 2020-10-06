@@ -553,8 +553,7 @@ fromCylinder detail cylinder3d =
                     faces
                 )
     , uniqueNormals =
-        { x = 0, y = 0, z = -1 }
-            :: { x = 0, y = 0, z = 1 }
+        { x = 0, y = 0, z = 1 }
             :: (if modBy 2 detail_ == 0 then
                     List.take (detail_ // 2) faces |> List.map .normal
 
