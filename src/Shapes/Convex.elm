@@ -2,6 +2,7 @@ module Shapes.Convex exposing
     ( Convex
     , Face
     , addDirectionIfDistinct
+    , computeNormal
     , expandBoundingSphereRadius
     , extendContour
     , foldFaceEdges
@@ -9,7 +10,6 @@ module Shapes.Convex exposing
     , fromCylinder
     , fromTriangularMesh
     , placeIn
-    , placeInWithInertia
     , raycast
     )
 
@@ -47,20 +47,6 @@ placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, vol
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
     , inertia = Transform3d.inertiaRotateIn transform3d inertia
-    }
-
-
-placeInWithInertia : Transform3d coordinates defines -> Convex -> Convex
-placeInWithInertia transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume, inertia } =
-    { faces = facesPlaceInHelp transform3d faces []
-    , vertices = Transform3d.pointsPlaceIn transform3d vertices
-    , uniqueEdges = Transform3d.directionsPlaceIn transform3d uniqueEdges
-    , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
-    , volume = volume
-    , position = Transform3d.pointPlaceIn transform3d position
-
-    -- TODO: take this out only when we need to combine inertias in compound body
-    , inertia = Transform3d.inertiaPlaceIn transform3d position volume inertia
     }
 
 
@@ -335,18 +321,20 @@ initFacesHelp visited vertices faceByEdgeIndex facesToCheck edgesToCheck current
         in
         case updatedFacesToCheck of
             -- pick a non coplanar face
-            face :: remainingFacesToCheck ->
-                case face.indices of
-                    ( i1, i2, i3 ) ->
-                        initFacesHelp
-                            (Set.insert face.indices newVisited)
-                            vertices
-                            faceByEdgeIndex
-                            remainingFacesToCheck
-                            [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
-                            face.normal
-                            [ i1, i2, i3 ]
-                            (faceToAdd :: result)
+            { indices, normal } :: remainingFacesToCheck ->
+                let
+                    ( i1, i2, i3 ) =
+                        indices
+                in
+                initFacesHelp
+                    (Set.insert indices newVisited)
+                    vertices
+                    faceByEdgeIndex
+                    remainingFacesToCheck
+                    [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
+                    normal
+                    [ i1, i2, i3 ]
+                    (faceToAdd :: result)
 
             -- end the recursion
             [] ->
@@ -488,24 +476,24 @@ fromCylinder subdivisions radius length =
 
         sides =
             List.map
-                    (\value ->
-                        let
-                            r0 =
+                (\value ->
+                    let
+                        r0 =
                             2 * pi * (toFloat value - 0.5) / toFloat subdivisions
 
-                            r1 =
+                        r1 =
                             2 * pi * toFloat value / toFloat subdivisions
 
-                            r2 =
+                        r2 =
                             2 * pi * (toFloat value + 0.5) / toFloat subdivisions
-                        in
-                        { normal = { x = sin r1, y = cos r1, z = 0 }
-                        , v0 = { x = sin r0 * radius, y = cos r0 * radius, z = top }
-                        , v1 = { x = sin r2 * radius, y = cos r2 * radius, z = top }
-                        , v2 = { x = sin r2 * radius, y = cos r2 * radius, z = bottom }
-                        , v3 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
-                        }
-                    )
+                    in
+                    { normal = { x = sin r1, y = cos r1, z = 0 }
+                    , v0 = { x = sin r0 * radius, y = cos r0 * radius, z = top }
+                    , v1 = { x = sin r2 * radius, y = cos r2 * radius, z = top }
+                    , v2 = { x = sin r2 * radius, y = cos r2 * radius, z = bottom }
+                    , v3 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
+                    }
+                )
                 (List.range 0 (subdivisions - 1))
 
         volume =
@@ -513,13 +501,13 @@ fromCylinder subdivisions radius length =
 
         cap z =
             List.map
-                    (\value ->
-                        let
-                            r0 =
+                (\value ->
+                    let
+                        r0 =
                             2 * pi * (toFloat value - 0.5) / toFloat subdivisions
-                        in
-                        { x = sin r0 * radius, y = cos r0 * radius, z = z }
-                    )
+                    in
+                    { x = sin r0 * radius, y = cos r0 * radius, z = z }
+                )
                 (List.range 0 (subdivisions - 1))
 
         bottomCap =

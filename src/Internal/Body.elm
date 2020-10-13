@@ -108,7 +108,7 @@ compound shapes data =
 
         movedShapes : List (Shape CenterOfMassCoordinates)
         movedShapes =
-            Shape.shapesPlaceInWithInertia inverseCenterOfMassTransform3d shapes
+            Shape.shapesPlaceIn inverseCenterOfMassTransform3d shapes
     in
     updateMassProperties
         { id = -1
@@ -148,7 +148,32 @@ updateMassProperties ({ mass, shapes } as body) =
             mass / totalVolume
 
         inertia =
-            List.foldl (\shape -> Mat3.add (Shape.inertia shape)) Mat3.zero shapes
+            List.foldl
+                (\shape ->
+                    let
+                        shapeInertia =
+                            Shape.inertia shape
+
+                        shapeCenterOfMass =
+                            Shape.centerOfMass shape
+
+                        shapeVolume =
+                            Shape.volume shape
+
+                        -- TODO: this undoes the center of mass transformation
+                        -- to get the initial shape’s center of mass position.
+                        -- This is needed to correctly transform the inertia
+                        -- need to rethink the inertia and center of mass transformation
+                        resultInertia =
+                            Transform3d.inertiaPlaceIn body.centerOfMassTransform3d
+                                (Transform3d.pointPlaceIn body.centerOfMassTransform3d shapeCenterOfMass)
+                                shapeVolume
+                                shapeInertia
+                    in
+                    Mat3.add resultInertia
+                )
+                Mat3.zero
+                shapes
                 |> Mat3.scale density
 
         invMass =

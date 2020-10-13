@@ -2,11 +2,11 @@ module Internal.Shape exposing
     ( CenterOfMassCoordinates
     , Protected(..)
     , Shape(..)
+    , centerOfMass
     , expandBoundingSphereRadius
     , inertia
     , raycast
     , shapesPlaceIn
-    , shapesPlaceInWithInertia
     , volume
     )
 
@@ -67,6 +67,22 @@ inertia shape =
             Mat3.zero
 
 
+centerOfMass : Shape coordinates -> Vec3
+centerOfMass shape =
+    case shape of
+        Sphere sphere ->
+            sphere.position
+
+        Convex convex ->
+            convex.position
+
+        Plane _ ->
+            Vec3.zero
+
+        Particle _ ->
+            Vec3.zero
+
+
 {-| Transforms shapes, reverses the original order
 -}
 shapesPlaceIn : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates)
@@ -90,40 +106,6 @@ shapesPlaceInHelp transform3d shapes result =
 
                     Sphere sphere ->
                         Sphere (Sphere.placeIn transform3d sphere)
-
-                    Particle position ->
-                        Particle (Transform3d.pointPlaceIn transform3d position)
-                 )
-                    :: result
-                )
-
-        [] ->
-            result
-
-
-{-| Transforms shapes, reverses the original order
--}
-shapesPlaceInWithInertia : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates)
-shapesPlaceInWithInertia transform3d shapes =
-    shapesPlaceInWithInertiaHelp transform3d shapes []
-
-
-shapesPlaceInWithInertiaHelp : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates) -> List (Shape coordinates)
-shapesPlaceInWithInertiaHelp transform3d shapes result =
-    case shapes of
-        shape :: remainingShapes ->
-            shapesPlaceInWithInertiaHelp
-                transform3d
-                remainingShapes
-                ((case shape of
-                    Convex convex ->
-                        Convex (Convex.placeInWithInertia transform3d convex)
-
-                    Plane plane ->
-                        Plane (Plane.placeIn transform3d plane)
-
-                    Sphere sphere ->
-                        Sphere (Sphere.placeInWithInertia transform3d sphere)
 
                     Particle position ->
                         Particle (Transform3d.pointPlaceIn transform3d position)
