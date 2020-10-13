@@ -13,8 +13,10 @@ module Common.Meshes exposing
 
 import Angle
 import Block3d exposing (Block3d)
+import Cylinder3d exposing (Cylinder3d)
 import Direction2d
 import Direction3d
+import Frame3d exposing (Frame3d)
 import Length exposing (Length, Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
@@ -186,113 +188,94 @@ pyramid halfbase baserise =
 
 
 {-| Code taken from elm-3d-scene's Primitives module.
+
+TODO: create this mesh from Cylinder3d
+
 -}
-cylinder : Int -> Length -> Length -> List ( Attributes, Attributes, Attributes )
-cylinder subdivisions radius height =
+cylinder : Int -> Cylinder3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
+cylinder subdivisions cylinder3d =
     let
         wedgeAngle =
-            Angle.turns 1 |> Quantity.divideBy (toFloat subdivisions)
+            2 * pi / toFloat subdivisions
 
-        negativeZVector =
-            Direction3d.negativeZ |> Direction3d.toVector
+        length =
+            Length.inMeters (Cylinder3d.length cylinder3d)
 
-        positiveZVector =
-            Direction3d.positiveZ |> Direction3d.toVector
+        radius =
+            Length.inMeters (Cylinder3d.radius cylinder3d)
 
         bottomZ =
-            Quantity.multiplyBy -0.5 height
+            -0.5 * length
 
         topZ =
-            Quantity.multiplyBy 0.5 height
+            0.5 * length
+
+        ( a, b ) =
+            Cylinder3d.axialDirection cylinder3d
+                |> Direction3d.perpendicularBasis
+
+        cylinderFrame3d =
+            Frame3d.unsafe
+                { originPoint = Cylinder3d.centerPoint cylinder3d
+                , xDirection = a
+                , yDirection = b
+                , zDirection = Cylinder3d.axialDirection cylinder3d
+                }
+
+        transform px py pz =
+            Point3d.placeIn cylinderFrame3d (Point3d.meters px py pz)
+                |> Point3d.toMeters
+                |> Vec3.fromRecord
 
         bottomCenter =
-            Point3d.xyz zero zero bottomZ
+            transform 0 0 bottomZ
 
         topCenter =
-            Point3d.xyz zero zero topZ
+            transform 0 0 topZ
 
         wedge startIndex =
             let
                 startAngle =
-                    wedgeAngle |> Quantity.multiplyBy (toFloat startIndex)
+                    wedgeAngle * toFloat startIndex
 
                 endIndex =
                     startIndex + 1 |> modBy subdivisions
 
                 endAngle =
-                    wedgeAngle |> Quantity.multiplyBy (toFloat endIndex)
+                    wedgeAngle * toFloat endIndex
 
                 startX =
-                    radius |> Quantity.multiplyBy (Angle.cos startAngle)
+                    radius * cos startAngle
 
                 endX =
-                    radius |> Quantity.multiplyBy (Angle.cos endAngle)
+                    radius * cos endAngle
 
                 startY =
-                    radius |> Quantity.multiplyBy (Angle.sin startAngle)
+                    radius * sin startAngle
 
                 endY =
-                    radius |> Quantity.multiplyBy (Angle.sin endAngle)
+                    radius * sin endAngle
 
                 p0 =
-                    Point3d.xyz startX startY bottomZ
+                    transform startX startY bottomZ
 
                 p1 =
-                    Point3d.xyz endX endY bottomZ
+                    transform endX endY bottomZ
 
                 p2 =
-                    Point3d.xyz startX startY topZ
+                    transform startX startY topZ
 
                 p3 =
-                    Point3d.xyz endX endY topZ
-
-                startNormal =
-                    Direction3d.on SketchPlane3d.xy
-                        (Direction2d.fromAngle startAngle)
-                        |> Direction3d.toVector
-
-                endNormal =
-                    Direction3d.on SketchPlane3d.xy
-                        (Direction2d.fromAngle endAngle)
-                        |> Direction3d.toVector
+                    transform endX endY topZ
             in
-            [ ( { position = bottomCenter, normal = negativeZVector }
-              , { position = p1, normal = negativeZVector }
-              , { position = p0, normal = negativeZVector }
-              )
-            , ( { position = p0, normal = startNormal }
-              , { position = p1, normal = endNormal }
-              , { position = p3, normal = endNormal }
-              )
-            , ( { position = p0, normal = startNormal }
-              , { position = p3, normal = endNormal }
-              , { position = p2, normal = startNormal }
-              )
-            , ( { position = topCenter, normal = positiveZVector }
-              , { position = p2, normal = positiveZVector }
-              , { position = p3, normal = positiveZVector }
-              )
+            [ facet bottomCenter p1 p0
+            , facet p0 p1 p3
+            , facet p0 p3 p2
+            , facet topCenter p2 p3
             ]
-
-        wedges =
-            List.range 0 (subdivisions - 1)
-                |> List.map wedge
-
-        mapTriple mapFunc ( a, b, c ) =
-            ( mapFunc a, mapFunc b, mapFunc c )
-
-        recordToVec3 { x, y, z } =
-            Vec3.vec3 x y z
     in
-    List.concat wedges
-        |> List.map
-            (mapTriple
-                (\a ->
-                    { position = Point3d.unwrap a.position |> recordToVec3
-                    , normal = Vector3d.unwrap (Vector3d.reverse a.normal) |> recordToVec3
-                    }
-                )
-            )
+    List.range 0 (subdivisions - 1)
+        |> List.concatMap wedge
 
 
 sphere : Int -> Sphere3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )

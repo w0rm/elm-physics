@@ -119,7 +119,6 @@ the body, call this:
 
     cylinderBody =
         cylinder
-            12
             (Cylinder3d.centeredOn
                 Point3d.origin
                 Direction3d.z
@@ -127,10 +126,15 @@ the body, call this:
             )
             data
 
+This cylinder is approximated with a convex polyhedron mesh that has 12 side faces.
+
+For more subdivisions at the cost of worse performance,
+create a [compound body](#compound) with [Shape.cylinder](Physics-Shape#cylinder).
+
 -}
-cylinder : Int -> Cylinder3d Meters BodyCoordinates -> data -> Body data
-cylinder detail cylinder3d =
-    compound [ Shape.cylinder detail cylinder3d ]
+cylinder : Cylinder3d Meters BodyCoordinates -> data -> Body data
+cylinder cylinder3d =
+    compound [ Shape.cylinder 12 cylinder3d ]
 
 
 {-| A plane with the normal that points

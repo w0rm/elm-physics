@@ -34,7 +34,8 @@ from the [Physics.Body](Physics-Body) module.
 The supported primitive shapes are:
 
   - [block](#block),
-  - [sphere](#sphere).
+  - [sphere](#sphere),
+  - [cylinder](#cylinder).
 
 For the more complex cases use the [unsafeConvex](#unsafeConvex) shape.
 
@@ -106,32 +107,34 @@ sphere sphere3d =
         )
 
 
-{-|
+{-| Create a cylinder shape by specifying the number of subdivisions >= 3.
 
     cylinder 12 myCylinder -- A cylinder with 12 faces (not counting the top and bottom face)
 
     cylinder 2 myCylinder -- Too few faces so it has 3 faces instead
 
-Note that it's more efficient to simulate cylinders with an even number of faces than an odd number of faces.
+Note that it’s more efficient to simulate cylinders with an even number of
+faces than an odd number of faces. This is because the collision performance depends
+on the number of unique faces that are not parallel with each other (and edges too).
 
 -}
 cylinder : Int -> Cylinder3d Meters BodyCoordinates -> Shape
-cylinder detail cylinder3d =
+cylinder subdivisions cylinder3d =
     let
         ( a, b ) =
-            Cylinder3d.axialDirection cylinder3d |> Direction3d.perpendicularBasis
+            Cylinder3d.axialDirection cylinder3d
+                |> Direction3d.perpendicularBasis
 
         transform3d =
             Transform3d.fromOriginAndBasis
-                (Cylinder3d.centerPoint cylinder3d |> Point3d.unwrap)
+                (Point3d.toMeters (Cylinder3d.centerPoint cylinder3d))
                 (Direction3d.unwrap a)
                 (Direction3d.unwrap b)
-                (Cylinder3d.axialDirection cylinder3d |> Direction3d.toVector |> Vector3d.unwrap)
+                (Direction3d.unwrap (Cylinder3d.axialDirection cylinder3d))
     in
-    Convex.fromCylinder
-        detail
-        (Cylinder3d.radius cylinder3d |> Quantity.unwrap)
-        (Cylinder3d.length cylinder3d |> Quantity.unwrap)
+    Convex.fromCylinder (max 3 subdivisions)
+        (Length.inMeters (Cylinder3d.radius cylinder3d))
+        (Length.inMeters (Cylinder3d.length cylinder3d))
         |> Convex.placeIn transform3d
         |> Internal.Convex
         |> Protected

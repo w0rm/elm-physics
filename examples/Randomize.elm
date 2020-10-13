@@ -222,11 +222,14 @@ cylinder =
 
         radius =
             Length.meters 0.5
+
+        cylinder3d =
+            Cylinder3d.centeredOn Point3d.origin
+                Direction3d.x
+                { radius = radius, length = length }
     in
-    Body.cylinder
-        12
-        (Cylinder3d.centeredOn Point3d.origin Direction3d.z { radius = radius, length = length })
-        (Meshes.fromTriangles (Meshes.cylinder 12 radius length))
+    Body.cylinder cylinder3d
+        (Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d))
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 

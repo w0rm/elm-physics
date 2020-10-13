@@ -478,30 +478,26 @@ fromBlock sizeX sizeY sizeZ =
 
 
 fromCylinder : Int -> Float -> Float -> Convex
-fromCylinder detail radius length =
+fromCylinder subdivisions radius length =
     let
-        detail_ =
-            max 3 detail
-
         top =
             length * 0.5
 
         bottom =
             length * -0.5
 
-        faces =
-            List.range 0 (detail_ - 1)
-                |> List.map
+        sides =
+            List.map
                     (\value ->
                         let
                             r0 =
-                                2 * pi * (toFloat value - 0.5) / toFloat detail_
+                            2 * pi * (toFloat value - 0.5) / toFloat subdivisions
 
                             r1 =
-                                2 * pi * toFloat value / toFloat detail_
+                            2 * pi * toFloat value / toFloat subdivisions
 
                             r2 =
-                                2 * pi * (toFloat value + 0.5) / toFloat detail_
+                            2 * pi * (toFloat value + 0.5) / toFloat subdivisions
                         in
                         { normal = { x = sin r1, y = cos r1, z = 0 }
                         , v0 = { x = sin r0 * radius, y = cos r0 * radius, z = top }
@@ -510,56 +506,52 @@ fromCylinder detail radius length =
                         , v3 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
                         }
                     )
+                (List.range 0 (subdivisions - 1))
 
         volume =
             2 * pi * length * radius ^ 2
 
         cap z =
-            List.range 0 (detail_ - 1)
-                |> List.map
+            List.map
                     (\value ->
                         let
                             r0 =
-                                2 * pi * (toFloat value - 0.5) / toFloat detail_
+                            2 * pi * (toFloat value - 0.5) / toFloat subdivisions
                         in
                         { x = sin r0 * radius, y = cos r0 * radius, z = z }
                     )
-    in
-    { faces =
-        { vertices = cap bottom, normal = { x = 0, y = 0, z = -1 } }
-            :: { vertices = List.reverse <| cap top, normal = { x = 0, y = 0, z = 1 } }
-            :: List.map
-                (\face ->
-                    { vertices = [ face.v0, face.v1, face.v2, face.v3 ]
-                    , normal = face.normal
-                    }
-                )
-                faces
-    , vertices = List.concatMap (\face -> [ face.v1, face.v2 ]) faces
-    , uniqueEdges =
-        { x = 0, y = 0, z = 1 }
-            -- Rotate normals by 90 degrees to get edge directions
-            :: List.map (\{ normal } -> { x = -normal.y, y = normal.x, z = 0 })
-                (if modBy 2 detail_ == 0 then
-                    List.take (detail_ // 2) faces
+                (List.range 0 (subdivisions - 1))
 
-                 else
-                    faces
-                )
-    , uniqueNormals =
-        { x = 0, y = 0, z = 1 }
-            :: (if modBy 2 detail_ == 0 then
-                    List.take (detail_ // 2) faces |> List.map .normal
+        bottomCap =
+            { vertices = cap bottom, normal = Vec3.zNegative }
+
+        topCap =
+            { vertices = List.reverse (cap top), normal = Vec3.zAxis }
+
+        uniqueSideNormals =
+            List.map .normal <|
+                if modBy 2 subdivisions == 0 then
+                    List.take (subdivisions // 2) sides
 
                 else
-                    List.map .normal faces
-               )
-    , position = { x = 0, y = 0, z = 0 }
-    , inertia =
-        Mat3.cylinderInertia
-            volume
-            radius
-            length
+                    sides
+    in
+    { faces =
+        topCap
+            :: bottomCap
+            :: List.map
+                (\{ v0, v1, v2, v3, normal } ->
+                    { vertices = [ v0, v1, v2, v3 ], normal = normal }
+                )
+                sides
+    , vertices = topCap.vertices ++ bottomCap.vertices
+    , uniqueEdges =
+        Vec3.zAxis
+            -- Rotate normals by 90 degrees to get edge directions
+            :: List.map (\{ x, y } -> { x = -y, y = x, z = 0 }) uniqueSideNormals
+    , uniqueNormals = Vec3.zAxis :: uniqueSideNormals
+    , position = Vec3.zero
+    , inertia = Mat3.cylinderInertia volume radius length
     , volume = volume
     }
 
