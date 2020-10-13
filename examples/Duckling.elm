@@ -1,10 +1,21 @@
 module Duckling exposing (main)
 
+{-| This demo loads a convex shape and a mesh from the same obj file.
+
+  - elm-physics is used for simulation
+  - elm-3d-scene is used for rendering
+
+It is important to keep the convex shape as small as possible, because
+this affects the simulation performance.
+
+-}
+
 import Acceleration
 import Angle
 import Axis3d
 import Block3d exposing (Block3d)
 import Browser
+import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
@@ -20,8 +31,9 @@ import Physics.Body exposing (Body)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Physics.Shape
 import Physics.World exposing (World)
-import Pixels
+import Pixels exposing (Pixels)
 import Point3d
+import Quantity exposing (Quantity)
 import Scene3d
 import Scene3d.Material exposing (Texture)
 import Scene3d.Mesh exposing (Shadow, Textured)
@@ -80,18 +92,21 @@ floorBlock =
 type alias Model =
     { material : Maybe (Scene3d.Material.Textured BodyCoordinates)
     , world : World Data
+    , dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     }
 
 
 type Msg
     = LoadedTexture (Result WebGL.Texture.Error (Texture Color))
     | LoadedMeshes (Result Http.Error (Body Data))
+    | Resize Int Int
     | Tick Float
 
 
 init : () -> ( Model, Cmd Msg )
 init () =
     ( { material = Nothing
+      , dimensions = ( Pixels.int 0, Pixels.int 0 )
       , world =
             Physics.World.empty
                 |> Physics.World.withGravity
@@ -109,6 +124,9 @@ init () =
             { url = "Duckling.obj.txt" -- .txt is required to work with `elm reactor`
             , expect = Obj.Decode.expectObj LoadedMeshes Length.meters meshes
             }
+        , Task.perform
+            (\{ viewport } -> Resize (round viewport.width) (round viewport.height))
+            Browser.Dom.getViewport
         ]
     )
 
@@ -140,7 +158,7 @@ update msg model =
                                 |> Physics.World.add
                                     (body
                                         |> Physics.Body.rotateAround Axis3d.y (Angle.degrees -35)
-                                        |> Physics.Body.moveTo (Point3d.meters 0 -0.5 4)
+                                        |> Physics.Body.moveTo (Point3d.meters 0.1 -0.5 4)
                                     )
                                 |> Physics.World.add
                                     (body
@@ -167,6 +185,11 @@ update msg model =
             , Cmd.none
             )
 
+        Resize width height ->
+            ( { model | dimensions = ( Pixels.int width, Pixels.int height ) }
+            , Cmd.none
+            )
+
 
 view : Model -> Html Msg
 view model =
@@ -190,7 +213,7 @@ view model =
                 , sunlightDirection = Direction3d.negativeZ
                 , shadows = True
                 , camera = camera
-                , dimensions = ( Pixels.int 640, Pixels.int 640 )
+                , dimensions = model.dimensions
                 , background = Scene3d.transparentBackground
                 , clipDepth = Length.meters 0.1
                 , entities =
@@ -223,5 +246,11 @@ main =
         { init = init
         , update = update
         , view = view
-        , subscriptions = always (Browser.Events.onAnimationFrameDelta Tick)
+        , subscriptions =
+            always
+                (Sub.batch
+                    [ Browser.Events.onAnimationFrameDelta Tick
+                    , Browser.Events.onResize Resize
+                    ]
+                )
         }
