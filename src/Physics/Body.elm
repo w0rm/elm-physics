@@ -1,7 +1,7 @@
 module Physics.Body exposing
     ( Body, block, plane, sphere, particle
     , Behavior, dynamic, static, withBehavior
-    , frame, originPoint, velocity, angularVelocity, centerOfMass
+    , frame, originPoint, velocity, angularVelocity, velocityAt, centerOfMass, mass
     , moveTo, translateBy, rotateAround
     , data, withData
     , applyForce, applyImpulse
@@ -21,7 +21,7 @@ module Physics.Body exposing
 
 ## Properties
 
-@docs frame, originPoint, velocity, angularVelocity, centerOfMass
+@docs frame, originPoint, velocity, angularVelocity, velocityAt, centerOfMass, mass
 
 
 ## Position and orientation
@@ -196,14 +196,14 @@ other dynamic and static bodies.
 dynamic : Mass -> Behavior
 dynamic kilos =
     let
-        mass =
+        mass_ =
             Mass.inKilograms kilos
     in
-    if isNaN mass || isInfinite mass || mass <= 0 then
+    if isNaN mass_ || isInfinite mass_ || mass_ <= 0 then
         Static
 
     else
-        Dynamic mass
+        Dynamic mass_
 
 
 {-| Static bodies don’t move and only collide with dynamic bodies.
@@ -223,7 +223,7 @@ static =
 withBehavior : Behavior -> Body data -> Body data
 withBehavior behavior (Protected body) =
     case behavior of
-        Dynamic mass ->
+        Dynamic mass_ ->
             case body.shapes of
                 [] ->
                     Protected body
@@ -234,10 +234,10 @@ withBehavior behavior (Protected body) =
                             Protected body
 
                         _ ->
-                            Protected (Internal.updateMassProperties { body | mass = mass })
+                            Protected (Internal.updateMassProperties { body | mass = mass_ })
 
                 _ ->
-                    Protected (Internal.updateMassProperties { body | mass = mass })
+                    Protected (Internal.updateMassProperties { body | mass = mass_ })
 
         Static ->
             Protected (Internal.updateMassProperties { body | mass = 0 })
@@ -295,11 +295,48 @@ angularVelocity (Protected body) =
     Vector3d.unsafe body.angularVelocity
 
 
+{-| Get the linear velocity of a point on a body.
+
+This takes into account both linear and angular velocities of the body.
+
+-}
+velocityAt : Point3d Meters WorldCoordinates -> Body data -> Vector3d MetersPerSecond WorldCoordinates
+velocityAt point (Protected body) =
+    let
+        origin =
+            Transform3d.originPoint body.transform3d
+
+        { x, y, z } =
+            Point3d.toMeters point
+
+        originToPoint =
+            { x = x - origin.x
+            , y = y - origin.y
+            , z = z - origin.z
+            }
+
+        cross =
+            Vec3.cross body.angularVelocity originToPoint
+    in
+    Vector3d.unsafe (Vec3.add cross body.velocity)
+
+
 {-| Get the center of mass of a body in the body coordinate system.
 -}
 centerOfMass : Body data -> Point3d Meters BodyCoordinates
 centerOfMass (Protected { centerOfMassTransform3d }) =
     Point3d.fromMeters (Transform3d.originPoint centerOfMassTransform3d)
+
+
+{-| Get a mass of a body. Returns Nothing if a body is not dynamic.
+-}
+mass : Body data -> Maybe Mass
+mass (Protected body) =
+    if body.mass <= 0 then
+        Nothing
+
+    else
+        Just (Mass.kilograms body.mass)
 
 
 {-| Set the position of the body in the world,
