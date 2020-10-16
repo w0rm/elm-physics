@@ -1,17 +1,16 @@
 module Physics.Body exposing
-    ( Body, block, plane, sphere, particle
+    ( Body, block, plane, sphere, cylinder, particle
     , Behavior, dynamic, static, withBehavior
     , frame, originPoint, velocity, angularVelocity, velocityAt, centerOfMass, mass
     , moveTo, translateBy, rotateAround
     , data, withData
     , applyForce, applyImpulse
-    , withMaterial, compound, withDamping
-    , cylinder
+    , withMaterial, compound, withDamping, transformWithInverseInertia
     )
 
 {-|
 
-@docs Body, block, plane, sphere, particle
+@docs Body, block, plane, sphere, cylinder, particle
 
 
 ## Behavior
@@ -41,7 +40,7 @@ module Physics.Body exposing
 
 ## Advanced
 
-@docs withMaterial, compound, withDamping
+@docs withMaterial, compound, withDamping, transformWithInverseInertia
 
 -}
 
@@ -60,12 +59,12 @@ import Internal.Shape as InternalShape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Length exposing (Meters)
-import Mass exposing (Mass)
+import Mass exposing (Kilograms, Mass)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material exposing (Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d exposing (Point3d)
-import Quantity exposing (Product, Quantity(..))
+import Quantity exposing (Product, Quantity(..), Rate, Squared)
 import Speed exposing (MetersPerSecond)
 import Sphere3d exposing (Sphere3d)
 import Vector3d exposing (Vector3d)
@@ -570,4 +569,25 @@ withDamping { linear, angular } (Protected body) =
         { body
             | linearDamping = clamp 0 1 linear
             , angularDamping = clamp 0 1 angular
+        }
+
+
+{-| Transform a vector using the inverse moment of inertia of a body.
+
+This lets you compute angular acceleration from torque,
+or angular velocity contribution from impulse.
+
+You’ll most likely need to use [Vector3d.unwrap](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/Vector3d#unwrap) on the result.
+
+-}
+transformWithInverseInertia : Body data -> Vector3d units WorldCoordinates -> Vector3d (Rate units (Product Kilograms (Squared Meters))) WorldCoordinates
+transformWithInverseInertia (Protected { invInertiaWorld }) vector =
+    let
+        { x, y, z } =
+            Vector3d.unwrap vector
+    in
+    Vector3d.unsafe
+        { x = invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+        , y = invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+        , z = invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
         }
