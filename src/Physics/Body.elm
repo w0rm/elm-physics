@@ -2,7 +2,7 @@ module Physics.Body exposing
     ( Body, block, plane, sphere, cylinder, particle
     , Behavior, dynamic, static, withBehavior
     , frame, originPoint, velocity, angularVelocity, velocityAt, centerOfMass, mass
-    , moveTo, translateBy, rotateAround
+    , moveTo, translateBy, rotateAround, placeIn
     , data, withData
     , applyForce, applyImpulse
     , withMaterial, compound, withDamping, transformWithInverseInertia
@@ -25,7 +25,7 @@ module Physics.Body exposing
 
 ## Position and orientation
 
-@docs moveTo, translateBy, rotateAround
+@docs moveTo, translateBy, rotateAround, placeIn
 
 
 ## User-Defined Data
@@ -517,6 +517,52 @@ applyImpulse (Quantity impulse) direction point (Protected body) =
 
     else
         Protected body
+
+
+{-| Set body position and orientation in the world.
+-}
+placeIn : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body data -> Body data
+placeIn frame3d (Protected body) =
+    let
+        isRightHanded =
+            Frame3d.isRightHanded frame3d
+
+        rightHandedFrame3d =
+            if isRightHanded then
+                frame3d
+
+            else
+                Frame3d.reverseZ frame3d
+
+        origin =
+            Point3d.unwrap (Frame3d.originPoint rightHandedFrame3d)
+
+        x =
+            Direction3d.unwrap (Frame3d.xDirection rightHandedFrame3d)
+
+        y =
+            Direction3d.unwrap (Frame3d.yDirection rightHandedFrame3d)
+
+        z =
+            Direction3d.unwrap (Frame3d.zDirection rightHandedFrame3d)
+
+        transform =
+            Transform3d.fromOriginAndBasis origin x y z
+
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn body.transform3d
+                (Transform3d.inverse body.centerOfMassTransform3d)
+
+        newTransform3d =
+            Transform3d.placeIn
+                (Transform3d.placeIn transform bodyCoordinatesTransform3d)
+                body.centerOfMassTransform3d
+    in
+    Protected
+        { body
+            | transform3d = newTransform3d
+            , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+        }
 
 
 {-| Set the [material](Physics-Material) to control friction and bounciness.
