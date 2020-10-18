@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "w0rm/elm-physics",
-    "summary": "Experimental toy physics engine",
+    "summary": "3D physics engine",
     "license": "BSD-3-Clause",
     "version": "5.0.0",
     "exposed-modules": [

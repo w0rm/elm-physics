@@ -1,6 +1,6 @@
 module Duckling exposing (main)
 
-{-| This demo loads a convex shape and a mesh from the same obj file.
+{-| This demo loads a convex shape and a mesh from the same OBJ file.
 
   - elm-physics is used for simulation
   - elm-3d-scene is used for rendering

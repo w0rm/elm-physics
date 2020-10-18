@@ -2,7 +2,6 @@ module Randomize exposing (main)
 
 {-| This demo drops random bodies.
 It also shows how to make a compound body out of multiple shapes.
-If you click too fast, the bodies may be spawned inside each other.
 -}
 
 import Acceleration

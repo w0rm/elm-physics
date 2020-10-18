@@ -1,11 +1,8 @@
-module Physics.Shape exposing
-    ( Shape, block, sphere, unsafeConvex
-    , cylinder
-    )
+module Physics.Shape exposing (Shape, block, sphere, cylinder, unsafeConvex)
 
 {-|
 
-@docs Shape, block, sphere, unsafeConvex
+@docs Shape, block, sphere, cylinder, unsafeConvex
 
 -}
 
@@ -140,7 +137,7 @@ cylinder subdivisions cylinder3d =
         |> Protected
 
 
-{-| Create a shape from the triangular mesh. This is useful if you want
+{-| Create a shape from a triangular mesh. This is useful if you want
 to import from Blender using [elm-obj-file](https://package.elm-lang.org/packages/w0rm/elm-obj-file/latest).
 
 **Note:** this may cause unexpected behavior, unless you make sure that:

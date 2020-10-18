@@ -1,7 +1,7 @@
 module Cloth exposing (main)
 
-{-| Cloth simulation built using many particle bodies
-and distance constraints between adjacent points.
+{-| Cloth simulation built using many particle bodies,
+connected with distance constraints.
 -}
 
 import Acceleration

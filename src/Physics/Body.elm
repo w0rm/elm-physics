@@ -438,6 +438,7 @@ rotateAround axis angle (Protected body) =
         { body
             | transform3d = newTransform3d
             , worldShapes = InternalShape.shapesPlaceIn newTransform3d body.shapes
+            , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
         }
 
 

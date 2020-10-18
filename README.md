@@ -1,17 +1,16 @@
-# Physics
+# 3D Physics Engine
 
 ![elm-physics](https://raw.githubusercontent.com/w0rm/elm-physics/master/elm-physics.gif)
-
-Experimental toy physics engine.
 
 # Examples
 
 * Boxes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Boxes.elm), [demo](https://unsoundscapes.com/elm-physics/examples/boxes/))
-* Car ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Car.elm), [demo](https://unsoundscapes.com/elm-physics/examples/car/))
-* Cloth ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Cloth.elm), [demo](https://unsoundscapes.com/elm-physics/examples/cloth/))
-* Dominoes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Dominoes.elm), [demo](https://unsoundscapes.com/elm-physics/examples/dominoes/))
-* Drag ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Drag.elm), [demo](https://unsoundscapes.com/elm-physics/examples/drag/))
 * Randomize ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Randomize.elm), [demo](https://unsoundscapes.com/elm-physics/examples/randomize/))
+* Dominoes ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Dominoes.elm), [demo](https://unsoundscapes.com/elm-physics/examples/dominoes/))
+* Cloth ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Cloth.elm), [demo](https://unsoundscapes.com/elm-physics/examples/cloth/))
+* Car ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Car.elm), [demo](https://unsoundscapes.com/elm-physics/examples/car/))
+* Lack ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/examples/lack/))
+* Duckling ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/examples/duckling/))
 
 # Prior Work
 
