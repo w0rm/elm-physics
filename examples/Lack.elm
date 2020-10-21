@@ -188,20 +188,6 @@ camera =
 view : Model -> Html Msg
 view { world, width, height } =
     let
-        sunlight =
-            Light.directional (Light.castsShadows True)
-                { chromaticity = Light.daylight
-                , intensity = Illuminance.lux 10000
-                , direction = Direction3d.xyZ (Angle.degrees 135) (Angle.degrees -60)
-                }
-
-        daylight =
-            Light.overhead
-                { upDirection = Direction3d.z
-                , chromaticity = Light.daylight
-                , intensity = Illuminance.lux 15000
-                }
-
         entities =
             List.map
                 (\body ->
@@ -221,7 +207,7 @@ view { world, width, height } =
         ]
         [ Scene3d.sunny
             { upDirection = Direction3d.z
-            , sunlightDirection = Direction3d.negativeZ
+            , sunlightDirection = Direction3d.xyZ (Angle.degrees 135) (Angle.degrees -60)
             , shadows = True
             , camera = camera
             , dimensions =
