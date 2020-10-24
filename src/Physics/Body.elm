@@ -557,6 +557,8 @@ compound shapes newData =
 
 {-| Set linear and angular damping, in order to decrease velocity over time.
 
+These parameters specify the proportion of velocity lost per second.
+
 This may be useful to e.g. simulate the friction of a sphere rolling on
 the flat surface. The normal friction between these surfaces doesn’t work,
 because there is just 1 contact point.
