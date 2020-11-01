@@ -69,4 +69,12 @@ points (Protected contact) =
 -}
 centerPoint : Contact data -> Point3d Meters WorldCoordinates
 centerPoint (Protected contact) =
-    Point3d.centroid Point3d.origin (List.map .point contact.points)
+    case contact.points of
+        { point } :: remainingPoints ->
+            Point3d.centroid point
+                (List.map .point remainingPoints)
+
+        _ ->
+            -- This should never happen,
+            -- because contacts are never empty
+            Point3d.origin
