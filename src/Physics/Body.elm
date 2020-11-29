@@ -519,7 +519,7 @@ applyImpulse (Quantity impulse) direction point (Protected body) =
         Protected body
 
 
-{-| Set the [material](Physics-Material) to controll friction and bounciness.
+{-| Set the [material](Physics-Material) to control friction and bounciness.
 -}
 withMaterial : Material -> Body data -> Body data
 withMaterial (InternalMaterial.Protected material) (Protected body) =
@@ -540,7 +540,7 @@ For example, the [sphere](#sphere) from above can be defined like this:
 We only support [rigid bodies](https://en.wikipedia.org/wiki/Rigid_body).
 
 Under the hood, we find the center of mass and the [inertia tensor](https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor).
-It is assumed, that the shapes have the same dencity and do not overlap.
+It is assumed, that the shapes have the same density and do not overlap.
 
 -}
 compound : List Shape -> data -> Body data
