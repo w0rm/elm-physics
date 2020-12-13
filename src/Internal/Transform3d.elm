@@ -319,7 +319,7 @@ translateBy vector (Transform3d localOrigin localOrientation) =
 
 rotateAroundOwn : Vec3 -> Float -> Transform3d coordinates defines1 -> Transform3d coordinates defines2
 rotateAroundOwn axis angle (Transform3d localOrigin localOrientation) =
-    Transform3d localOrigin (mul localOrientation (fromAngleAxis angle axis))
+    Transform3d localOrigin (mul (fromAngleAxis angle axis) localOrientation)
 
 
 {-| angularDistance = angularVelocity x dt
