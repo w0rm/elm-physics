@@ -615,7 +615,7 @@ raycast { direction, from } convex =
                                     result
                                         && (Vec3.dot
                                                 (Vec3.sub intersectionPoint p1)
-                                                (Vec3.sub p2 p1)
+                                                (Vec3.cross normal (Vec3.sub p2 p1))
                                                 > 0
                                            )
                                 )

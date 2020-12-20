@@ -11,6 +11,7 @@
 * Car ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Car.elm), [demo](https://unsoundscapes.com/elm-physics/examples/car/))
 * Lack ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/examples/lack/))
 * Duckling ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/examples/duckling/))
+* Raycast ([source](https://github.com/w0rm/elm-physics/tree/master/examples/Raycast.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast/))
 
 # Prior Work
 
