@@ -599,14 +599,14 @@ updateFriction dt world frame updatedCar numWheelsOnGround currentWheels wheelFr
                                 |> Quantity.plus (Quantity.times sideImpulse sideImpulse)
 
                         isSliding =
-                            Quantity.lessThan (Quantity.times maximpSide maximpSide) impulseSquared
+                            Quantity.greaterThan (Quantity.times maximpSide maximpSide) impulseSquared
 
                         skidInfo =
                             if isSliding then
-                                1
+                                Quantity.ratio maximpSide (Quantity.sqrt impulseSquared)
 
                             else
-                                Quantity.ratio maximpSide (Quantity.sqrt impulseSquared)
+                                1
                     in
                     updateFriction
                         dt
