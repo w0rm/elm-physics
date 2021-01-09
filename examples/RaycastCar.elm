@@ -1,5 +1,17 @@
 module RaycastCar exposing (main)
 
+{-| This is a complex example implementing raycast vehicle enspired by:
+
+  - bullet3: <https://github.com/bulletphysics/bullet3/blob/master/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp>
+  - cannon.js: <https://github.com/schteppe/cannon.js/blob/master/src/objects/RaycastVehicle.js>
+
+This is a car with fake wheels, that shoots rays and applies
+impulses to the car body where the rays hit the ground.
+
+This allows to simulate suspension and results in smooth behavior.
+
+-}
+
 import Acceleration
 import Angle exposing (Angle)
 import Axis3d
