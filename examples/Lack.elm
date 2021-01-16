@@ -13,7 +13,7 @@ module Lack exposing (main)
 import Acceleration
 import Angle
 import Axis3d exposing (Axis3d)
-import Block3d
+import Block3d exposing (Block3d)
 import Browser
 import Browser.Dom
 import Browser.Events
@@ -21,17 +21,14 @@ import Camera3d exposing (Camera3d)
 import Color
 import Direction3d
 import Duration exposing (seconds)
-import Frame3d
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
-import Illuminance
 import Json.Decode exposing (Decoder)
 import Length exposing (Meters, meters, millimeters)
-import Luminance
 import Mass exposing (kilograms)
 import Physics.Body as Body exposing (Body)
-import Physics.Constraint
+import Physics.Constraint as Constraint
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Shape
 import Physics.World as World exposing (RaycastResult, World)
@@ -41,12 +38,10 @@ import Point2d
 import Point3d
 import Quantity exposing (Quantity)
 import Rectangle2d
-import Scene3d
-import Scene3d.Light as Light exposing (Light)
+import Scene3d exposing (Entity)
 import Scene3d.Material as Material
 import Sphere3d
 import Task
-import Vector3d
 import Viewpoint3d
 
 
@@ -56,23 +51,17 @@ type Id
     | Table
 
 
-type alias Data =
-    { entity : Scene3d.Entity BodyCoordinates
-    , id : Id
-    }
-
-
 type alias Model =
-    { world : World Data
+    { world : World Id
     , width : Quantity Float Pixels
     , height : Quantity Float Pixels
-    , maybeRaycastResult : Maybe (RaycastResult Data)
+    , maybeRaycastResult : Maybe (RaycastResult Id)
     }
 
 
 type Msg
     = AnimationFrame
-    | Resize (Quantity Float Pixels) (Quantity Float Pixels)
+    | Resize Int Int
     | MouseDown (Axis3d Meters WorldCoordinates)
     | MouseMove (Axis3d Meters WorldCoordinates)
     | MouseUp
@@ -97,78 +86,51 @@ init _ =
       }
     , Task.perform
         (\{ viewport } ->
-            Resize (pixels viewport.width) (pixels viewport.height)
+            Resize (round viewport.width) (round viewport.height)
         )
         Browser.Dom.getViewport
     )
 
 
-initialWorld : World Data
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.batch
+        [ Browser.Events.onResize Resize
+        , Browser.Events.onAnimationFrame (\_ -> AnimationFrame)
+        ]
+
+
+initialWorld : World Id
 initialWorld =
     World.empty
-        |> World.withGravity
-            (Acceleration.metersPerSecondSquared 9.80665)
-            Direction3d.negativeZ
+        |> World.withGravity (Acceleration.gees 1) Direction3d.negativeZ
         |> World.add table
-        |> World.add floor
+        |> World.add (Body.plane Floor)
 
 
-floor : Body Data
-floor =
-    let
-        shape =
-            Block3d.centeredOn Frame3d.atOrigin
-                ( meters 25, meters 25, millimeters 10 )
-    in
-    Body.plane
-        { id = Floor
-        , entity =
-            shape
-                |> Scene3d.block (Material.matte Color.darkCharcoal)
-                |> Scene3d.translateBy (Vector3d.millimeters 0 0 -5)
-        }
+tableBlocks : List (Block3d Meters BodyCoordinates)
+tableBlocks =
+    [ Block3d.from
+        (Point3d.millimeters 222 222 0)
+        (Point3d.millimeters 272 272 400)
+    , Block3d.from
+        (Point3d.millimeters -272 222 0)
+        (Point3d.millimeters -222 272 400)
+    , Block3d.from
+        (Point3d.millimeters -272 -272 0)
+        (Point3d.millimeters -222 -222 400)
+    , Block3d.from
+        (Point3d.millimeters 222 -272 0)
+        (Point3d.millimeters 272 -222 400)
+    , Block3d.from
+        (Point3d.millimeters -275 -275 400)
+        (Point3d.millimeters 275 275 450)
+    ]
 
 
-table : Body Data
+table : Body Id
 table =
-    let
-        blocks =
-            [ Block3d.from
-                (Point3d.millimeters 222 222 0)
-                (Point3d.millimeters 272 272 400)
-            , Block3d.from
-                (Point3d.millimeters -272 222 0)
-                (Point3d.millimeters -222 272 400)
-            , Block3d.from
-                (Point3d.millimeters -272 -272 0)
-                (Point3d.millimeters -222 -222 400)
-            , Block3d.from
-                (Point3d.millimeters 222 -272 0)
-                (Point3d.millimeters 272 -222 400)
-            , Block3d.from
-                (Point3d.millimeters -275 -275 400)
-                (Point3d.millimeters 275 275 450)
-            ]
-
-        shapes =
-            blocks
-                |> List.map Physics.Shape.block
-
-        entities =
-            blocks
-                |> List.map
-                    (Scene3d.blockWithShadow
-                        (Material.nonmetal
-                            { baseColor = Color.white
-                            , roughness = 0.25
-                            }
-                        )
-                    )
-    in
-    Body.compound shapes
-        { id = Table
-        , entity = Scene3d.group entities
-        }
+    Body.compound (List.map Physics.Shape.block tableBlocks) Table
         |> Body.withBehavior (Body.dynamic (kilograms 3.58))
 
 
@@ -187,16 +149,6 @@ camera =
 
 view : Model -> Html Msg
 view { world, width, height } =
-    let
-        entities =
-            List.map
-                (\body ->
-                    Scene3d.placeIn
-                        (Body.frame body)
-                        (Body.data body).entity
-                )
-                (World.bodies world)
-    in
     Html.div
         [ Html.Attributes.style "position" "absolute"
         , Html.Attributes.style "left" "0"
@@ -216,20 +168,44 @@ view { world, width, height } =
                 )
             , background = Scene3d.transparentBackground
             , clipDepth = Length.meters 0.1
-            , entities = entities
+            , entities = List.map bodyToEntity (World.bodies world)
             }
         ]
 
 
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Browser.Events.onResize
-            (\width height ->
-                Resize (pixels (toFloat width)) (pixels (toFloat height))
-            )
-        , Browser.Events.onAnimationFrame (\_ -> AnimationFrame)
-        ]
+bodyToEntity : Body Id -> Entity WorldCoordinates
+bodyToEntity body =
+    let
+        frame =
+            Body.frame body
+
+        id =
+            Body.data body
+    in
+    Scene3d.placeIn frame <|
+        case id of
+            Mouse ->
+                Scene3d.sphere (Material.matte Color.white)
+                    (Sphere3d.atOrigin (millimeters 20))
+
+            Table ->
+                tableBlocks
+                    |> List.map
+                        (Scene3d.blockWithShadow
+                            (Material.nonmetal
+                                { baseColor = Color.white
+                                , roughness = 0.25
+                                }
+                            )
+                        )
+                    |> Scene3d.group
+
+            Floor ->
+                Scene3d.quad (Material.matte Color.darkCharcoal)
+                    (Point3d.meters -15 -15 0)
+                    (Point3d.meters -15 15 0)
+                    (Point3d.meters 15 15 0)
+                    (Point3d.meters 15 -15 0)
 
 
 update : Msg -> Model -> Model
@@ -239,47 +215,47 @@ update msg model =
             { model | world = World.simulate (seconds (1 / 60)) model.world }
 
         Resize width height ->
-            { model | width = width, height = height }
+            { model
+                | width = Pixels.float (toFloat width)
+                , height = Pixels.float (toFloat height)
+            }
 
         MouseDown mouseRay ->
-            let
-                maybeRaycastResult =
-                    model.world
-                        |> World.keepIf
-                            (\body -> (Body.data body).id == Table)
-                        |> World.raycast mouseRay
-            in
-            case maybeRaycastResult of
+            case World.raycast mouseRay model.world of
                 Just raycastResult ->
-                    let
-                        worldPoint =
-                            Point3d.placeIn
-                                (Body.frame raycastResult.body)
-                                raycastResult.point
+                    case Body.data raycastResult.body of
+                        Table ->
+                            let
+                                worldPoint =
+                                    Point3d.placeIn
+                                        (Body.frame raycastResult.body)
+                                        raycastResult.point
 
-                        selectedId =
-                            (Body.data raycastResult.body).id
-                    in
-                    { model
-                        | maybeRaycastResult = Just raycastResult
-                        , world =
-                            model.world
-                                |> World.add (Body.moveTo worldPoint mouse)
-                                |> World.constrain
-                                    (\b1 b2 ->
-                                        if
-                                            ((Body.data b1).id == Mouse)
-                                                && ((Body.data b2).id == selectedId)
-                                        then
-                                            [ Physics.Constraint.pointToPoint
-                                                Point3d.origin
-                                                raycastResult.point
-                                            ]
+                                mouse =
+                                    Body.compound [] Mouse
+                                        |> Body.moveTo worldPoint
+                            in
+                            { model
+                                | maybeRaycastResult = Just raycastResult
+                                , world =
+                                    model.world
+                                        |> World.add mouse
+                                        |> World.constrain
+                                            (\b1 b2 ->
+                                                case ( Body.data b1, Body.data b2 ) of
+                                                    ( Mouse, Table ) ->
+                                                        [ Constraint.pointToPoint
+                                                            Point3d.origin
+                                                            raycastResult.point
+                                                        ]
 
-                                        else
-                                            []
-                                    )
-                    }
+                                                    _ ->
+                                                        []
+                                            )
+                            }
+
+                        _ ->
+                            model
 
                 Nothing ->
                     model
@@ -302,7 +278,7 @@ update msg model =
                         | world =
                             World.update
                                 (\body ->
-                                    if (Body.data body).id == Mouse then
+                                    if Body.data body == Mouse then
                                         case Axis3d.intersectionWithPlane plane mouseRay of
                                             Just intersection ->
                                                 Body.moveTo intersection body
@@ -324,19 +300,9 @@ update msg model =
                 | maybeRaycastResult = Nothing
                 , world =
                     World.keepIf
-                        (\body -> (Body.data body).id /= Mouse)
+                        (\body -> Body.data body /= Mouse)
                         model.world
             }
-
-
-mouse : Body Data
-mouse =
-    Body.compound []
-        { id = Mouse
-        , entity =
-            Scene3d.sphere (Material.matte Color.white)
-                (Sphere3d.atOrigin (millimeters 20))
-        }
 
 
 decodeMouseRay :
