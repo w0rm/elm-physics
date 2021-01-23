@@ -11,21 +11,16 @@ module Common.Meshes exposing
     , triangularMesh
     )
 
-import Angle
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
-import Direction2d
 import Direction3d
-import Frame3d exposing (Frame3d)
-import Length exposing (Length, Meters, inMeters)
+import Frame3d
+import Length exposing (Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
-import Quantity exposing (zero)
-import SketchPlane3d
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
-import Vector3d
 import WebGL exposing (Mesh)
 
 

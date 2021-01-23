@@ -15,12 +15,10 @@ import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
-import Quantity
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
-import Vector3d
 
 
 {-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.

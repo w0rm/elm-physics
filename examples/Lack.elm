@@ -25,7 +25,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Decode exposing (Decoder)
-import Length exposing (Meters, meters, millimeters)
+import Length exposing (Meters, millimeters)
 import Mass exposing (kilograms)
 import Physics.Body as Body exposing (Body)
 import Physics.Constraint as Constraint
