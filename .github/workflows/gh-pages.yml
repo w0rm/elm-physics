@@ -1,0 +1,36 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  gh-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: git config --global user.name "Andrey Kuzmin"
+      - run: git config --global user.email "unsoundscapes@gmail.com"
+
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "12"
+
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.npm
+            ~/.elm
+            elm-stuff
+          key: ${{ runner.os }}-cache
+
+      - run: npm install -g elm@latest-0.19.1 elm-test@0.19.1-revision4
+
+      - run: elm-test
+
+      - uses: actions/checkout@v2
+        with:
+          path: gh-pages
+          ref: gh-pages
+      - run: ./scripts/gh-pages.sh

@@ -1,7 +1,7 @@
 {
     "type": "application",
     "source-directories": [
-        ".",
+        "src",
         "../src"
     ],
     "elm-version": "0.19.1",
@@ -22,7 +22,7 @@
             "ianmackenzie/elm-geometry-linear-algebra-interop": "2.0.2",
             "ianmackenzie/elm-triangular-mesh": "1.0.4",
             "ianmackenzie/elm-units": "2.7.0",
-            "w0rm/elm-obj-file": "1.0.0"
+            "w0rm/elm-obj-file": "1.0.1"
         },
         "indirect": {
             "elm/bytes": "1.0.8",
