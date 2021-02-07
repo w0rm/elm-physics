@@ -31,7 +31,7 @@ for example in *.elm; do
   mkdir -p ../../gh-pages$version_path/examples/$lower
   elm make $example --optimize --output ../../gh-pages$version_path/examples/$lower/index.html
 done
-cp Duckling.obj.txt Duckling.png ../../gh-pages$version_path/examples/pod
+cp Duckling.obj.txt Duckling.png ../../gh-pages$version_path/examples/duckling
 cp ../elm-physics.gif ../../gh-pages$version_path/examples
 
 cd ../../gh-pages
