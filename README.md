@@ -4,10 +4,10 @@
 
 # Examples
 
-- Lack ([source](https://github.com/w0rm/elm-physics/tree/main/examples/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/examples/lack/))
-- Duckling ([source](https://github.com/w0rm/elm-physics/tree/main/examples/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/examples/duckling/))
-- Raycast ([source](https://github.com/w0rm/elm-physics/tree/main/examples/Raycast.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast/))
-- RaycastCar ([source](https://github.com/w0rm/elm-physics/tree/main/examples/RaycastCar.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast-car/))
+- Lack ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/examples/lack/))
+- Duckling ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/examples/duckling/))
+- Raycast ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Raycast.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast/))
+- RaycastCar ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/RaycastCar.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast-car/))
 
 # Prior Work
 
