@@ -5849,10 +5849,10 @@ function _WebGL_doBindSetup(gl, mesh) {
  *
  *  @param {List} indicesList the list of indices
  *  @param {Number} indexSize the size of the index
- *  @return {Uint16Array} indices
+ *  @return {Uint32Array} indices
  */
 function _WebGL_makeIndexedBuffer(indicesList, indexSize) {
-  var indices = new Uint16Array(_WebGL_listLength(indicesList) * indexSize);
+  var indices = new Uint32Array(_WebGL_listLength(indicesList) * indexSize);
   var fillOffset = 0;
   var i;
   _WebGL_listEach(function (elem) {
@@ -6015,7 +6015,7 @@ var _WebGL_drawGL = F2(function (model, domNode) {
 
     if (buffer.indexBuffer) {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer.indexBuffer);
-      gl.drawElements(entity.d.a.eO, buffer.numIndices, gl.UNSIGNED_SHORT, 0);
+      gl.drawElements(entity.d.a.eO, buffer.numIndices, gl.UNSIGNED_INT, 0);
     } else {
       gl.drawArrays(entity.d.a.eO, 0, buffer.numIndices);
     }
@@ -6214,8 +6214,9 @@ function _WebGL_render(model) {
       sceneSetting(gl);
     });
 
-    // Activate OES_standard_derivatives extension
+    // Activate extensions
     gl.getExtension('OES_standard_derivatives');
+    gl.getExtension('OES_element_index_uint');
 
     model.f.gl = gl;
 
