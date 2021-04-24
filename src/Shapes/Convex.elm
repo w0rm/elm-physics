@@ -1,7 +1,6 @@
 module Shapes.Convex exposing
     ( Convex
     , Face
-    , addDirectionIfDistinct
     , computeNormal
     , expandBoundingSphereRadius
     , extendContour

@@ -1,6 +1,5 @@
 module Matrix3Test exposing (inverse)
 
-import Expect
 import Extra.Expect as Expect
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Test exposing (Test, describe, test)

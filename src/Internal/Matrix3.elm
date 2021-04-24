@@ -5,7 +5,6 @@ module Internal.Matrix3 exposing
     , inverse
     , mul
     , pointInertia
-    , rotateInertia
     , scale
     , sphereInertia
     , sub
@@ -146,15 +145,6 @@ transpose m =
     , m23 = m.m32
     , m33 = m.m33
     }
-
-
-{-| Rotates the moment of inertia
--}
-rotateInertia : Mat3 -> Mat3 -> Mat3
-rotateInertia rotation localInertia =
-    mul
-        (transpose rotation)
-        (mul localInertia rotation)
 
 
 {-| Calculates the moment of inertia of a point mass at a certain position

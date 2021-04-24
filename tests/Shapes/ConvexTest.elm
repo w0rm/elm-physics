@@ -8,15 +8,13 @@ module Shapes.ConvexTest exposing
     , volume
     )
 
-import Array exposing (Array)
 import Block3d exposing (vertices)
 import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
-import Internal.Const as Const
 import Internal.Transform3d as Transform3d
-import Internal.Vector3 as Vec3 exposing (Vec3)
-import Shapes.Convex as Convex exposing (Convex)
+import Internal.Vector3 as Vec3
+import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
 
