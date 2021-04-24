@@ -160,6 +160,7 @@ icoSphere =
         Err _ ->
             Body.compound [] (Meshes.fromTriangles [])
 
+
 cube : Body Meshes
 cube =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
@@ -170,7 +171,6 @@ cube =
 
         Err _ ->
             Body.compound [] (Meshes.fromTriangles [])
-
 
 
 cubeObj : String

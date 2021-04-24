@@ -2,9 +2,9 @@ module Convex exposing (main)
 
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
-import Shapes.Convex as Convex
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Shapes.Convex as Convex
 
 
 main : BenchmarkProgram
@@ -13,7 +13,6 @@ main =
         describe "Convex"
             [ placeIn
             ]
-
 
 
 placeIn : Benchmark

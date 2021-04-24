@@ -3,9 +3,9 @@ module ConvexConvex exposing (main)
 import Benchmark exposing (Benchmark, describe)
 import Benchmark.Runner exposing (BenchmarkProgram, program)
 import Collision.ConvexConvex
-import Shapes.Convex as Convex exposing (Convex)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Shapes.Convex as Convex exposing (Convex)
 
 
 main : BenchmarkProgram
