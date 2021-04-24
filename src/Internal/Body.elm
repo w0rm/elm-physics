@@ -3,7 +3,6 @@ module Internal.Body exposing
     , Protected(..)
     , applyForce
     , applyImpulse
-    , centerOfMass
     , compound
     , raycast
     , updateMassProperties

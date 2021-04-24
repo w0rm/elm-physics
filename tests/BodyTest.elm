@@ -9,7 +9,7 @@ import Internal.Shape as Shape exposing (Shape)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Physics.Coordinates exposing (BodyCoordinates)
-import Shapes.Convex as Convex exposing (Convex)
+import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
 

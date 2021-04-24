@@ -1,6 +1,5 @@
 module Transform3dTest exposing (directionRelativeTo, inverse, pointRelativeTo, relativeTo)
 
-import Expect
 import Extra.Expect as Expect
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
