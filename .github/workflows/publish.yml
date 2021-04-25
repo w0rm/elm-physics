@@ -28,7 +28,7 @@ jobs:
             ~/.elm
           key: ${{ runner.os }}-cache
 
-      - run: npm install -g elm@latest-0.19.1 elm-test@0.19.1-revision6 elm-review@2.5.0 elm-format@0.8.5 uglify-js@3.4.7
+      - run: npm install -g elm@latest-0.19.1 elm-test@0.19.1-revision6 elm-review@2.5.0 elm-format@0.8.5
 
       - run: elm-format --validate .
 
