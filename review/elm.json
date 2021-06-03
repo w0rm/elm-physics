@@ -12,6 +12,7 @@
             "jfmengels/elm-review": "2.4.1",
             "jfmengels/elm-review-simplify": "1.0.1",
             "jfmengels/elm-review-unused": "1.1.9",
+            "jfmengels/elm-review-performance": "1.0.0",
             "stil4m/elm-syntax": "7.2.2"
         },
         "indirect": {
