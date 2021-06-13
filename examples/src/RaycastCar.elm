@@ -93,8 +93,7 @@ type alias Wheel =
     , steering : Angle
     , rotation : Angle
     , deltaRotation : Angle
-    , suspensionImpulse :
-        Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
+    , suspensionImpulse : Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
     , suspensionLength : Length
     , engineForce : Force
     , brake : Force
@@ -163,7 +162,7 @@ keyDecoder toMsg =
 
 
 type Msg
-    = Tick Float
+    = Tick
     | Resize Int Int
     | KeyDown Command
     | KeyUp Command
@@ -198,7 +197,7 @@ init _ =
 update : Msg -> Model -> Model
 update msg model =
     case msg of
-        Tick _ ->
+        Tick ->
             { model
                 | world =
                     model.world
@@ -254,7 +253,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize Resize
-        , Browser.Events.onAnimationFrameDelta Tick
+        , Browser.Events.onAnimationFrameDelta (always Tick)
         , Browser.Events.onKeyDown (keyDecoder KeyDown)
         , Browser.Events.onKeyUp (keyDecoder KeyUp)
         ]

@@ -207,12 +207,10 @@ view { selection, width, height } =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    Sub.batch
-        [ Browser.Events.onResize
-            (\width height ->
-                Resize (pixels (toFloat width)) (pixels (toFloat height))
-            )
-        ]
+    Browser.Events.onResize
+        (\width height ->
+            Resize (pixels (toFloat width)) (pixels (toFloat height))
+        )
 
 
 update : Msg -> Model -> Model

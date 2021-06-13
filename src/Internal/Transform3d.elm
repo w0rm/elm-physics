@@ -79,7 +79,7 @@ fromOriginAndBasis origin x y z =
                 (0.25 * s)
             )
 
-    else if (m00 > m11) && (m00 > m22) then
+    else if (m00 - m11 > 0) && (m00 - m22 > 0) then
         let
             s =
                 -- s=4*qx
@@ -93,7 +93,7 @@ fromOriginAndBasis origin x y z =
                 ((m21 - m12) / s)
             )
 
-    else if m11 > m22 then
+    else if m11 - m22 > 0 then
         let
             s =
                 -- s=4*qy

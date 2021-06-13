@@ -100,7 +100,7 @@ type Msg
     = LoadedTexture (Result WebGL.Texture.Error (Texture Color))
     | LoadedMeshes (Result Http.Error (Body Data))
     | Resize Int Int
-    | Tick Float
+    | Tick
 
 
 init : () -> ( Model, Cmd Msg )
@@ -177,7 +177,7 @@ update msg model =
                 Err _ ->
                     ( model, Cmd.none )
 
-        Tick _ ->
+        Tick ->
             ( { model
                 | world =
                     Physics.World.simulate (Duration.milliseconds 16) model.world
@@ -249,7 +249,7 @@ main =
         , subscriptions =
             always
                 (Sub.batch
-                    [ Browser.Events.onAnimationFrameDelta Tick
+                    [ Browser.Events.onAnimationFrameDelta (always Tick)
                     , Browser.Events.onResize Resize
                     ]
                 )

@@ -38,7 +38,7 @@ convexContact particlePosition faces bestDepth bestContact =
                         (Vec3.sub point particlePosition)
             in
             if dot >= 0 then
-                if dot < bestDepth then
+                if dot - bestDepth < 0 then
                     convexContact
                         particlePosition
                         remainingFaces
