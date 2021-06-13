@@ -7218,14 +7218,14 @@ var $author$project$Internal$Transform3d$fromOriginAndBasis = F4(
 				origin,
 				A4($author$project$Internal$Transform3d$Orientation3d, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s, 0.25 * s));
 		} else {
-			if ((_Utils_cmp(m00, m11) > 0) && (_Utils_cmp(m00, m22) > 0)) {
+			if (((m00 - m11) > 0) && ((m00 - m22) > 0)) {
 				var s = $elm$core$Basics$sqrt(((1.0 + m00) - m11) - m22) * 2;
 				return A2(
 					$author$project$Internal$Transform3d$Transform3d,
 					origin,
 					A4($author$project$Internal$Transform3d$Orientation3d, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s));
 			} else {
-				if (_Utils_cmp(m11, m22) > 0) {
+				if ((m11 - m22) > 0) {
 					var s = $elm$core$Basics$sqrt(((1.0 + m11) - m00) - m22) * 2;
 					return A2(
 						$author$project$Internal$Transform3d$Transform3d,
@@ -8360,9 +8360,11 @@ var $author$project$RaycastCar$KeyDown = function (a) {
 var $author$project$RaycastCar$KeyUp = function (a) {
 	return {$: 3, a: a};
 };
-var $author$project$RaycastCar$Tick = function (a) {
-	return {$: 0, a: a};
-};
+var $author$project$RaycastCar$Tick = {$: 0};
+var $elm$core$Basics$always = F2(
+	function (a, _v0) {
+		return a;
+	});
 var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $author$project$RaycastCar$Brake = {$: 2};
 var $author$project$RaycastCar$Speed = function (a) {
@@ -8958,7 +8960,8 @@ var $author$project$RaycastCar$subscriptions = function (_v0) {
 		_List_fromArray(
 			[
 				$elm$browser$Browser$Events$onResize($author$project$RaycastCar$Resize),
-				$elm$browser$Browser$Events$onAnimationFrameDelta($author$project$RaycastCar$Tick),
+				$elm$browser$Browser$Events$onAnimationFrameDelta(
+				$elm$core$Basics$always($author$project$RaycastCar$Tick)),
 				$elm$browser$Browser$Events$onKeyDown(
 				$author$project$RaycastCar$keyDecoder($author$project$RaycastCar$KeyDown)),
 				$elm$browser$Browser$Events$onKeyUp(
@@ -9424,7 +9427,7 @@ var $author$project$Collision$ParticleConvex$convexContact = F4(
 					normal,
 					A2($author$project$Internal$Vector3$sub, point, particlePosition));
 				if (dot >= 0) {
-					if (_Utils_cmp(dot, bestDepth) < 0) {
+					if ((dot - bestDepth) < 0) {
 						var $temp$particlePosition = particlePosition,
 							$temp$faces = remainingFaces,
 							$temp$bestDepth = dot,

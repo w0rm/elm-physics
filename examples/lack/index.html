@@ -7801,14 +7801,14 @@ var $author$project$Internal$Transform3d$fromOriginAndBasis = F4(
 				origin,
 				A4($author$project$Internal$Transform3d$Orientation3d, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s, 0.25 * s));
 		} else {
-			if ((_Utils_cmp(m00, m11) > 0) && (_Utils_cmp(m00, m22) > 0)) {
+			if (((m00 - m11) > 0) && ((m00 - m22) > 0)) {
 				var s = $elm$core$Basics$sqrt(((1.0 + m00) - m11) - m22) * 2;
 				return A2(
 					$author$project$Internal$Transform3d$Transform3d,
 					origin,
 					A4($author$project$Internal$Transform3d$Orientation3d, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s));
 			} else {
-				if (_Utils_cmp(m11, m22) > 0) {
+				if ((m11 - m22) > 0) {
 					var s = $elm$core$Basics$sqrt(((1.0 + m11) - m00) - m22) * 2;
 					return A2(
 						$author$project$Internal$Transform3d$Transform3d,
@@ -9065,7 +9065,7 @@ var $author$project$Physics$World$constrainIf = F3(
 				return !A2(
 					$elm$core$List$any,
 					function (body) {
-						return _Utils_eq(body.dU, bodyId1) || _Utils_eq(body.dU, bodyId2);
+						return (!(body.dU - bodyId1)) || (!(body.dU - bodyId2));
 					},
 					filteredBodies);
 			},
@@ -10010,7 +10010,7 @@ var $author$project$Collision$ParticleConvex$convexContact = F4(
 					normal,
 					A2($author$project$Internal$Vector3$sub, point, particlePosition));
 				if (dot >= 0) {
-					if (_Utils_cmp(dot, bestDepth) < 0) {
+					if ((dot - bestDepth) < 0) {
 						var $temp$particlePosition = particlePosition,
 							$temp$faces = remainingFaces,
 							$temp$bestDepth = dot,

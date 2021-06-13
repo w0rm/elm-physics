@@ -6581,9 +6581,7 @@ var $author$project$Duckling$Resize = F2(
 	function (a, b) {
 		return {$: 2, a: a, b: b};
 	});
-var $author$project$Duckling$Tick = function (a) {
-	return {$: 3, a: a};
-};
+var $author$project$Duckling$Tick = {$: 3};
 var $elm$core$Basics$always = F2(
 	function (a, _v0) {
 		return a;
@@ -12786,7 +12784,7 @@ var $author$project$Collision$ParticleConvex$convexContact = F4(
 					normal,
 					A2($author$project$Internal$Vector3$sub, point, particlePosition));
 				if (dot >= 0) {
-					if (_Utils_cmp(dot, bestDepth) < 0) {
+					if ((dot - bestDepth) < 0) {
 						var $temp$particlePosition = particlePosition,
 							$temp$faces = remainingFaces,
 							$temp$bestDepth = dot,
@@ -17845,7 +17843,8 @@ var $author$project$Duckling$main = $elm$browser$Browser$element(
 			$elm$core$Platform$Sub$batch(
 				_List_fromArray(
 					[
-						$elm$browser$Browser$Events$onAnimationFrameDelta($author$project$Duckling$Tick),
+						$elm$browser$Browser$Events$onAnimationFrameDelta(
+						$elm$core$Basics$always($author$project$Duckling$Tick)),
 						$elm$browser$Browser$Events$onResize($author$project$Duckling$Resize)
 					]))),
 		ge: $author$project$Duckling$update,
