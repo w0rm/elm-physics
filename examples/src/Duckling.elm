@@ -4,6 +4,7 @@ module Duckling exposing (main)
 
   - elm-physics is used for simulation
   - elm-3d-scene is used for rendering
+  - elm-obj-file is used for loading OBJ file
 
 It is important to keep the convex shape as small as possible, because
 this affects the simulation performance.
