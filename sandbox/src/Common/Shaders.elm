@@ -25,57 +25,58 @@ type alias Uniforms =
     }
 
 
-vertex : Shader Attributes Uniforms { vlighting : Float }
+vertex : Shader Attributes Uniforms { vposition : Vec3 }
 vertex =
     [glsl|
         attribute vec3 position;
-        attribute vec3 normal;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
-        uniform vec3 lightDirection;
-        varying float vlighting;
+        varying vec3 vposition;
         void main () {
-          float ambientLight = 0.4;
-          float directionalLight = 0.6;
-          gl_Position = perspective * camera * transform * vec4(position, 1.0);
-          vec4 transformedNormal = normalize(transform * vec4(normal, 0.0));
-          float directional = max(dot(transformedNormal.xyz, lightDirection), 0.0);
-          vlighting = ambientLight + directional * directionalLight;
+          vec4 worldPosition = transform * vec4(position, 1.0);
+          vposition = worldPosition.xyz;
+          gl_Position = perspective * camera * worldPosition;
         }
     |]
 
 
-fragment : Shader {} Uniforms { vlighting : Float }
+fragment : Shader {} Uniforms { vposition : Vec3 }
 fragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
-        varying float vlighting;
+        uniform vec3 lightDirection;
+        varying vec3 vposition;
         void main () {
+          float ambientLight = 0.4;
+          float directionalLight = 0.6;
+          vec3 normal = -normalize(cross(dFdx(vposition), dFdy(vposition)));
+          float directional = max(dot(normal, lightDirection), 0.0);
+          float vlighting = ambientLight + directional * directionalLight;
           gl_FragColor = vec4(vlighting * color, 1.0);
         }
     |]
 
 
-wireframeFragment : Shader {} Uniforms { vlighting : Float }
+wireframeFragment : Shader {} Uniforms { vposition : Vec3 }
 wireframeFragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
-        varying float vlighting;
+        varying vec3 vposition;
         void main () {
           gl_FragColor = vec4(color, 1.0);
         }
     |]
 
 
-shadowFragment : Shader {} Uniforms { vlighting : Float }
+shadowFragment : Shader {} Uniforms { vposition : Vec3 }
 shadowFragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
-        varying float vlighting;
+        varying vec3 vposition;
         void main () {
           gl_FragColor = vec4(color, 1);
         }

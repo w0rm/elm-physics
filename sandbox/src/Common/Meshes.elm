@@ -25,9 +25,7 @@ import WebGL exposing (Mesh)
 
 
 type alias Attributes =
-    { position : Vec3
-    , normal : Vec3
-    }
+    { position : Vec3 }
 
 
 
@@ -183,9 +181,6 @@ pyramid halfbase baserise =
 
 
 {-| Code taken from elm-3d-scene's Primitives module.
-
-TODO: create this mesh from Cylinder3d
-
 -}
 cylinder : Int -> Cylinder3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
 cylinder subdivisions cylinder3d =
@@ -346,11 +341,4 @@ octahedron radius =
 
 facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
 facet a b c =
-    let
-        n =
-            Vec3.cross (Vec3.sub b a) (Vec3.sub b c)
-    in
-    ( Attributes a n
-    , Attributes b n
-    , Attributes c n
-    )
+    ( Attributes a, Attributes b, Attributes c )
