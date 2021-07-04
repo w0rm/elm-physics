@@ -13,7 +13,7 @@ import Browser.Events
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
@@ -33,12 +33,13 @@ import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
 import Sphere3d
 import Vector3d
+import WebGL exposing (Mesh)
 
 
 {-| Give a name to each body, so that we can configure constraints
 -}
 type alias Data =
-    { meshes : Meshes
+    { mesh : Mesh Attributes
     , name : String
     }
 
@@ -194,7 +195,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = .meshes
+            , mesh = .mesh
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -357,7 +358,7 @@ floorOffset =
 -}
 floor : Body Data
 floor =
-    Body.plane { name = "floor", meshes = Meshes.fromTriangles [] }
+    Body.plane { name = "floor", mesh = Meshes.fromTriangles [] }
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
@@ -376,7 +377,7 @@ slope =
     in
     Body.block block3d
         { name = "slope"
-        , meshes = Meshes.fromTriangles (Meshes.block block3d)
+        , mesh = Meshes.fromTriangles (Meshes.block block3d)
         }
         |> Body.rotateAround Axis3d.x (Angle.radians (pi / 16))
         |> Body.moveTo (Point3d.meters 0 -2 1)
@@ -398,7 +399,7 @@ base =
     Body.compound
         [ Shape.block top, Shape.block bottom ]
         { name = "base"
-        , meshes = Meshes.fromTriangles (Meshes.block bottom ++ Meshes.block top)
+        , mesh = Meshes.fromTriangles (Meshes.block bottom ++ Meshes.block top)
         }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 80))
 
@@ -411,6 +412,6 @@ wheel name =
     in
     Body.sphere sphere
         { name = name
-        , meshes = Meshes.fromTriangles (Meshes.sphere 2 sphere)
+        , mesh = Meshes.fromTriangles (Meshes.sphere 2 sphere)
         }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 2))

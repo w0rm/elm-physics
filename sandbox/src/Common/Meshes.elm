@@ -1,6 +1,5 @@
 module Common.Meshes exposing
     ( Attributes
-    , Meshes
     , block
     , contact
     , cylinder
@@ -16,6 +15,7 @@ import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
 import Length exposing (Meters, inMeters)
+import Math.Vector2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
@@ -25,7 +25,9 @@ import WebGL exposing (Mesh)
 
 
 type alias Attributes =
-    { position : Vec3 }
+    { position : Vec3
+    , barycentric : Vec2
+    }
 
 
 
@@ -34,40 +36,22 @@ type alias Attributes =
 
 normal : Mesh Attributes
 normal =
-    toMesh (pyramid 0.05 0.05)
+    fromTriangles (pyramid 0.05 0.05)
 
 
 edge : Mesh Attributes
 edge =
-    toMesh (pyramid 0.1 0.5)
+    fromTriangles (pyramid 0.1 0.5)
 
 
 contact : Mesh Attributes
 contact =
-    toMesh (sphere 2 (Sphere3d.atOrigin (Length.meters 0.07)))
+    fromTriangles (sphere 2 (Sphere3d.atOrigin (Length.meters 0.07)))
 
 
-toMesh : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
-toMesh =
+fromTriangles : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
+fromTriangles =
     WebGL.triangles
-
-
-toWireframe : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
-toWireframe =
-    trianglesToLines >> WebGL.lines
-
-
-type alias Meshes =
-    { mesh : Mesh Attributes
-    , wireframe : Mesh Attributes
-    }
-
-
-fromTriangles : List ( Attributes, Attributes, Attributes ) -> Meshes
-fromTriangles triangles =
-    { mesh = toMesh triangles
-    , wireframe = toWireframe triangles
-    }
 
 
 trianglesToLines : List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes )
@@ -341,4 +325,4 @@ octahedron radius =
 
 facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
 facet a b c =
-    ( Attributes a, Attributes b, Attributes c )
+    ( Attributes a (vec2 0 0), Attributes b (vec2 0 1), Attributes c (vec2 1 0) )

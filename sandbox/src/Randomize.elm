@@ -12,7 +12,7 @@ import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
@@ -30,10 +30,11 @@ import Point3d
 import Random
 import Sphere3d
 import Vector3d
+import WebGL exposing (Mesh)
 
 
 type alias Model =
-    { world : World Meshes
+    { world : World (Mesh Attributes)
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -46,7 +47,7 @@ type Msg
     | Resize Float Float
     | Restart
     | Random
-    | AddRandom (Body Meshes)
+    | AddRandom (Body (Mesh Attributes))
 
 
 main : Program () Model Msg
@@ -122,7 +123,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = identity
+            , mesh = identity
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -141,7 +142,7 @@ view { settings, fps, world, camera } =
         ]
 
 
-initialWorld : World Meshes
+initialWorld : World (Mesh Attributes)
 initialWorld =
     World.empty
         |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
@@ -180,13 +181,13 @@ floorOffset =
 
 {-| Floor has an empty mesh, because it is not rendered
 -}
-floor : Body Meshes
+floor : Body (Mesh Attributes)
 floor =
     Body.plane (Meshes.fromTriangles [])
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
-box : Body Meshes
+box : Body (Mesh Attributes)
 box =
     let
         block3d =
@@ -201,7 +202,7 @@ box =
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
-sphere : Body Meshes
+sphere : Body (Mesh Attributes)
 sphere =
     let
         sphere3d =
@@ -213,7 +214,7 @@ sphere =
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
-cylinder : Body Meshes
+cylinder : Body (Mesh Attributes)
 cylinder =
     let
         length =
@@ -234,7 +235,7 @@ cylinder =
 
 {-| A compound body made of three boxes
 -}
-compound : Body Meshes
+compound : Body (Mesh Attributes)
 compound =
     let
         blocks =
@@ -260,7 +261,7 @@ compound =
 
 {-| A random body raised above the plane, shifted or rotated to a random 3d angle
 -}
-randomBody : Random.Generator (Body Meshes)
+randomBody : Random.Generator (Body (Mesh Attributes))
 randomBody =
     Random.map5
         (\angle x y z body ->

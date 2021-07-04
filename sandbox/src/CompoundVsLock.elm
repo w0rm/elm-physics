@@ -11,7 +11,7 @@ import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
@@ -28,12 +28,13 @@ import Physics.Coordinates exposing (BodyCoordinates)
 import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
+import WebGL exposing (Mesh)
 
 
 {-| Give a name to each body, so that we can configure constraints
 -}
 type alias Data =
-    { meshes : Meshes
+    { mesh : Mesh Attributes
     , name : String
     }
 
@@ -120,7 +121,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = .meshes
+            , mesh = .mesh
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -213,7 +214,7 @@ floorOffset =
 -}
 floor : Body Data
 floor =
-    Body.plane { meshes = Meshes.fromTriangles [], name = "floor" }
+    Body.plane { mesh = Meshes.fromTriangles [], name = "floor" }
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
@@ -221,7 +222,7 @@ floor =
 -}
 box : String -> Body Data
 box name =
-    Body.block block3d { meshes = Meshes.fromTriangles (Meshes.block block3d), name = name }
+    Body.block block3d { mesh = Meshes.fromTriangles (Meshes.block block3d), name = name }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
@@ -239,7 +240,7 @@ compound =
     in
     Body.compound
         (List.map Shape.block blocks)
-        { meshes = Meshes.fromTriangles (List.concatMap Meshes.block blocks), name = "compound" }
+        { mesh = Meshes.fromTriangles (List.concatMap Meshes.block blocks), name = "compound" }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 

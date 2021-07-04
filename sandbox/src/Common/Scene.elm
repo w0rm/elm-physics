@@ -2,7 +2,7 @@ module Common.Scene exposing (view)
 
 import Common.Camera exposing (Camera)
 import Common.Math as Math
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
 import Direction3d exposing (Direction3d)
@@ -20,14 +20,17 @@ import Physics.Contact as Contact
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.World as World exposing (RaycastResult, World)
 import Point3d exposing (Point3d)
-import WebGL exposing (Entity)
+import WebGL exposing (Entity, Mesh)
+import WebGL.Settings exposing (Setting)
+import WebGL.Settings.Blend
+import WebGL.Settings.DepthTest
 
 
 type alias Params a =
     { settings : Settings
     , world : World a
     , camera : Camera
-    , meshes : a -> Meshes
+    , mesh : a -> Mesh Attributes
     , maybeRaycastResult : Maybe (RaycastResult a)
     , floorOffset :
         { x : Float
@@ -38,7 +41,7 @@ type alias Params a =
 
 
 view : Params a -> Html msg
-view { settings, world, floorOffset, camera, maybeRaycastResult, meshes } =
+view { settings, world, floorOffset, camera, maybeRaycastResult, mesh } =
     let
         lightDirection =
             Vec3.normalize (Vec3.vec3 -1 -1 -1)
@@ -49,7 +52,7 @@ view { settings, world, floorOffset, camera, maybeRaycastResult, meshes } =
             , debugWireframes = settings.debugWireframes
             , debugCenterOfMass = settings.debugCenterOfMass
             , maybeRaycastResult = maybeRaycastResult
-            , meshes = meshes
+            , mesh = mesh
             , shadow =
                 Math.makeShadow
                     (Vec3.fromRecord floorOffset)
@@ -97,12 +100,12 @@ type alias SceneParams a =
     , debugCenterOfMass : Bool
     , shadow : Mat4
     , maybeRaycastResult : Maybe (RaycastResult a)
-    , meshes : a -> Meshes
+    , mesh : a -> Mesh Attributes
     }
 
 
 addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
-addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, maybeRaycastResult } as sceneParams) body entities =
+addBodyEntities ({ mesh, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, maybeRaycastResult } as sceneParams) body entities =
     let
         transform =
             Frame3d.toMat4 (Body.frame body)
@@ -131,19 +134,16 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 
             else
                 acc
-
-        { mesh, wireframe } =
-            meshes (Body.data body)
     in
     entities
         |> addCenterOfMass
         |> addNormals
         |> (if debugWireframes then
                 (::)
-                    (WebGL.entity
-                        Shaders.vertex
+                    (WebGL.entityWith defaultSettings
+                        Shaders.wireframeVertex
                         Shaders.wireframeFragment
-                        wireframe
+                        (mesh (Body.data body))
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = color
@@ -154,10 +154,10 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 
             else
                 (::)
-                    (WebGL.entity
+                    (WebGL.entityWith defaultSettings
                         Shaders.vertex
                         Shaders.fragment
-                        mesh
+                        (mesh (Body.data body))
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = color
@@ -171,10 +171,10 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 
             else
                 (::)
-                    (WebGL.entity
+                    (WebGL.entityWith defaultSettings
                         Shaders.vertex
                         Shaders.shadowFragment
-                        mesh
+                        (mesh (Body.data body))
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = Vec3.vec3 0.25 0.25 0.25
@@ -189,7 +189,7 @@ addBodyEntities ({ meshes, lightDirection, shadow, camera, debugWireframes, debu
 -}
 addContactIndicator : SceneParams a -> Point3d Meters WorldCoordinates -> List Entity -> List Entity
 addContactIndicator { lightDirection, camera } point tail =
-    WebGL.entity
+    WebGL.entityWith defaultSettings
         Shaders.vertex
         Shaders.fragment
         Meshes.contact
@@ -206,7 +206,7 @@ addContactIndicator { lightDirection, camera } point tail =
 -}
 addNormalIndicator : SceneParams a -> Mat4 -> { point : Point3d Meters BodyCoordinates, normal : Direction3d BodyCoordinates } -> List Entity -> List Entity
 addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
-    WebGL.entity
+    WebGL.entityWith defaultSettings
         Shaders.vertex
         Shaders.fragment
         Meshes.normal
@@ -223,3 +223,12 @@ addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
                     )
         }
         :: tail
+
+
+defaultSettings : List Setting
+defaultSettings =
+    [ WebGL.Settings.Blend.add
+        WebGL.Settings.Blend.one
+        WebGL.Settings.Blend.oneMinusSrcAlpha
+    , WebGL.Settings.DepthTest.default
+    ]
