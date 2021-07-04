@@ -10,7 +10,7 @@ import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
@@ -24,6 +24,7 @@ import Physics.Body as Body exposing (Body)
 import Physics.Material as Material
 import Physics.World as World exposing (World)
 import Point3d
+import WebGL exposing (Mesh)
 
 
 boxesPerDimension : number
@@ -32,7 +33,7 @@ boxesPerDimension =
 
 
 type alias Model =
-    { world : World Meshes
+    { world : World (Mesh Attributes)
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -113,7 +114,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = identity
+            , mesh = identity
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -130,7 +131,7 @@ view { settings, fps, world, camera } =
         ]
 
 
-initialWorld : World Meshes
+initialWorld : World (Mesh Attributes)
 initialWorld =
     World.empty
         |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
@@ -138,7 +139,7 @@ initialWorld =
         |> addBoxes
 
 
-addBoxes : World Meshes -> World Meshes
+addBoxes : World (Mesh Attributes) -> World (Mesh Attributes)
 addBoxes world =
     let
         dimensions =
@@ -181,13 +182,13 @@ floorOffset =
 
 {-| Floor has an empty mesh, because it is not rendered
 -}
-floor : Body Meshes
+floor : Body (Mesh Attributes)
 floor =
     Body.plane (Meshes.fromTriangles [])
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
-box : Body Meshes
+box : Body (Mesh Attributes)
 box =
     let
         block3d =

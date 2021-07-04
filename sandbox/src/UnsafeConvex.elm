@@ -8,7 +8,7 @@ import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
@@ -24,10 +24,11 @@ import Physics.Material as Material
 import Physics.Shape as Shape
 import Physics.World as World exposing (World)
 import Point3d
+import WebGL exposing (Mesh)
 
 
 type alias Model =
-    { world : World Meshes
+    { world : World (Mesh Attributes)
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -108,7 +109,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = identity
+            , mesh = identity
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -125,7 +126,7 @@ view { settings, fps, world, camera } =
         ]
 
 
-initialWorld : World Meshes
+initialWorld : World (Mesh Attributes)
 initialWorld =
     World.empty
         |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
@@ -143,13 +144,13 @@ floorOffset =
 
 {-| Floor has an empty mesh, because it is not rendered
 -}
-floor : Body Meshes
+floor : Body (Mesh Attributes)
 floor =
     Body.plane (Meshes.fromTriangles [])
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
-icoSphere : Body Meshes
+icoSphere : Body (Mesh Attributes)
 icoSphere =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
         Ok triangularMesh ->
@@ -161,7 +162,7 @@ icoSphere =
             Body.compound [] (Meshes.fromTriangles [])
 
 
-cube : Body Meshes
+cube : Body (Mesh Attributes)
 cube =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
         Ok triangularMesh ->

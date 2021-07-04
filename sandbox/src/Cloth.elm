@@ -9,7 +9,7 @@ import Browser
 import Common.Camera as Camera exposing (Camera)
 import Common.Events as Events
 import Common.Fps as Fps
-import Common.Meshes as Meshes exposing (Meshes)
+import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Direction3d
@@ -23,6 +23,7 @@ import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.World as World exposing (World)
 import Point3d
 import Sphere3d
+import WebGL exposing (Mesh)
 
 
 particlesPerDimension : Int
@@ -42,7 +43,7 @@ type BodyKind
 
 type alias Data =
     { kind : BodyKind
-    , meshes : Meshes
+    , mesh : Mesh Attributes
     }
 
 
@@ -128,7 +129,7 @@ view { settings, fps, world, camera } =
             { settings = settings
             , world = world
             , camera = camera
-            , meshes = .meshes
+            , mesh = .mesh
             , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
@@ -212,7 +213,7 @@ floorOffset =
 -}
 floor : Body Data
 floor =
-    Body.plane { kind = Other, meshes = Meshes.fromTriangles [] }
+    Body.plane { kind = Other, mesh = Meshes.fromTriangles [] }
         |> Body.moveTo (Point3d.fromMeters floorOffset)
 
 
@@ -223,7 +224,7 @@ sphere =
             Sphere3d.atOrigin (Length.meters 2)
     in
     Body.sphere sphere3d
-        { meshes = Meshes.fromTriangles (Meshes.sphere 3 sphere3d)
+        { mesh = Meshes.fromTriangles (Meshes.sphere 3 sphere3d)
         , kind = Other
         }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
@@ -236,7 +237,7 @@ particle x y =
             Sphere3d.atOrigin (Length.meters 0.1)
     in
     Body.particle
-        { meshes = Meshes.fromTriangles (Meshes.sphere 1 sphere3d)
+        { mesh = Meshes.fromTriangles (Meshes.sphere 1 sphere3d)
         , kind = Particle x y
         }
         |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
