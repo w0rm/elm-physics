@@ -293,51 +293,52 @@ initFacesHelp visited vertices faceByEdgeIndex facesToCheck edgesToCheck current
         newContour =
             List.foldl (\{ indices } -> extendContour indices) currentContour coplanar
     in
-    if coplanar /= [] then
-        -- grow the contour
-        initFacesHelp
-            newVisited
-            vertices
-            faceByEdgeIndex
-            newFacesToCheck
-            newEdgesToCheck
-            currentNormal
-            newContour
-            result
+    case coplanar of
+        _ :: _ ->
+            -- grow the contour
+            initFacesHelp
+                newVisited
+                vertices
+                faceByEdgeIndex
+                newFacesToCheck
+                newEdgesToCheck
+                currentNormal
+                newContour
+                result
 
-    else
-        -- couldn’t grow the contour
-        let
-            faceToAdd =
-                { normal = currentNormal
-                , vertices = List.filterMap (\i -> Array.get i vertices) newContour
-                }
+        [] ->
+            -- couldn’t grow the contour
+            let
+                faceToAdd =
+                    { normal = currentNormal
+                    , vertices = List.filterMap (\i -> Array.get i vertices) newContour
+                    }
 
-            updatedFacesToCheck =
-                List.filter
-                    (\{ indices } -> not (Set.member indices newVisited))
-                    newFacesToCheck
-        in
-        case updatedFacesToCheck of
-            -- pick a non coplanar face
-            { indices, normal } :: remainingFacesToCheck ->
-                let
-                    ( i1, i2, i3 ) =
-                        indices
-                in
-                initFacesHelp
-                    (Set.insert indices newVisited)
-                    vertices
-                    faceByEdgeIndex
-                    remainingFacesToCheck
-                    [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
-                    normal
-                    [ i1, i2, i3 ]
-                    (faceToAdd :: result)
+                updatedFacesToCheck =
+                    List.filter
+                        (\{ indices } -> not (Set.member indices newVisited))
+                        newFacesToCheck
+            in
+            case updatedFacesToCheck of
+                -- pick a non coplanar face
+                { indices, normal } :: remainingFacesToCheck ->
+                    let
+                        ( i1, i2, i3 ) =
+                            indices
+                    in
+                    initFacesHelp
+                        (Set.insert indices newVisited)
+                        vertices
+                        faceByEdgeIndex
+                        remainingFacesToCheck
+                        [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
+                        normal
+                        [ i1, i2, i3 ]
+                        (faceToAdd :: result)
 
-            -- end the recursion
-            [] ->
-                faceToAdd :: result
+                -- end the recursion
+                [] ->
+                    faceToAdd :: result
 
 
 extendContour : ( Int, Int, Int ) -> List Int -> List Int
@@ -356,15 +357,15 @@ extendContourHelp (( ti1, ti2, ti3 ) as triangle) i1 currentContour result =
         ci1 :: rest1 ->
             case rest1 of
                 ci2 :: _ ->
-                    if (ci1 == ti2) && (ci2 == ti1) then
+                    if (ci1 - ti2 == 0) && (ci2 - ti1 == 0) then
                         -- insert ti3
                         List.reverse result ++ (ci1 :: ti3 :: rest1)
 
-                    else if (ci1 == ti3) && (ci2 == ti2) then
+                    else if (ci1 - ti3 == 0) && (ci2 - ti2 == 0) then
                         -- insert ti1
                         List.reverse result ++ (ci1 :: ti1 :: rest1)
 
-                    else if (ci1 == ti1) && (ci2 == ti3) then
+                    else if (ci1 - ti1 == 0) && (ci2 - ti3 == 0) then
                         -- insert ti2
                         List.reverse result ++ (ci1 :: ti2 :: rest1)
 
@@ -372,15 +373,15 @@ extendContourHelp (( ti1, ti2, ti3 ) as triangle) i1 currentContour result =
                         extendContourHelp triangle i1 rest1 (ci1 :: result)
 
                 [] ->
-                    if (ci1 == ti2) && (i1 == ti1) then
+                    if (ci1 - ti2 == 0) && (i1 - ti1 == 0) then
                         -- insert ti3
                         List.reverse (ti3 :: ci1 :: result)
 
-                    else if (ci1 == ti3) && (i1 == ti2) then
+                    else if (ci1 - ti3 == 0) && (i1 - ti2 == 0) then
                         -- insert ti1
                         List.reverse (ti1 :: ci1 :: result)
 
-                    else if (ci1 == ti1) && (i1 == ti3) then
+                    else if (ci1 - ti1 == 0) && (i1 - ti3 == 0) then
                         -- insert ti2
                         List.reverse (ti2 :: ci1 :: result)
 
