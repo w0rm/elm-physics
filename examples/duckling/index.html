@@ -11267,7 +11267,7 @@ var $author$project$Shapes$Convex$extendContourHelp = F4(
 				var rest1 = currentContour.b;
 				if (rest1.b) {
 					var ci2 = rest1.a;
-					if (_Utils_eq(ci1, ti2) && _Utils_eq(ci2, ti1)) {
+					if ((!(ci1 - ti2)) && (!(ci2 - ti1))) {
 						return _Utils_ap(
 							$elm$core$List$reverse(result),
 							A2(
@@ -11275,7 +11275,7 @@ var $author$project$Shapes$Convex$extendContourHelp = F4(
 								ci1,
 								A2($elm$core$List$cons, ti3, rest1)));
 					} else {
-						if (_Utils_eq(ci1, ti3) && _Utils_eq(ci2, ti2)) {
+						if ((!(ci1 - ti3)) && (!(ci2 - ti2))) {
 							return _Utils_ap(
 								$elm$core$List$reverse(result),
 								A2(
@@ -11283,7 +11283,7 @@ var $author$project$Shapes$Convex$extendContourHelp = F4(
 									ci1,
 									A2($elm$core$List$cons, ti1, rest1)));
 						} else {
-							if (_Utils_eq(ci1, ti1) && _Utils_eq(ci2, ti3)) {
+							if ((!(ci1 - ti1)) && (!(ci2 - ti3))) {
 								return _Utils_ap(
 									$elm$core$List$reverse(result),
 									A2(
@@ -11304,15 +11304,15 @@ var $author$project$Shapes$Convex$extendContourHelp = F4(
 						}
 					}
 				} else {
-					return (_Utils_eq(ci1, ti2) && _Utils_eq(i1, ti1)) ? $elm$core$List$reverse(
+					return ((!(ci1 - ti2)) && (!(i1 - ti1))) ? $elm$core$List$reverse(
 						A2(
 							$elm$core$List$cons,
 							ti3,
-							A2($elm$core$List$cons, ci1, result))) : ((_Utils_eq(ci1, ti3) && _Utils_eq(i1, ti2)) ? $elm$core$List$reverse(
+							A2($elm$core$List$cons, ci1, result))) : (((!(ci1 - ti3)) && (!(i1 - ti2))) ? $elm$core$List$reverse(
 						A2(
 							$elm$core$List$cons,
 							ti1,
-							A2($elm$core$List$cons, ci1, result))) : ((_Utils_eq(ci1, ti1) && _Utils_eq(i1, ti3)) ? $elm$core$List$reverse(
+							A2($elm$core$List$cons, ci1, result))) : (((!(ci1 - ti1)) && (!(i1 - ti3))) ? $elm$core$List$reverse(
 						A2(
 							$elm$core$List$cons,
 							ti2,
@@ -11353,7 +11353,6 @@ var $elm$core$Set$member = F2(
 		var dict = _v0;
 		return A2($elm$core$Dict$member, key, dict);
 	});
-var $elm$core$Basics$neq = _Utils_notEqual;
 var $elm$core$List$partition = F2(
 	function (pred, list) {
 		var step = F2(
@@ -11378,8 +11377,8 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 		while (true) {
 			var adjacentFaces = A2(
 				$elm$core$List$filter,
-				function (_v9) {
-					var indices = _v9.aM;
+				function (_v10) {
+					var indices = _v10.aM;
 					return !A2($elm$core$Set$member, indices, visited);
 				},
 				A2(
@@ -11400,8 +11399,8 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 			var nonCoplanar = _v0.b;
 			var newContour = A3(
 				$elm$core$List$foldl,
-				function (_v8) {
-					var indices = _v8.aM;
+				function (_v9) {
+					var indices = _v9.aM;
 					return $author$project$Shapes$Convex$extendContour(indices);
 				},
 				currentContour,
@@ -11409,8 +11408,8 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 			var newEdgesToCheck = A3(
 				$elm$core$List$foldl,
 				F2(
-					function (_v6, res) {
-						var indices = _v6.aM;
+					function (_v7, res) {
+						var indices = _v7.aM;
 						var i1 = indices.a;
 						var i2 = indices.b;
 						var i3 = indices.c;
@@ -11429,14 +11428,14 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 				coplanar);
 			var newVisited = A3(
 				$elm$core$List$foldl,
-				function (_v5) {
-					var indices = _v5.aM;
+				function (_v6) {
+					var indices = _v6.aM;
 					return $elm$core$Set$insert(indices);
 				},
 				visited,
 				coplanar);
 			var newFacesToCheck = _Utils_ap(nonCoplanar, facesToCheck);
-			if (!_Utils_eq(coplanar, _List_Nil)) {
+			if (coplanar.b) {
 				var $temp$visited = newVisited,
 					$temp$vertices = vertices,
 					$temp$faceByEdgeIndex = faceByEdgeIndex,
@@ -11457,8 +11456,8 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 			} else {
 				var updatedFacesToCheck = A2(
 					$elm$core$List$filter,
-					function (_v4) {
-						var indices = _v4.aM;
+					function (_v5) {
+						var indices = _v5.aM;
 						return !A2($elm$core$Set$member, indices, newVisited);
 					},
 					newFacesToCheck);
@@ -11475,10 +11474,10 @@ var $author$project$Shapes$Convex$initFacesHelp = F8(
 					var indices = updatedFacesToCheck.a.aM;
 					var normal = updatedFacesToCheck.a.aA;
 					var remainingFacesToCheck = updatedFacesToCheck.b;
-					var _v3 = indices;
-					var i1 = _v3.a;
-					var i2 = _v3.b;
-					var i3 = _v3.c;
+					var _v4 = indices;
+					var i1 = _v4.a;
+					var i2 = _v4.b;
+					var i3 = _v4.c;
 					var $temp$visited = A2($elm$core$Set$insert, indices, newVisited),
 						$temp$vertices = vertices,
 						$temp$faceByEdgeIndex = faceByEdgeIndex,
@@ -12393,6 +12392,7 @@ var $author$project$Internal$Vector3$distanceSquared = F2(
 		return $author$project$Internal$Vector3$lengthSquared(
 			A2($author$project$Internal$Vector3$sub, a, b));
 	});
+var $elm$core$Basics$neq = _Utils_notEqual;
 var $author$project$Internal$BroadPhase$bodiesMayContact = F2(
 	function (body1, body2) {
 		var distanceSquared = A2(
