@@ -65,7 +65,6 @@ type alias CarSettings =
     , frictionSlip : Float
     , rollInfluence : Float
     , maxSuspensionForce : Force
-    , customSlidingRotationalSpeed : Maybe Float
     }
 
 
@@ -84,7 +83,6 @@ carSettings =
     , frictionSlip = 5
     , rollInfluence = 0.01
     , maxSuspensionForce = Force.newtons 100000
-    , customSlidingRotationalSpeed = Just -30
     }
 
 
