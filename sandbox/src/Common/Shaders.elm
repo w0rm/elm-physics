@@ -31,7 +31,7 @@ vertex : Shader Attributes Uniforms { vposition : Vec3 }
 vertex =
     [glsl|
         attribute vec3 position;
-        attribute vec2 barycentric;
+        attribute vec3 barycentric;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
@@ -62,15 +62,15 @@ fragment =
     |]
 
 
-wireframeVertex : Shader Attributes Uniforms { vbarycentric : Vec2 }
+wireframeVertex : Shader Attributes Uniforms { vbarycentric : Vec3 }
 wireframeVertex =
     [glsl|
         attribute vec3 position;
-        attribute vec2 barycentric;
+        attribute vec3 barycentric;
         uniform mat4 camera;
         uniform mat4 perspective;
         uniform mat4 transform;
-        varying vec2 vbarycentric;
+        varying vec3 vbarycentric;
 
         void main () {
           vec4 worldPosition = transform * vec4(position, 1.0);
@@ -80,18 +80,17 @@ wireframeVertex =
     |]
 
 
-wireframeFragment : Shader {} Uniforms { vbarycentric : Vec2 }
+wireframeFragment : Shader {} Uniforms { vbarycentric : Vec3 }
 wireframeFragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
-        varying vec2 vbarycentric;
+        varying vec3 vbarycentric;
 
         void main () {
             float width = 0.5;
-            vec3 barycentric = vec3(vbarycentric, 1.0 - vbarycentric.x - vbarycentric.y);
-            vec3 d = fwidth(barycentric);
-            vec3 step = smoothstep(d * (width - 0.5), d * (width + 0.5), barycentric);
+            vec3 d = fwidth(vbarycentric);
+            vec3 step = smoothstep(d * (width - 0.5), d * (width + 0.5), vbarycentric);
             float alpha = 1.0 - min(min(step.x, step.y), step.z);
             if (alpha < 0.01) {
                 discard;

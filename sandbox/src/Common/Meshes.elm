@@ -15,7 +15,6 @@ import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
 import Length exposing (Meters, inMeters)
-import Math.Vector2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
@@ -26,7 +25,7 @@ import WebGL exposing (Mesh)
 
 type alias Attributes =
     { position : Vec3
-    , barycentric : Vec2
+    , barycentric : Vec3
     }
 
 
@@ -109,18 +108,18 @@ block block3d =
         v7 =
             transform -x y z
     in
-    [ facet v3 v2 v1
-    , facet v1 v0 v3
-    , facet v4 v5 v6
-    , facet v6 v7 v4
-    , facet v5 v4 v0
-    , facet v0 v1 v5
-    , facet v2 v3 v7
-    , facet v7 v6 v2
-    , facet v0 v4 v7
-    , facet v7 v3 v0
-    , facet v1 v2 v6
-    , facet v6 v5 v1
+    [ facet v2 v1 v3 1
+    , facet v0 v3 v1 1
+    , facet v5 v6 v4 1
+    , facet v7 v4 v6 1
+    , facet v4 v0 v5 1
+    , facet v1 v5 v0 1
+    , facet v3 v7 v2 1
+    , facet v6 v2 v7 1
+    , facet v4 v7 v0 1
+    , facet v3 v0 v7 1
+    , facet v2 v6 v1 1
+    , facet v5 v1 v6 1
     ]
 
 
@@ -134,6 +133,7 @@ triangularMesh mesh =
                 facet (Vec3.fromRecord v1)
                     (Vec3.fromRecord v2)
                     (Vec3.fromRecord v3)
+                    0
             )
 
 
@@ -155,12 +155,12 @@ pyramid halfbase baserise =
         lbb =
             vec3 -halfbase -halfbase baserise
     in
-    [ facet rfb lfb lbb
-    , facet lbb rbb rfb
-    , facet top rfb rbb
-    , facet top lfb rfb
-    , facet top lbb lfb
-    , facet top rbb lbb
+    [ facet rfb lfb lbb 0
+    , facet lbb rbb rfb 0
+    , facet top rfb rbb 0
+    , facet top lfb rfb 0
+    , facet top lbb lfb 0
+    , facet top rbb lbb 0
     ]
 
 
@@ -242,10 +242,10 @@ cylinder subdivisions cylinder3d =
                 p3 =
                     transform endX endY topZ
             in
-            [ facet bottomCenter p1 p0
-            , facet p0 p1 p3
-            , facet p0 p3 p2
-            , facet topCenter p2 p3
+            [ facet topCenter p2 p3 2
+            , facet p1 p3 p0 1
+            , facet p2 p0 p3 1
+            , facet bottomCenter p1 p0 2
             ]
     in
     List.range 0 (subdivisions - 1)
@@ -266,7 +266,7 @@ sphere iterations sphere3d =
     divideSphere iterations radius (octahedron radius)
         |> List.map
             (\( p1, p2, p3 ) ->
-                facet (position p1) (position p2) (position p3)
+                facet (position p1) (position p2) (position p3) 0
             )
 
 
@@ -323,6 +323,26 @@ octahedron radius =
     ]
 
 
-facet : Vec3 -> Vec3 -> Vec3 -> ( Attributes, Attributes, Attributes )
-facet a b c =
-    ( Attributes a (vec2 0 0), Attributes b (vec2 0 1), Attributes c (vec2 1 0) )
+facet : Vec3 -> Vec3 -> Vec3 -> Int -> ( Attributes, Attributes, Attributes )
+facet a b c remove =
+    case remove of
+        1 ->
+            -- b c is removed
+            ( Attributes a (vec3 0 0 1)
+            , Attributes b (vec3 0 1 0)
+            , Attributes c (vec3 1 0 1)
+            )
+
+        2 ->
+            -- only b c is kept
+            ( Attributes a (vec3 1 1 1)
+            , Attributes b (vec3 1 0 0)
+            , Attributes c (vec3 1 0 0)
+            )
+
+        _ ->
+            -- all edges are kept
+            ( Attributes a (vec3 0 0 1)
+            , Attributes b (vec3 0 1 0)
+            , Attributes c (vec3 1 0 0)
+            )
