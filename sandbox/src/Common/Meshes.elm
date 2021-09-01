@@ -3,7 +3,6 @@ module Common.Meshes exposing
     , block
     , contact
     , cylinder
-    , edge
     , fromTriangles
     , normal
     , sphere
@@ -38,11 +37,6 @@ normal =
     fromTriangles (pyramid 0.05 0.05)
 
 
-edge : Mesh Attributes
-edge =
-    fromTriangles (pyramid 0.1 0.5)
-
-
 contact : Mesh Attributes
 contact =
     fromTriangles (sphere 2 (Sphere3d.atOrigin (Length.meters 0.07)))
@@ -51,14 +45,6 @@ contact =
 fromTriangles : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
 fromTriangles =
     WebGL.triangles
-
-
-trianglesToLines : List ( Attributes, Attributes, Attributes ) -> List ( Attributes, Attributes )
-trianglesToLines triangles =
-    List.foldl
-        (\( p1, p2, p3 ) result -> ( p1, p2 ) :: ( p2, p3 ) :: ( p3, p1 ) :: result)
-        []
-        triangles
 
 
 block : Block3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
@@ -278,9 +264,7 @@ divideSphere step radius triangles =
         triangles
 
     else
-        triangles
-            |> List.foldl (divide radius) []
-            |> divideSphere (step - 1) radius
+        divideSphere (step - 1) radius (List.foldl (divide radius) [] triangles)
 
 
 {-|

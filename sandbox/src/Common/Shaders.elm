@@ -13,7 +13,6 @@ Shaders support simple flat lighting.
 
 import Common.Meshes exposing (Attributes)
 import Math.Matrix4 exposing (Mat4)
-import Math.Vector2 exposing (Vec2)
 import Math.Vector3 exposing (Vec3)
 import WebGL exposing (Shader)
 

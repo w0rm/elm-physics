@@ -10,8 +10,9 @@ import Angle
 import Axis3d
 import Block3d
 import Browser
+import Browser.Dom as Dom
+import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
-import Common.Events as Events
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
@@ -27,6 +28,7 @@ import Physics.Body as Body exposing (Body)
 import Physics.Material as Material exposing (Material)
 import Physics.World as World exposing (World)
 import Point3d
+import Task
 import WebGL exposing (Mesh)
 
 
@@ -66,7 +68,9 @@ init _ =
                 , to = { x = 0, y = 0, z = 0 }
                 }
       }
-    , Events.measureSize Resize
+    , Task.perform
+        (\{ viewport } -> Resize viewport.width viewport.height)
+        Dom.getViewport
     )
 
 
@@ -100,7 +104,7 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-        [ Events.onResize Resize
+        [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
         , Events.onAnimationFrameDelta Tick
         ]
 
