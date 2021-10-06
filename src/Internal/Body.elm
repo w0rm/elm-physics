@@ -4,6 +4,7 @@ module Internal.Body exposing
     , applyForce
     , applyImpulse
     , compound
+    , map
     , raycast
     , updateMassProperties
     )
@@ -264,3 +265,30 @@ raycast ray body =
         )
         Nothing
         body.worldShapes
+
+
+map : (a -> b) -> Body a -> Body b
+map f body =
+    { id = body.id
+    , data = f body.data
+    , material = body.material
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity = body.velocity
+    , angularVelocity = body.angularVelocity
+    , mass = body.mass
+    , shapes = body.shapes
+    , worldShapes = body.worldShapes
+    , force = body.force
+    , torque = body.torque
+    , boundingSphereRadius = body.boundingSphereRadius
+
+    -- damping
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+
+    -- mass props
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    }
