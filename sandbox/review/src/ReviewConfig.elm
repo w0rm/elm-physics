@@ -30,7 +30,7 @@ config =
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
-        |> Review.Rule.ignoreErrorsForFiles ["src/Common/Camera.elm"]
+        |> Review.Rule.ignoreErrorsForFiles [ "src/Common/Camera.elm" ]
     , NoUnused.Modules.rule
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
