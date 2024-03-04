@@ -7546,11 +7546,10 @@ var $author$project$Internal$Transform3d$rotate = F2(
 		var x = _v1.bY;
 		var y = _v1.bZ;
 		var z = _v1.b_;
-		var iz = ((qw * z) + (qx * y)) - (qy * x);
-		var iy = ((qw * y) + (qz * x)) - (qx * z);
-		var ix = ((qw * x) + (qy * z)) - (qz * y);
-		var iw = (((-qx) * x) - (qy * y)) - (qz * z);
-		return {bY: (((ix * qw) + (iw * (-qx))) + (iy * (-qz))) - (iz * (-qy)), bZ: (((iy * qw) + (iw * (-qy))) + (iz * (-qx))) - (ix * (-qz)), b_: (((iz * qw) + (iw * (-qz))) + (ix * (-qy))) - (iy * (-qx))};
+		var iz = 2 * ((qx * y) - (qy * x));
+		var iy = 2 * ((qz * x) - (qx * z));
+		var ix = 2 * ((qy * z) - (qz * y));
+		return {bY: ((x + (qw * ix)) + (qy * iz)) - (qz * iy), bZ: ((y + (qw * iy)) + (qz * ix)) - (qx * iz), b_: ((z + (qw * iz)) + (qx * iy)) - (qy * ix)};
 	});
 var $author$project$Internal$Transform3d$directionPlaceIn = F2(
 	function (_v0, worldVector) {

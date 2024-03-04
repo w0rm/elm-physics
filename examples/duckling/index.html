@@ -9269,11 +9269,10 @@ var $author$project$Internal$Transform3d$rotate = F2(
 		var x = _v1.bP;
 		var y = _v1.bQ;
 		var z = _v1.bR;
-		var iz = ((qw * z) + (qx * y)) - (qy * x);
-		var iy = ((qw * y) + (qz * x)) - (qx * z);
-		var ix = ((qw * x) + (qy * z)) - (qz * y);
-		var iw = (((-qx) * x) - (qy * y)) - (qz * z);
-		return {bP: (((ix * qw) + (iw * (-qx))) + (iy * (-qz))) - (iz * (-qy)), bQ: (((iy * qw) + (iw * (-qy))) + (iz * (-qx))) - (ix * (-qz)), bR: (((iz * qw) + (iw * (-qz))) + (ix * (-qy))) - (iy * (-qx))};
+		var iz = 2 * ((qx * y) - (qy * x));
+		var iy = 2 * ((qz * x) - (qx * z));
+		var ix = 2 * ((qy * z) - (qz * y));
+		return {bP: ((x + (qw * ix)) + (qy * iz)) - (qz * iy), bQ: ((y + (qw * iy)) + (qz * ix)) - (qx * iz), bR: ((z + (qw * iz)) + (qx * iy)) - (qy * ix)};
 	});
 var $author$project$Internal$Transform3d$placeIn = F2(
 	function (_v0, _v1) {
