@@ -373,22 +373,21 @@ mul (Orientation3d q1x q1y q1z q1w) (Orientation3d q2x q2y q2z q2w) =
 
 rotate : Orientation3d -> Vec3 -> Vec3
 rotate (Orientation3d qx qy qz qw) { x, y, z } =
+    -- faster quaternion rotation
+    -- https://www.johndcook.com/blog/2021/06/16/faster-quaternion-rotations/
     let
         ix =
-            qw * x + qy * z - qz * y
+            2 * (qy * z - qz * y)
 
         iy =
-            qw * y + qz * x - qx * z
+            2 * (qz * x - qx * z)
 
         iz =
-            qw * z + qx * y - qy * x
-
-        iw =
-            -qx * x - qy * y - qz * z
+            2 * (qx * y - qy * x)
     in
-    { x = ix * qw + iw * -qx + iy * -qz - iz * -qy
-    , y = iy * qw + iw * -qy + iz * -qx - ix * -qz
-    , z = iz * qw + iw * -qz + ix * -qy - iy * -qx
+    { x = x + qw * ix + qy * iz - qz * iy
+    , y = y + qw * iy + qz * ix - qx * iz
+    , z = z + qw * iz + qx * iy - qy * ix
     }
 
 
