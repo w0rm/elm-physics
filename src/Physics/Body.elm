@@ -6,6 +6,7 @@ module Physics.Body exposing
     , data, withData
     , applyForce, applyImpulse
     , withMaterial, compound, withDamping, transformWithInverseInertia
+    , map
     )
 
 {-|
@@ -41,6 +42,11 @@ module Physics.Body exposing
 ## Advanced
 
 @docs withMaterial, compound, withDamping, transformWithInverseInertia
+
+
+## Fancy Stuff
+
+@docs map
 
 -}
 
@@ -594,3 +600,13 @@ transformWithInverseInertia (Protected { invInertiaWorld }) vector =
         , y = invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
         , z = invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
         }
+
+
+{-| Transform the data parameter. Similar to `Html.map`.
+
+This is useful when you want to define distinct `data` types.
+
+-}
+map : (a -> b) -> Body a -> Body b
+map f body =
+    Internal.map f body
