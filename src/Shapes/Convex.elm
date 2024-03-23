@@ -280,9 +280,11 @@ initFacesHelp visited vertices faceByEdgeIndex facesToCheck edgesToCheck current
         newEdgesToCheck =
             List.foldl
                 (\{ indices } res ->
-                    case indices of
-                        ( i1, i2, i3 ) ->
-                            ( i2, i1 ) :: ( i3, i2 ) :: ( i1, i3 ) :: res
+                    let
+                        ( i1, i2, i3 ) =
+                            indices
+                    in
+                    ( i2, i1 ) :: ( i3, i2 ) :: ( i1, i3 ) :: res
                 )
                 []
                 coplanar

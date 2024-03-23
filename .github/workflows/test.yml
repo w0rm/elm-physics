@@ -8,24 +8,10 @@ jobs:
   elm-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v22
         with:
-          node-version: "12"
-
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.npm
-            ~/.elm
-            elm-stuff
-          key: ${{ runner.os }}-cache
-
-      - run: npm install -g elm@latest-0.19.1 elm-test@0.19.1-revision6 elm-review@2.5.0 elm-format@0.8.5
-
-      - run: elm-format --validate .
-
-      - run: elm-review
-
-      - run: elm-test
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix develop --command elm-format --validate .
+      - run: nix develop --command elm-review
+      - run: nix develop --command elm-test

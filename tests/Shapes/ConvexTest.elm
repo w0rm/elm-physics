@@ -8,7 +8,6 @@ module Shapes.ConvexTest exposing
     , volume
     )
 
-import Block3d exposing (vertices)
 import Expect
 import Extra.Expect as Expect
 import Fixtures.Convex
@@ -102,8 +101,7 @@ faces =
                 (List.map
                     (\{ normal, vertices } ->
                         \_ ->
-                            Expect.true
-                                "normal points inside"
+                            Expect.equal True
                                 (List.all
                                     (\v ->
                                         let
