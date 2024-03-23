@@ -12,34 +12,21 @@ jobs:
   test-and-publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
       - run: git config --global user.name "Andrey Kuzmin"
-      - run: git config --global user.email "unsoundscapes@gmail.com"
+      - run: git config --global user.email "hi@unsoundscapes.com"
 
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v22
         with:
-          node-version: "12"
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix develop --command elm-format --validate .
+      - run: nix develop --command elm-review
+      - run: nix develop --command elm-test
 
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.npm
-            ~/.elm
-          key: ${{ runner.os }}-cache
+      - run: nix develop --command ./scripts/elm-publish.sh ${{ github.event.inputs.version }}
 
-      - run: npm install -g elm@latest-0.19.1 elm-test@0.19.1-revision6 elm-review@2.5.0 elm-format@0.8.5
-
-      - run: elm-format --validate .
-
-      - run: elm-review
-
-      - run: elm-test
-
-      - run: ./scripts/elm-publish.sh ${{ github.event.inputs.version }}
-
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           path: gh-pages
           ref: gh-pages
-      - run: ./scripts/gh-pages.sh ${{ github.event.inputs.version }}
+      - run: nix develop --command ./scripts/gh-pages.sh ${{ github.event.inputs.version }}
