@@ -228,20 +228,15 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                     else
                         deltalambdaPrev
 
-                invI1 =
-                    body1.body.invInertiaWorld
-
-                invI2 =
-                    body2.body.invInertiaWorld
-
-                k1 =
-                    deltalambda * body1.body.invMass
-
-                k2 =
-                    deltalambda * body2.body.invMass
-
                 newBody1 =
                     if body1.body.mass > 0 then
+                        let
+                            invI1 =
+                                body1.body.invInertiaWorld
+
+                            k1 =
+                                deltalambda * body1.body.invMass
+                        in
                         { body = body1.body
                         , vX = body1.vX - k1 * vB.x
                         , vY = body1.vY - k1 * vB.y
@@ -257,6 +252,13 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
 
                 newBody2 =
                     if body2.body.mass > 0 then
+                        let
+                            invI2 =
+                                body2.body.invInertiaWorld
+
+                            k2 =
+                                deltalambda * body2.body.invMass
+                        in
                         { body = body2.body
                         , vX = body2.vX + k2 * vB.x
                         , vY = body2.vY + k2 * vB.y
@@ -282,7 +284,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 remainingEquations
 
 
-updateBodies : { dt : Float, gravity : Vec3, gravityLength : Float } -> Array (SolverBody data) -> World data -> World data
+updateBodies : { ctx | dt : Float, gravity : Vec3 } -> Array (SolverBody data) -> World data -> World data
 updateBodies ctx bodies world =
     let
         simulatedBodies =
@@ -304,7 +306,15 @@ updateBodies ctx bodies world =
     in
     { world
         | bodies =
-            Array.toList simulatedBodies
-                |> List.filter (\{ id } -> id + 1 > 0)
+            Array.foldr
+                (\body list ->
+                    if body.id + 1 > 0 then
+                        body :: list
+
+                    else
+                        list
+                )
+                []
+                simulatedBodies
         , simulatedBodies = simulatedBodies
     }

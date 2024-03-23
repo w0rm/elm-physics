@@ -15,12 +15,12 @@ addContacts : Convex -> Convex -> List Contact -> List Contact
 addContacts convex1 convex2 contacts =
     case findSeparatingAxis convex1 convex2 of
         Just separatingAxis ->
-            let
-                reversedSeparatingAxis =
-                    Vec3.negate separatingAxis
-            in
             case bestFace convex1.faces separatingAxis of
                 Just face1 ->
+                    let
+                        reversedSeparatingAxis =
+                            Vec3.negate separatingAxis
+                    in
                     case bestFace convex2.faces reversedSeparatingAxis of
                         Just face2 ->
                             clipTwoFaces face1 face2 reversedSeparatingAxis contacts

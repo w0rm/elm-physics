@@ -113,15 +113,13 @@ compound shapes data =
         { id = -1
         , data = data
         , material = Material.default
-        , transform3d = transform3d
-        , centerOfMassTransform3d = centerOfMassTransform3d
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
+        , transform3d = transform3d
+        , centerOfMassTransform3d = centerOfMassTransform3d
         , mass = 0
         , shapes = movedShapes
         , worldShapes = Shape.shapesPlaceIn shapeTransform shapes
-        , force = Vec3.zero
-        , torque = Vec3.zero
         , boundingSphereRadius = List.foldl Shape.expandBoundingSphereRadius 0 movedShapes
 
         -- default damping
@@ -132,6 +130,10 @@ compound shapes data =
         , invMass = 0
         , invInertia = Mat3.zero
         , invInertiaWorld = Mat3.zero
+
+        -- forces
+        , force = Vec3.zero
+        , torque = Vec3.zero
         }
 
 

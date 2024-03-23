@@ -33,7 +33,7 @@ fromBody body =
     }
 
 
-toBody : { dt : Float, gravity : Vec3, gravityLength : Float } -> SolverBody data -> Body data
+toBody : { ctx | dt : Float, gravity : Vec3 } -> SolverBody data -> Body data
 toBody { dt, gravity } { body, vX, vY, vZ, wX, wY, wZ } =
     let
         -- Apply damping https://code.google.com/archive/p/bullet/issues/74
