@@ -9968,10 +9968,10 @@ var $author$project$Collision$ConvexConvex$addContacts = F3(
 		var _v0 = A2($author$project$Collision$ConvexConvex$findSeparatingAxis, convex1, convex2);
 		if (!_v0.$) {
 			var separatingAxis = _v0.a;
-			var reversedSeparatingAxis = $author$project$Internal$Vector3$negate(separatingAxis);
 			var _v1 = A2($author$project$Collision$ConvexConvex$bestFace, convex1.dN, separatingAxis);
 			if (!_v1.$) {
 				var face1 = _v1.a;
+				var reversedSeparatingAxis = $author$project$Internal$Vector3$negate(separatingAxis);
 				var _v2 = A2($author$project$Collision$ConvexConvex$bestFace, convex2.dN, reversedSeparatingAxis);
 				if (!_v2.$) {
 					var face2 = _v2.a;
@@ -11258,8 +11258,6 @@ var $author$project$Internal$Solver$solveEquationsGroup = F5(
 				var solverLambda = currentEquations.a.eH;
 				var equation = currentEquations.a.dL;
 				var remainingEquations = currentEquations.b;
-				var invI2 = body2.k.cc;
-				var invI1 = body1.k.cc;
 				var _v1 = equation;
 				var wA = _v1.D;
 				var vB = _v1.K;
@@ -11272,10 +11270,24 @@ var $author$project$Internal$Solver$solveEquationsGroup = F5(
 				var gWlambda = (((-(((vB.bR * body1.bb) + (vB.bS * body1.bc)) + (vB.bT * body1.bd))) + (((wA.bR * body1.bf) + (wA.bS * body1.bg)) + (wA.bT * body1.bh))) + (((vB.bR * body2.bb) + (vB.bS * body2.bc)) + (vB.bT * body2.bd))) + (((wB.bR * body2.bf) + (wB.bS * body2.bg)) + (wB.bT * body2.bh));
 				var deltalambdaPrev = solverInvC * ((solverB - gWlambda) - (spookEps * solverLambda));
 				var deltalambda = (((solverLambda + deltalambdaPrev) - minForce) < 0) ? (minForce - solverLambda) : ((((solverLambda + deltalambdaPrev) - maxForce) > 0) ? (maxForce - solverLambda) : deltalambdaPrev);
-				var k1 = deltalambda * body1.k.cd;
-				var k2 = deltalambda * body2.k.cd;
-				var newBody1 = (body1.k.cX > 0) ? {k: body1.k, bb: body1.bb - (k1 * vB.bR), bc: body1.bc - (k1 * vB.bS), bd: body1.bd - (k1 * vB.bT), bf: body1.bf + ((((invI1.fH * wA.bR) + (invI1.fI * wA.bS)) + (invI1.fJ * wA.bT)) * deltalambda), bg: body1.bg + ((((invI1.fK * wA.bR) + (invI1.fL * wA.bS)) + (invI1.fM * wA.bT)) * deltalambda), bh: body1.bh + ((((invI1.fN * wA.bR) + (invI1.fO * wA.bS)) + (invI1.fP * wA.bT)) * deltalambda)} : body1;
-				var newBody2 = (body2.k.cX > 0) ? {k: body2.k, bb: body2.bb + (k2 * vB.bR), bc: body2.bc + (k2 * vB.bS), bd: body2.bd + (k2 * vB.bT), bf: body2.bf + ((((invI2.fH * wB.bR) + (invI2.fI * wB.bS)) + (invI2.fJ * wB.bT)) * deltalambda), bg: body2.bg + ((((invI2.fK * wB.bR) + (invI2.fL * wB.bS)) + (invI2.fM * wB.bT)) * deltalambda), bh: body2.bh + ((((invI2.fN * wB.bR) + (invI2.fO * wB.bS)) + (invI2.fP * wB.bT)) * deltalambda)} : body2;
+				var newBody1 = function () {
+					if (body1.k.cX > 0) {
+						var k1 = deltalambda * body1.k.cd;
+						var invI1 = body1.k.cc;
+						return {k: body1.k, bb: body1.bb - (k1 * vB.bR), bc: body1.bc - (k1 * vB.bS), bd: body1.bd - (k1 * vB.bT), bf: body1.bf + ((((invI1.fH * wA.bR) + (invI1.fI * wA.bS)) + (invI1.fJ * wA.bT)) * deltalambda), bg: body1.bg + ((((invI1.fK * wA.bR) + (invI1.fL * wA.bS)) + (invI1.fM * wA.bT)) * deltalambda), bh: body1.bh + ((((invI1.fN * wA.bR) + (invI1.fO * wA.bS)) + (invI1.fP * wA.bT)) * deltalambda)};
+					} else {
+						return body1;
+					}
+				}();
+				var newBody2 = function () {
+					if (body2.k.cX > 0) {
+						var k2 = deltalambda * body2.k.cd;
+						var invI2 = body2.k.cc;
+						return {k: body2.k, bb: body2.bb + (k2 * vB.bR), bc: body2.bc + (k2 * vB.bS), bd: body2.bd + (k2 * vB.bT), bf: body2.bf + ((((invI2.fH * wB.bR) + (invI2.fI * wB.bS)) + (invI2.fJ * wB.bT)) * deltalambda), bg: body2.bg + ((((invI2.fK * wB.bR) + (invI2.fL * wB.bS)) + (invI2.fM * wB.bT)) * deltalambda), bh: body2.bh + ((((invI2.fN * wB.bR) + (invI2.fO * wB.bS)) + (invI2.fP * wB.bT)) * deltalambda)};
+					} else {
+						return body2;
+					}
+				}();
 				var $temp$body1 = newBody1,
 					$temp$body2 = newBody2,
 					$temp$equations = A2(
@@ -11498,13 +11510,14 @@ var $author$project$Internal$Solver$updateBodies = F3(
 		return _Utils_update(
 			world,
 			{
-				e3: A2(
-					$elm$core$List$filter,
-					function (_v0) {
-						var id = _v0.dU;
-						return (id + 1) > 0;
-					},
-					$elm$core$Array$toList(simulatedBodies)),
+				e3: A3(
+					$elm$core$Array$foldr,
+					F2(
+						function (body, list) {
+							return ((body.dU + 1) > 0) ? A2($elm$core$List$cons, body, list) : list;
+						}),
+					_List_Nil,
+					simulatedBodies),
 				f8: simulatedBodies
 			});
 	});
