@@ -15386,8 +15386,8 @@ var $ianmackenzie$elm_geometry$Point3d$translateIn = F3(
 		var p = _v2;
 		return {bY: p.bY + (distance * d.bY), bZ: p.bZ + (distance * d.bZ), b_: p.b_ + (distance * d.b_)};
 	});
-var $author$project$RaycastCar$Car$applyImpulses = F8(
-	function (carSettings, dt, world, frame, carBody, wheels, sliding, wheelFrictions) {
+var $author$project$RaycastCar$Car$applyImpulses = F7(
+	function (carSettings, dt, frame, carBody, wheels, sliding, wheelFrictions) {
 		applyImpulses:
 		while (true) {
 			if (!wheelFrictions.b) {
@@ -15421,7 +15421,6 @@ var $author$project$RaycastCar$Car$applyImpulses = F8(
 					A4($author$project$Physics$Body$applyImpulse, forwardImpulse, friction.cX, friction.bs, carBody));
 				var $temp$carSettings = carSettings,
 					$temp$dt = dt,
-					$temp$world = world,
 					$temp$frame = frame,
 					$temp$carBody = newCar,
 					$temp$wheels = wheels,
@@ -15429,7 +15428,6 @@ var $author$project$RaycastCar$Car$applyImpulses = F8(
 					$temp$wheelFrictions = remainingFrictions;
 				carSettings = $temp$carSettings;
 				dt = $temp$dt;
-				world = $temp$world;
 				frame = $temp$frame;
 				carBody = $temp$carBody;
 				wheels = $temp$wheels;
@@ -15603,147 +15601,126 @@ var $ianmackenzie$elm_units$Quantity$sqrt = function (_v0) {
 	var value = _v0;
 	return $elm$core$Basics$sqrt(value);
 };
-var $author$project$RaycastCar$Car$updateFriction = function (carSettings) {
-	return function (dt) {
-		return function (world) {
-			return function (frame) {
-				return function (updatedCar) {
-					return function (numWheelsOnGround) {
-						return function (currentWheels) {
-							return function (wheelFrictions) {
-								return function (updatedWheels) {
-									return function (sliding) {
-										updateFriction:
-										while (true) {
-											if (!currentWheels.b) {
-												return A8($author$project$RaycastCar$Car$applyImpulses, carSettings, dt, world, frame, updatedCar, updatedWheels, sliding, wheelFrictions);
-											} else {
-												var wheel = currentWheels.a;
-												var remainingWheels = currentWheels.b;
-												var _v1 = wheel.aO;
-												if (!_v1.$) {
-													var point = _v1.a.cx;
-													var normal = _v1.a.aC;
-													var body = _v1.a.k;
-													var worldAxle = A2(
-														$ianmackenzie$elm_geometry$Direction3d$placeIn,
-														frame,
-														A3(
-															$ianmackenzie$elm_geometry$Direction3d$rotateAround,
-															A2($ianmackenzie$elm_geometry$Axis3d$through, wheel.fB, carSettings.fM),
-															wheel.ao,
-															carSettings.gB));
-													var maximpSide = A2($ianmackenzie$elm_units$Quantity$multiplyBy, carSettings.d5, wheel.cG);
-													var maxImpulse = _Utils_eq(wheel.au, $ianmackenzie$elm_units$Quantity$zero) ? $ianmackenzie$elm_units$Quantity$zero : A2($ianmackenzie$elm_units$Quantity$times, dt, wheel.au);
-													var _v2 = A2(
-														$ianmackenzie$elm_geometry$Vector3d$dot,
-														$ianmackenzie$elm_geometry$Direction3d$toVector(normal),
-														$ianmackenzie$elm_geometry$Direction3d$toVector(worldAxle));
-													var proj = _v2;
-													var axle = A2(
-														$elm$core$Maybe$withDefault,
-														normal,
-														$ianmackenzie$elm_geometry$Vector3d$direction(
-															A2(
-																$ianmackenzie$elm_geometry$Vector3d$minus,
-																A2(
-																	$ianmackenzie$elm_geometry$Vector3d$scaleBy,
-																	proj,
-																	$ianmackenzie$elm_geometry$Direction3d$toVector(normal)),
-																$ianmackenzie$elm_geometry$Direction3d$toVector(worldAxle))));
-													var forward = A2(
-														$elm$core$Maybe$withDefault,
-														normal,
-														$ianmackenzie$elm_geometry$Vector3d$direction(
-															A2(
-																$ianmackenzie$elm_geometry$Vector3d$cross,
-																$ianmackenzie$elm_geometry$Direction3d$toVector(normal),
-																$ianmackenzie$elm_geometry$Direction3d$toVector(axle))));
-													var forwardImpulse = A2(
-														$ianmackenzie$elm_units$Quantity$plus,
-														A6($author$project$RaycastCar$Car$calcRollingFriction, updatedCar, body, point, forward, maxImpulse, numWheelsOnGround),
-														A2($ianmackenzie$elm_units$Quantity$times, dt, wheel.aQ));
-													var sideImpulse = A4($author$project$RaycastCar$Car$resolveSingleBilateral, updatedCar, body, point, axle);
-													var impulseSquared = A2(
-														$ianmackenzie$elm_units$Quantity$plus,
-														A2($ianmackenzie$elm_units$Quantity$times, sideImpulse, sideImpulse),
-														A2(
-															$ianmackenzie$elm_units$Quantity$multiplyBy,
-															0.25,
-															A2($ianmackenzie$elm_units$Quantity$times, forwardImpulse, forwardImpulse)));
-													var isSliding = A2(
-														$ianmackenzie$elm_units$Quantity$greaterThan,
-														A2($ianmackenzie$elm_units$Quantity$times, maximpSide, maximpSide),
-														impulseSquared);
-													var skidInfo = isSliding ? A2(
-														$ianmackenzie$elm_units$Quantity$ratio,
-														maximpSide,
-														$ianmackenzie$elm_units$Quantity$sqrt(impulseSquared)) : 1;
-													var $temp$carSettings = carSettings,
-														$temp$dt = dt,
-														$temp$world = world,
-														$temp$frame = frame,
-														$temp$updatedCar = updatedCar,
-														$temp$numWheelsOnGround = numWheelsOnGround,
-														$temp$currentWheels = remainingWheels,
-														$temp$wheelFrictions = A2(
-														$elm$core$List$cons,
-														{cL: axle, dS: body, bs: point, cX: forward, cf: forwardImpulse, cE: sideImpulse, cF: skidInfo},
-														wheelFrictions),
-														$temp$updatedWheels = A2($elm$core$List$cons, wheel, updatedWheels),
-														$temp$sliding = sliding || isSliding;
-													carSettings = $temp$carSettings;
-													dt = $temp$dt;
-													world = $temp$world;
-													frame = $temp$frame;
-													updatedCar = $temp$updatedCar;
-													numWheelsOnGround = $temp$numWheelsOnGround;
-													currentWheels = $temp$currentWheels;
-													wheelFrictions = $temp$wheelFrictions;
-													updatedWheels = $temp$updatedWheels;
-													sliding = $temp$sliding;
-													continue updateFriction;
-												} else {
-													var $temp$carSettings = carSettings,
-														$temp$dt = dt,
-														$temp$world = world,
-														$temp$frame = frame,
-														$temp$updatedCar = updatedCar,
-														$temp$numWheelsOnGround = numWheelsOnGround,
-														$temp$currentWheels = remainingWheels,
-														$temp$wheelFrictions = wheelFrictions,
-														$temp$updatedWheels = A2($elm$core$List$cons, wheel, updatedWheels),
-														$temp$sliding = sliding;
-													carSettings = $temp$carSettings;
-													dt = $temp$dt;
-													world = $temp$world;
-													frame = $temp$frame;
-													updatedCar = $temp$updatedCar;
-													numWheelsOnGround = $temp$numWheelsOnGround;
-													currentWheels = $temp$currentWheels;
-													wheelFrictions = $temp$wheelFrictions;
-													updatedWheels = $temp$updatedWheels;
-													sliding = $temp$sliding;
-													continue updateFriction;
-												}
-											}
-										}
-									};
-								};
-							};
-						};
-					};
-				};
-			};
-		};
-	};
-};
+var $author$project$RaycastCar$Car$updateFriction = F9(
+	function (carSettings, dt, frame, updatedCar, numWheelsOnGround, currentWheels, wheelFrictions, updatedWheels, sliding) {
+		updateFriction:
+		while (true) {
+			if (!currentWheels.b) {
+				return A7($author$project$RaycastCar$Car$applyImpulses, carSettings, dt, frame, updatedCar, updatedWheels, sliding, wheelFrictions);
+			} else {
+				var wheel = currentWheels.a;
+				var remainingWheels = currentWheels.b;
+				var _v1 = wheel.aO;
+				if (!_v1.$) {
+					var point = _v1.a.cx;
+					var normal = _v1.a.aC;
+					var body = _v1.a.k;
+					var worldAxle = A2(
+						$ianmackenzie$elm_geometry$Direction3d$placeIn,
+						frame,
+						A3(
+							$ianmackenzie$elm_geometry$Direction3d$rotateAround,
+							A2($ianmackenzie$elm_geometry$Axis3d$through, wheel.fB, carSettings.fM),
+							wheel.ao,
+							carSettings.gB));
+					var maximpSide = A2($ianmackenzie$elm_units$Quantity$multiplyBy, carSettings.d5, wheel.cG);
+					var maxImpulse = _Utils_eq(wheel.au, $ianmackenzie$elm_units$Quantity$zero) ? $ianmackenzie$elm_units$Quantity$zero : A2($ianmackenzie$elm_units$Quantity$times, dt, wheel.au);
+					var _v2 = A2(
+						$ianmackenzie$elm_geometry$Vector3d$dot,
+						$ianmackenzie$elm_geometry$Direction3d$toVector(normal),
+						$ianmackenzie$elm_geometry$Direction3d$toVector(worldAxle));
+					var proj = _v2;
+					var axle = A2(
+						$elm$core$Maybe$withDefault,
+						normal,
+						$ianmackenzie$elm_geometry$Vector3d$direction(
+							A2(
+								$ianmackenzie$elm_geometry$Vector3d$minus,
+								A2(
+									$ianmackenzie$elm_geometry$Vector3d$scaleBy,
+									proj,
+									$ianmackenzie$elm_geometry$Direction3d$toVector(normal)),
+								$ianmackenzie$elm_geometry$Direction3d$toVector(worldAxle))));
+					var forward = A2(
+						$elm$core$Maybe$withDefault,
+						normal,
+						$ianmackenzie$elm_geometry$Vector3d$direction(
+							A2(
+								$ianmackenzie$elm_geometry$Vector3d$cross,
+								$ianmackenzie$elm_geometry$Direction3d$toVector(normal),
+								$ianmackenzie$elm_geometry$Direction3d$toVector(axle))));
+					var forwardImpulse = A2(
+						$ianmackenzie$elm_units$Quantity$plus,
+						A6($author$project$RaycastCar$Car$calcRollingFriction, updatedCar, body, point, forward, maxImpulse, numWheelsOnGround),
+						A2($ianmackenzie$elm_units$Quantity$times, dt, wheel.aQ));
+					var sideImpulse = A4($author$project$RaycastCar$Car$resolveSingleBilateral, updatedCar, body, point, axle);
+					var impulseSquared = A2(
+						$ianmackenzie$elm_units$Quantity$plus,
+						A2($ianmackenzie$elm_units$Quantity$times, sideImpulse, sideImpulse),
+						A2(
+							$ianmackenzie$elm_units$Quantity$multiplyBy,
+							0.25,
+							A2($ianmackenzie$elm_units$Quantity$times, forwardImpulse, forwardImpulse)));
+					var isSliding = A2(
+						$ianmackenzie$elm_units$Quantity$greaterThan,
+						A2($ianmackenzie$elm_units$Quantity$times, maximpSide, maximpSide),
+						impulseSquared);
+					var skidInfo = isSliding ? A2(
+						$ianmackenzie$elm_units$Quantity$ratio,
+						maximpSide,
+						$ianmackenzie$elm_units$Quantity$sqrt(impulseSquared)) : 1;
+					var $temp$carSettings = carSettings,
+						$temp$dt = dt,
+						$temp$frame = frame,
+						$temp$updatedCar = updatedCar,
+						$temp$numWheelsOnGround = numWheelsOnGround,
+						$temp$currentWheels = remainingWheels,
+						$temp$wheelFrictions = A2(
+						$elm$core$List$cons,
+						{cL: axle, dS: body, bs: point, cX: forward, cf: forwardImpulse, cE: sideImpulse, cF: skidInfo},
+						wheelFrictions),
+						$temp$updatedWheels = A2($elm$core$List$cons, wheel, updatedWheels),
+						$temp$sliding = sliding || isSliding;
+					carSettings = $temp$carSettings;
+					dt = $temp$dt;
+					frame = $temp$frame;
+					updatedCar = $temp$updatedCar;
+					numWheelsOnGround = $temp$numWheelsOnGround;
+					currentWheels = $temp$currentWheels;
+					wheelFrictions = $temp$wheelFrictions;
+					updatedWheels = $temp$updatedWheels;
+					sliding = $temp$sliding;
+					continue updateFriction;
+				} else {
+					var $temp$carSettings = carSettings,
+						$temp$dt = dt,
+						$temp$frame = frame,
+						$temp$updatedCar = updatedCar,
+						$temp$numWheelsOnGround = numWheelsOnGround,
+						$temp$currentWheels = remainingWheels,
+						$temp$wheelFrictions = wheelFrictions,
+						$temp$updatedWheels = A2($elm$core$List$cons, wheel, updatedWheels),
+						$temp$sliding = sliding;
+					carSettings = $temp$carSettings;
+					dt = $temp$dt;
+					frame = $temp$frame;
+					updatedCar = $temp$updatedCar;
+					numWheelsOnGround = $temp$numWheelsOnGround;
+					currentWheels = $temp$currentWheels;
+					wheelFrictions = $temp$wheelFrictions;
+					updatedWheels = $temp$updatedWheels;
+					sliding = $temp$sliding;
+					continue updateFriction;
+				}
+			}
+		}
+	});
 var $author$project$RaycastCar$Car$updateSuspension = F9(
 	function (carSettings, dt, world, frame, originalCar, currentWheels, updatedCar, updatedWheels, numWheelsOnGround) {
 		updateSuspension:
 		while (true) {
 			if (!currentWheels.b) {
-				return $author$project$RaycastCar$Car$updateFriction(carSettings)(dt)(world)(frame)(updatedCar)(numWheelsOnGround)(updatedWheels)(_List_Nil)(_List_Nil)(false);
+				return A9($author$project$RaycastCar$Car$updateFriction, carSettings, dt, frame, updatedCar, numWheelsOnGround, updatedWheels, _List_Nil, _List_Nil, false);
 			} else {
 				var wheel = currentWheels.a;
 				var remainingWheels = currentWheels.b;
