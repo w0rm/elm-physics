@@ -20,7 +20,6 @@ import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Internal.Constraint exposing (Constraint)
 import Length exposing (Meters)
 import Mass
 import Physics.Body as Body exposing (Body)

@@ -112,7 +112,7 @@ updateSuspension : CarSettings -> Duration -> World id -> Frame3d Meters WorldCo
 updateSuspension carSettings dt world frame originalCar currentWheels updatedCar updatedWheels numWheelsOnGround =
     case currentWheels of
         [] ->
-            updateFriction carSettings dt world frame updatedCar numWheelsOnGround updatedWheels [] [] False
+            updateFriction carSettings dt frame updatedCar numWheelsOnGround updatedWheels [] [] False
 
         wheel :: remainingWheels ->
             let
@@ -255,11 +255,11 @@ type alias WheelFriction id =
     }
 
 
-updateFriction : CarSettings -> Duration -> World id -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> Int -> List (Wheel id) -> List (WheelFriction id) -> List (Wheel id) -> Bool -> ( Body id, List (Wheel id) )
-updateFriction carSettings dt world frame updatedCar numWheelsOnGround currentWheels wheelFrictions updatedWheels sliding =
+updateFriction : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> Int -> List (Wheel id) -> List (WheelFriction id) -> List (Wheel id) -> Bool -> ( Body id, List (Wheel id) )
+updateFriction carSettings dt frame updatedCar numWheelsOnGround currentWheels wheelFrictions updatedWheels sliding =
     case currentWheels of
         [] ->
-            applyImpulses carSettings dt world frame updatedCar updatedWheels sliding wheelFrictions
+            applyImpulses carSettings dt frame updatedCar updatedWheels sliding wheelFrictions
 
         wheel :: remainingWheels ->
             case wheel.contact of
@@ -320,7 +320,6 @@ updateFriction carSettings dt world frame updatedCar numWheelsOnGround currentWh
                     in
                     updateFriction carSettings
                         dt
-                        world
                         frame
                         updatedCar
                         numWheelsOnGround
@@ -341,7 +340,6 @@ updateFriction carSettings dt world frame updatedCar numWheelsOnGround currentWh
                 Nothing ->
                     updateFriction carSettings
                         dt
-                        world
                         frame
                         updatedCar
                         numWheelsOnGround
@@ -351,8 +349,8 @@ updateFriction carSettings dt world frame updatedCar numWheelsOnGround currentWh
                         sliding
 
 
-applyImpulses : CarSettings -> Duration -> World id -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> List (Wheel id) -> Bool -> List (WheelFriction id) -> ( Body id, List (Wheel id) )
-applyImpulses carSettings dt world frame carBody wheels sliding wheelFrictions =
+applyImpulses : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> List (Wheel id) -> Bool -> List (WheelFriction id) -> ( Body id, List (Wheel id) )
+applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
     case wheelFrictions of
         [] ->
             rotateWheels carSettings dt frame carBody wheels []
@@ -398,7 +396,6 @@ applyImpulses carSettings dt world frame carBody wheels sliding wheelFrictions =
             in
             applyImpulses carSettings
                 dt
-                world
                 frame
                 newCar
                 wheels
