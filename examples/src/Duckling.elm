@@ -39,7 +39,6 @@ import Scene3d
 import Scene3d.Material exposing (Texture)
 import Scene3d.Mesh exposing (Shadow, Textured)
 import Task
-import Viewpoint3d
 import WebGL.Texture
 
 
@@ -196,15 +195,13 @@ view : Model -> Html Msg
 view model =
     let
         camera =
-            Camera3d.perspective
-                { viewpoint =
-                    Viewpoint3d.orbitZ
-                        { focalPoint = Point3d.meters 0 0 0
-                        , azimuth = Angle.degrees 45
-                        , elevation = Angle.degrees 25
-                        , distance = Length.meters 25
-                        }
-                , verticalFieldOfView = Angle.degrees 30
+            Camera3d.orbitZ
+                { focalPoint = Point3d.meters 0 0 0
+                , azimuth = Angle.degrees 45
+                , elevation = Angle.degrees 25
+                , distance = Length.meters 25
+                , projection = Camera3d.Perspective
+                , fov = Camera3d.angle (Angle.degrees 30)
                 }
     in
     case model.material of

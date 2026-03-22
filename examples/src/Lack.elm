@@ -42,7 +42,6 @@ import Scene3d exposing (Entity)
 import Scene3d.Material as Material
 import Sphere3d
 import Task
-import Viewpoint3d
 
 
 type Id
@@ -136,14 +135,12 @@ table =
 
 camera : Camera3d Meters WorldCoordinates
 camera =
-    Camera3d.perspective
-        { viewpoint =
-            Viewpoint3d.lookAt
-                { eyePoint = Point3d.meters 3 4 2
-                , focalPoint = Point3d.meters -0.5 -0.5 0
-                , upDirection = Direction3d.positiveZ
-                }
-        , verticalFieldOfView = Angle.degrees 24
+    Camera3d.lookAt
+        { eyePoint = Point3d.meters 3 4 2
+        , focalPoint = Point3d.meters -0.5 -0.5 0
+        , upDirection = Direction3d.positiveZ
+        , projection = Camera3d.Perspective
+        , fov = Camera3d.angle (Angle.degrees 24)
         }
 
 
@@ -272,7 +269,7 @@ update msg model =
                         plane =
                             Plane3d.through
                                 worldPoint
-                                (Viewpoint3d.viewDirection (Camera3d.viewpoint camera))
+                                (Camera3d.viewDirection camera)
                     in
                     { model
                         | world =
