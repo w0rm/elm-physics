@@ -1,22 +1,24 @@
 {
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
-    flake-utils.url = "github:numtide/flake-utils";
-  };
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        devShells.default = with pkgs; with elmPackages; mkShell {
-          buildInputs = [
-            elm
-            elm-format
-            elm-test
-            elm-review
-            elm-json
-          ];
-        };
-      });
+  outputs = { nixpkgs, ... }:
+    let
+      systems =
+        [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
+    in {
+      devShells = forAllSystems (system:
+        let pkgs = nixpkgs.legacyPackages.${system};
+        in {
+          default = pkgs.mkShell {
+            buildInputs = with pkgs.elmPackages; [
+              elm
+              elm-format
+              elm-test
+              elm-review
+              elm-json
+            ];
+          };
+        });
+    };
 }

@@ -267,7 +267,7 @@ updateFriction carSettings dt frame updatedCar numWheelsOnGround currentWheels w
                     let
                         worldAxle =
                             carSettings.rightDirection
-                                |> Direction3d.rotateAround (Axis3d.through wheel.chassisConnectionPoint carSettings.downDirection) wheel.steering
+                                |> Direction3d.rotateAround carSettings.downDirection wheel.steering
                                 |> Direction3d.placeIn frame
 
                         (Quantity proj) =

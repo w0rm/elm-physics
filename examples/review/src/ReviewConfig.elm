@@ -26,14 +26,15 @@ import Simplify
 
 config : List Rule
 config =
-    [ NoUnused.CustomTypeConstructors.rule []
-    , NoUnused.CustomTypeConstructorArgs.rule
-    , NoUnused.Dependencies.rule
-    , NoUnused.Exports.rule
-    , NoUnused.Modules.rule
-    , NoUnused.Parameters.rule
-    , NoUnused.Patterns.rule
-    , NoUnused.Variables.rule
-    , Simplify.rule Simplify.defaults
-    , NoUnoptimizedRecursion.rule (NoUnoptimizedRecursion.optOutWithComment "IGNORE TCO")
-    ]
+    List.map (Review.Rule.ignoreErrorsForDirectories [ "../tests" ])
+        [ NoUnused.CustomTypeConstructors.rule []
+        , NoUnused.CustomTypeConstructorArgs.rule
+        , NoUnused.Dependencies.rule
+        , NoUnused.Exports.rule |> Review.Rule.ignoreErrorsForDirectories [ "../src" ]
+        , NoUnused.Modules.rule
+        , NoUnused.Parameters.rule
+        , NoUnused.Patterns.rule
+        , NoUnused.Variables.rule
+        , Simplify.rule (Simplify.expectNaN Simplify.defaults)
+        , NoUnoptimizedRecursion.rule (NoUnoptimizedRecursion.optOutWithComment "IGNORE TCO")
+        ]

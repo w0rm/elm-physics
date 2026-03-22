@@ -42,7 +42,6 @@ import Scene3d exposing (Entity)
 import Scene3d.Material
 import Task
 import Vector3d
-import Viewpoint3d
 
 
 type Id
@@ -55,7 +54,6 @@ type alias Model =
     { dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     , world : World Id
     , jeep : Maybe Jeep
-    , firstTick : Bool
     , speeding : Float
     , steering : Float
     , braking : Bool
@@ -91,7 +89,6 @@ init _ =
     ( { dimensions = ( Pixels.int 0, Pixels.int 0 )
       , world = initialWorld
       , jeep = Nothing
-      , firstTick = True
       , speeding = 0
       , steering = 0
       , braking = False
@@ -179,7 +176,6 @@ update msg model =
 
                         _ ->
                             model.world
-                , firstTick = False
             }
 
         Resize width height ->
@@ -240,14 +236,12 @@ view { world, jeep, dimensions } =
 
 camera : Camera3d Meters WorldCoordinates
 camera =
-    Camera3d.perspective
-        { viewpoint =
-            Viewpoint3d.lookAt
-                { eyePoint = Point3d.meters -40 40 30
-                , focalPoint = Point3d.meters 0 -7 0
-                , upDirection = Direction3d.positiveZ
-                }
-        , verticalFieldOfView = Angle.degrees 24
+    Camera3d.lookAt
+        { eyePoint = Point3d.meters -40 40 30
+        , focalPoint = Point3d.meters 0 -7 0
+        , upDirection = Direction3d.positiveZ
+        , projection = Camera3d.Perspective
+        , fov = Camera3d.angle (Angle.degrees 24)
         }
 
 
