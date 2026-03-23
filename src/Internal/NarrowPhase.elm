@@ -8,46 +8,71 @@ import Collision.PlaneSphere
 import Collision.SphereConvex
 import Collision.SphereParticle
 import Collision.SphereSphere
-import Internal.Contact as Contact exposing (Contact)
+import Internal.Contact as Contact exposing (Contact, SolverContact)
+import Internal.Material as Material exposing (Material)
 import Internal.Shape exposing (Shape(..))
 import Physics.Coordinates exposing (WorldCoordinates)
 
 
-getContacts : List (Shape WorldCoordinates) -> List (Shape WorldCoordinates) -> List Contact
-getContacts shapes1 shapes2 =
-    case shapes1 of
-        shape1 :: remainingShapes1 ->
-            getContactsHelp shape1 remainingShapes1 shapes2 shapes2 []
+getContacts : List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact
+getContacts pairs1 pairs2 =
+    case pairs1 of
+        pair1 :: remainingPairs1 ->
+            getContactsHelp pair1 remainingPairs1 pairs2 pairs2 []
 
         [] ->
             []
 
 
-getContactsHelp : Shape WorldCoordinates -> List (Shape WorldCoordinates) -> List (Shape WorldCoordinates) -> List (Shape WorldCoordinates) -> List Contact -> List Contact
-getContactsHelp shape1 currentShapes1 currentShapes2 shapes2 result =
-    case currentShapes2 of
-        shape2 :: remainingShapes2 ->
-            getContactsHelp shape1
-                currentShapes1
-                remainingShapes2
-                shapes2
-                (addShapeContacts shape1 shape2 result)
+getContactsHelp : ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
+getContactsHelp pair1 currentPairs1 currentPairs2 pairs2 result =
+    case currentPairs2 of
+        pair2 :: remainingPairs2 ->
+            getContactsHelp pair1
+                currentPairs1
+                remainingPairs2
+                pairs2
+                (addShapeContacts pair1 pair2 result)
 
         [] ->
-            case currentShapes1 of
-                newShape1 :: remainingShapes1 ->
-                    getContactsHelp newShape1
-                        remainingShapes1
-                        shapes2
-                        shapes2
+            case currentPairs1 of
+                newPair1 :: remainingPairs1 ->
+                    getContactsHelp newPair1
+                        remainingPairs1
+                        pairs2
+                        pairs2
                         result
 
                 [] ->
                     result
 
 
-addShapeContacts : Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
-addShapeContacts shape1 shape2 contacts =
+addShapeContacts : ( Shape WorldCoordinates, Material ) -> ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
+addShapeContacts ( shape1, mat1 ) ( shape2, mat2 ) contacts =
+    let
+        bounciness =
+            Material.combine mat1.bounciness mat2.bounciness
+
+        friction =
+            Material.combine mat1.friction mat2.friction
+
+        rawContacts =
+            addRawShapeContacts shape1 shape2 []
+    in
+    List.foldl
+        (\contact acc ->
+            { bounciness = bounciness
+            , friction = friction
+            , contact = contact
+            }
+                :: acc
+        )
+        contacts
+        rawContacts
+
+
+addRawShapeContacts : Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
+addRawShapeContacts shape1 shape2 contacts =
     case shape1 of
         Convex convex1 ->
             case shape2 of

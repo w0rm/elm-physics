@@ -4,7 +4,7 @@ module Boxes exposing (main)
 Try changing `boxesPerDimension` to drop even more!
 -}
 
-import Acceleration
+import Array exposing (Array)
 import Block3d
 import Browser
 import Browser.Dom as Dom
@@ -14,17 +14,15 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
-import Direction3d
-import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Length
+import Length exposing (Meters)
 import Mass
-import Physics.Body as Body exposing (Body)
+import Physics exposing (Body, onEarth)
+import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
-import Physics.World as World exposing (World)
-import Point3d
+import Point3d exposing (Point3d)
 import Task
 import WebGL exposing (Mesh)
 
@@ -35,7 +33,9 @@ boxesPerDimension =
 
 
 type alias Model =
-    { world : World (Mesh Attributes)
+    { bodies : List ( Int, Body )
+    , meshes : Array (Mesh Attributes)
+    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -61,7 +61,9 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { world = initialWorld
+    ( { bodies = initialBodies
+      , meshes = initialMeshes
+      , contacts = []
       , fps = []
       , settings = { settings | showFpsMeter = True }
       , camera =
@@ -87,9 +89,16 @@ update msg model =
             )
 
         Tick dt ->
+            let
+                ( newBodies, newContacts ) =
+                    Physics.simulate
+                        onEarth
+                        model.bodies
+            in
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (Duration.seconds (1 / 60)) model.world
+                , bodies = newBodies
+                , contacts = newContacts
               }
             , Cmd.none
             )
@@ -100,7 +109,7 @@ update msg model =
             )
 
         Restart ->
-            ( { model | world = initialWorld }, Cmd.none )
+            ( { model | bodies = initialBodies, meshes = initialMeshes }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -112,14 +121,13 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera } =
+view { settings, fps, bodies, meshes, contacts, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , world = world
+            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
+            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
             , camera = camera
-            , mesh = identity
-            , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
         , Settings.view ForSettings
@@ -128,53 +136,11 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.bodies world))
+            Fps.view fps (List.length bodies)
 
           else
             Html.text ""
         ]
-
-
-initialWorld : World (Mesh Attributes)
-initialWorld =
-    World.empty
-        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
-        |> World.add floor
-        |> addBoxes
-
-
-addBoxes : World (Mesh Attributes) -> World (Mesh Attributes)
-addBoxes world =
-    let
-        dimensions =
-            List.map toFloat (List.range 0 (boxesPerDimension - 1))
-
-        distance =
-            1
-    in
-    List.foldl
-        (\x world1 ->
-            List.foldl
-                (\y world2 ->
-                    List.foldl
-                        (\z ->
-                            box
-                                |> Body.moveTo
-                                    (Point3d.meters
-                                        ((x - (boxesPerDimension - 1) / 2) * distance)
-                                        ((y - (boxesPerDimension - 1) / 2) * distance)
-                                        ((z + (2 * boxesPerDimension + 1) / 2) * distance)
-                                    )
-                                |> World.add
-                        )
-                        world2
-                        dimensions
-                )
-                world1
-                dimensions
-        )
-        world
-        dimensions
 
 
 {-| Shift the floor a little bit down
@@ -184,23 +150,70 @@ floorOffset =
     { x = 0, y = 0, z = -1 }
 
 
-{-| Floor has an empty mesh, because it is not rendered
--}
-floor : Body (Mesh Attributes)
-floor =
-    Body.plane (Meshes.fromTriangles [])
-        |> Body.moveTo (Point3d.fromMeters floorOffset)
+initialBodies : List ( Int, Body )
+initialBodies =
+    let
+        -- id=0 is the floor
+        floorBody =
+            Physics.plane Material.wood
+                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+
+        dimensions =
+            List.map toFloat (List.range 0 (boxesPerDimension - 1))
+
+        distance =
+            1
+
+        block3d =
+            Block3d.centeredOn
+                Frame3d.atOrigin
+                ( Length.meters 1, Length.meters 1, Length.meters 1 )
+
+        boxBody =
+            Physics.block block3d Material.wood
+                |> Physics.scaleTo (Mass.kilograms 5)
+
+        boxes =
+            List.indexedMap
+                (\idx ( x, y, z ) ->
+                    ( idx + 1
+                    , boxBody
+                        |> Physics.moveTo
+                            (Point3d.meters
+                                ((x - (boxesPerDimension - 1) / 2) * distance)
+                                ((y - (boxesPerDimension - 1) / 2) * distance)
+                                ((z + (2 * boxesPerDimension + 1) / 2) * distance)
+                            )
+                    )
+                )
+                (List.concatMap
+                    (\x ->
+                        List.concatMap
+                            (\y -> List.map (\z -> ( x, y, z )) dimensions)
+                            dimensions
+                    )
+                    dimensions
+                )
+    in
+    ( 0, floorBody ) :: boxes
 
 
-box : Body (Mesh Attributes)
-box =
+initialMeshes : Array (Mesh Attributes)
+initialMeshes =
     let
         block3d =
             Block3d.centeredOn
                 Frame3d.atOrigin
                 ( Length.meters 1, Length.meters 1, Length.meters 1 )
+
+        -- id=0 is floor (empty mesh)
+        floorMesh =
+            Meshes.fromTriangles []
+
+        boxMesh =
+            Meshes.fromTriangles (Meshes.block block3d)
+
+        boxCount =
+            boxesPerDimension ^ 3
     in
-    Body.block block3d
-        (Meshes.fromTriangles (Meshes.block block3d))
-        |> Body.withMaterial (Material.custom { friction = 0.4, bounciness = 0.5 })
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+    Array.fromList (floorMesh :: List.repeat boxCount boxMesh)

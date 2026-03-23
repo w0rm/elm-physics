@@ -8,8 +8,7 @@ module Internal.Equation exposing
 
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
-import Internal.Contact exposing (Contact, ContactGroup)
-import Internal.Material as Material
+import Internal.Contact exposing (Contact, ContactGroup, SolverContact)
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -43,7 +42,7 @@ type alias EquationsGroup =
     }
 
 
-constraintEquationsGroup : Ctx -> Body data -> Body data -> List (Constraint CenterOfMassCoordinates) -> EquationsGroup
+constraintEquationsGroup : Ctx -> Body -> Body -> List (Constraint CenterOfMassCoordinates) -> EquationsGroup
 constraintEquationsGroup ctx body1 body2 constraints =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
@@ -51,30 +50,15 @@ constraintEquationsGroup ctx body1 body2 constraints =
     }
 
 
-contactEquationsGroup : Ctx -> ContactGroup data -> EquationsGroup
+contactEquationsGroup : Ctx -> ContactGroup -> EquationsGroup
 contactEquationsGroup ctx { body1, body2, contacts } =
-    let
-        maxFrictionForce =
-            if (body1.invMass + body2.invMass) > 0 then
-                Material.contactFriction body1.material body2.material
-                    * ctx.gravityLength
-                    / (body1.invMass + body2.invMass)
-
-            else
-                0
-
-        bounciness =
-            Material.contactBounciness
-                body1.material
-                body2.material
-    in
     { bodyId1 = body1.id
     , bodyId2 = body2.id
-    , equations = List.foldl (addContactEquations ctx maxFrictionForce bounciness body1 body2) [] contacts
+    , equations = List.foldl (addContactEquations ctx body1 body2) [] contacts
     }
 
 
-addConstraintEquations : Ctx -> Body data -> Body data -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
+addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
 addConstraintEquations ctx body1 body2 constraint =
     case constraint of
         PointToPoint pivot1 pivot2 ->
@@ -92,7 +76,7 @@ addConstraintEquations ctx body1 body2 constraint =
             addDistanceConstraintEquations ctx body1 body2 distance
 
 
-addDistanceConstraintEquations : Ctx -> Body data -> Body data -> Float -> List SolverEquation -> List SolverEquation
+addDistanceConstraintEquations : Ctx -> Body -> Body -> Float -> List SolverEquation -> List SolverEquation
 addDistanceConstraintEquations ctx body1 body2 distance =
     let
         halfDistance =
@@ -118,8 +102,7 @@ addDistanceConstraintEquations ctx body1 body2 distance =
     in
     (::)
         (initSolverParams
-            (computeContactB
-                0
+            (computeContactB 0
                 { pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
                 , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
                 , ni = ni
@@ -142,7 +125,7 @@ addDistanceConstraintEquations ctx body1 body2 distance =
         )
 
 
-addHingeRotationalConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
     let
         spookA =
@@ -214,7 +197,7 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
         :: equations
 
 
-addLockRotationalConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations =
     let
         spookA =
@@ -310,7 +293,7 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
         :: equations
 
 
-addPointToPointConstraintEquations : Ctx -> Body data -> Body data -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addPointToPointConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
     let
         ri =
@@ -358,9 +341,16 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
         Vec3.basis
 
 
-addContactEquations : Ctx -> Float -> Float -> Body data -> Body data -> Contact -> List SolverEquation -> List SolverEquation
-addContactEquations ctx maxFrictionForce bounciness body1 body2 contact equations =
+addContactEquations : Ctx -> Body -> Body -> SolverContact -> List SolverEquation -> List SolverEquation
+addContactEquations ctx body1 body2 { friction, bounciness, contact } equations =
     let
+        maxFrictionForce =
+            if body1.invMass + body2.invMass > 0 then
+                friction * ctx.gravityLength / (body1.invMass + body2.invMass)
+
+            else
+                0
+
         ri =
             Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
 
@@ -446,7 +436,7 @@ type alias SolverEquation =
     }
 
 
-initSolverParams : ComputeB data -> Ctx -> Body data -> Body data -> Equation -> SolverEquation
+initSolverParams : ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
 initSolverParams computeB ctx bi bj solverEquation =
     { solverLambda = 0
     , equation =
@@ -467,11 +457,11 @@ initSolverParams computeB ctx bi bj solverEquation =
     }
 
 
-type alias ComputeB data =
-    Body data -> Body data -> Equation -> Float
+type alias ComputeB =
+    Body -> Body -> Equation -> Float
 
 
-computeContactB : Float -> Contact -> ComputeB data
+computeContactB : Float -> Contact -> ComputeB
 computeContactB bounciness { pi, pj, ni } bi bj { spookA, spookB, wA, wB } =
     let
         g =
@@ -495,7 +485,7 @@ type alias RotationalEquation =
     }
 
 
-computeRotationalB : RotationalEquation -> ComputeB data
+computeRotationalB : RotationalEquation -> ComputeB
 computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEquation) =
     let
         g =
@@ -507,7 +497,7 @@ computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEq
     -g * spookA - gW * spookB
 
 
-computeFrictionB : ComputeB data
+computeFrictionB : ComputeB
 computeFrictionB bi bj ({ spookB } as solverEquation) =
     let
         gW =
@@ -522,7 +512,7 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
   - f are the forces on the bodies
 
 -}
-computeGiMf : Vec3 -> Body data -> Body data -> Equation -> Float
+computeGiMf : Vec3 -> Body -> Body -> Equation -> Float
 computeGiMf gravity bi bj { wA, vB, wB } =
     let
         gravityi =
@@ -551,7 +541,7 @@ computeGiMf gravity bi bj { wA, vB, wB } =
 
 {-| Compute G x inv(M) x G' + eps, the denominator part of the SPOOK equation:
 -}
-computeC : Body data -> Body data -> Equation -> Float
+computeC : Body -> Body -> Equation -> Float
 computeC bi bj { wA, wB, spookEps } =
     bi.invMass
         + bj.invMass
@@ -566,7 +556,7 @@ computeC bi bj { wA, wB, spookEps } =
 
 {-| Computes G x W, where W are the body velocities
 -}
-computeGW : Body data -> Body data -> Equation -> Float
+computeGW : Body -> Body -> Equation -> Float
 computeGW bi bj { wA, vB, wB } =
     -(vB.x * bi.velocity.x + vB.y * bi.velocity.y + vB.z * bi.velocity.z)
         + (wA.x * bi.angularVelocity.x + wA.y * bi.angularVelocity.y + wA.z * bi.angularVelocity.z)

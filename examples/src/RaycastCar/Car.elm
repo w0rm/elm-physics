@@ -20,9 +20,8 @@ import Force exposing (Force)
 import Frame3d exposing (Frame3d)
 import Length exposing (Length, Meters)
 import Mass
-import Physics.Body as Body exposing (Body)
+import Physics exposing (Body)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
 import Quantity exposing (Quantity(..))
 import Vector3d
@@ -42,6 +41,9 @@ type alias CarSettings =
     , frictionSlip : Float
     , rollInfluence : Float
     , maxSuspensionForce : Force
+    , maxEngineForce : Force
+    , maxBrakeForce : Force
+    , maxSteering : Angle
     }
 
 
@@ -57,44 +59,48 @@ type alias Wheel id =
     , brake : Force
     , contact :
         Maybe
-            { point : Point3d Meters WorldCoordinates
-            , normal : Direction3d WorldCoordinates
-            , body : Body id
-            }
+            ( id
+            , Body
+            , { point : Point3d Meters WorldCoordinates
+              , normal : Direction3d WorldCoordinates
+              }
+            )
     }
 
 
 simulate :
-    CarSettings
-    -> Duration
-    ->
-        { worldWithoutCar : World id
-        , speeding : Float
-        , steering : Float
-        , braking : Bool
-        }
+    { duration : Duration
+    , bodiesWithoutCar : List ( id, Body )
+    , speeding : Float
+    , steering : Float
+    , braking : Bool
+    , carSettings : CarSettings
+    }
     -> List (Wheel id)
-    -> Body id
-    -> ( Body id, List (Wheel id) )
-simulate carSettings dt { worldWithoutCar, steering, braking, speeding } wheels carBody =
+    -> Body
+    -> ( Body, List (Wheel id) )
+simulate { duration, bodiesWithoutCar, steering, braking, speeding, carSettings } wheels carBody =
     case wheels of
         [ w1, w2, w3, w4 ] ->
             let
                 engineForce =
-                    Force.newtons (5000 * speeding)
+                    Quantity.multiplyBy speeding carSettings.maxEngineForce
 
                 brake =
                     if braking then
-                        Force.newtons 10000
+                        carSettings.maxBrakeForce
 
                     else
                         Quantity.zero
 
+                steeringAngle =
+                    Quantity.multiplyBy steering carSettings.maxSteering
+
                 wheel1 =
-                    { w1 | steering = Angle.degrees (30 * steering), engineForce = engineForce, brake = brake }
+                    { w1 | steering = steeringAngle, engineForce = engineForce, brake = brake }
 
                 wheel2 =
-                    { w2 | steering = Angle.degrees (30 * steering), engineForce = engineForce, brake = brake }
+                    { w2 | steering = steeringAngle, engineForce = engineForce, brake = brake }
 
                 wheel3 =
                     { w3 | engineForce = engineForce, brake = brake }
@@ -102,14 +108,14 @@ simulate carSettings dt { worldWithoutCar, steering, braking, speeding } wheels 
                 wheel4 =
                     { w4 | engineForce = engineForce, brake = brake }
             in
-            updateSuspension carSettings dt worldWithoutCar (Body.frame carBody) carBody [ wheel1, wheel2, wheel3, wheel4 ] carBody [] 0
+            updateSuspension carSettings duration bodiesWithoutCar (Physics.frame carBody) carBody [ wheel1, wheel2, wheel3, wheel4 ] carBody [] 0
 
         _ ->
             ( carBody, wheels )
 
 
-updateSuspension : CarSettings -> Duration -> World id -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> List (Wheel id) -> Body id -> List (Wheel id) -> Int -> ( Body id, List (Wheel id) )
-updateSuspension carSettings dt world frame originalCar currentWheels updatedCar updatedWheels numWheelsOnGround =
+updateSuspension : CarSettings -> Duration -> List ( id, Body ) -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> List (Wheel id) -> Body -> List (Wheel id) -> Int -> ( Body, List (Wheel id) )
+updateSuspension carSettings dt bodies frame originalCar currentWheels updatedCar updatedWheels numWheelsOnGround =
     case currentWheels of
         [] ->
             updateFriction carSettings dt frame updatedCar numWheelsOnGround updatedWheels [] [] False
@@ -120,20 +126,11 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
                     Axis3d.through wheel.chassisConnectionPoint carSettings.downDirection
                         |> Axis3d.placeIn frame
             in
-            case World.raycast ray world of
-                Just { body, normal, point } ->
+            case Physics.raycast ray bodies of
+                Just (( _, _, { point, normal } ) as hitResult) ->
                     let
-                        bodyFrame =
-                            Body.frame body
-
-                        contactPoint =
-                            Point3d.placeIn bodyFrame point
-
-                        contactNormal =
-                            Direction3d.placeIn bodyFrame normal
-
                         distance =
-                            Point3d.distanceFrom contactPoint (Axis3d.originPoint ray)
+                            Point3d.distanceFrom point (Axis3d.originPoint ray)
 
                         maxDistance =
                             Quantity.plus carSettings.suspensionRestLength carSettings.radius
@@ -154,12 +151,12 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
 
                             (Quantity projectedVelocity) =
                                 Vector3d.dot
-                                    (Direction3d.toVector contactNormal)
-                                    (Body.velocityAt contactPoint originalCar)
+                                    (Direction3d.toVector normal)
+                                    (Physics.velocityAt point originalCar)
 
                             (Quantity denominator) =
                                 Vector3d.dot
-                                    (Direction3d.toVector contactNormal)
+                                    (Direction3d.toVector normal)
                                     (Direction3d.toVector (Axis3d.direction ray))
 
                             ( suspensionRelativeVelocity, clippedInvContactDotSuspension ) =
@@ -180,30 +177,20 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
                                 ((carSettings.suspensionStiffness * difference * clippedInvContactDotSuspension)
                                     - (damping * suspensionRelativeVelocity)
                                 )
-                                    |> (*) (Body.mass originalCar |> Maybe.map Mass.inKilograms |> Maybe.withDefault 0)
+                                    |> (*) (Physics.mass originalCar |> Maybe.map Mass.inKilograms |> Maybe.withDefault 0)
                                     |> Force.newtons
                                     |> Quantity.clamp Quantity.zero carSettings.maxSuspensionForce
                                     |> Quantity.times dt
                         in
                         updateSuspension carSettings
                             dt
-                            world
+                            bodies
                             frame
                             originalCar
                             remainingWheels
-                            (Body.applyImpulse
-                                suspensionImpulse
-                                contactNormal
-                                contactPoint
-                                updatedCar
-                            )
+                            (Physics.applyImpulse suspensionImpulse normal point updatedCar)
                             ({ wheel
-                                | contact =
-                                    Just
-                                        { point = contactPoint
-                                        , normal = contactNormal
-                                        , body = body
-                                        }
+                                | contact = Just hitResult
                                 , suspensionLength = suspensionLength
                                 , suspensionImpulse = suspensionImpulse
                              }
@@ -214,7 +201,7 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
                     else
                         updateSuspension carSettings
                             dt
-                            world
+                            bodies
                             frame
                             originalCar
                             remainingWheels
@@ -230,7 +217,7 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
                 Nothing ->
                     updateSuspension carSettings
                         dt
-                        world
+                        bodies
                         frame
                         originalCar
                         remainingWheels
@@ -244,18 +231,18 @@ updateSuspension carSettings dt world frame originalCar currentWheels updatedCar
                         numWheelsOnGround
 
 
-type alias WheelFriction id =
+type alias WheelFriction =
     { forward : Direction3d WorldCoordinates
     , axle : Direction3d WorldCoordinates
     , sideImpulse : Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
     , forwardImpulse : Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
     , skidInfo : Float
     , contactPoint : Point3d Meters WorldCoordinates
-    , contactBody : Body id
+    , contactBody : Body
     }
 
 
-updateFriction : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> Int -> List (Wheel id) -> List (WheelFriction id) -> List (Wheel id) -> Bool -> ( Body id, List (Wheel id) )
+updateFriction : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Int -> List (Wheel id) -> List WheelFriction -> List (Wheel id) -> Bool -> ( Body, List (Wheel id) )
 updateFriction carSettings dt frame updatedCar numWheelsOnGround currentWheels wheelFrictions updatedWheels sliding =
     case currentWheels of
         [] ->
@@ -263,7 +250,7 @@ updateFriction carSettings dt frame updatedCar numWheelsOnGround currentWheels w
 
         wheel :: remainingWheels ->
             case wheel.contact of
-                Just { point, normal, body } ->
+                Just ( _, body, { point, normal } ) ->
                     let
                         worldAxle =
                             carSettings.rightDirection
@@ -349,7 +336,7 @@ updateFriction carSettings dt frame updatedCar numWheelsOnGround currentWheels w
                         sliding
 
 
-applyImpulses : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> List (Wheel id) -> Bool -> List (WheelFriction id) -> ( Body id, List (Wheel id) )
+applyImpulses : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> List (Wheel id) -> Bool -> List WheelFriction -> ( Body, List (Wheel id) )
 applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
     case wheelFrictions of
         [] ->
@@ -358,8 +345,12 @@ applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
         friction :: remainingFrictions ->
             let
                 centerOfMass =
-                    Body.centerOfMass carBody
-                        |> Point3d.placeIn frame
+                    case Physics.centerOfMass carBody of
+                        Just com ->
+                            Point3d.placeIn frame com
+
+                        Nothing ->
+                            Frame3d.originPoint frame
 
                 up =
                     Direction3d.reverse carSettings.downDirection
@@ -389,8 +380,8 @@ applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
 
                 newCar =
                     carBody
-                        |> Body.applyImpulse forwardImpulse friction.forward friction.contactPoint
-                        |> Body.applyImpulse sideImpulse friction.axle closerToCenterOfMass
+                        |> Physics.applyImpulse forwardImpulse friction.forward friction.contactPoint
+                        |> Physics.applyImpulse sideImpulse friction.axle closerToCenterOfMass
 
                 -- TODO: apply the reverse of the sideImpulse on the ground object too, for now assume it is static
             in
@@ -403,7 +394,7 @@ applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
                 remainingFrictions
 
 
-rotateWheels : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body id -> List (Wheel id) -> List (Wheel id) -> ( Body id, List (Wheel id) )
+rotateWheels : CarSettings -> Duration -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> List (Wheel id) -> List (Wheel id) -> ( Body, List (Wheel id) )
 rotateWheels carSettings dt frame carBody wheels updatedWheels =
     case wheels of
         [] ->
@@ -411,10 +402,10 @@ rotateWheels carSettings dt frame carBody wheels updatedWheels =
 
         wheel :: remainingWheels ->
             case wheel.contact of
-                Just { point, normal } ->
+                Just ( _, _, { point, normal } ) ->
                     let
                         velocity =
-                            Body.velocityAt point carBody
+                            Physics.velocityAt point carBody
 
                         forward =
                             Direction3d.placeIn frame carSettings.forwardDirection
@@ -454,14 +445,14 @@ rotateWheels carSettings dt frame carBody wheels updatedWheels =
                     rotateWheels carSettings dt frame carBody remainingWheels (newWheel :: updatedWheels)
 
 
-resolveSingleBilateral : Body id -> Body id -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
+resolveSingleBilateral : Body -> Body -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
 resolveSingleBilateral body1 body2 point direction =
     let
         velocity1 =
-            Body.velocityAt point body1
+            Physics.velocityAt point body1
 
         velocity2 =
-            Body.velocityAt point body2
+            Physics.velocityAt point body2
 
         (Quantity relativeVelocity) =
             Vector3d.dot (Vector3d.minus velocity2 velocity1) (Direction3d.toVector direction)
@@ -470,7 +461,7 @@ resolveSingleBilateral body1 body2 point direction =
             0.2
 
         invMass1 =
-            case Body.mass body1 of
+            case Physics.mass body1 of
                 Just mass ->
                     1 / Mass.inKilograms mass
 
@@ -478,7 +469,7 @@ resolveSingleBilateral body1 body2 point direction =
                     0
 
         invMass2 =
-            case Body.mass body2 of
+            case Physics.mass body2 of
                 Just mass ->
                     1 / Mass.inKilograms mass
 
@@ -491,14 +482,14 @@ resolveSingleBilateral body1 body2 point direction =
     Quantity (-contactDamping * relativeVelocity * massTerm)
 
 
-calcRollingFriction : Body id -> Body id -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds) -> Int -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
+calcRollingFriction : Body -> Body -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds) -> Int -> Quantity Float (Quantity.Product Force.Newtons Duration.Seconds)
 calcRollingFriction body1 body2 point forward maxImpulse numWheelsOnGround =
     let
         velocity1 =
-            Body.velocityAt point body1
+            Physics.velocityAt point body1
 
         velocity2 =
-            Body.velocityAt point body2
+            Physics.velocityAt point body2
 
         (Quantity relativeVelocity) =
             Vector3d.dot (Vector3d.minus velocity2 velocity1) (Direction3d.toVector forward)
@@ -513,11 +504,19 @@ calcRollingFriction body1 body2 point forward maxImpulse numWheelsOnGround =
         |> Quantity.clamp (Quantity.negate maxImpulse) maxImpulse
 
 
-computeImpulseDenominator : Body id -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Float
+computeImpulseDenominator : Body -> Point3d Meters WorldCoordinates -> Direction3d WorldCoordinates -> Float
 computeImpulseDenominator body point normal =
     let
+        bodyFrame =
+            Physics.frame body
+
         position =
-            Point3d.placeIn (Body.frame body) (Body.centerOfMass body)
+            case Physics.centerOfMass body of
+                Just com ->
+                    Point3d.placeIn bodyFrame com
+
+                Nothing ->
+                    Frame3d.originPoint bodyFrame
 
         r0 =
             Vector3d.from position point
@@ -526,12 +525,12 @@ computeImpulseDenominator body point normal =
             Vector3d.cross r0 (Direction3d.toVector normal)
 
         vec =
-            Vector3d.cross (Body.transformWithInverseInertia body c0) r0
+            Vector3d.cross (Physics.applyInverseInertia body c0) r0
 
         (Quantity dot) =
             Vector3d.dot (Direction3d.toVector normal) vec
     in
-    case Body.mass body of
+    case Physics.mass body of
         Just mass ->
             1 / Mass.inKilograms mass + dot
 

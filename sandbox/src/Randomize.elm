@@ -4,8 +4,8 @@ module Randomize exposing (main)
 It also shows how to make a compound body out of multiple shapes.
 -}
 
-import Acceleration
 import Angle
+import Array exposing (Array)
 import Axis3d
 import Block3d
 import Browser
@@ -18,16 +18,16 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
 import Direction3d
-import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Length
+import Length exposing (Meters)
 import Mass
-import Physics.Body as Body exposing (Body)
+import Physics exposing (Body, onEarth)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.World as World exposing (World)
-import Point3d
+import Point3d exposing (Point3d)
 import Random
 import Sphere3d
 import Task
@@ -35,8 +35,18 @@ import Vector3d
 import WebGL exposing (Mesh)
 
 
+type BodyShape
+    = BoxShape
+    | SphereShape
+    | CylinderShape
+    | CompoundShape
+
+
 type alias Model =
-    { world : World (Mesh Attributes)
+    { bodies : List ( Int, Body )
+    , meshes : Array (Mesh Attributes)
+    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
+    , nextId : Int
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -49,7 +59,7 @@ type Msg
     | Resize Float Float
     | Restart
     | Random
-    | AddRandom (Body (Mesh Attributes))
+    | AddRandom ( Body, Mesh Attributes )
 
 
 main : Program () Model Msg
@@ -64,7 +74,14 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { world = initialWorld
+    let
+        ( bodies, meshes, nextId ) =
+            initialBodiesAndMeshes
+    in
+    ( { bodies = bodies
+      , contacts = []
+      , meshes = meshes
+      , nextId = nextId
       , fps = []
       , settings = { settings | showSettings = True }
       , camera =
@@ -90,9 +107,16 @@ update msg model =
             )
 
         Tick dt ->
+            let
+                ( newBodies, newContacts ) =
+                    Physics.simulate
+                        onEarth
+                        model.bodies
+            in
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (Duration.seconds (1 / 60)) model.world
+                , bodies = newBodies
+                , contacts = newContacts
               }
             , Cmd.none
             )
@@ -103,13 +127,23 @@ update msg model =
             )
 
         Restart ->
-            ( { model | world = initialWorld }, Cmd.none )
+            let
+                ( bodies, meshes, nextId ) =
+                    initialBodiesAndMeshes
+            in
+            ( { model | bodies = bodies, meshes = meshes, nextId = nextId }, Cmd.none )
 
         Random ->
             ( model, Random.generate AddRandom randomBody )
 
-        AddRandom body ->
-            ( { model | world = World.add body model.world }, Cmd.none )
+        AddRandom ( body, mesh ) ->
+            ( { model
+                | bodies = ( model.nextId, body ) :: model.bodies
+                , meshes = Array.push mesh model.meshes
+                , nextId = model.nextId + 1
+              }
+            , Cmd.none
+            )
 
 
 subscriptions : Model -> Sub Msg
@@ -121,14 +155,13 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera } =
+view { settings, fps, bodies, contacts, meshes, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , world = world
+            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
+            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
             , camera = camera
-            , mesh = identity
-            , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
         , Settings.view ForSettings
@@ -139,41 +172,11 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.bodies world))
+            Fps.view fps (List.length bodies)
 
           else
             Html.text ""
         ]
-
-
-initialWorld : World (Mesh Attributes)
-initialWorld =
-    World.empty
-        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
-        |> World.add floor
-        |> World.add
-            (box
-                |> Body.rotateAround Axis3d.y (Angle.radians (-pi / 5))
-                |> Body.moveTo (Point3d.meters 0 0 2)
-            )
-        |> World.add
-            (sphere
-                |> Body.moveTo (Point3d.meters 0.5 0 8)
-            )
-        |> World.add
-            (cylinder
-                |> Body.rotateAround
-                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
-                    (Angle.radians (pi / 2))
-                |> Body.moveTo (Point3d.meters 0.5 0 11)
-            )
-        |> World.add
-            (compound
-                |> Body.rotateAround
-                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
-                    (Angle.radians (pi / 5))
-                |> Body.moveTo (Point3d.meters -1.2 0 5)
-            )
 
 
 {-| Shift the floor a little bit down
@@ -183,109 +186,149 @@ floorOffset =
     { x = 0, y = 0, z = -1 }
 
 
-{-| Floor has an empty mesh, because it is not rendered
--}
-floor : Body (Mesh Attributes)
-floor =
-    Body.plane (Meshes.fromTriangles [])
-        |> Body.moveTo (Point3d.fromMeters floorOffset)
+boxBlock3d : Block3d.Block3d Length.Meters BodyCoordinates
+boxBlock3d =
+    Block3d.centeredOn
+        Frame3d.atOrigin
+        ( Length.meters 2
+        , Length.meters 2
+        , Length.meters 2
+        )
 
 
-box : Body (Mesh Attributes)
-box =
-    let
-        block3d =
+sphere3d : Sphere3d.Sphere3d Length.Meters BodyCoordinates
+sphere3d =
+    Sphere3d.atOrigin (Length.meters 1.2)
+
+
+cylinder3d : Cylinder3d.Cylinder3d Length.Meters BodyCoordinates
+cylinder3d =
+    Cylinder3d.centeredOn Point3d.origin
+        Direction3d.x
+        { radius = Length.meters 0.5, length = Length.meters 2 }
+
+
+compoundBlocks : List (Block3d.Block3d Length.Meters BodyCoordinates)
+compoundBlocks =
+    List.map
+        (\center ->
             Block3d.centeredOn
-                Frame3d.atOrigin
-                ( Length.meters 2
-                , Length.meters 2
-                , Length.meters 2
+                (Frame3d.atPoint center)
+                ( Length.meters 1
+                , Length.meters 1
+                , Length.meters 1
                 )
-    in
-    Body.block block3d (Meshes.fromTriangles (Meshes.block block3d))
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+        )
+        [ Point3d.meters -0.5 0 -0.5
+        , Point3d.meters -0.5 0 0.5
+        , Point3d.meters 0.5 0 0.5
+        ]
 
 
-sphere : Body (Mesh Attributes)
-sphere =
+makeBox : Body
+makeBox =
+    Physics.block boxBlock3d Material.wood
+        |> Physics.scaleTo (Mass.kilograms 5)
+
+
+makeSphere : Body
+makeSphere =
+    Physics.sphere sphere3d Material.wood
+        |> Physics.scaleTo (Mass.kilograms 5)
+
+
+makeCylinder : Body
+makeCylinder =
+    Physics.cylinder cylinder3d Material.wood
+        |> Physics.scaleTo (Mass.kilograms 5)
+
+
+makeCompound : Body
+makeCompound =
+    Physics.dynamic
+        (List.map (\b -> ( Shape.block b, Material.wood )) compoundBlocks)
+        |> Physics.scaleTo (Mass.kilograms 5)
+
+
+initialBodiesAndMeshes : ( List ( Int, Body ), Array (Mesh Attributes), Int )
+initialBodiesAndMeshes =
     let
-        sphere3d =
-            Sphere3d.atOrigin (Length.meters 1.2)
-    in
-    Body.sphere
-        sphere3d
-        (Meshes.fromTriangles (Meshes.sphere 2 sphere3d))
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+        -- id=0 floor, 1 box, 2 sphere, 3 cylinder, 4 compound
+        floorBody =
+            Physics.plane Material.wood
+                |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
+        boxBody =
+            makeBox
+                |> Physics.rotateAround Axis3d.y (Angle.radians (-pi / 5))
+                |> Physics.moveTo (Point3d.meters 0 0 2)
 
-cylinder : Body (Mesh Attributes)
-cylinder =
-    let
-        length =
-            Length.meters 2
+        sphereBody =
+            makeSphere
+                |> Physics.moveTo (Point3d.meters 0.5 0 8)
 
-        radius =
-            Length.meters 0.5
+        cylinderBody =
+            makeCylinder
+                |> Physics.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 2))
+                |> Physics.moveTo (Point3d.meters 0.5 0 11)
 
-        cylinder3d =
-            Cylinder3d.centeredOn Point3d.origin
-                Direction3d.x
-                { radius = radius, length = length }
-    in
-    Body.cylinder cylinder3d
-        (Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d))
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+        compoundBody =
+            makeCompound
+                |> Physics.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 5))
+                |> Physics.moveTo (Point3d.meters -1.2 0 5)
 
+        bodies =
+            [ ( 0, floorBody )
+            , ( 1, boxBody )
+            , ( 2, sphereBody )
+            , ( 3, cylinderBody )
+            , ( 4, compoundBody )
+            ]
 
-{-| A compound body made of three boxes
--}
-compound : Body (Mesh Attributes)
-compound =
-    let
-        blocks =
-            List.map
-                (\center ->
-                    Block3d.centeredOn
-                        (Frame3d.atPoint center)
-                        ( Length.meters 1
-                        , Length.meters 1
-                        , Length.meters 1
-                        )
-                )
-                [ Point3d.meters -0.5 0 -0.5
-                , Point3d.meters -0.5 0 0.5
-                , Point3d.meters 0.5 0 0.5
+        meshes =
+            Array.fromList
+                [ Meshes.fromTriangles []
+                , Meshes.fromTriangles (Meshes.block boxBlock3d)
+                , Meshes.fromTriangles (Meshes.sphere 2 sphere3d)
+                , Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d)
+                , Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks)
                 ]
     in
-    Body.compound
-        (List.map Shape.block blocks)
-        (Meshes.fromTriangles (List.concatMap Meshes.block blocks))
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+    ( bodies, meshes, 5 )
 
 
 {-| A random body raised above the plane, shifted or rotated to a random 3d angle
 -}
-randomBody : Random.Generator (Body (Mesh Attributes))
+randomBody : Random.Generator ( Body, Mesh Attributes )
 randomBody =
     Random.map5
-        (\angle x y z body ->
-            (case body of
-                0 ->
-                    box
+        (\angle x y z bodyKind ->
+            let
+                ( body, mesh ) =
+                    case bodyKind of
+                        0 ->
+                            ( makeBox, Meshes.fromTriangles (Meshes.block boxBlock3d) )
 
-                1 ->
-                    sphere
+                        1 ->
+                            ( makeSphere, Meshes.fromTriangles (Meshes.sphere 2 sphere3d) )
 
-                2 ->
-                    cylinder
+                        2 ->
+                            ( makeCylinder, Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d) )
 
-                _ ->
-                    compound
-            )
-                |> Body.rotateAround
+                        _ ->
+                            ( makeCompound, Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks) )
+            in
+            ( body
+                |> Physics.rotateAround
                     (Axis3d.through Point3d.origin (Maybe.withDefault Direction3d.x (Vector3d.direction (Vector3d.from Point3d.origin (Point3d.meters x y z)))))
                     (Angle.radians angle)
-                |> Body.moveTo (Point3d.meters 0 0 10)
+                |> Physics.moveTo (Point3d.meters 0 0 10)
+            , mesh
+            )
         )
         (Random.float (-pi / 2) (pi / 2))
         (Random.float -1 1)
