@@ -1,8 +1,13 @@
-module Physics.Shape exposing (Shape, block, sphere, cylinder, unsafeConvex)
+module Physics.Shape exposing
+    ( Shape, block, sphere, cylinder, unsafeConvex, volume
+    , minus, plus, sum
+    )
 
 {-|
 
-@docs Shape, block, sphere, cylinder, unsafeConvex
+@docs Shape, block, sphere, cylinder, unsafeConvex, volume
+
+@docs minus, plus, sum
 
 -}
 
@@ -19,9 +24,10 @@ import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
+import Volume
 
 
-{-| Shapes are only needed for creating [compound](Physics-Body#compound) bodies.
+{-| Shapes are only needed for creating [dynamic](Physics-Body#dynamic) and [static](Physics-Body#static) bodies.
 
 If you need a body with a single shape, use the corresponding functions
 from the [Physics.Body](Physics-Body) module.
@@ -36,9 +42,40 @@ For the more complex cases use the [unsafeConvex](#unsafeConvex) shape.
 
 Shapes are defined in the body coordinate system.
 
+Use [plus](#plus) and [minus](#minus) to combine shapes,
+for example to create hollow bodies.
+
 -}
 type alias Shape =
     Protected
+
+
+{-| Add a shape to another.
+
+    Shape.block a |> Shape.plus (Shape.block b)
+
+-}
+plus : Shape -> Shape -> Shape
+plus (Protected toAdd) (Protected base) =
+    Protected (base ++ toAdd)
+
+
+{-| Combine a list of shapes.
+-}
+sum : List Shape -> Shape
+sum =
+    List.foldl plus (Protected [])
+
+
+{-| Subtract a shape from another, the first argument is subtracted from the second.
+The subtracted shape reduces mass and inertia and is excluded from collision. Useful for hollow bodies.
+
+    Shape.block outer |> Shape.minus (Shape.block inner)
+
+-}
+minus : Shape -> Shape -> Shape
+minus (Protected toSubtract) (Protected base) =
+    Protected (base ++ List.map (Tuple.mapSecond negate) toSubtract)
 
 
 {-| -}
@@ -74,14 +111,16 @@ block block3d =
             Transform3d.fromOriginAndBasis origin x y z
     in
     Protected
-        (Internal.Convex
-            (Convex.fromBlock
-                (Length.inMeters sizeX)
-                (Length.inMeters sizeY)
-                (Length.inMeters sizeZ)
-                |> Convex.placeIn tranform3d
-            )
-        )
+        [ ( Internal.Convex
+                (Convex.fromBlock
+                    (Length.inMeters sizeX)
+                    (Length.inMeters sizeY)
+                    (Length.inMeters sizeZ)
+                    |> Convex.placeIn tranform3d
+                )
+          , 1
+          )
+        ]
 
 
 {-| -}
@@ -95,11 +134,13 @@ sphere sphere3d =
             Point3d.toMeters (Sphere3d.centerPoint sphere3d)
     in
     Protected
-        (Internal.Sphere
-            (Sphere.atOrigin radius
-                |> Sphere.placeIn (Transform3d.atPoint origin)
-            )
-        )
+        [ ( Internal.Sphere
+                (Sphere.atOrigin radius
+                    |> Sphere.placeIn (Transform3d.atPoint origin)
+                )
+          , 1
+          )
+        ]
 
 
 {-| Create a cylinder shape by specifying the number of subdivisions >= 3.
@@ -108,7 +149,7 @@ sphere sphere3d =
 
     cylinder 2 myCylinder -- Too few faces so it has 3 faces instead
 
-Note that it’s more efficient to simulate cylinders with an even number of
+Note that it's more efficient to simulate cylinders with an even number of
 faces than an odd number of faces. This is because the collision performance depends
 on the number of unique faces that are not parallel with each other (and edges too).
 
@@ -127,12 +168,28 @@ cylinder subdivisions cylinder3d =
                 (Direction3d.unwrap b)
                 (Direction3d.unwrap (Cylinder3d.axialDirection cylinder3d))
     in
-    Convex.fromCylinder (max 3 subdivisions)
-        (Length.inMeters (Cylinder3d.radius cylinder3d))
-        (Length.inMeters (Cylinder3d.length cylinder3d))
-        |> Convex.placeIn transform3d
-        |> Internal.Convex
-        |> Protected
+    Protected
+        [ ( Convex.fromCylinder (max 3 subdivisions)
+                (Length.inMeters (Cylinder3d.radius cylinder3d))
+                (Length.inMeters (Cylinder3d.length cylinder3d))
+                |> Convex.placeIn transform3d
+                |> Internal.Convex
+          , 1
+          )
+        ]
+
+
+{-| Get the net volume of a shape in cubic meters.
+For compound shapes created with [minus](#minus), void parts are subtracted.
+-}
+volume : Shape -> Volume.Volume
+volume (Protected entries) =
+    Volume.cubicMeters
+        (List.foldl
+            (\( shape, sign ) acc -> acc + sign * abs (Internal.volume shape))
+            0
+            entries
+        )
 
 
 {-| Create a shape from a triangular mesh. This is useful if you want
@@ -157,6 +214,8 @@ unsafeConvex triangularMesh =
                 |> TriangularMesh.vertices
     in
     Protected
-        (Internal.Convex
-            (Convex.fromTriangularMesh faceIndices vertices)
-        )
+        [ ( Internal.Convex
+                (Convex.fromTriangularMesh faceIndices vertices)
+          , 1
+          )
+        ]

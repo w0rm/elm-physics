@@ -49,9 +49,6 @@ expandBoundingSphereRadius { radius, position } boundingSphereRadius =
 raycast : { from : Vec3, direction : Vec3 } -> Sphere -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { from, direction } { position, radius } =
     let
-        a =
-            direction.x * direction.x + direction.y * direction.y + direction.z * direction.z
-
         b =
             2 * (direction.x * (from.x - position.x) + direction.y * (from.y - position.y) + direction.z * (from.z - position.z))
 
@@ -59,7 +56,7 @@ raycast { from, direction } { position, radius } =
             (from.x - position.x) * (from.x - position.x) + (from.y - position.y) * (from.y - position.y) + (from.z - position.z) * (from.z - position.z) - radius * radius
 
         delta =
-            b * b - 4 * a * c
+            b * b - 4 * c
     in
     if delta < 0 then
         Nothing
@@ -67,7 +64,7 @@ raycast { from, direction } { position, radius } =
     else
         let
             distance =
-                (-b - sqrt delta) / (2 * a)
+                (-b - sqrt delta) / 2
         in
         if distance >= 0 then
             let
@@ -76,14 +73,13 @@ raycast { from, direction } { position, radius } =
                     , y = from.y + direction.y * distance
                     , z = from.z + direction.z * distance
                     }
-
-                normal =
-                    Vec3.sub point position
             in
             Just
                 { distance = distance
                 , point = point
-                , normal = normal
+
+                -- normalized at the top level
+                , normal = Vec3.sub point position
                 }
 
         else

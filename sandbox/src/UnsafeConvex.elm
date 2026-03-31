@@ -3,7 +3,7 @@ module UnsafeConvex exposing (main)
 {-| This is used to demonstrate loading `unsafeConvex` shape from the OBJ file!
 -}
 
-import Acceleration
+import Array exposing (Array)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
@@ -12,25 +12,25 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
-import Direction3d
-import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
-import Length
+import Length exposing (Meters)
 import Mass
 import Obj.Decode
-import Physics.Body as Body exposing (Body)
+import Physics exposing (Body, onEarth)
+import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.World as World exposing (World)
-import Point3d
+import Point3d exposing (Point3d)
 import Task
 import WebGL exposing (Mesh)
 
 
 type alias Model =
-    { world : World (Mesh Attributes)
+    { bodies : List ( Int, Body )
+    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
+    , meshes : Array (Mesh Attributes)
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -56,7 +56,9 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { world = initialWorld
+    ( { bodies = initialBodies
+      , contacts = []
+      , meshes = initialMeshes
       , fps = []
       , settings = { settings | showFpsMeter = True }
       , camera =
@@ -82,9 +84,16 @@ update msg model =
             )
 
         Tick dt ->
+            let
+                ( newBodies, newContacts ) =
+                    Physics.simulate
+                        onEarth
+                        model.bodies
+            in
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (Duration.seconds (1 / 60)) model.world
+                , bodies = newBodies
+                , contacts = newContacts
               }
             , Cmd.none
             )
@@ -95,7 +104,7 @@ update msg model =
             )
 
         Restart ->
-            ( { model | world = initialWorld }, Cmd.none )
+            ( { model | bodies = initialBodies }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -107,14 +116,13 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera } =
+view { settings, fps, bodies, contacts, meshes, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , world = world
+            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
+            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
             , camera = camera
-            , mesh = identity
-            , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
         , Settings.view ForSettings
@@ -123,20 +131,11 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.bodies world))
+            Fps.view fps (List.length bodies)
 
           else
             Html.text ""
         ]
-
-
-initialWorld : World (Mesh Attributes)
-initialWorld =
-    World.empty
-        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
-        |> World.add floor
-        |> World.add (cube |> Body.moveTo (Point3d.meters 0 0 8))
-        |> World.add (icoSphere |> Body.moveTo (Point3d.meters 0.3 0 5))
 
 
 {-| Shift the floor a little bit down
@@ -146,36 +145,63 @@ floorOffset =
     { x = 0, y = 0, z = -1 }
 
 
-{-| Floor has an empty mesh, because it is not rendered
--}
-floor : Body (Mesh Attributes)
-floor =
-    Body.plane (Meshes.fromTriangles [])
-        |> Body.moveTo (Point3d.fromMeters floorOffset)
-
-
-icoSphere : Body (Mesh Attributes)
-icoSphere =
+icoSphereBody : Body
+icoSphereBody =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
         Ok triangularMesh ->
-            Body.compound [ Shape.unsafeConvex triangularMesh ] (Meshes.fromTriangles (Meshes.triangularMesh triangularMesh))
-                |> Body.withMaterial (Material.custom { friction = 0.4, bounciness = 0.5 })
-                |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+            Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
+                |> Physics.scaleTo (Mass.kilograms 5)
 
         Err _ ->
-            Body.compound [] (Meshes.fromTriangles [])
+            Physics.dynamic []
 
 
-cube : Body (Mesh Attributes)
-cube =
+cubeBody : Body
+cubeBody =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
         Ok triangularMesh ->
-            Body.compound [ Shape.unsafeConvex triangularMesh ] (Meshes.fromTriangles (Meshes.triangularMesh triangularMesh))
-                |> Body.withMaterial (Material.custom { friction = 0.4, bounciness = 0.5 })
-                |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
+            Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
+                |> Physics.scaleTo (Mass.kilograms 5)
 
         Err _ ->
-            Body.compound [] (Meshes.fromTriangles [])
+            Physics.dynamic []
+
+
+icoSphereMesh : Mesh Attributes
+icoSphereMesh =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
+        Ok triangularMesh ->
+            Meshes.fromTriangles (Meshes.triangularMesh triangularMesh)
+
+        Err _ ->
+            Meshes.fromTriangles []
+
+
+cubeMesh : Mesh Attributes
+cubeMesh =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
+        Ok triangularMesh ->
+            Meshes.fromTriangles (Meshes.triangularMesh triangularMesh)
+
+        Err _ ->
+            Meshes.fromTriangles []
+
+
+initialBodies : List ( Int, Body )
+initialBodies =
+    [ ( 0, Physics.plane Material.wood |> Physics.moveTo (Point3d.fromMeters floorOffset) )
+    , ( 1, cubeBody |> Physics.moveTo (Point3d.meters 0 0 8) )
+    , ( 2, icoSphereBody |> Physics.moveTo (Point3d.meters 0.3 0 5) )
+    ]
+
+
+initialMeshes : Array (Mesh Attributes)
+initialMeshes =
+    Array.fromList
+        [ Meshes.fromTriangles []
+        , cubeMesh
+        , icoSphereMesh
+        ]
 
 
 cubeObj : String

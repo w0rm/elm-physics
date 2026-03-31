@@ -22,6 +22,9 @@ import Point3d exposing (Point3d)
 
 {-| Constraint allows to limit the freedom of movement
 of two bodies with relation to each other.
+
+Constraints are defined within the bodies’ local coordinate systems.
+
 -}
 type alias Constraint =
     Protected
@@ -29,7 +32,6 @@ type alias Constraint =
 
 {-| Connect a point on the first body with a point on the second body.
 This doesn’t limit the freedom of rotation of two bodies.
-Points are defined within the bodies’ local coordinate systems.
 -}
 pointToPoint :
     Point3d Meters BodyCoordinates

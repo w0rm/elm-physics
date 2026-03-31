@@ -5,8 +5,8 @@ module Internal.Shape exposing
     , centerOfMass
     , expandBoundingSphereRadius
     , inertia
+    , placeIn
     , raycast
-    , shapesPlaceIn
     , volume
     )
 
@@ -21,7 +21,7 @@ import Shapes.Sphere as Sphere exposing (Sphere)
 
 
 type Protected
-    = Protected (Shape BodyCoordinates)
+    = Protected (List ( Shape BodyCoordinates, Float ))
 
 
 type CenterOfMassCoordinates
@@ -85,36 +85,20 @@ centerOfMass shape =
 
 {-| Transforms shapes, reverses the original order
 -}
-shapesPlaceIn : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates)
-shapesPlaceIn transform3d shapes =
-    shapesPlaceInHelp transform3d shapes []
+placeIn : Transform3d coordinates { defines : originalCoords } -> Shape originalCoords -> Shape coordinates
+placeIn transform3d shape =
+    case shape of
+        Convex convex ->
+            Convex (Convex.placeIn transform3d convex)
 
+        Plane plane ->
+            Plane (Plane.placeIn transform3d plane)
 
-shapesPlaceInHelp : Transform3d coordinates { defines : originalCoords } -> List (Shape originalCoords) -> List (Shape coordinates) -> List (Shape coordinates)
-shapesPlaceInHelp transform3d shapes result =
-    case shapes of
-        shape :: remainingShapes ->
-            shapesPlaceInHelp
-                transform3d
-                remainingShapes
-                ((case shape of
-                    Convex convex ->
-                        Convex (Convex.placeIn transform3d convex)
+        Sphere sphere ->
+            Sphere (Sphere.placeIn transform3d sphere)
 
-                    Plane plane ->
-                        Plane (Plane.placeIn transform3d plane)
-
-                    Sphere sphere ->
-                        Sphere (Sphere.placeIn transform3d sphere)
-
-                    Particle position ->
-                        Particle (Transform3d.pointPlaceIn transform3d position)
-                 )
-                    :: result
-                )
-
-        [] ->
-            result
+        Particle position ->
+            Particle (Transform3d.pointPlaceIn transform3d position)
 
 
 expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float

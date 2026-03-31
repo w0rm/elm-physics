@@ -1,34 +1,23 @@
 module Internal.Material exposing
     ( Material
     , Protected(..)
-    , contactBounciness
-    , contactFriction
-    , default
+    , combine
+    , ice
+    , rubber
+    , steel
+    , wood
     )
 
 
-type Protected
+type Protected kind
     = Protected Material
 
 
 type alias Material =
     { bounciness : Float
     , friction : Float
+    , density : Float -- kg/m³; 0 for static materials / no density; negative for void shapes (subtracts from mass/inertia, excluded from collision)
     }
-
-
-contactFriction : Material -> Material -> Float
-contactFriction m1 m2 =
-    combine
-        m1.friction
-        m2.friction
-
-
-contactBounciness : Material -> Material -> Float
-contactBounciness m1 m2 =
-    combine
-        m1.bounciness
-        m2.bounciness
 
 
 {-| Average of two floats, clamped between 0 and 1
@@ -45,8 +34,21 @@ combine v1 v2 =
     (temp + abs temp) * 0.25
 
 
-default : Material
-default =
-    { friction = 0.3
-    , bounciness = 0
-    }
+wood : Material
+wood =
+    { friction = 0.4, bounciness = 0.3, density = 700 }
+
+
+rubber : Material
+rubber =
+    { friction = 0.8, bounciness = 0.7, density = 1100 }
+
+
+steel : Material
+steel =
+    { friction = 0.3, bounciness = 0.2, density = 7800 }
+
+
+ice : Material
+ice =
+    { friction = 0.03, bounciness = 0.1, density = 900 }

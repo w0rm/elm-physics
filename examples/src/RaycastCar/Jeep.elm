@@ -33,6 +33,7 @@ The Jeep model is courtesy of Kolja Wilcke <https://twitter.com/01k>
 
 -}
 
+import Angle
 import Array
 import Axis3d exposing (Axis3d)
 import BoundingBox3d
@@ -43,6 +44,7 @@ import Http
 import Length exposing (Length, Meters)
 import Obj.Decode exposing (Decoder)
 import Physics.Coordinates exposing (BodyCoordinates)
+import Physics.Material as Material exposing (HasDensity, Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d
 import Polyline3d
@@ -55,7 +57,7 @@ import TriangularMesh
 
 
 type alias Jeep =
-    { collider : List Shape
+    { collider : List ( Shape, Material HasDensity )
     , chassis : Textured BodyCoordinates
     , chassisShadow : Shadow BodyCoordinates
     , wheel : Textured BodyCoordinates
@@ -109,6 +111,9 @@ settings jeep =
     , frictionSlip = 5
     , rollInfluence = 0.01
     , maxSuspensionForce = Force.newtons 100000
+    , maxEngineForce = Force.newtons 5000
+    , maxBrakeForce = Force.newtons 10000
+    , maxSteering = Angle.degrees 30
     }
 
 
@@ -144,7 +149,10 @@ jeepDecoder =
                     Scene3d.Mesh.texturedFaces chassis
             in
             \material ->
-                { collider = [ Shape.unsafeConvex convexBase, Shape.unsafeConvex convexWindow ]
+                { collider =
+                    [ ( Shape.unsafeConvex convexBase, Material.steel )
+                    , ( Shape.unsafeConvex convexWindow, Material.steel )
+                    ]
                 , chassis = chassisMesh
                 , chassisShadow = Scene3d.Mesh.shadow chassisMesh
                 , wheel = wheelMesh

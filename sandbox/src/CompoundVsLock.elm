@@ -5,7 +5,6 @@ One way is through a compound body out of multiple shapes.
 The second way is by using the lock constraint.
 -}
 
-import Acceleration
 import Block3d exposing (Block3d)
 import Browser
 import Browser.Dom as Dom
@@ -15,32 +14,26 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
-import Direction3d
-import Duration
+import Dict exposing (Dict)
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics.Body as Body exposing (Body)
+import Physics exposing (Body, onEarth)
 import Physics.Constraint as Constraint exposing (Constraint)
-import Physics.Coordinates exposing (BodyCoordinates)
+import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.World as World exposing (World)
 import Point3d exposing (Point3d)
+import Task
 import WebGL exposing (Mesh)
 
 
-{-| Give a name to each body, so that we can configure constraints
--}
-type alias Data =
-    { mesh : Mesh Attributes
-    , name : String
-    }
-
-
 type alias Model =
-    { world : World Data
+    { bodies : List ( String, Body )
+    , meshes : Dict String (Mesh Attributes)
+    , contacts : List ( String, String, List (Point3d Meters WorldCoordinates) )
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -66,7 +59,9 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { world = initialWorld
+    ( { bodies = initialBodies
+      , meshes = initialMeshes
+      , contacts = []
       , fps = []
       , settings = { settings | showSettings = True }
       , camera =
@@ -92,9 +87,64 @@ update msg model =
             )
 
         Tick dt ->
+            let
+                bodyDict =
+                    Dict.fromList model.bodies
+
+                constrain id1 =
+                    case id1 of
+                        "first" ->
+                            Just
+                                (\id2 ->
+                                    case id2 of
+                                        "second" ->
+                                            case ( Dict.get "first" bodyDict, Dict.get "second" bodyDict ) of
+                                                ( Just b1, Just b2 ) ->
+                                                    [ lockTwoBodies b1 b2 ]
+
+                                                _ ->
+                                                    []
+
+                                        _ ->
+                                            []
+                                )
+
+                        "second" ->
+                            Just
+                                (\id2 ->
+                                    case id2 of
+                                        "third" ->
+                                            case ( Dict.get "second" bodyDict, Dict.get "third" bodyDict ) of
+                                                ( Just b1, Just b2 ) ->
+                                                    [ lockTwoBodies b1 b2 ]
+
+                                                _ ->
+                                                    []
+
+                                        _ ->
+                                            []
+                                )
+
+                        _ ->
+                            Nothing
+
+                ( newBodies, newContacts ) =
+                    Physics.simulate
+                        { onEarth
+                            | constrain = constrain
+                            , collide =
+                                \one two ->
+                                    not
+                                        (List.member one [ "first", "second", "third" ]
+                                            && List.member two [ "first", "second", "third" ]
+                                        )
+                        }
+                        model.bodies
+            in
             ( { model
                 | fps = Fps.update dt model.fps
-                , world = World.simulate (Duration.seconds (1 / 60)) model.world
+                , bodies = newBodies
+                , contacts = newContacts
               }
             , Cmd.none
             )
@@ -105,7 +155,7 @@ update msg model =
             )
 
         Restart ->
-            ( { model | world = initialWorld }, Cmd.none )
+            ( { model | bodies = initialBodies }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -117,14 +167,18 @@ subscriptions _ =
 
 
 view : Model -> Html Msg
-view { settings, fps, world, camera } =
+view { settings, fps, bodies, contacts, meshes, camera } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , world = world
+            , bodies =
+                List.filterMap
+                    (\( id, body ) ->
+                        Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
+                    )
+                    bodies
+            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
             , camera = camera
-            , mesh = .mesh
-            , maybeRaycastResult = Nothing
             , floorOffset = floorOffset
             }
         , Settings.view ForSettings
@@ -133,74 +187,30 @@ view { settings, fps, world, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length (World.bodies world))
+            Fps.view fps (List.length bodies)
 
           else
             Html.text ""
         ]
 
 
-initialWorld : World Data
-initialWorld =
-    let
-        lockedPosition =
-            Frame3d.atPoint (Point3d.meters -2 0 5)
-
-        compoundPosition =
-            Point3d.meters 2 0 5
-    in
-    World.empty
-        |> World.withGravity (Acceleration.metersPerSecondSquared 9.80665) Direction3d.negativeZ
-        |> World.add floor
-        |> World.add
-            (compound
-                |> Body.moveTo compoundPosition
-            )
-        |> World.add
-            (box "first"
-                |> Body.moveTo (Point3d.placeIn lockedPosition pos1)
-            )
-        |> World.add
-            (box "second"
-                |> Body.moveTo (Point3d.placeIn lockedPosition pos2)
-            )
-        |> World.add
-            (box "third"
-                |> Body.moveTo (Point3d.placeIn lockedPosition pos3)
-            )
-        |> World.constrain lockBlocks
-
-
-lockBlocks : Body Data -> Body Data -> List Constraint
-lockBlocks b1 b2 =
-    case ( (Body.data b1).name, (Body.data b2).name ) of
-        ( "first", "second" ) ->
-            [ lockTwoBodies b1 b2 ]
-
-        ( "second", "third" ) ->
-            [ lockTwoBodies b1 b2 ]
-
-        _ ->
-            []
-
-
-lockTwoBodies : Body Data -> Body Data -> Constraint
+lockTwoBodies : Body -> Body -> Constraint
 lockTwoBodies b1 b2 =
     let
         center1 =
-            Body.originPoint b1
+            Physics.originPoint b1
 
         center2 =
-            Body.originPoint b2
+            Physics.originPoint b2
 
         middle =
             Point3d.midpoint center1 center2
 
         frame1 =
-            Frame3d.atPoint (Point3d.relativeTo (Body.frame b1) middle)
+            Frame3d.atPoint (Point3d.relativeTo (Physics.frame b1) middle)
 
         frame2 =
-            Frame3d.atPoint (Point3d.relativeTo (Body.frame b2) middle)
+            Frame3d.atPoint (Point3d.relativeTo (Physics.frame b2) middle)
     in
     Constraint.lock frame1 frame2
 
@@ -210,40 +220,6 @@ lockTwoBodies b1 b2 =
 floorOffset : { x : Float, y : Float, z : Float }
 floorOffset =
     { x = 0, y = 0, z = -1 }
-
-
-{-| Floor has an empty mesh, because it is not rendered
--}
-floor : Body Data
-floor =
-    Body.plane { mesh = Meshes.fromTriangles [], name = "floor" }
-        |> Body.moveTo (Point3d.fromMeters floorOffset)
-
-
-{-| A single box
--}
-box : String -> Body Data
-box name =
-    Body.block block3d { mesh = Meshes.fromTriangles (Meshes.block block3d), name = name }
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
-
-
-{-| A compound body made of three boxes
--}
-compound : Body Data
-compound =
-    let
-        blocks =
-            List.map
-                (\center ->
-                    Block3d.placeIn (Frame3d.atPoint center) block3d
-                )
-                [ pos1, pos2, pos3 ]
-    in
-    Body.compound
-        (List.map Shape.block blocks)
-        { mesh = Meshes.fromTriangles (List.concatMap Meshes.block blocks), name = "compound" }
-        |> Body.withBehavior (Body.dynamic (Mass.kilograms 5))
 
 
 block3d : Block3d Meters BodyCoordinates
@@ -269,3 +245,63 @@ pos2 =
 pos3 : Point3d Meters BodyCoordinates
 pos3 =
     Point3d.meters 0.5 0 0.5
+
+
+initialBodies : List ( String, Body )
+initialBodies =
+    let
+        lockedPosition =
+            Frame3d.atPoint (Point3d.meters -2 0 5)
+
+        compoundPosition =
+            Point3d.meters 2 0 5
+
+        floorBody =
+            Physics.plane Material.wood
+                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+
+        blocks =
+            List.map
+                (\center ->
+                    Block3d.placeIn (Frame3d.atPoint center) block3d
+                )
+                [ pos1, pos2, pos3 ]
+
+        compoundBody =
+            Physics.dynamic
+                (List.map (\b -> ( Shape.block b, Material.wood )) blocks)
+                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.moveTo compoundPosition
+
+        boxBody =
+            Physics.block block3d Material.wood
+                |> Physics.scaleTo (Mass.kilograms 5)
+    in
+    [ ( "floor", floorBody )
+    , ( "compound", compoundBody )
+    , ( "first", boxBody |> Physics.moveTo (Point3d.placeIn lockedPosition pos1) )
+    , ( "second", boxBody |> Physics.moveTo (Point3d.placeIn lockedPosition pos2) )
+    , ( "third", boxBody |> Physics.moveTo (Point3d.placeIn lockedPosition pos3) )
+    ]
+
+
+initialMeshes : Dict String (Mesh Attributes)
+initialMeshes =
+    let
+        blocks =
+            List.map
+                (\center ->
+                    Block3d.placeIn (Frame3d.atPoint center) block3d
+                )
+                [ pos1, pos2, pos3 ]
+
+        boxMesh =
+            Meshes.fromTriangles (Meshes.block block3d)
+    in
+    Dict.fromList
+        [ ( "floor", Meshes.fromTriangles [] )
+        , ( "compound", Meshes.fromTriangles (List.concatMap Meshes.block blocks) )
+        , ( "first", boxMesh )
+        , ( "second", boxMesh )
+        , ( "third", boxMesh )
+        ]

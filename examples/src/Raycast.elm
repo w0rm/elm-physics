@@ -1,7 +1,12 @@
 module Raycast exposing (main)
 
 {-| This demo shows how elm-physics could be used to determine,
-which object has been clicked.
+which object has been clicked, and also to do ray tracing.
+
+A mouse ray is cast into the scene, and if it hits an object
+the reflected ray is computed from the surface normal and cast
+again.
+
 -}
 
 import Angle
@@ -20,10 +25,12 @@ import Html.Attributes
 import Html.Events
 import Json.Decode exposing (Decoder)
 import Length exposing (Meters, meters, millimeters)
-import Physics.Body as Body exposing (Body)
+import LineSegment3d exposing (LineSegment3d)
+import Physics exposing (Body)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Physics.World as World exposing (World)
-import Pixels exposing (Pixels, pixels)
+import Physics.Material
+import Pixels exposing (Pixels)
+import Plane3d
 import Point2d
 import Point3d
 import Quantity exposing (Quantity)
@@ -42,14 +49,14 @@ type Id
 
 
 type alias Model =
-    { width : Quantity Float Pixels
-    , height : Quantity Float Pixels
+    { dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     , selection : Maybe Id
+    , rayPath : List (LineSegment3d Meters WorldCoordinates)
     }
 
 
 type Msg
-    = Resize (Quantity Float Pixels) (Quantity Float Pixels)
+    = Resize Int Int
     | MouseDown (Axis3d Meters WorldCoordinates)
 
 
@@ -58,32 +65,30 @@ main =
     Browser.element
         { init = init
         , update = \msg model -> ( update msg model, Cmd.none )
-        , subscriptions = subscriptions
+        , subscriptions = \_ -> Browser.Events.onResize Resize
         , view = view
         }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { width = pixels 0
-      , height = pixels 0
+    ( { dimensions = ( Pixels.int 0, Pixels.int 0 )
       , selection = Nothing
+      , rayPath = []
       }
     , Task.perform
-        (\{ viewport } ->
-            Resize (pixels viewport.width) (pixels viewport.height)
-        )
+        (\{ viewport } -> Resize (round viewport.width) (round viewport.height))
         Browser.Dom.getViewport
     )
 
 
-world : World Id
-world =
-    World.empty
-        |> World.add (Body.block floor Floor |> Body.moveTo (Point3d.millimeters 0 0 -5))
-        |> World.add (Body.block block Block |> Body.moveTo (Point3d.meters -1 -1 0))
-        |> World.add (Body.sphere sphere Sphere |> Body.moveTo (Point3d.meters 0 1.5 0))
-        |> World.add (Body.cylinder cylinder Cylinder |> Body.moveTo (Point3d.meters 1.5 0 0))
+bodies : List ( Id, Body )
+bodies =
+    [ ( Floor, Physics.block floor Physics.Material.wood |> Physics.moveTo (Point3d.millimeters 0 0 -5) )
+    , ( Block, Physics.block block Physics.Material.wood |> Physics.moveTo (Point3d.meters -1 -1 0) )
+    , ( Sphere, Physics.sphere sphere Physics.Material.wood |> Physics.moveTo (Point3d.meters 0 1.5 0) )
+    , ( Cylinder, Physics.cylinder cylinder Physics.Material.wood |> Physics.moveTo (Point3d.meters 1.5 0 0) )
+    ]
 
 
 floor : Block3d Meters BodyCoordinates
@@ -108,10 +113,77 @@ sphere =
 cylinder : Cylinder3d Meters BodyCoordinates
 cylinder =
     Cylinder3d.startingAt Point3d.origin
-        Direction3d.z
+        Direction3d.positiveZ
         { radius = meters 0.5
         , length = meters 1.5
         }
+
+
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Resize width height ->
+            { model | dimensions = ( Pixels.int width, Pixels.int height ) }
+
+        MouseDown mouseRay ->
+            let
+                firstHit =
+                    Physics.raycast mouseRay bodies
+
+                selection =
+                    Maybe.map (\( id, _, _ ) -> id) firstHit
+
+                rayPath =
+                    buildPath mouseRay 10 []
+            in
+            { model | selection = selection, rayPath = rayPath }
+
+
+buildPath : Axis3d Meters WorldCoordinates -> Int -> List (LineSegment3d Meters WorldCoordinates) -> List (LineSegment3d Meters WorldCoordinates)
+buildPath ray hops segments =
+    case Physics.raycast ray bodies of
+        Nothing ->
+            LineSegment3d.from (Axis3d.originPoint ray) (Point3d.along ray (Length.meters 20)) :: segments
+
+        Just ( _, _, { point, normal } ) ->
+            let
+                segment =
+                    LineSegment3d.from (Axis3d.originPoint ray) point
+
+                reflectedDir =
+                    Direction3d.mirrorAcross (Plane3d.through point normal) (Axis3d.direction ray)
+
+                reflectedRay =
+                    Axis3d.through point reflectedDir
+            in
+            if hops == 0 then
+                segment :: segments
+
+            else
+                buildPath reflectedRay (hops - 1) (segment :: segments)
+
+
+view : Model -> Html Msg
+view { selection, dimensions, rayPath } =
+    Html.div
+        [ Html.Attributes.style "position" "absolute"
+        , Html.Attributes.style "left" "0"
+        , Html.Attributes.style "top" "0"
+        , Html.Events.on "mousedown" (decodeMouseRay dimensions MouseDown)
+        ]
+        [ Scene3d.sunny
+            { upDirection = Direction3d.z
+            , sunlightDirection = Direction3d.xyZ (Angle.degrees 135) (Angle.degrees -60)
+            , shadows = True
+            , camera = camera
+            , dimensions = dimensions
+            , background = Scene3d.transparentBackground
+            , clipDepth = Length.meters 0.1
+            , entities =
+                List.map (bodyToEntity selection) bodies
+                    ++ List.map (Scene3d.lineSegment (Material.color Color.green)) rayPath
+            }
+        ]
 
 
 camera : Camera3d Meters WorldCoordinates
@@ -125,126 +197,68 @@ camera =
         }
 
 
-bodyToEntity : Maybe Id -> Body Id -> Entity WorldCoordinates
-bodyToEntity selection body =
+bodyToEntity : Maybe Id -> ( Id, Body ) -> Entity WorldCoordinates
+bodyToEntity selection ( id, body ) =
     let
-        id =
-            Body.data body
-
-        frame =
-            Body.frame body
-
         color defaultColor =
             if selection == Just id then
                 Color.white
 
             else
                 defaultColor
-
-        entity =
-            case id of
-                Floor ->
-                    Scene3d.block
-                        (Material.matte (color Color.darkCharcoal))
-                        floor
-
-                Block ->
-                    Scene3d.blockWithShadow
-                        (Material.nonmetal
-                            { baseColor = color Color.red
-                            , roughness = 0.25
-                            }
-                        )
-                        block
-
-                Sphere ->
-                    Scene3d.sphereWithShadow
-                        (Material.nonmetal
-                            { baseColor = color Color.yellow
-                            , roughness = 0.25
-                            }
-                        )
-                        sphere
-
-                Cylinder ->
-                    Scene3d.cylinderWithShadow
-                        (Material.nonmetal
-                            { baseColor = color Color.blue
-                            , roughness = 0.25
-                            }
-                        )
-                        cylinder
     in
-    Scene3d.placeIn frame entity
+    Scene3d.placeIn (Physics.frame body) <|
+        case id of
+            Floor ->
+                Scene3d.block
+                    (Material.matte (color Color.darkCharcoal))
+                    floor
 
+            Block ->
+                Scene3d.blockWithShadow
+                    (Material.nonmetal
+                        { baseColor = color Color.red
+                        , roughness = 0.25
+                        }
+                    )
+                    block
 
-view : Model -> Html Msg
-view { selection, width, height } =
-    Html.div
-        [ Html.Attributes.style "position" "absolute"
-        , Html.Attributes.style "left" "0"
-        , Html.Attributes.style "top" "0"
-        , Html.Events.on "mousedown" (decodeMouseRay camera width height MouseDown)
-        ]
-        [ Scene3d.sunny
-            { upDirection = Direction3d.z
-            , sunlightDirection = Direction3d.xyZ (Angle.degrees 135) (Angle.degrees -60)
-            , shadows = True
-            , camera = camera
-            , dimensions =
-                ( Pixels.int (round (Pixels.toFloat width))
-                , Pixels.int (round (Pixels.toFloat height))
-                )
-            , background = Scene3d.transparentBackground
-            , clipDepth = Length.meters 0.1
-            , entities = List.map (bodyToEntity selection) (World.bodies world)
-            }
-        ]
+            Sphere ->
+                Scene3d.sphereWithShadow
+                    (Material.nonmetal
+                        { baseColor = color Color.yellow
+                        , roughness = 0.25
+                        }
+                    )
+                    sphere
 
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Browser.Events.onResize
-        (\width height ->
-            Resize (pixels (toFloat width)) (pixels (toFloat height))
-        )
-
-
-update : Msg -> Model -> Model
-update msg model =
-    case msg of
-        Resize width height ->
-            { model | width = width, height = height }
-
-        MouseDown mouseRay ->
-            { model
-                | selection =
-                    World.raycast mouseRay world
-                        |> Maybe.map (\{ body } -> Body.data body)
-            }
+            Cylinder ->
+                Scene3d.cylinderWithShadow
+                    (Material.nonmetal
+                        { baseColor = color Color.blue
+                        , roughness = 0.25
+                        }
+                    )
+                    cylinder
 
 
 decodeMouseRay :
-    Camera3d Meters WorldCoordinates
-    -> Quantity Float Pixels
-    -> Quantity Float Pixels
+    ( Quantity Int Pixels, Quantity Int Pixels )
     -> (Axis3d Meters WorldCoordinates -> msg)
     -> Decoder msg
-decodeMouseRay camera3d width height rayToMsg =
+decodeMouseRay ( width, height ) rayToMsg =
     Json.Decode.map2
         (\x y ->
-            rayToMsg
-                (Camera3d.ray
-                    camera3d
+            rayToMsg <|
+                Camera3d.ray camera
                     (Rectangle2d.with
-                        { x1 = pixels 0
-                        , y1 = height
-                        , x2 = width
-                        , y2 = pixels 0
+                        { x1 = Quantity.zero
+                        , y1 = Quantity.toFloatQuantity height
+                        , x2 = Quantity.toFloatQuantity width
+                        , y2 = Quantity.zero
                         }
                     )
                     (Point2d.pixels x y)
-                )
         )
         (Json.Decode.field "pageX" Json.Decode.float)
         (Json.Decode.field "pageY" Json.Decode.float)

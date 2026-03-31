@@ -15,10 +15,8 @@ import Html.Attributes as Attributes
 import Length exposing (Meters)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
-import Physics.Body as Body exposing (Body)
-import Physics.Contact as Contact
+import Physics exposing (Body)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Physics.World as World exposing (RaycastResult, World)
 import Point3d exposing (Point3d)
 import WebGL exposing (Entity, Mesh)
 import WebGL.Settings exposing (Setting)
@@ -26,12 +24,11 @@ import WebGL.Settings.Blend
 import WebGL.Settings.DepthTest
 
 
-type alias Params a =
+type alias Params =
     { settings : Settings
-    , world : World a
+    , bodies : List ( Mesh Attributes, Body )
+    , contacts : List (Point3d Meters WorldCoordinates)
     , camera : Camera
-    , mesh : a -> Mesh Attributes
-    , maybeRaycastResult : Maybe (RaycastResult a)
     , floorOffset :
         { x : Float
         , y : Float
@@ -40,8 +37,8 @@ type alias Params a =
     }
 
 
-view : Params a -> Html msg
-view { settings, world, floorOffset, camera, maybeRaycastResult, mesh } =
+view : Params -> Html msg
+view { settings, bodies, contacts, floorOffset, camera } =
     let
         lightDirection =
             Vec3.normalize (Vec3.vec3 -1 -1 -1)
@@ -51,8 +48,6 @@ view { settings, world, floorOffset, camera, maybeRaycastResult, mesh } =
             , camera = camera
             , debugWireframes = settings.debugWireframes
             , debugCenterOfMass = settings.debugCenterOfMass
-            , maybeRaycastResult = maybeRaycastResult
-            , mesh = mesh
             , shadow =
                 Math.makeShadow
                     (Vec3.fromRecord floorOffset)
@@ -73,10 +68,10 @@ view { settings, world, floorOffset, camera, maybeRaycastResult, mesh } =
         , Attributes.style "left" "0"
         ]
         ([ ( True
-           , \entities -> List.foldl (addBodyEntities sceneParams) entities (World.bodies world)
+           , \entities -> List.foldl (addBodyEntities sceneParams) entities bodies
            )
          , ( settings.debugContacts
-           , \entities -> List.foldl (addContactIndicator sceneParams) entities (getContactPoints world)
+           , \entities -> List.foldl (addContactIndicator sceneParams) entities contacts
            )
          ]
             |> List.filter Tuple.first
@@ -85,65 +80,47 @@ view { settings, world, floorOffset, camera, maybeRaycastResult, mesh } =
         )
 
 
-getContactPoints : World a -> List (Point3d Meters WorldCoordinates)
-getContactPoints world =
-    world
-        |> World.contacts
-        |> List.concatMap Contact.points
-        |> List.map .point
-
-
-type alias SceneParams a =
+type alias SceneParams =
     { lightDirection : Vec3
     , camera : Camera
     , debugWireframes : Bool
     , debugCenterOfMass : Bool
     , shadow : Mat4
-    , maybeRaycastResult : Maybe (RaycastResult a)
-    , mesh : a -> Mesh Attributes
     }
 
 
-addBodyEntities : SceneParams a -> Body a -> List Entity -> List Entity
-addBodyEntities ({ mesh, lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, maybeRaycastResult } as sceneParams) body entities =
+addBodyEntities : SceneParams -> ( Mesh Attributes, Body ) -> List Entity -> List Entity
+addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass } as sceneParams) ( mesh, body ) entities =
     let
+        frame =
+            Physics.frame body
+
         transform =
-            Frame3d.toMat4 (Body.frame body)
+            Frame3d.toMat4 frame
 
         color =
             Vec3.vec3 0.9 0.9 0.9
 
-        showRayCastNormal =
-            False
-
-        addNormals acc =
-            case maybeRaycastResult of
-                Just res ->
-                    if showRayCastNormal && Body.data res.body == Body.data body then
-                        addNormalIndicator sceneParams transform { normal = res.normal, point = res.point } acc
-
-                    else
-                        acc
-
-                Nothing ->
-                    acc
-
         addCenterOfMass acc =
             if debugCenterOfMass then
-                addContactIndicator sceneParams (Point3d.placeIn (Body.frame body) (Body.centerOfMass body)) acc
+                case Physics.centerOfMass body of
+                    Just com ->
+                        addContactIndicator sceneParams (Point3d.placeIn frame com) acc
+
+                    Nothing ->
+                        acc
 
             else
                 acc
     in
     entities
         |> addCenterOfMass
-        |> addNormals
         |> (if debugWireframes then
                 (::)
                     (WebGL.entityWith defaultSettings
                         Shaders.wireframeVertex
                         Shaders.wireframeFragment
-                        (mesh (Body.data body))
+                        mesh
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = color
@@ -157,7 +134,7 @@ addBodyEntities ({ mesh, lightDirection, shadow, camera, debugWireframes, debugC
                     (WebGL.entityWith defaultSettings
                         Shaders.vertex
                         Shaders.fragment
-                        (mesh (Body.data body))
+                        mesh
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = color
@@ -174,7 +151,7 @@ addBodyEntities ({ mesh, lightDirection, shadow, camera, debugWireframes, debugC
                     (WebGL.entityWith defaultSettings
                         Shaders.vertex
                         Shaders.shadowFragment
-                        (mesh (Body.data body))
+                        mesh
                         { camera = camera.cameraTransform
                         , perspective = camera.perspectiveTransform
                         , color = Vec3.vec3 0.25 0.25 0.25
@@ -187,7 +164,7 @@ addBodyEntities ({ mesh, lightDirection, shadow, camera, debugWireframes, debugC
 
 {-| Render a collision point for the purpose of debugging
 -}
-addContactIndicator : SceneParams a -> Point3d Meters WorldCoordinates -> List Entity -> List Entity
+addContactIndicator : SceneParams -> Point3d Meters WorldCoordinates -> List Entity -> List Entity
 addContactIndicator { lightDirection, camera } point tail =
     WebGL.entityWith defaultSettings
         Shaders.vertex
@@ -198,29 +175,6 @@ addContactIndicator { lightDirection, camera } point tail =
         , color = Vec3.vec3 1 0 0
         , lightDirection = lightDirection
         , transform = Frame3d.toMat4 (Frame3d.atPoint point)
-        }
-        :: tail
-
-
-{-| Render a normal for the purpose of debugging
--}
-addNormalIndicator : SceneParams a -> Mat4 -> { point : Point3d Meters BodyCoordinates, normal : Direction3d BodyCoordinates } -> List Entity -> List Entity
-addNormalIndicator { lightDirection, camera } transform { normal, point } tail =
-    WebGL.entityWith defaultSettings
-        Shaders.vertex
-        Shaders.fragment
-        Meshes.normal
-        { camera = camera.cameraTransform
-        , perspective = camera.perspectiveTransform
-        , lightDirection = lightDirection
-        , color = Vec3.vec3 1 0 1
-        , transform =
-            Math.makeRotateKTo (Direction3d.toVec3 normal)
-                |> Mat4.mul
-                    (Point3d.toVec3 point
-                        |> Mat4.makeTranslate
-                        |> Mat4.mul transform
-                    )
         }
         :: tail
 
