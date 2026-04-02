@@ -5,8 +5,8 @@ import Shapes.Plane exposing (Plane)
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : (Contact -> Contact) -> Plane -> Sphere -> List Contact -> List Contact
-addContacts orderContact { normal, position } sphere contacts =
+addContacts : String -> (Contact -> Contact) -> Plane -> Sphere -> List Contact -> List Contact
+addContacts idPrefix orderContact { normal, position } sphere contacts =
     let
         { x, y, z } =
             sphere.position
@@ -24,7 +24,8 @@ addContacts orderContact { normal, position } sphere contacts =
     in
     if dot <= 0 then
         orderContact
-            { ni = normal
+            { id = idPrefix
+            , ni = normal
             , pi =
                 { x = vertex.x - dot * normal.x
                 , y = vertex.y - dot * normal.y

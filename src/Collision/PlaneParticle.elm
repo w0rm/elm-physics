@@ -5,8 +5,8 @@ import Internal.Vector3 exposing (Vec3)
 import Shapes.Plane exposing (Plane)
 
 
-addContacts : (Contact -> Contact) -> Plane -> Vec3 -> List Contact -> List Contact
-addContacts orderContact { position, normal } particlePosition contacts =
+addContacts : String -> (Contact -> Contact) -> Plane -> Vec3 -> List Contact -> List Contact
+addContacts idPrefix orderContact { position, normal } particlePosition contacts =
     let
         dot =
             ((particlePosition.x - position.x) * normal.x)
@@ -15,7 +15,8 @@ addContacts orderContact { position, normal } particlePosition contacts =
     in
     if dot <= 0 then
         orderContact
-            { ni = normal
+            { id = idPrefix
+            , ni = normal
             , pi =
                 { x = particlePosition.x - dot * normal.x
                 , y = particlePosition.y - dot * normal.y

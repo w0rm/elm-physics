@@ -5,8 +5,8 @@ import Internal.Vector3 as Vec3
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : Sphere -> Sphere -> List Contact -> List Contact
-addContacts sphere1 sphere2 contacts =
+addContacts : String -> Sphere -> Sphere -> List Contact -> List Contact
+addContacts idPrefix sphere1 sphere2 contacts =
     let
         radius1 =
             sphere1.radius
@@ -32,7 +32,8 @@ addContacts sphere1 sphere2 contacts =
         contacts
 
     else
-        { ni = normal
+        { id = idPrefix
+        , ni = normal
         , pi = Vec3.add center1 (Vec3.scale (radius1 - distance) normal)
         , pj = Vec3.add center2 (Vec3.scale -radius2 normal)
         }

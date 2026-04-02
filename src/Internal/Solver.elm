@@ -1,6 +1,7 @@
 module Internal.Solver exposing (solve)
 
 import Array exposing (Array)
+import Dict exposing (Dict)
 import Internal.Body exposing (Body)
 import Internal.Const as Const
 import Internal.Constraint exposing (ConstraintGroup)
@@ -49,7 +50,7 @@ sentinel extId =
 {-| Build a sparse array indexed by body.id.
 
 Bodies may have non-consecutive IDs (e.g. 0, 2, 5) when some were added mid-simulation.
-Unused slots are filled with the sentinel. Returns Nothing for an empty body list.
+Unused slots are filled with the sentinel.
 
 -}
 makeSolverBodies : Int -> List ( id, Body ) -> Array (SolverBody id)
@@ -65,11 +66,125 @@ makeSolverBodies maxId bodiesWithIds =
                 bodiesWithIds
 
 
-solve : Float -> Vec3 -> Int -> List ConstraintGroup -> List ContactGroup -> Int -> List ( id, Body ) -> Array (SolverBody id)
-solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds =
+{-| Apply the impulse corresponding to a seeded lambda to both solver bodies.
+This pre-loads the body delta-v so the solver starts from a warm state.
+-}
+applyGroupWarmStart : SolverBody id -> SolverBody id -> List SolverEquation -> ( SolverBody id, SolverBody id )
+applyGroupWarmStart body1 body2 equations =
+    case equations of
+        [] ->
+            ( body1, body2 )
+
+        { solverLambda, equation } :: rest ->
+            if solverLambda == 0 then
+                applyGroupWarmStart body1 body2 rest
+
+            else
+                let
+                    { vB, wA, wB } =
+                        equation
+
+                    newBody1 =
+                        if body1.body.mass > 0 then
+                            let
+                                invI1 =
+                                    body1.body.invInertiaWorld
+
+                                k1 =
+                                    solverLambda * body1.body.invMass
+                            in
+                            { body = body1.body
+                            , extId = body1.extId
+                            , vX = body1.vX - k1 * vB.x
+                            , vY = body1.vY - k1 * vB.y
+                            , vZ = body1.vZ - k1 * vB.z
+                            , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * solverLambda
+                            , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * solverLambda
+                            , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * solverLambda
+                            }
+
+                        else
+                            body1
+
+                    newBody2 =
+                        if body2.body.mass > 0 then
+                            let
+                                invI2 =
+                                    body2.body.invInertiaWorld
+
+                                k2 =
+                                    solverLambda * body2.body.invMass
+                            in
+                            { body = body2.body
+                            , extId = body2.extId
+                            , vX = body2.vX + k2 * vB.x
+                            , vY = body2.vY + k2 * vB.y
+                            , vZ = body2.vZ + k2 * vB.z
+                            , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * solverLambda
+                            , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * solverLambda
+                            , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * solverLambda
+                            }
+
+                        else
+                            body2
+                in
+                applyGroupWarmStart newBody1 newBody2 rest
+
+
+applyWarmStart : SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
+applyWarmStart prevBody1 solverBodies equationsGroups =
+    case equationsGroups of
+        [] ->
+            Array.set prevBody1.body.id prevBody1 solverBodies
+
+        { bodyId1, bodyId2, equations } :: rest ->
+            let
+                body1 =
+                    if prevBody1.body.id - bodyId1 == 0 then
+                        prevBody1
+
+                    else
+                        case Array.get bodyId1 solverBodies of
+                            Just b ->
+                                b
+
+                            Nothing ->
+                                prevBody1
+
+                newSolverBodies =
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.mass == 0 then
+                        solverBodies
+
+                    else
+                        Array.set prevBody1.body.id prevBody1 solverBodies
+
+                body2 =
+                    case Array.get bodyId2 newSolverBodies of
+                        Just b ->
+                            b
+
+                        Nothing ->
+                            prevBody1
+
+                ( newBody1, newBody2 ) =
+                    applyGroupWarmStart body1 body2 equations
+            in
+            applyWarmStart
+                newBody1
+                (if newBody2.body.mass > 0 then
+                    Array.set bodyId2 newBody2 newSolverBodies
+
+                 else
+                    newSolverBodies
+                )
+                rest
+
+
+solve : Float -> Vec3 -> Int -> List ConstraintGroup -> List ContactGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
+solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds lambdas =
     case bodiesWithIds of
         [] ->
-            Array.empty
+            ( Array.empty, Dict.empty, 0 )
 
         ( firstExtId, _ ) :: _ ->
             let
@@ -77,6 +192,7 @@ solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds =
                     { dt = dt
                     , gravity = gravity
                     , gravityLength = Vec3.length gravity
+                    , lambdas = lambdas
                     }
 
                 fillingBody =
@@ -117,22 +233,62 @@ solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds =
                         )
                         contactEquationsGroups
                         constraintGroups
+
+                -- warm start: apply cached lambdas as impulses to body delta-v
+                warmStartedBodies =
+                    case equationsGroups of
+                        [] ->
+                            solverBodies
+
+                        { bodyId1 } :: _ ->
+                            case Array.get bodyId1 solverBodies of
+                                Just firstBody ->
+                                    applyWarmStart firstBody solverBodies equationsGroups
+
+                                Nothing ->
+                                    solverBodies
+
+                ( finalSolverBodies, finalEquationsGroups, remainingIterations ) =
+                    step iterations 0 [] equationsGroups fillingBody warmStartedBodies
+
+                iterationsUsed =
+                    max 1 (iterations - remainingIterations)
+
+                finalLambdas =
+                    List.foldl
+                        (\{ equations } acc ->
+                            List.foldl
+                                (\{ equation, solverLambda } lambdaAcc ->
+                                    if equation.id == "" then
+                                        lambdaAcc
+
+                                    else
+                                        Dict.insert equation.id solverLambda lambdaAcc
+                                )
+                                acc
+                                equations
+                        )
+                        Dict.empty
+                        finalEquationsGroups
             in
-            step iterations 0 [] equationsGroups fillingBody solverBodies
+            ( finalSolverBodies, finalLambdas, iterationsUsed )
 
 
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
-step number deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
+step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
     case currentEquationsGroups of
         [] ->
-            if number == 0 || deltalambdaTot - Const.precision < 0 then
-                -- the max number of steps elapsed or tolerance reached
-                -- put back the first body from the last equation
-                Array.set prevBody1.body.id prevBody1 solverBodies
+            if remainingIterations == 0 then
+                -- the max number of iterations elapsed
+                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, 0 )
+
+            else if deltalambdaTot - Const.precision < 0 then
+                -- tolerance reached
+                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, remainingIterations - 1 )
 
             else
                 -- requeue equationsGroups for the next step
-                step (number - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
+                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             let
@@ -180,7 +336,7 @@ step number deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solv
                         deltalambdaTot
                         equations
             in
-            step number
+            step remainingIterations
                 groupContext.deltalambdaTot
                 ({ bodyId1 = bodyId1
                  , bodyId2 = bodyId2
@@ -217,7 +373,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = equations -- reversing doesn't impact simulation
+            , equations = List.reverse equations
             , deltalambdaTot = deltalambdaTot
             }
 
@@ -266,7 +422,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         }
 
                     else
-                        -- static bodies don't move
+                        -- static bodies don’t move
                         body1
 
                 newBody2 =
@@ -289,7 +445,7 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         }
 
                     else
-                        -- static bodies don't move
+                        -- static bodies don’t move
                         body2
             in
             solveEquationsGroup

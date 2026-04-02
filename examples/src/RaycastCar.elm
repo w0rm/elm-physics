@@ -53,6 +53,7 @@ type Id
 type alias Model =
     { dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     , bodies : List ( Id, Body )
+    , contacts : Physics.Contacts Id
     , jeep : Maybe Jeep
     , speeding : Float
     , steering : Float
@@ -88,6 +89,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { dimensions = ( Pixels.int 0, Pixels.int 0 )
       , bodies = initialBodies
+      , contacts = Physics.emptyContacts
       , jeep = Nothing
       , speeding = 0
       , steering = 0
@@ -188,10 +190,10 @@ update msg model =
                         updatedBodies =
                             simulateCar model loadedJeep
 
-                        ( simulated, _ ) =
-                            Physics.simulate onEarth updatedBodies
+                        ( simulated, newContacts ) =
+                            Physics.simulate { onEarth | contacts = model.contacts } updatedBodies
                     in
-                    { model | bodies = simulated }
+                    { model | bodies = simulated, contacts = newContacts }
 
                 Nothing ->
                     model

@@ -6,9 +6,9 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex exposing (Convex, Face)
 
 
-addContacts : (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
-addContacts orderContact particlePosition { faces } contacts =
-    case convexContact particlePosition faces Const.maxNumber Nothing of
+addContacts : String -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
+addContacts idPrefix orderContact particlePosition { faces } contacts =
+    case convexContact idPrefix particlePosition faces Const.maxNumber Nothing of
         Just contact ->
             orderContact contact :: contacts
 
@@ -16,8 +16,8 @@ addContacts orderContact particlePosition { faces } contacts =
             contacts
 
 
-convexContact : Vec3 -> List Face -> Float -> Maybe Contact -> Maybe Contact
-convexContact particlePosition faces bestDepth bestContact =
+convexContact : String -> Vec3 -> List Face -> Float -> Maybe Contact -> Maybe Contact
+convexContact idPrefix particlePosition faces bestDepth bestContact =
     case faces of
         [] ->
             bestContact
@@ -39,19 +39,20 @@ convexContact particlePosition faces bestDepth bestContact =
             in
             if dot >= 0 then
                 if dot - bestDepth < 0 then
-                    convexContact
+                    convexContact idPrefix
                         particlePosition
                         remainingFaces
                         dot
                         (Just
-                            { ni = Vec3.negate normal
+                            { id = idPrefix
+                            , ni = Vec3.negate normal
                             , pi = particlePosition
                             , pj = Vec3.add particlePosition (Vec3.scale dot normal)
                             }
                         )
 
                 else
-                    convexContact
+                    convexContact idPrefix
                         particlePosition
                         remainingFaces
                         bestDepth

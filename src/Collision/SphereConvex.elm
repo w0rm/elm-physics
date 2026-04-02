@@ -6,8 +6,8 @@ import Shapes.Convex as Convex exposing (Convex)
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
-addContacts orderContact { radius, position } hull2 contacts =
+addContacts : String -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
+addContacts idPrefix orderContact { radius, position } hull2 contacts =
     let
         ( maybeContact, penetration ) =
             sphereContact position radius hull2
@@ -19,7 +19,8 @@ addContacts orderContact { radius, position } hull2 contacts =
                     Vec3.direction contact2 position
             in
             orderContact
-                { ni = normal
+                { id = idPrefix
+                , ni = normal
                 , pi =
                     { x = contact2.x + penetration * normal.x
                     , y = contact2.y + penetration * normal.y

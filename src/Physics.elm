@@ -8,6 +8,7 @@ module Physics exposing
     , centerOfMass, mass, volume
     , raycast, applyForce, applyImpulse
     , damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+    , Contacts, contacts, emptyContacts, solverIterations
     )
 
 {-|
@@ -59,6 +60,7 @@ import Array exposing (Array)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
+import Dict exposing (Dict)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration, Seconds)
 import Force exposing (Newtons)
@@ -278,24 +280,59 @@ rotateAround axis angle (Types.Body body) =
         }
 
 
-{-| Simulates one frame. Returns updated bodies and contacts from collisions.
-Bodies are identified with a user-provided id. Each contact triple carries
-a list of contact points for that body pair.
+{-| Contacts from the most recent simulation frame. Contains contact points
+for rendering/debugging, and solver state for warm starting the next frame.
 
-To simulate the Earth-like behavior, repeatedly call with `onEarth` config on
-a message from the `Browser.Events.onAnimatiomFrame` subscribtion and persist the
-simulated bodies in the model.
+Pass the previous frame's contacts back via the `contacts` config field
+to enable warm starting, which significantly improves solver stability.
 
-    ( simulated, contacts ) =
-        simulate onEarth bodiesWithIds
+-}
+type Contacts id
+    = Contacts
+        { lambdas : Dict String Float
+        , iterations : Int
+        , contactPoints : List ( id, id, List (Point3d Meters WorldCoordinates) )
+        }
+
+
+{-| The number of solver iterations used in the most recent simulation frame.
+Useful for debugging and performance tuning.
+-}
+solverIterations : Contacts id -> Int
+solverIterations (Contacts c) =
+    c.iterations
+
+
+{-| Get the contact points detected during the most recent simulation frame.
+Each entry is a pair of body ids and a list of world-space contact points between them.
+-}
+contacts : Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
+contacts (Contacts c) =
+    c.contactPoints
+
+
+{-| Simulates one frame. Returns updated bodies and contacts.
+
+Pass `result.contacts` back via the config's `contacts` field to enable warm
+starting, which improves solver stability for stacked objects.
+
+    ( simulated, newContacts ) =
+        simulate onEarth bodies
+
+    -- with warm starting:
+    ( simulated, newContacts ) =
+        simulate { onEarth | contacts = model.contacts } bodies
 
 -}
 simulate :
     Config id
     -> List ( id, Body )
-    -> ( List ( id, Body ), List ( id, id, List (Point3d Meters WorldCoordinates) ) )
+    -> ( List ( id, Body ), Contacts id )
 simulate config bodiesWithIds =
     let
+        (Contacts cache) =
+            config.contacts
+
         ( internalBodiesWithIds, maxId ) =
             Internal.AssignIds.assignIds bodiesWithIds
 
@@ -309,14 +346,32 @@ simulate config bodiesWithIds =
             InternalConstraint.getConstraints config.constrain
                 internalBodiesWithIds
 
-        contactGroups =
-            BroadPhase.getContacts config.collide internalBodiesWithIds
+        -- Sort bodies by projection onto gravity axis so BroadPhase
+        -- discovers ground contacts first, giving bottom-up solver order
+        -- regardless of user body list order.
+        sortedBodies =
+            let
+                projection ( _, body ) =
+                    let
+                        p =
+                            Transform3d.originPoint body.transform3d
+                    in
+                    -(p.x * gravityVec.x + p.y * gravityVec.y + p.z * gravityVec.z)
+            in
+            List.sortBy projection internalBodiesWithIds
 
-        solverBodies =
-            Solver.solve dt gravityVec config.solverIterations constraints contactGroups maxId internalBodiesWithIds
+        contactGroups =
+            BroadPhase.getContacts config.collide sortedBodies
+
+        ( solverBodies, newLambdas, iters ) =
+            Solver.solve dt gravityVec config.solverIterations constraints contactGroups maxId internalBodiesWithIds cache.lambdas
     in
-    ( outputBodiesHelp dt gravityVec solverBodies internalBodiesWithIds []
-    , contactsFromWorldHelp dt gravityVec contactGroups solverBodies []
+    ( List.reverse (outputBodiesHelp dt gravityVec solverBodies internalBodiesWithIds [])
+    , Contacts
+        { lambdas = newLambdas
+        , iterations = iters
+        , contactPoints = contactsFromWorldHelp dt gravityVec contactGroups solverBodies []
+        }
     )
 
 
@@ -328,9 +383,17 @@ onEarth =
     { gravity = Vector3d.withLength (Acceleration.gees 1) Direction3d.negativeZ
     , duration = Duration.seconds (1 / 60)
     , solverIterations = 20
+    , contacts = emptyContacts
     , constrain = \_ -> Nothing
     , collide = \_ _ -> True
     }
+
+
+{-| Empty contacts for the first simulation frame (no warm starting).
+-}
+emptyContacts : Contacts id
+emptyContacts =
+    Contacts { lambdas = Dict.empty, iterations = 0, contactPoints = [] }
 
 
 {-| Configures a simulation.
@@ -338,6 +401,7 @@ onEarth =
     - `gravity` — set the gravity vector, or `Vector3d.zero` for no gravity
     - `duration` — set to `Duration.seconds (1 / 60)` for 60fps
     - `solverIterations` — balance between precision and performance, 20 is a sweet spot
+    - `contacts` — pass `Contacts` from the previous frame for warm starting, or leave as default for cold start
     - `constrain` — limit body movement relative to each other, see `Physics.Constraint`
     - `collide` — decide which bodies can collide with each other
 
@@ -347,6 +411,7 @@ onEarth =
                 Direction3d.negativeZ
         , duration = Duration.seconds (1 / 60)
         , solverIterations = 20
+        , contacts = emptyContacts
         , constrain = \_ -> Nothing
         , collide = \_ _ -> True
         }
@@ -356,6 +421,7 @@ type alias Config id =
     { gravity : Vector3d Acceleration.MetersPerSecondSquared WorldCoordinates
     , duration : Duration
     , solverIterations : Int
+    , contacts : Contacts id
     , constrain : id -> Maybe (id -> List Constraint)
     , collide : id -> id -> Bool
     }

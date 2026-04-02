@@ -35,7 +35,7 @@ addContacts =
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts ""
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (Convex.placeIn (Transform3d.atPoint position) (Convex.fromBlock boxSize boxSize boxSize))
@@ -49,7 +49,7 @@ addContacts =
                 Fixtures.NarrowPhase.sphereContactBoxPositions center (sphereRadius * 2) boxSize
                     |> List.concatMap
                         (\( position, _ ) ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts ""
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Convex.fromBlock boxSize boxSize boxSize))
@@ -61,7 +61,7 @@ addContacts =
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts ""
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))
@@ -75,7 +75,7 @@ addContacts =
                 Fixtures.NarrowPhase.sphereContactOctohedronPositions center (sphereRadius * 2) octoHalfExtent
                     |> List.concatMap
                         (\( position, _ ) ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts ""
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))

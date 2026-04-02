@@ -5,8 +5,8 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : (Contact -> Contact) -> Sphere -> Vec3 -> List Contact -> List Contact
-addContacts orderContact { radius, position } particlePosition contacts =
+addContacts : String -> (Contact -> Contact) -> Sphere -> Vec3 -> List Contact -> List Contact
+addContacts idPrefix orderContact { radius, position } particlePosition contacts =
     let
         distance =
             Vec3.distance particlePosition position - radius
@@ -19,7 +19,8 @@ addContacts orderContact { radius, position } particlePosition contacts =
 
     else
         orderContact
-            { ni = normal
+            { id = idPrefix
+            , ni = normal
             , pi = Vec3.add position (Vec3.scale (radius - distance) normal)
             , pj = particlePosition
             }

@@ -45,7 +45,7 @@ type BodyShape
 type alias Model =
     { bodies : List ( Int, Body )
     , meshes : Array (Mesh Attributes)
-    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
+    , contacts : Physics.Contacts Int
     , nextId : Int
     , fps : List Float
     , settings : Settings
@@ -79,7 +79,7 @@ init _ =
             initialBodiesAndMeshes
     in
     ( { bodies = bodies
-      , contacts = []
+      , contacts = Physics.emptyContacts
       , meshes = meshes
       , nextId = nextId
       , fps = []
@@ -110,7 +110,7 @@ update msg model =
             let
                 ( newBodies, newContacts ) =
                     Physics.simulate
-                        onEarth
+                        { onEarth | contacts = model.contacts }
                         model.bodies
             in
             ( { model
@@ -131,7 +131,7 @@ update msg model =
                 ( bodies, meshes, nextId ) =
                     initialBodiesAndMeshes
             in
-            ( { model | bodies = bodies, meshes = meshes, nextId = nextId }, Cmd.none )
+            ( { model | bodies = bodies, meshes = meshes, nextId = nextId, contacts = Physics.emptyContacts }, Cmd.none )
 
         Random ->
             ( model, Random.generate AddRandom randomBody )
@@ -160,7 +160,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -172,7 +172,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies)
+            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
 
           else
             Html.text ""

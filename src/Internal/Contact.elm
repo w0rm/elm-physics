@@ -19,7 +19,8 @@ type alias SolverContact =
 
 
 type alias Contact =
-    { ni : Vec3 -- contact normal, pointing out of body1
+    { id : String
+    , ni : Vec3 -- contact normal, pointing out of body1
     , pi : Vec3 -- contact point on body1
     , pj : Vec3 -- contact point on body2
     }
@@ -32,7 +33,8 @@ into the same contact group
 -}
 flip : Contact -> Contact
 flip contact =
-    { ni = Vec3.negate contact.ni
+    { id = contact.id
+    , ni = Vec3.negate contact.ni
     , pi = contact.pj
     , pj = contact.pi
     }

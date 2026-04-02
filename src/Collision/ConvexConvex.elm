@@ -11,19 +11,23 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex, Face)
 
 
-addContacts : Convex -> Convex -> List Contact -> List Contact
-addContacts convex1 convex2 contacts =
+addContacts : String -> Convex -> Convex -> List Contact -> List Contact
+addContacts idPrefix convex1 convex2 contacts =
     case findSeparatingAxis convex1 convex2 of
         Just separatingAxis ->
+            let
+                reversedSeparatingAxis =
+                    Vec3.negate separatingAxis
+            in
             case bestFace convex1.faces separatingAxis of
-                Just face1 ->
-                    let
-                        reversedSeparatingAxis =
-                            Vec3.negate separatingAxis
-                    in
+                Just ( id1, face1 ) ->
                     case bestFace convex2.faces reversedSeparatingAxis of
-                        Just face2 ->
-                            clipTwoFaces face1 face2 reversedSeparatingAxis contacts
+                        Just ( id2, face2 ) ->
+                            clipTwoFaces (idPrefix ++ "-" ++ String.fromInt id1 ++ "-" ++ String.fromInt id2)
+                                face1
+                                face2
+                                reversedSeparatingAxis
+                                contacts
 
                         Nothing ->
                             contacts
@@ -35,8 +39,8 @@ addContacts convex1 convex2 contacts =
             contacts
 
 
-clipTwoFaces : Face -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces face { vertices } separatingAxis contacts =
+clipTwoFaces : String -> Face -> Face -> Vec3 -> List Contact -> List Contact
+clipTwoFaces idPrefix face { vertices } separatingAxis contacts =
     let
         point =
             case face.vertices of
@@ -49,16 +53,17 @@ clipTwoFaces face { vertices } separatingAxis contacts =
         facePlaneConstant =
             -(Vec3.dot face.normal point)
     in
-    clipTwoFacesHelp
+    clipTwoFacesHelp idPrefix
         separatingAxis
         face
         facePlaneConstant
+        0
         (clipAgainstAdjacentFaces face vertices)
         contacts
 
 
-clipTwoFacesHelp : Vec3 -> Face -> Float -> List Vec3 -> List Contact -> List Contact
-clipTwoFacesHelp separatingAxis face facePlaneConstant vertices result =
+clipTwoFacesHelp : String -> Vec3 -> Face -> Float -> Int -> List Vec3 -> List Contact -> List Contact
+clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices result =
     case vertices of
         vertex :: remainingVertices ->
             let
@@ -67,12 +72,14 @@ clipTwoFacesHelp separatingAxis face facePlaneConstant vertices result =
                     Vec3.dot face.normal vertex + facePlaneConstant
             in
             if depth <= 0 then
-                clipTwoFacesHelp
+                clipTwoFacesHelp idPrefix
                     separatingAxis
                     face
                     facePlaneConstant
+                    (n + 1)
                     remainingVertices
-                    ({ ni = separatingAxis
+                    ({ id = idPrefix ++ String.fromInt (n + 1)
+                     , ni = separatingAxis
                      , pi =
                         { x = vertex.x - depth * face.normal.x
                         , y = vertex.y - depth * face.normal.y
@@ -84,10 +91,11 @@ clipTwoFacesHelp separatingAxis face facePlaneConstant vertices result =
                     )
 
             else
-                clipTwoFacesHelp
+                clipTwoFacesHelp idPrefix
                     separatingAxis
                     face
                     facePlaneConstant
+                    (n + 1)
                     remainingVertices
                     result
 
@@ -95,14 +103,16 @@ clipTwoFacesHelp separatingAxis face facePlaneConstant vertices result =
             result
 
 
-bestFace : List Face -> Vec3 -> Maybe Face
+bestFace : List Face -> Vec3 -> Maybe ( Int, Face )
 bestFace faces separatingAxis =
     case faces of
         face :: restFaces ->
             Just
                 (bestFaceHelp
                     separatingAxis
+                    1
                     restFaces
+                    1
                     face
                     (Vec3.dot face.normal separatingAxis)
                 )
@@ -111,8 +121,8 @@ bestFace faces separatingAxis =
             Nothing
 
 
-bestFaceHelp : Vec3 -> List Face -> Face -> Float -> Face
-bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
+bestFaceHelp : Vec3 -> Int -> List Face -> Int -> Face -> Float -> ( Int, Face )
+bestFaceHelp separatingAxis faceId faces currentBestFaceId currentBestFace currentBestDistance =
     case faces of
         face :: remainingFaces ->
             let
@@ -122,19 +132,23 @@ bestFaceHelp separatingAxis faces currentBestFace currentBestDistance =
             if currentBestDistance - faceDistance > 0 then
                 bestFaceHelp
                     separatingAxis
+                    (faceId + 1)
                     remainingFaces
+                    faceId
                     face
                     faceDistance
 
             else
                 bestFaceHelp
                     separatingAxis
+                    (faceId + 1)
                     remainingFaces
+                    currentBestFaceId
                     currentBestFace
                     currentBestDistance
 
         [] ->
-            currentBestFace
+            ( currentBestFaceId, currentBestFace )
 
 
 clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3

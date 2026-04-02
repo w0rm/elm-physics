@@ -31,7 +31,7 @@ import WebGL exposing (Mesh)
 type alias Model =
     { bodies : List ( Int, Body )
     , meshes : Array (Mesh Attributes)
-    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
+    , contacts : Physics.Contacts Int
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -69,7 +69,7 @@ initialModel : Model
 initialModel =
     { bodies = Scenarios.stackOf5.bodies
     , meshes = meshes
-    , contacts = []
+    , contacts = Physics.emptyContacts
     , fps = []
     , settings = settings
     , camera =
@@ -91,7 +91,7 @@ meshes =
         blockMesh =
             Meshes.fromTriangles (Meshes.block Scenarios.unitBlock)
     in
-    Array.fromList (empty :: List.repeat 5 blockMesh)
+    Array.fromList (empty :: List.repeat 10 blockMesh)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -105,7 +105,7 @@ update msg model =
         Tick dt ->
             let
                 ( newBodies, newContacts ) =
-                    Physics.simulate onEarth model.bodies
+                    Physics.simulate { onEarth | contacts = model.contacts } model.bodies
 
                 newScore =
                     (Metrics.compute newBodies).maxSpeed
@@ -140,14 +140,14 @@ view { settings, fps, bodies, contacts, camera, score, frame } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
             , camera = camera
             , floorOffset = { x = 0, y = 0, z = 0 }
             }
         , scoreOverlay score frame
         , Settings.view ForSettings settings []
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies)
+            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
 
           else
             Html.text ""

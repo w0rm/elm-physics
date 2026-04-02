@@ -25,7 +25,7 @@ import Html exposing (Html)
 import Http
 import Length
 import Obj.Decode exposing (Decoder)
-import Physics exposing (Body)
+import Physics exposing (Body, onEarth)
 import Physics.Coordinates exposing (BodyCoordinates)
 import Physics.Material
 import Physics.Shape exposing (Shape)
@@ -48,6 +48,7 @@ type alias Model =
     { material : Maybe (Scene3d.Material.Textured BodyCoordinates)
     , meshData : Maybe { mesh : Textured BodyCoordinates, shadow : Shadow BodyCoordinates }
     , bodies : List ( Id, Body )
+    , contacts : Physics.Contacts Id
     , dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     }
 
@@ -73,8 +74,9 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { material = Nothing
       , meshData = Nothing
-      , dimensions = ( Pixels.int 0, Pixels.int 0 )
       , bodies = []
+      , contacts = Physics.emptyContacts
+      , dimensions = ( Pixels.int 0, Pixels.int 0 )
       }
     , Cmd.batch
         [ Scene3d.Material.load "Duckling.png"
@@ -143,10 +145,10 @@ update msg model =
 
         Tick ->
             let
-                ( simulated, _ ) =
-                    Physics.simulate Physics.onEarth model.bodies
+                ( simulated, newContacts ) =
+                    Physics.simulate { onEarth | contacts = model.contacts } model.bodies
             in
-            { model | bodies = simulated }
+            { model | bodies = simulated, contacts = newContacts }
 
         Resize width height ->
             { model | dimensions = ( Pixels.int width, Pixels.int height ) }
