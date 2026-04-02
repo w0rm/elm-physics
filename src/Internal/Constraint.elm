@@ -1,14 +1,10 @@
-module Internal.Constraint exposing (Constraint(..), ConstraintGroup, Protected(..), getConstraints)
+module Internal.Constraint exposing (Constraint(..), ConstraintGroup, getConstraints)
 
 import Internal.Body as Body
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates)
-
-
-type Protected
-    = Protected (Constraint BodyCoordinates)
 
 
 type Constraint coordinates
@@ -28,9 +24,9 @@ type alias ConstraintGroup =
 relativeToCenterOfMass :
     Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
     -> Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
-    -> Protected
+    -> Constraint BodyCoordinates
     -> Constraint CenterOfMassCoordinates
-relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected constraint) =
+relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
     case constraint of
         PointToPoint pivot1 pivot2 ->
             PointToPoint
@@ -60,7 +56,7 @@ relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 (Protected cons
 
 
 getConstraints :
-    (id -> Maybe (id -> List Protected))
+    (id -> Maybe (id -> List (Constraint BodyCoordinates)))
     -> List ( id, Body.Body )
     -> List ConstraintGroup
 getConstraints constrain bodiesWithIds =
@@ -68,7 +64,7 @@ getConstraints constrain bodiesWithIds =
 
 
 buildConstraintsOuter :
-    (id -> Maybe (id -> List Protected))
+    (id -> Maybe (id -> List (Constraint BodyCoordinates)))
     -> List ( id, Body.Body )
     -> List ( id, Body.Body )
     -> List ConstraintGroup
@@ -91,7 +87,7 @@ buildConstraintsOuter constrain bodies allBodies acc =
 
 
 buildConstraintsInner :
-    (id -> List Protected)
+    (id -> List (Constraint BodyCoordinates))
     -> Body.Body
     -> List ( id, Body.Body )
     -> List ConstraintGroup

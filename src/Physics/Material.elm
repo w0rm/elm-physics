@@ -15,7 +15,8 @@ module Physics.Material exposing
 -}
 
 import Density exposing (Density)
-import Internal.Material as Internal exposing (Protected(..))
+import Internal.Material as Internal
+import Physics.Types as Types
 
 
 {-| Material encodes friction, bounciness, and optionally density.
@@ -37,7 +38,7 @@ and clamped to [0, 1].
 
 -}
 type alias Material kind =
-    Internal.Protected kind
+    Types.Material kind
 
 
 {-| Type constraint indicating that a material carries density.
@@ -51,28 +52,28 @@ type alias HasDensity =
 -}
 wood : Material { density : () }
 wood =
-    Protected Internal.wood
+    Types.Material Internal.wood
 
 
 {-| Rubber. Density 1100 kg/m³, friction 0.8, bounciness 0.7.
 -}
 rubber : Material { density : () }
 rubber =
-    Protected Internal.rubber
+    Types.Material Internal.rubber
 
 
 {-| Steel. Density 7800 kg/m³, friction 0.3, bounciness 0.2.
 -}
 steel : Material { density : () }
 steel =
-    Protected Internal.steel
+    Types.Material Internal.steel
 
 
 {-| Ice. Density 900 kg/m³, friction 0.03, bounciness 0.1.
 -}
 ice : Material { density : () }
 ice =
-    Protected Internal.ice
+    Types.Material Internal.ice
 
 
 {-| Create a material with density — used for dynamic bodies where mass
@@ -83,7 +84,7 @@ Density is clamped to at least 1 kg/m³. Friction and bounciness are clamped to 
 -}
 material : { density : Density, friction : Float, bounciness : Float } -> Material { density : () }
 material cfg =
-    Protected
+    Types.Material
         { density = max 1 (Density.inKilogramsPerCubicMeter cfg.density)
         , friction = clamp 0 1 cfg.friction
         , bounciness = clamp 0 1 cfg.bounciness
@@ -99,7 +100,7 @@ Friction and bounciness are clamped to [0, 1].
 -}
 surface : { friction : Float, bounciness : Float } -> Material a
 surface cfg =
-    Protected
+    Types.Material
         { density = 0
         , friction = clamp 0 1 cfg.friction
         , bounciness = clamp 0 1 cfg.bounciness

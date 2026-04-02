@@ -14,9 +14,10 @@ module Physics.Constraint exposing
 import Axis3d exposing (Axis3d)
 import Direction3d
 import Frame3d exposing (Frame3d)
-import Internal.Constraint as Internal exposing (Protected(..))
+import Internal.Constraint as Internal
 import Length exposing (Length, Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
+import Physics.Types as Types
 import Point3d exposing (Point3d)
 
 
@@ -27,7 +28,7 @@ Constraints are defined within the bodies’ local coordinate systems.
 
 -}
 type alias Constraint =
-    Protected
+    Types.Constraint
 
 
 {-| Connect a point on the first body with a point on the second body.
@@ -38,7 +39,7 @@ pointToPoint :
     -> Point3d Meters BodyCoordinates
     -> Constraint
 pointToPoint pivot1 pivot2 =
-    Protected (Internal.PointToPoint (Point3d.toMeters pivot1) (Point3d.toMeters pivot2))
+    Internal.PointToPoint (Point3d.toMeters pivot1) (Point3d.toMeters pivot2)
 
 
 {-| Keep two bodies connected with each other and limit the freedom of rotation.
@@ -62,7 +63,7 @@ hinge axis3d1 axis3d2 =
         axis2 =
             Direction3d.unwrap (Axis3d.direction axis3d2)
     in
-    Protected (Internal.Hinge pivot1 axis1 pivot2 axis2)
+    Internal.Hinge pivot1 axis1 pivot2 axis2
 
 
 {-| Keep two bodies connected with each other and remove all degrees of freedom between bodies.
@@ -105,7 +106,7 @@ lock frame3d1 frame3d2 =
             else
                 Direction3d.unwrap (Direction3d.reverse (Frame3d.zDirection frame3d2))
     in
-    Protected (Internal.Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2)
+    Internal.Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2
 
 
 {-| Keep the centers of two bodies at the constant distance
@@ -113,4 +114,4 @@ from each other.
 -}
 distance : Length -> Constraint
 distance length =
-    Protected (Internal.Distance (Length.inMeters length))
+    Internal.Distance (Length.inMeters length)

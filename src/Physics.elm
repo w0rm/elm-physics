@@ -64,11 +64,10 @@ import Duration exposing (Duration, Seconds)
 import Force exposing (Newtons)
 import Frame3d exposing (Frame3d)
 import Internal.AssignIds
-import Internal.Body as InternalBody exposing (Protected(..))
+import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
-import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
 import Internal.Solver as Solver
 import Internal.SolverBody as SolverBody
@@ -80,6 +79,7 @@ import Physics.Constraint exposing (Constraint)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material exposing (HasDensity, Material)
 import Physics.Shape as Shape exposing (Shape)
+import Physics.Types as Types
 import Point3d exposing (Point3d)
 import Quantity exposing (Product, Quantity(..), Rate)
 import Speed exposing (MetersPerSecond)
@@ -94,7 +94,7 @@ User data is paired externally as (id, Body).
 All bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
 -}
 type alias Body =
-    InternalBody.Protected
+    Types.Body
 
 
 {-| A dynamic block body. Geometry is defined in body coordinates.
@@ -107,8 +107,8 @@ block block3d mat =
 {-| A static plane body with the normal pointing in the direction of the Z axis.
 -}
 plane : Material a -> Body
-plane (InternalMaterial.Protected internalMat) =
-    Protected
+plane (Types.Material internalMat) =
+    Types.Body
         (InternalBody.compound
             [ ( InternalShape.Plane { position = Vec3.zero, normal = Vec3.zAxis }
               , { internalMat | density = 0 }
@@ -138,8 +138,8 @@ Particles don’t collide with each other.
 Takes mass directly since particles have no volume.
 -}
 particle : Mass -> Material a -> Body
-particle massVal (InternalMaterial.Protected internalMat) =
-    Protected (InternalBody.particle (max 0 (Mass.inKilograms massVal)) internalMat)
+particle massVal (Types.Material internalMat) =
+    Types.Body (InternalBody.particle (max 0 (Mass.inKilograms massVal)) internalMat)
 
 
 {-| A dynamic compound body. Mass and center of mass are derived from shape geometry and material density.
@@ -147,10 +147,10 @@ Shapes are assumed not to overlap. Use [Shape.minus](Physics-Shape#minus) to cre
 -}
 dynamic : List ( Shape, Material HasDensity ) -> Body
 dynamic shapesWithMaterials =
-    Protected
+    Types.Body
         (InternalBody.compound
             (List.concatMap
-                (\( InternalShape.Protected entries, InternalMaterial.Protected internalMat ) ->
+                (\( Types.Shape entries, Types.Material internalMat ) ->
                     List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
                 )
                 shapesWithMaterials
@@ -162,10 +162,10 @@ dynamic shapesWithMaterials =
 -}
 static : List ( Shape, Material a ) -> Body
 static shapesWithMaterials =
-    Protected
+    Types.Body
         (InternalBody.compound
             (List.concatMap
-                (\( InternalShape.Protected entries, InternalMaterial.Protected internalMat ) ->
+                (\( Types.Shape entries, Types.Material internalMat ) ->
                     -- Strip density so mass = 0 (invMass = 0), making the body truly static
                     List.map (\( shape, _ ) -> ( shape, { internalMat | density = 0 }, 1 )) entries
                 )
@@ -183,7 +183,7 @@ e.g. to raise a body 5 meters above the origin:
 
 -}
 moveTo : Point3d Meters WorldCoordinates -> Body -> Body
-moveTo point3d (Protected body) =
+moveTo point3d (Types.Body body) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn
@@ -195,7 +195,7 @@ moveTo point3d (Protected body) =
                 (Transform3d.moveTo (Point3d.toMeters point3d) bodyCoordinatesTransform3d)
                 body.centerOfMassTransform3d
     in
-    Protected
+    Types.Body
         { body
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
@@ -211,7 +211,7 @@ e.g. to translate a body down by 5 meters:
 
 -}
 translateBy : Vector3d Meters WorldCoordinates -> Body -> Body
-translateBy vector3d (Protected body) =
+translateBy vector3d (Types.Body body) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn
@@ -226,7 +226,7 @@ translateBy vector3d (Protected body) =
                 )
                 body.centerOfMassTransform3d
     in
-    Protected
+    Types.Body
         { body
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
@@ -242,7 +242,7 @@ e.g. to rotate a body 45 degrees around the Z axis:
 
 -}
 rotateAround : Axis3d Meters WorldCoordinates -> Angle -> Body -> Body
-rotateAround axis angle (Protected body) =
+rotateAround axis angle (Types.Body body) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn
@@ -270,7 +270,7 @@ rotateAround axis angle (Protected body) =
                 newBodyCoordinatesTransform3d
                 body.centerOfMassTransform3d
     in
-    Protected
+    Types.Body
         { body
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
@@ -306,7 +306,8 @@ simulate config bodiesWithIds =
             Duration.inSeconds config.duration
 
         constraints =
-            InternalConstraint.getConstraints config.constrain internalBodiesWithIds
+            InternalConstraint.getConstraints config.constrain
+                internalBodiesWithIds
 
         contactGroups =
             BroadPhase.getContacts config.collide internalBodiesWithIds
@@ -364,7 +365,7 @@ type alias Config id =
 Useful to transform points and directions between world and body coordinates.
 -}
 frame : Body -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-frame (Protected { transform3d, centerOfMassTransform3d }) =
+frame (Types.Body { transform3d, centerOfMassTransform3d }) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
@@ -383,7 +384,7 @@ frame (Protected { transform3d, centerOfMassTransform3d }) =
 {-| Get the origin point of a body in the world.
 -}
 originPoint : Body -> Point3d Meters WorldCoordinates
-originPoint (Protected { transform3d, centerOfMassTransform3d }) =
+originPoint (Types.Body { transform3d, centerOfMassTransform3d }) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn
@@ -397,14 +398,14 @@ originPoint (Protected { transform3d, centerOfMassTransform3d }) =
 {-| Get the current linear velocity of a body.
 -}
 velocity : Body -> Vector3d MetersPerSecond WorldCoordinates
-velocity (Protected body) =
+velocity (Types.Body body) =
     Vector3d.unsafe body.velocity
 
 
 {-| Get the current angular velocity of a body.
 -}
 angularVelocity : Body -> Vector3d RadiansPerSecond WorldCoordinates
-angularVelocity (Protected body) =
+angularVelocity (Types.Body body) =
     Vector3d.unsafe body.angularVelocity
 
 
@@ -412,7 +413,7 @@ angularVelocity (Protected body) =
 Takes into account both linear and angular velocities.
 -}
 velocityAt : Point3d Meters WorldCoordinates -> Body -> Vector3d MetersPerSecond WorldCoordinates
-velocityAt point (Protected body) =
+velocityAt point (Types.Body body) =
     let
         origin =
             Transform3d.originPoint body.transform3d
@@ -435,7 +436,7 @@ velocityAt point (Protected body) =
 {-| Get the center of mass of a body in body coordinates. Returns Nothing for static bodies.
 -}
 centerOfMass : Body -> Maybe (Point3d Meters BodyCoordinates)
-centerOfMass (Protected body) =
+centerOfMass (Types.Body body) =
     if body.mass > 0 then
         Just (Point3d.fromMeters (Transform3d.originPoint body.centerOfMassTransform3d))
 
@@ -446,7 +447,7 @@ centerOfMass (Protected body) =
 {-| Get the mass of a body. Returns Nothing if the body is static.
 -}
 mass : Body -> Maybe Mass
-mass (Protected body) =
+mass (Types.Body body) =
     if body.mass > 0 then
         Just (Mass.kilograms body.mass)
 
@@ -457,7 +458,7 @@ mass (Protected body) =
 {-| Get the net volume of a body: solid shapes minus void shapes.
 -}
 volume : Body -> Volume
-volume (Protected body) =
+volume (Types.Body body) =
     Volume.cubicMeters body.volume
 
 
@@ -482,7 +483,7 @@ raycast axis bodiesWithIds =
             }
     in
     List.foldl
-        (\( id, (InternalBody.Protected body) as originalBody ) closest ->
+        (\( id, (Types.Body body) as originalBody ) closest ->
             case InternalBody.raycast ray body of
                 Just result ->
                     case closest of
@@ -526,9 +527,9 @@ Keep applying the force every simulation step to accelerate.
 
 -}
 applyForce : Quantity Float Newtons -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyForce (Quantity force) direction point (Protected body) =
+applyForce (Quantity force) direction point (Types.Body body) =
     if body.mass > 0 then
-        Protected
+        Types.Body
             (InternalBody.applyForce
                 force
                 (Direction3d.unwrap direction)
@@ -537,7 +538,7 @@ applyForce (Quantity force) direction point (Protected body) =
             )
 
     else
-        Protected body
+        Types.Body body
 
 
 {-| Apply an impulse in a direction at a point on a body.
@@ -561,9 +562,9 @@ with the duration of the hit 0.005 seconds:
 
 -}
 applyImpulse : Quantity Float (Product Newtons Seconds) -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyImpulse (Quantity impulse) direction point (Protected body) =
+applyImpulse (Quantity impulse) direction point (Types.Body body) =
     if body.mass > 0 then
-        Protected
+        Types.Body
             (InternalBody.applyImpulse
                 impulse
                 (Direction3d.unwrap direction)
@@ -572,14 +573,14 @@ applyImpulse (Quantity impulse) direction point (Protected body) =
             )
 
     else
-        Protected body
+        Types.Body body
 
 
 {-| Scale a dynamic body to the given mass, adjusting the inverse inertia tensor
 proportionally. The volume and center of mass are preserved. Has no effect on static bodies.
 -}
 scaleTo : Mass -> Body -> Body
-scaleTo desiredMass ((Protected body) as original) =
+scaleTo desiredMass ((Types.Body body) as original) =
     let
         newMass =
             Mass.inKilograms desiredMass
@@ -604,7 +605,7 @@ scaleTo desiredMass ((Protected body) as original) =
                 , m33 = im.m33 * scale
                 }
         in
-        Protected
+        Types.Body
             { body
                 | mass = newMass
                 , invMass = 1 / newMass
@@ -621,8 +622,8 @@ These parameters specify the proportion of velocity lost per second.
 Inputs are clamped between 0 and 1, the defaults are 0.01.
 -}
 damp : { linear : Float, angular : Float } -> Body -> Body
-damp { linear, angular } (Protected body) =
-    Protected
+damp { linear, angular } (Types.Body body) =
+    Types.Body
         { body
             | linearDamping = clamp 0 1 linear
             , angularDamping = clamp 0 1 angular
@@ -634,7 +635,7 @@ For common cases, see [angularAccelerationFromTorque](#angularAccelerationFromTo
 and [angularVelocityDeltaFromAngularImpulse](#angularVelocityDeltaFromAngularImpulse).
 -}
 applyInverseInertia : Body -> Vector3d units WorldCoordinates -> Vector3d (Rate units (Product Kilograms SquareMeters)) WorldCoordinates
-applyInverseInertia (Protected { invInertiaWorld }) vector =
+applyInverseInertia (Types.Body { invInertiaWorld }) vector =
     let
         { x, y, z } =
             Vector3d.unwrap vector
@@ -732,11 +733,11 @@ outputBodiesHelp dt gravity solverBodies bodies acc =
                         gravity
                         solverBodies
                         rest
-                        (( extId, InternalBody.Protected (SolverBody.toBody dt gravity solverBody) ) :: acc)
+                        (( extId, Types.Body (SolverBody.toBody dt gravity solverBody) ) :: acc)
 
                 Nothing ->
                     outputBodiesHelp dt
                         gravity
                         solverBodies
                         rest
-                        (( extId, InternalBody.Protected body ) :: acc)
+                        (( extId, Types.Body body ) :: acc)

@@ -1,9 +1,10 @@
 module Internal.AssignIds exposing (assignIds)
 
 import Internal.Body as InternalBody
+import Physics.Types as Types
 
 
-assignIds : List ( id, InternalBody.Protected ) -> ( List ( id, InternalBody.Body ), Int )
+assignIds : List ( id, Types.Body ) -> ( List ( id, InternalBody.Body ), Int )
 assignIds bodiesWithIds =
     let
         ( existingIds, newCount, mx ) =
@@ -26,13 +27,13 @@ assignIds bodiesWithIds =
             assign bodiesWithIds freeIds dupIds -1 mx []
 
 
-collect : List ( id, InternalBody.Protected ) -> List Int -> Int -> Int -> ( List Int, Int, Int )
+collect : List ( id, Types.Body ) -> List Int -> Int -> Int -> ( List Int, Int, Int )
 collect bodies existingIds newCount mx =
     case bodies of
         [] ->
             ( existingIds, newCount, mx )
 
-        ( _, InternalBody.Protected body ) :: rest ->
+        ( _, Types.Body body ) :: rest ->
             if body.id == -1 then
                 collect rest existingIds (newCount + 1) mx
 
@@ -84,7 +85,7 @@ fillFrom n needed revAcc =
         fillFrom (n + 1) (needed - 1) (n :: revAcc)
 
 
-assign : List ( id, InternalBody.Protected ) -> List Int -> List Int -> Int -> Int -> List ( id, InternalBody.Body ) -> ( List ( id, InternalBody.Body ), Int )
+assign : List ( id, Types.Body ) -> List Int -> List Int -> Int -> Int -> List ( id, InternalBody.Body ) -> ( List ( id, InternalBody.Body ), Int )
 assign bodies freeIds dupIds dir mx acc =
     case freeIds of
         [] ->
@@ -95,7 +96,7 @@ assign bodies freeIds dupIds dir mx acc =
                 [] ->
                     ( acc, mx )
 
-                ( extId, InternalBody.Protected body ) :: rest ->
+                ( extId, Types.Body body ) :: rest ->
                     if body.id == -1 then
                         assign rest
                             remainingFree
@@ -126,13 +127,13 @@ assign bodies freeIds dupIds dir mx acc =
                         assign rest freeIds dupIds dir mx (( extId, body ) :: acc)
 
 
-stable : List ( id, InternalBody.Protected ) -> Int -> List ( id, InternalBody.Body ) -> ( List ( id, InternalBody.Body ), Int )
+stable : List ( id, Types.Body ) -> Int -> List ( id, InternalBody.Body ) -> ( List ( id, InternalBody.Body ), Int )
 stable bodies mx acc =
     case bodies of
         [] ->
             ( acc, mx )
 
-        ( extId, InternalBody.Protected body ) :: rest ->
+        ( extId, Types.Body body ) :: rest ->
             stable rest mx (( extId, body ) :: acc)
 
 

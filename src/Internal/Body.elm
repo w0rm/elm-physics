@@ -1,6 +1,5 @@
 module Internal.Body exposing
     ( Body
-    , Protected(..)
     , applyForce
     , applyImpulse
     , compound
@@ -14,10 +13,6 @@ import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-
-
-type Protected
-    = Protected Body
 
 
 type alias Body =

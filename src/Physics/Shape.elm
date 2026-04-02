@@ -15,10 +15,11 @@ import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
-import Internal.Shape as Internal exposing (Protected(..))
+import Internal.Shape as Internal
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Coordinates exposing (BodyCoordinates)
+import Physics.Types as Types
 import Point3d exposing (Point3d)
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
@@ -47,7 +48,7 @@ for example to create hollow bodies.
 
 -}
 type alias Shape =
-    Protected
+    Types.Shape
 
 
 {-| Add a shape to another.
@@ -56,15 +57,15 @@ type alias Shape =
 
 -}
 plus : Shape -> Shape -> Shape
-plus (Protected toAdd) (Protected base) =
-    Protected (base ++ toAdd)
+plus (Types.Shape toAdd) (Types.Shape base) =
+    Types.Shape (base ++ toAdd)
 
 
 {-| Combine a list of shapes.
 -}
 sum : List Shape -> Shape
 sum =
-    List.foldl plus (Protected [])
+    List.foldl plus (Types.Shape [])
 
 
 {-| Subtract a shape from another, the first argument is subtracted from the second.
@@ -74,8 +75,8 @@ The subtracted shape reduces mass and inertia and is excluded from collision. Us
 
 -}
 minus : Shape -> Shape -> Shape
-minus (Protected toSubtract) (Protected base) =
-    Protected (base ++ List.map (Tuple.mapSecond negate) toSubtract)
+minus (Types.Shape toSubtract) (Types.Shape base) =
+    Types.Shape (base ++ List.map (Tuple.mapSecond negate) toSubtract)
 
 
 {-| -}
@@ -110,7 +111,7 @@ block block3d =
         tranform3d =
             Transform3d.fromOriginAndBasis origin x y z
     in
-    Protected
+    Types.Shape
         [ ( Internal.Convex
                 (Convex.fromBlock
                     (Length.inMeters sizeX)
@@ -133,7 +134,7 @@ sphere sphere3d =
         origin =
             Point3d.toMeters (Sphere3d.centerPoint sphere3d)
     in
-    Protected
+    Types.Shape
         [ ( Internal.Sphere
                 (Sphere.atOrigin radius
                     |> Sphere.placeIn (Transform3d.atPoint origin)
@@ -168,7 +169,7 @@ cylinder subdivisions cylinder3d =
                 (Direction3d.unwrap b)
                 (Direction3d.unwrap (Cylinder3d.axialDirection cylinder3d))
     in
-    Protected
+    Types.Shape
         [ ( Convex.fromCylinder (max 3 subdivisions)
                 (Length.inMeters (Cylinder3d.radius cylinder3d))
                 (Length.inMeters (Cylinder3d.length cylinder3d))
@@ -183,7 +184,7 @@ cylinder subdivisions cylinder3d =
 For compound shapes created with [minus](#minus), void parts are subtracted.
 -}
 volume : Shape -> Volume.Volume
-volume (Protected entries) =
+volume (Types.Shape entries) =
     Volume.cubicMeters
         (List.foldl
             (\( shape, sign ) acc -> acc + sign * abs (Internal.volume shape))
@@ -213,7 +214,7 @@ unsafeConvex triangularMesh =
                 |> TriangularMesh.mapVertices Point3d.toMeters
                 |> TriangularMesh.vertices
     in
-    Protected
+    Types.Shape
         [ ( Internal.Convex
                 (Convex.fromTriangularMesh faceIndices vertices)
           , 1

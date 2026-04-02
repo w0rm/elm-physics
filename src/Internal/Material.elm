@@ -1,16 +1,11 @@
 module Internal.Material exposing
     ( Material
-    , Protected(..)
     , combine
     , ice
     , rubber
     , steel
     , wood
     )
-
-
-type Protected kind
-    = Protected Material
 
 
 type alias Material =

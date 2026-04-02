@@ -12,7 +12,7 @@ On each simulate call:
 -}
 
 import Expect
-import Internal.Body as InternalBody
+import Physics.Types as Types
 import Length exposing (Meters)
 import Physics exposing (onEarth)
 import Physics.Coordinates exposing (WorldCoordinates)
@@ -34,7 +34,7 @@ step bodies =
 {-| Extract both the external (user) id and the internal body id from a body entry.
 -}
 ids : ( id, Physics.Body ) -> ( id, Int )
-ids ( extId, InternalBody.Protected body ) =
+ids ( extId, Types.Body body ) =
     ( extId, body.id )
 
 
@@ -42,8 +42,8 @@ ids ( extId, InternalBody.Protected body ) =
 has already been through a simulation step.
 -}
 withInternalId : Int -> Physics.Body -> Physics.Body
-withInternalId newId (InternalBody.Protected body) =
-    InternalBody.Protected { body | id = newId }
+withInternalId newId (Types.Body body) =
+    Types.Body { body | id = newId }
 
 
 assignIds : Test
