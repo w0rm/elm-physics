@@ -15,3 +15,4 @@ jobs:
       - run: nix develop --command elm-format --validate .
       - run: nix develop --command elm-review
       - run: nix develop --command elm-test
+      - run: cd sandbox && nix develop --command elm-test
