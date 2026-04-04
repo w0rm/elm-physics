@@ -12,19 +12,16 @@ On each simulate call:
 -}
 
 import Expect
-import Physics.Types as Types
-import Length exposing (Meters)
 import Physics exposing (onEarth)
-import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
-import Point3d exposing (Point3d)
+import Physics.Types as Types
 import Test exposing (Test, describe, test)
 import Vector3d
 
 
 {-| Run one simulation step with no forces, just to trigger ID assignment.
 -}
-step : List ( id, Physics.Body ) -> ( List ( id, Physics.Body ), List ( id, id, List (Point3d Meters WorldCoordinates) ) )
+step : List ( id, Physics.Body ) -> ( List ( id, Physics.Body ), Physics.Contacts id )
 step bodies =
     Physics.simulate
         { onEarth | gravity = Vector3d.zero }

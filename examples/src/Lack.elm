@@ -51,6 +51,7 @@ type Id
 
 type alias Model =
     { bodies : List ( Id, Body )
+    , contacts : Physics.Contacts Id
     , dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     , dragTarget : Maybe ( Point3d Meters BodyCoordinates, Point3d Meters WorldCoordinates )
     }
@@ -77,6 +78,7 @@ main =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { bodies = tableOnFloor
+      , contacts = Physics.emptyContacts
       , dimensions = ( Pixels.int 0, Pixels.int 0 )
       , dragTarget = Nothing
       }
@@ -125,21 +127,21 @@ update msg model =
             case model.dragTarget of
                 Just ( pointOnTable, dragPoint ) ->
                     let
-                        ( simulated, _ ) =
+                        ( simulated, newContacts ) =
                             Physics.simulate
-                                { onEarth | constrain = lockMouseTo pointOnTable }
+                                { onEarth | constrain = lockMouseTo pointOnTable, contacts = model.contacts }
                                 (( Mouse, Physics.static [] |> Physics.moveTo dragPoint )
                                     :: model.bodies
                                 )
                     in
-                    { model | bodies = List.drop 1 simulated }
+                    { model | bodies = List.drop 1 simulated, contacts = newContacts }
 
                 Nothing ->
                     let
-                        ( simulated, _ ) =
-                            Physics.simulate onEarth model.bodies
+                        ( simulated, newContacts ) =
+                            Physics.simulate { onEarth | contacts = model.contacts } model.bodies
                     in
-                    { model | bodies = simulated }
+                    { model | bodies = simulated, contacts = newContacts }
 
         MouseDown mouseRay ->
             case Physics.raycast mouseRay model.bodies of

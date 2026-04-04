@@ -36,6 +36,7 @@ getContactsHelp collide id1 body1 currentBodies restBodies result =
                 (if bodiesMayContact collide id1 body1 id2 body2 then
                     case
                         NarrowPhase.getContacts
+                            (String.fromInt body1.id ++ "-" ++ String.fromInt body2.id)
                             body1.worldShapesWithMaterials
                             body2.worldShapesWithMaterials
                     of

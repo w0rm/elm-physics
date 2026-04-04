@@ -35,24 +35,26 @@ addContacts =
     describe "Collision.PlaneSphere.addContacts"
         [ test "exact collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity plane sphere []
+                Collision.PlaneSphere.addContacts "" identity plane sphere []
                     |> Expect.contacts
-                        [ { ni = { x = 0, y = 0, z = 1 }
+                        [ { id = ""
+                          , ni = { x = 0, y = 0, z = 1 }
                           , pi = { x = 0, y = 0, z = 0 }
                           , pj = { x = 0, y = 0, z = 0 }
                           }
                         ]
         , test "overlapping collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity plane overlappingSphere []
+                Collision.PlaneSphere.addContacts "" identity plane overlappingSphere []
                     |> Expect.contacts
-                        [ { ni = { x = 0, y = 0, z = 1 }
+                        [ { id = ""
+                          , ni = { x = 0, y = 0, z = 1 }
                           , pi = { x = 0, y = 0, z = 0 }
                           , pj = { x = 0, y = 0, z = -delta }
                           }
                         ]
         , test "no collision" <|
             \_ ->
-                Collision.PlaneSphere.addContacts identity plane nonCollidingSphere []
+                Collision.PlaneSphere.addContacts "" identity plane nonCollidingSphere []
                     |> Expect.contacts []
         ]

@@ -32,7 +32,7 @@ addContacts =
                         Transform3d.atPoint { x = 0, y = 0, z = 4 }
                             |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 2)
                 in
-                Collision.ConvexConvex.addContacts (Convex.placeIn t1 convex) (Convex.placeIn t2 convex) []
+                Collision.ConvexConvex.addContacts "" (Convex.placeIn t1 convex) (Convex.placeIn t2 convex) []
                     |> List.length
                     |> Expect.equal 4
         , test "should return 2 results" <|
@@ -52,7 +52,7 @@ addContacts =
                         Transform3d.atPoint { x = 0.5, y = 0, z = 0 }
                             |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                 in
-                Collision.ConvexConvex.addContacts
+                Collision.ConvexConvex.addContacts ""
                     (Convex.placeIn transform3d1 convex1)
                     (Convex.placeIn transform3d2 convex2)
                     []

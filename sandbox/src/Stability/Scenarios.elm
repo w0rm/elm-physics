@@ -9,9 +9,8 @@ module Stability.Scenarios exposing
 Each scenario is a named initial body configuration. Body IDs follow the sandbox
 convention: 0 = ground/floor, 1..n = dynamic bodies (array index into meshes).
 
-Use `Stability.Runner.runN` to advance frames, then `Stability.Metrics.compute`
-to measure stability. The exposed shape constant (`unitBlock`) lets browser
-scenes build a corresponding mesh.
+The exposed shape constant (`unitBlock`) lets browser scenes build a
+corresponding mesh.
 
 Ground plane: z = 0, normal pointing +z.
 Boxes: 1 m × 1 m × 1 m wood, centered at origin in body coordinates.
@@ -55,13 +54,17 @@ stackOf5 : Scenario
 stackOf5 =
     { name = "stack of 5 boxes"
     , bodies =
-        ground
-            :: List.indexedMap
-                (\i _ ->
-                    ( i + 1
-                    , Physics.block unitBlock Material.wood
-                        |> Physics.moveTo (Point3d.meters 0 0 (0.5 + toFloat i))
-                    )
+        let
+            n =
+                5
+        in
+        List.indexedMap
+            (\i _ ->
+                ( n - i
+                , Physics.block unitBlock Material.wood
+                    |> Physics.moveTo (Point3d.meters 0 0 (toFloat (n - i) - 0.5))
                 )
-                (List.repeat 5 ())
+            )
+            (List.repeat n ())
+            ++ [ ground ]
     }

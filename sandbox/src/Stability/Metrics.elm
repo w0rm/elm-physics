@@ -56,5 +56,3 @@ compute bodies =
             List.sum speeds / toFloat count
     , dynamicBodyCount = count
     }
-
-

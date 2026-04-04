@@ -67,7 +67,7 @@ keyDecoder toMsg =
 type alias Model =
     { bodies : List ( String, Body )
     , meshes : Dict String (Mesh Attributes)
-    , contacts : List ( String, String, List (Point3d Meters WorldCoordinates) )
+    , contacts : Physics.Contacts String
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -99,7 +99,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { bodies = initialBodies
       , meshes = initialMeshes
-      , contacts = []
+      , contacts = Physics.emptyContacts
       , fps = []
       , settings = settings
       , speeding = 0
@@ -152,7 +152,7 @@ update msg model =
 
                 ( newBodies, newContacts ) =
                     Physics.simulate
-                        { onEarth | constrain = constrainCar model.steering }
+                        { onEarth | constrain = constrainCar model.steering, contacts = model.contacts }
                         bodiesWithForce
             in
             { model
@@ -165,7 +165,7 @@ update msg model =
             { model | camera = Camera.resize width height model.camera }
 
         Restart ->
-            { model | bodies = initialBodies }
+            { model | bodies = initialBodies, contacts = Physics.emptyContacts }
 
         KeyDown (Steer k) ->
             { model | steering = k }
@@ -215,7 +215,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                         Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
                     )
                     bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -225,7 +225,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies)
+            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
 
           else
             Html.text ""

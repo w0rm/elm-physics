@@ -17,8 +17,8 @@ update dt fps =
     List.take 50 (dt :: fps)
 
 
-view : List Float -> Int -> Html a
-view fps numBodies =
+view : List Float -> Int -> Int -> Html a
+view fps numBodies iterations =
     let
         average currentWeight sumOfWeights weightedSum list =
             case list of
@@ -46,4 +46,8 @@ view fps numBodies =
             [ style "font" "50px sans-serif" ]
             [ Html.text (" " ++ String.fromInt numBodies) ]
         , Html.text " bodies"
+        , Html.span
+            [ style "font" "50px sans-serif" ]
+            [ Html.text (" " ++ String.fromInt iterations) ]
+        , Html.text " iterations"
         ]

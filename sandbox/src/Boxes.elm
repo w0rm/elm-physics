@@ -19,7 +19,7 @@ import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, onEarth)
+import Physics exposing (Body, Contacts, onEarth)
 import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
 import Point3d exposing (Point3d)
@@ -35,7 +35,7 @@ boxesPerDimension =
 type alias Model =
     { bodies : List ( Int, Body )
     , meshes : Array (Mesh Attributes)
-    , contacts : List ( Int, Int, List (Point3d Meters WorldCoordinates) )
+    , contacts : Contacts Int
     , fps : List Float
     , settings : Settings
     , camera : Camera
@@ -63,7 +63,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { bodies = initialBodies
       , meshes = initialMeshes
-      , contacts = []
+      , contacts = Physics.emptyContacts
       , fps = []
       , settings = { settings | showFpsMeter = True }
       , camera =
@@ -92,7 +92,7 @@ update msg model =
             let
                 ( newBodies, newContacts ) =
                     Physics.simulate
-                        onEarth
+                        { onEarth | contacts = model.contacts }
                         model.bodies
             in
             ( { model
@@ -109,7 +109,7 @@ update msg model =
             )
 
         Restart ->
-            ( { model | bodies = initialBodies, meshes = initialMeshes }, Cmd.none )
+            ( { model | bodies = initialBodies, meshes = initialMeshes, contacts = Physics.emptyContacts }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
@@ -126,7 +126,7 @@ view { settings, fps, bodies, meshes, contacts, camera } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) contacts
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -136,7 +136,7 @@ view { settings, fps, bodies, meshes, contacts, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies)
+            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
 
           else
             Html.text ""

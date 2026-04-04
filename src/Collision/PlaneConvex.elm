@@ -6,18 +6,19 @@ import Shapes.Convex exposing (Convex)
 import Shapes.Plane exposing (Plane)
 
 
-addContacts : (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact
-addContacts orderContact plane { vertices } contacts =
-    addContactsHelp
+addContacts : String -> (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact
+addContacts idPrefix orderContact plane { vertices } contacts =
+    addContactsHelp idPrefix
         orderContact
         plane.position
         plane.normal
+        0
         vertices
         contacts
 
 
-addContactsHelp : (Contact -> Contact) -> Vec3 -> Vec3 -> List Vec3 -> List Contact -> List Contact
-addContactsHelp orderContact planePosition planeNormal vertices contacts =
+addContactsHelp : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Int -> List Vec3 -> List Contact -> List Contact
+addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertices contacts =
     case vertices of
         vertex :: remainingVertices ->
             let
@@ -27,13 +28,15 @@ addContactsHelp orderContact planePosition planeNormal vertices contacts =
                         + ((vertex.z - planePosition.z) * planeNormal.z)
             in
             if dot <= 0 then
-                addContactsHelp
+                addContactsHelp idPrefix
                     orderContact
                     planePosition
                     planeNormal
+                    (vertexId + 1)
                     remainingVertices
                     (orderContact
-                        { ni = planeNormal
+                        { id = idPrefix ++ "-" ++ String.fromInt (vertexId + 1)
+                        , ni = planeNormal
                         , pi =
                             { x = vertex.x - dot * planeNormal.x
                             , y = vertex.y - dot * planeNormal.y
@@ -45,10 +48,11 @@ addContactsHelp orderContact planePosition planeNormal vertices contacts =
                     )
 
             else
-                addContactsHelp
+                addContactsHelp idPrefix
                     orderContact
                     planePosition
                     planeNormal
+                    (vertexId + 1)
                     remainingVertices
                     contacts
 

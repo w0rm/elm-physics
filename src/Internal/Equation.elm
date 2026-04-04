@@ -6,6 +6,7 @@ module Internal.Equation exposing
     , contactEquationsGroup
     )
 
+import Dict exposing (Dict)
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup, SolverContact)
@@ -15,7 +16,8 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias Equation =
-    { minForce : Float
+    { id : String
+    , minForce : Float
     , maxForce : Float
     , solverB : Float
     , solverInvC : Float
@@ -32,6 +34,7 @@ type alias Ctx =
     { dt : Float
     , gravity : Vec3
     , gravityLength : Float
+    , lambdas : Dict String Float
     }
 
 
@@ -103,7 +106,8 @@ addDistanceConstraintEquations ctx body1 body2 distance =
     (::)
         (initSolverParams
             (computeContactB 0
-                { pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
+                { id = ""
+                , pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
                 , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
                 , ni = ni
                 }
@@ -111,7 +115,8 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             ctx
             body1
             body2
-            { minForce = -1000000
+            { id = ""
+            , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
             , solverInvC = 0
@@ -162,7 +167,8 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
         ctx
         body1
         body2
-        { minForce = -1000000
+        { id = ""
+        , minForce = -1000000
         , maxForce = 1000000
         , solverB = 0
         , solverInvC = 0
@@ -183,7 +189,8 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
             ctx
             body1
             body2
-            { minForce = -1000000
+            { id = ""
+            , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
             , solverInvC = 0
@@ -237,7 +244,8 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
         ctx
         body1
         body2
-        { minForce = -1000000
+        { id = ""
+        , minForce = -1000000
         , maxForce = 1000000
         , solverB = 0
         , solverInvC = 0
@@ -258,7 +266,8 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
             ctx
             body1
             body2
-            { minForce = -1000000
+            { id = ""
+            , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
             , solverInvC = 0
@@ -279,7 +288,8 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
             ctx
             body1
             body2
-            { minForce = -1000000
+            { id = ""
+            , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
             , solverInvC = 0
@@ -316,7 +326,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
             (::)
                 (initSolverParams
                     (computeContactB 0
-                        { pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
+                        { id = ""
+                        , pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
                         , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
                         , ni = ni
                         }
@@ -324,7 +335,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     ctx
                     body1
                     body2
-                    { minForce = -1000000
+                    { id = ""
+                    , minForce = -1000000
                     , maxForce = 1000000
                     , solverB = 0
                     , solverInvC = 0
@@ -374,7 +386,8 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
         ctx
         body1
         body2
-        { minForce = 0
+        { id = contact.id
+        , minForce = 0
         , maxForce = 1000000
         , solverB = 0
         , solverInvC = 0
@@ -390,7 +403,8 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             ctx
             body1
             body2
-            { minForce = -maxFrictionForce
+            { id = ""
+            , minForce = -maxFrictionForce
             , maxForce = maxFrictionForce
             , solverB = 0
             , solverInvC = 0
@@ -406,7 +420,8 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             ctx
             body1
             body2
-            { minForce = -maxFrictionForce
+            { id = ""
+            , minForce = -maxFrictionForce
             , maxForce = maxFrictionForce
             , solverB = 0
             , solverInvC = 0
@@ -438,15 +453,26 @@ type alias SolverEquation =
 
 initSolverParams : ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
 initSolverParams computeB ctx bi bj solverEquation =
-    { solverLambda = 0
+    { solverLambda =
+        if solverEquation.id == "" then
+            0
+
+        else
+            case Dict.get solverEquation.id ctx.lambdas of
+                Just lambda ->
+                    lambda
+
+                Nothing ->
+                    0
     , equation =
-        { minForce = solverEquation.minForce
+        { id = solverEquation.id
+        , minForce = solverEquation.minForce
         , maxForce = solverEquation.maxForce
         , solverB =
             -- the RHS of the SPOOK equation
             computeB bi bj solverEquation
                 - (ctx.dt * computeGiMf ctx.gravity bi bj solverEquation)
-        , solverInvC = 1 / computeC bi bj solverEquation
+        , solverInvC = 1 / (computeGimgt bi bj solverEquation + solverEquation.spookEps)
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
@@ -539,10 +565,10 @@ computeGiMf gravity bi bj { wA, vB, wB } =
         + (wB.z * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
 
 
-{-| Compute G x inv(M) x G' + eps, the denominator part of the SPOOK equation:
+{-| Compute G x inv(M) x G', the effective inverse mass for this constraint.
 -}
-computeC : Body -> Body -> Equation -> Float
-computeC bi bj { wA, wB, spookEps } =
+computeGimgt : Body -> Body -> Equation -> Float
+computeGimgt bi bj { wA, wB } =
     bi.invMass
         + bj.invMass
         + (wA.x * (bi.invInertiaWorld.m11 * wA.x + bi.invInertiaWorld.m12 * wA.y + bi.invInertiaWorld.m13 * wA.z))
@@ -551,7 +577,6 @@ computeC bi bj { wA, wB, spookEps } =
         + (wB.x * (bj.invInertiaWorld.m11 * wB.x + bj.invInertiaWorld.m12 * wB.y + bj.invInertiaWorld.m13 * wB.z))
         + (wB.y * (bj.invInertiaWorld.m21 * wB.x + bj.invInertiaWorld.m22 * wB.y + bj.invInertiaWorld.m23 * wB.z))
         + (wB.z * (bj.invInertiaWorld.m31 * wB.x + bj.invInertiaWorld.m32 * wB.y + bj.invInertiaWorld.m33 * wB.z))
-        + spookEps
 
 
 {-| Computes G x W, where W are the body velocities

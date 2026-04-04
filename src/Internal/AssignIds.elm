@@ -131,7 +131,7 @@ stable : List ( id, Types.Body ) -> Int -> List ( id, InternalBody.Body ) -> ( L
 stable bodies mx acc =
     case bodies of
         [] ->
-            ( acc, mx )
+            ( List.reverse acc, mx )
 
         ( extId, Types.Body body ) :: rest ->
             stable rest mx (( extId, body ) :: acc)
