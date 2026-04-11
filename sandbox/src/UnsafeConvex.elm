@@ -19,6 +19,7 @@ import Length exposing (Meters)
 import Mass
 import Obj.Decode
 import Physics exposing (Body, onEarth)
+import Physics.Types exposing (Contacts(..))
 import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
 import Physics.Shape as Shape
@@ -131,7 +132,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
+            let (Contacts c) = contacts in Fps.view fps (List.length bodies) c.iterations
 
           else
             Html.text ""

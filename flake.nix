@@ -17,6 +17,7 @@
               elm-test
               elm-review
               elm-json
+              elm-doc-preview
             ];
           };
         });

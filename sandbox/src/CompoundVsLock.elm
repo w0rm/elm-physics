@@ -21,6 +21,7 @@ import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
 import Physics exposing (Body, onEarth)
+import Physics.Types exposing (Contacts(..))
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material as Material
@@ -188,7 +189,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            Fps.view fps (List.length bodies) (Physics.solverIterations contacts)
+            let (Contacts c) = contacts in Fps.view fps (List.length bodies) c.iterations
 
           else
             Html.text ""

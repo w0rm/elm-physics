@@ -1,51 +1,58 @@
 module Physics exposing
     ( Body
     , block, plane, sphere, cylinder, particle
-    , dynamic, static
-    , moveTo, translateBy, rotateAround
+    , moveTo, translateBy, rotateAround, placeIn
     , simulate, onEarth, Config
+    , Contacts, contacts, emptyContacts
     , frame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass, volume
     , raycast, applyForce, applyImpulse
+    , dynamic, static
     , damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
-    , Contacts, contacts, emptyContacts, solverIterations
     )
 
 {-|
 
 
-# Definition
+# Bodies
 
 @docs Body
 
 @docs block, plane, sphere, cylinder, particle
 
-@docs dynamic, static
+
+# Positioning
+
+@docs moveTo, translateBy, rotateAround, placeIn
 
 
-## Position and orientation
-
-@docs moveTo, translateBy, rotateAround
-
-
-## Simulation
+# Simulation
 
 @docs simulate, onEarth, Config
 
+@docs Contacts, contacts, emptyContacts
 
-## Properties
+
+# Querying
 
 @docs frame, originPoint, velocity, angularVelocity, velocityAt
 
 @docs centerOfMass, mass, volume
 
 
-## Interaction
+# Interaction
 
 @docs raycast, applyForce, applyImpulse
 
 
-## Advanced
+# Composite bodies
+
+For bodies made of multiple shapes or custom materials, use these instead of the simple constructors above.
+
+@docs dynamic, static
+
+
+# Advanced
 
 @docs damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
 
@@ -92,23 +99,22 @@ import Volume exposing (Volume)
 
 
 {-| A body is pure physics state — position, velocity, orientation.
-User data is paired externally as (id, Body).
 All bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
 -}
 type alias Body =
     Types.Body
 
 
-{-| A dynamic block body. Geometry is defined in body coordinates.
+{-| Create a block body from geometry and material.
 -}
 block : Block3d Meters BodyCoordinates -> Material HasDensity -> Body
 block block3d mat =
     dynamic [ ( Shape.block block3d, mat ) ]
 
 
-{-| A static plane body with the normal pointing in the direction of the Z axis.
+{-| Create a static infinite plane. The normal points in the Z direction.
 -}
-plane : Material a -> Body
+plane : Material any -> Body
 plane (Types.Material internalMat) =
     Types.Body
         (InternalBody.compound
@@ -120,32 +126,33 @@ plane (Types.Material internalMat) =
         )
 
 
-{-| A dynamic sphere body. Geometry is defined in body coordinates.
+{-| Create a sphere body from geometry and material.
 -}
 sphere : Sphere3d Meters BodyCoordinates -> Material HasDensity -> Body
 sphere sphere3d mat =
     dynamic [ ( Shape.sphere sphere3d, mat ) ]
 
 
-{-| A dynamic cylinder body, approximated with a convex polyhedron mesh (12 side faces).
-For more subdivisions at the cost of worse performance, use [dynamic](#dynamic) with [Shape.cylinder](Physics-Shape#cylinder).
+{-| Create a cylinder body, approximated with 12 side faces.
+For more subdivisions, use [dynamic](#dynamic) with [Shape.cylinder](Physics-Shape#cylinder).
 -}
 cylinder : Cylinder3d Meters BodyCoordinates -> Material HasDensity -> Body
 cylinder cylinder3d mat =
     dynamic [ ( Shape.cylinder 12 cylinder3d, mat ) ]
 
 
-{-| A dynamic particle — an abstract point with no dimensions.
+{-| Create a particle — a point mass with no volume.
+Takes mass directly since there is no geometry to derive it from.
 Particles don’t collide with each other.
-Takes mass directly since particles have no volume.
 -}
 particle : Mass -> Material a -> Body
 particle massVal (Types.Material internalMat) =
     Types.Body (InternalBody.particle (max 0 (Mass.inKilograms massVal)) internalMat)
 
 
-{-| A dynamic compound body. Mass and center of mass are derived from shape geometry and material density.
-Shapes are assumed not to overlap. Use [Shape.minus](Physics-Shape#minus) to create hollow bodies.
+{-| Create a dynamic body from shapes and materials. Mass and center of mass
+are derived from geometry and density. Shapes are assumed not to overlap —
+use [Shape.minus](Physics-Shape#minus) for hollow bodies.
 -}
 dynamic : List ( Shape, Material HasDensity ) -> Body
 dynamic shapesWithMaterials =
@@ -160,7 +167,8 @@ dynamic shapesWithMaterials =
         )
 
 
-{-| A static compound body. Won’t move but collides with dynamic bodies.
+{-| Create a static body from shapes and materials. Static bodies don’t move
+but collide with dynamic bodies.
 -}
 static : List ( Shape, Material a ) -> Body
 static shapesWithMaterials =
@@ -280,26 +288,67 @@ rotateAround axis angle (Types.Body body) =
         }
 
 
-{-| Contacts from the most recent simulation frame. Contains contact points
-for rendering/debugging, and solver state for warm starting the next frame.
+{-| Place the body at an absolute position and orientation,
+e.g. to place a body at a specific location and rotation:
 
-Pass the previous frame's contacts back via the `contacts` config field
-to enable warm starting, which significantly improves solver stability.
+    placedBody =
+        body
+            |> placeIn
+                (Frame3d.atPoint (Point3d.meters 2 0 1)
+                    |> Frame3d.rotateAround Axis3d.z (Angle.degrees 45)
+                )
+
+This is similar to [moveTo](#moveTo) but also sets the orientation.
+Like `moveTo`, this is absolute — calling it again overwrites the previous
+position and orientation.
+
+Left-handed (mirrored) frames are not supported — the Z direction is
+recomputed as the cross product of X and Y, so any mirroring is ignored.
 
 -}
-type Contacts id
-    = Contacts
-        { lambdas : Dict String Float
-        , iterations : Int
-        , contactPoints : List ( id, id, List (Point3d Meters WorldCoordinates) )
+placeIn : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Body
+placeIn frame3d (Types.Body body) =
+    let
+        origin =
+            Point3d.toMeters (Frame3d.originPoint frame3d)
+
+        x =
+            Direction3d.unwrap (Frame3d.xDirection frame3d)
+
+        y =
+            Direction3d.unwrap (Frame3d.yDirection frame3d)
+
+        z =
+            Vec3.cross x y
+
+        newBodyCoordinatesTransform3d =
+            Transform3d.fromOriginAndBasis origin x y z
+
+        newTransform3d =
+            Transform3d.placeIn
+                newBodyCoordinatesTransform3d
+                body.centerOfMassTransform3d
+    in
+    Types.Body
+        { body
+            | transform3d = newTransform3d
+            , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
+            , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
         }
+
+
+{-| Contacts from the most recent simulation frame. Contains contact points
+and solver state for warm starting.
+-}
+type alias Contacts id =
+    Types.Contacts id
 
 
 {-| The number of solver iterations used in the most recent simulation frame.
 Useful for debugging and performance tuning.
 -}
 solverIterations : Contacts id -> Int
-solverIterations (Contacts c) =
+solverIterations (Types.Contacts c) =
     c.iterations
 
 
@@ -307,7 +356,7 @@ solverIterations (Contacts c) =
 Each entry is a pair of body ids and a list of world-space contact points between them.
 -}
 contacts : Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
-contacts (Contacts c) =
+contacts (Types.Contacts c) =
     c.contactPoints
 
 
@@ -330,7 +379,7 @@ simulate :
     -> ( List ( id, Body ), Contacts id )
 simulate config bodiesWithIds =
     let
-        (Contacts cache) =
+        (Types.Contacts cache) =
             config.contacts
 
         ( internalBodiesWithIds, maxId ) =
@@ -367,7 +416,7 @@ simulate config bodiesWithIds =
             Solver.solve dt gravityVec config.solverIterations constraints contactGroups maxId internalBodiesWithIds cache.lambdas
     in
     ( List.reverse (outputBodiesHelp dt gravityVec solverBodies internalBodiesWithIds [])
-    , Contacts
+    , Types.Contacts
         { lambdas = newLambdas
         , iterations = iters
         , contactPoints = contactsFromWorldHelp dt gravityVec contactGroups solverBodies []
@@ -375,8 +424,9 @@ simulate config bodiesWithIds =
     )
 
 
-{-| Example simulation config with Earth’s standard gravity (9.80665 m/s², -Z direction),
-a 60 Hz timestep, no constraints, and all collisions enabled.
+{-| A ready-to-use simulation config with Earth gravity pointing down (-Z)
+at 60 fps. Customize it by updating individual fields,
+see [Config](#Config) for more options.
 -}
 onEarth : Config id
 onEarth =
@@ -393,28 +443,32 @@ onEarth =
 -}
 emptyContacts : Contacts id
 emptyContacts =
-    Contacts { lambdas = Dict.empty, iterations = 0, contactPoints = [] }
+    Types.Contacts { lambdas = Dict.empty, iterations = 0, contactPoints = [] }
 
 
 {-| Configures a simulation.
 
-    - `gravity` — set the gravity vector, or `Vector3d.zero` for no gravity
-    - `duration` — set to `Duration.seconds (1 / 60)` for 60fps
-    - `solverIterations` — balance between precision and performance, 20 is a sweet spot
-    - `contacts` — pass `Contacts` from the previous frame for warm starting, or leave as default for cold start
-    - `constrain` — limit body movement relative to each other, see `Physics.Constraint`
-    - `collide` — decide which bodies can collide with each other
-
     onEarth =
-        { gravity =
-            Vector3d.withLength (Acceleration.gees 1)
-                Direction3d.negativeZ
+        { gravity = Vector3d.withLength (Acceleration.gees 1)
+            Direction3d.negativeZ
         , duration = Duration.seconds (1 / 60)
         , solverIterations = 20
         , contacts = emptyContacts
         , constrain = \_ -> Nothing
-        , collide = \_ _ -> True
+        , collide = \_ \_ -> True
         }
+
+  - `gravity` — set the gravity vector, or `Vector3d.zero` for no gravity
+
+  - `duration` — set to `Duration.seconds (1 / 60)` for 60 fps
+
+  - `solverIterations` — balance between precision and performance, 20 is a sweet spot
+
+  - `contacts` — pass `Contacts` from the previous frame for warm starting, or leave as default for cold start
+
+  - `constrain` — limit body movement relative to each other, see `Physics.Constraint`
+
+  - `collide` — decide which bodies can collide with each other
 
 -}
 type alias Config id =
