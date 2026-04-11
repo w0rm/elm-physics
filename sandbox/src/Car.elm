@@ -25,11 +25,11 @@ import Json.Decode
 import Length exposing (Meters)
 import Mass
 import Physics exposing (Body, onEarth)
-import Physics.Types exposing (Contacts(..))
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material as Material
 import Physics.Shape as Shape
+import Physics.Types exposing (Contacts(..))
 import Point3d exposing (Point3d)
 import Sphere3d
 import Task
@@ -226,7 +226,11 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 [ Html.text "Restart the demo" ]
             ]
         , if settings.showFpsMeter then
-            let (Contacts c) = contacts in Fps.view fps (List.length bodies) c.iterations
+            let
+                (Contacts c) =
+                    contacts
+            in
+            Fps.view fps (List.length bodies) c.iterations
 
           else
             Html.text ""

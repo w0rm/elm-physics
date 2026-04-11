@@ -3,7 +3,6 @@ module PlaceInTest exposing (placeInTests)
 import Angle
 import Axis3d
 import Block3d
-import Direction3d
 import Extra.Expect as Expect
 import Frame3d
 import Physics

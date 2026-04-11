@@ -1,4 +1,4 @@
-module Physics.Types exposing (Body(..), Contacts(..), Constraint, Material(..), Shape(..))
+module Physics.Types exposing (Body(..), Constraint, Contacts(..), Material(..), Shape(..))
 
 import Dict exposing (Dict)
 import Internal.Body as InternalBody

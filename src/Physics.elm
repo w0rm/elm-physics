@@ -67,7 +67,7 @@ import Array exposing (Array)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
-import Dict exposing (Dict)
+import Dict
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration, Seconds)
 import Force exposing (Newtons)
@@ -342,14 +342,6 @@ and solver state for warm starting.
 -}
 type alias Contacts id =
     Types.Contacts id
-
-
-{-| The number of solver iterations used in the most recent simulation frame.
-Useful for debugging and performance tuning.
--}
-solverIterations : Contacts id -> Int
-solverIterations (Types.Contacts c) =
-    c.iterations
 
 
 {-| Get the contact points detected during the most recent simulation frame.
