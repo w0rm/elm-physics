@@ -36,8 +36,9 @@ The type parameter tracks capabilities:
 is preserved after a collision. 0 means no bounce (the body absorbs the impact),
 1 means a perfectly elastic bounce.
 
-When two shapes collide, friction and bounciness of both materials are averaged
-and clamped to [0, 1].
+When two shapes collide, their friction values are combined using the geometric
+mean √(f1 · f2), so a slippery surface dominates. Bounciness uses the
+maximum of the two values, so the bouncier surface wins.
 
 -}
 type alias Material kind =

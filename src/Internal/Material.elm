@@ -1,6 +1,7 @@
 module Internal.Material exposing
     ( Material
-    , combine
+    , combineBounciness
+    , combineFriction
     , ice
     , rubber
     , steel
@@ -11,22 +12,24 @@ module Internal.Material exposing
 type alias Material =
     { bounciness : Float
     , friction : Float
-    , density : Float -- kg/m³; 0 for static materials / no density; negative for void shapes (subtracts from mass/inertia, excluded from collision)
+    , density : Float
     }
 
 
-{-| Average of two floats, clamped between 0 and 1
+{-| Geometric mean of two frictions: sqrt(f1 \* f2).
+If one surface is slippery, the result stays low.
 -}
-combine : Float -> Float -> Float
-combine v1 v2 =
-    let
-        avg =
-            (v1 + v2) * 0.5
+combineFriction : Float -> Float -> Float
+combineFriction f1 f2 =
+    sqrt (f1 * f2)
 
-        temp =
-            1 + avg - abs (1 - avg)
-    in
-    (temp + abs temp) * 0.25
+
+{-| Branchless max of two bounciness values.
+The bouncier surface wins.
+-}
+combineBounciness : Float -> Float -> Float
+combineBounciness b1 b2 =
+    (b1 + b2 + abs (b1 - b2)) * 0.5
 
 
 wood : Material

@@ -57,10 +57,10 @@ addShapeContacts : String -> ( Shape WorldCoordinates, Material ) -> ( Shape Wor
 addShapeContacts idPrefix ( shape1, mat1 ) ( shape2, mat2 ) contacts =
     let
         bounciness =
-            Material.combine mat1.bounciness mat2.bounciness
+            Material.combineBounciness mat1.bounciness mat2.bounciness
 
         friction =
-            Material.combine mat1.friction mat2.friction
+            Material.combineFriction mat1.friction mat2.friction
 
         rawContacts =
             addRawShapeContacts idPrefix shape1 shape2 []
