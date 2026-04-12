@@ -3,6 +3,7 @@ name: Test
 on:
   pull_request:
     branches: [main]
+  workflow_call:
 
 jobs:
   elm-test:
@@ -16,3 +17,5 @@ jobs:
       - run: nix develop --command elm-review
       - run: nix develop --command elm-test
       - run: cd sandbox && nix develop --command elm-test
+      - run: nix develop --command elm make --docs docs.json
+      - run: git diff --exit-code docs.json

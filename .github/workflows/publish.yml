@@ -9,7 +9,12 @@ on:
     branches: [main]
 
 jobs:
-  test-and-publish:
+  test:
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  publish:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - run: git config --global user.name "Andrey Kuzmin"
@@ -19,10 +24,6 @@ jobs:
       - uses: cachix/install-nix-action@v29
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix develop --command elm-format --validate .
-      - run: nix develop --command elm-review
-      - run: nix develop --command elm-test
-      - run: cd sandbox && nix develop --command elm-test
 
       - run: nix develop --command ./scripts/elm-publish.sh ${{ github.event.inputs.version }}
 
