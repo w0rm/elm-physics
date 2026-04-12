@@ -10950,11 +10950,13 @@ var $author$project$Internal$NarrowPhase$addRawShapeContacts = F4(
 				}
 		}
 	});
-var $author$project$Internal$Material$combine = F2(
-	function (v1, v2) {
-		var avg = (v1 + v2) * 0.5;
-		var temp = (1 + avg) - $elm$core$Basics$abs(1 - avg);
-		return (temp + $elm$core$Basics$abs(temp)) * 0.25;
+var $author$project$Internal$Material$combineBounciness = F2(
+	function (b1, b2) {
+		return ((b1 + b2) + $elm$core$Basics$abs(b1 - b2)) * 0.5;
+	});
+var $author$project$Internal$Material$combineFriction = F2(
+	function (f1, f2) {
+		return $elm$core$Basics$sqrt(f1 * f2);
 	});
 var $author$project$Internal$NarrowPhase$addShapeContacts = F4(
 	function (idPrefix, _v0, _v1, contacts) {
@@ -10963,8 +10965,8 @@ var $author$project$Internal$NarrowPhase$addShapeContacts = F4(
 		var shape2 = _v1.a;
 		var mat2 = _v1.b;
 		var rawContacts = A4($author$project$Internal$NarrowPhase$addRawShapeContacts, idPrefix, shape1, shape2, _List_Nil);
-		var friction = A2($author$project$Internal$Material$combine, mat1.d9, mat2.d9);
-		var bounciness = A2($author$project$Internal$Material$combine, mat1.dR, mat2.dR);
+		var friction = A2($author$project$Internal$Material$combineFriction, mat1.d9, mat2.d9);
+		var bounciness = A2($author$project$Internal$Material$combineBounciness, mat1.dR, mat2.dR);
 		return A3(
 			$elm$core$List$foldl,
 			F2(
