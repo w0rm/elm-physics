@@ -15,8 +15,7 @@ import Html.Attributes as Attributes
 import Length exposing (Meters)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3)
-import Physics exposing (Body)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
 import Point3d exposing (Point3d)
 import WebGL exposing (Entity, Mesh)
 import WebGL.Settings exposing (Setting)
@@ -105,7 +104,7 @@ addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterO
             if debugCenterOfMass then
                 case Physics.centerOfMass body of
                     Just com ->
-                        addContactIndicator sceneParams (Point3d.placeIn frame com) acc
+                        addContactIndicator sceneParams com acc
 
                     Nothing ->
                         acc

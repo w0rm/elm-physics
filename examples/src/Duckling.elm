@@ -25,11 +25,11 @@ import Html exposing (Html)
 import Http
 import Length
 import Obj.Decode exposing (Decoder)
-import Physics exposing (Body, onEarth)
-import Physics.Coordinates exposing (BodyCoordinates)
+import Physics exposing (Body, BodyCoordinates, onEarth)
 import Physics.Material
 import Physics.Shape exposing (Shape)
 import Pixels exposing (Pixels)
+import Plane3d
 import Point3d
 import Quantity exposing (Quantity)
 import Scene3d
@@ -129,7 +129,7 @@ update msg model =
                     in
                     List.foldl (\location bodies -> ducklingAt location :: bodies)
                         [ ( Floor
-                          , Physics.plane Physics.Material.wood
+                          , Physics.plane Plane3d.xy Physics.Material.wood
                                 |> Physics.moveTo (Point3d.meters 0 0 -3)
                           )
                         ]

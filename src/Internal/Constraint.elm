@@ -1,10 +1,10 @@
 module Internal.Constraint exposing (Constraint(..), ConstraintGroup, getConstraints)
 
 import Internal.Body as Body
+import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 exposing (Vec3)
-import Physics.Coordinates exposing (BodyCoordinates)
 
 
 type Constraint coordinates

@@ -7,12 +7,12 @@ module Internal.Body exposing
     , raycast
     )
 
+import Internal.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Internal.Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 
 
 type alias Body =

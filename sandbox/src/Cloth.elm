@@ -17,11 +17,11 @@ import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, onEarth)
+import Physics exposing (Body, WorldCoordinates, onEarth)
 import Physics.Constraint as Constraint exposing (Constraint)
-import Physics.Coordinates exposing (WorldCoordinates)
 import Physics.Material as Material
 import Physics.Types exposing (Contacts(..))
+import Plane3d
 import Point3d exposing (Point3d)
 import Sphere3d
 import Task
@@ -144,7 +144,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -231,7 +231,7 @@ initialBodies : List ( Int, Body )
 initialBodies =
     let
         floorBody =
-            Physics.plane Material.wood
+            Physics.plane Plane3d.xy Material.wood
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
         sphere3d =
@@ -245,8 +245,8 @@ initialBodies =
         dimensions =
             List.range 0 (particlesPerDimension - 1)
 
-        particleBody =
-            Physics.particle (Mass.kilograms 5) (Material.surface { friction = 0.3, bounciness = 0 })
+        particleMaterial =
+            Material.surface { friction = 0.3, bounciness = 0 }
 
         particles =
             List.concatMap
@@ -254,13 +254,14 @@ initialBodies =
                     List.map
                         (\y ->
                             ( particleId x y
-                            , particleBody
-                                |> Physics.moveTo
-                                    (Point3d.meters
-                                        ((toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
-                                        ((toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
-                                        8
-                                    )
+                            , Physics.pointMass
+                                (Point3d.meters
+                                    ((toFloat x - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                    ((toFloat y - (toFloat particlesPerDimension - 1) / 2) * distanceBetweenParticles)
+                                    8
+                                )
+                                (Mass.kilograms 5)
+                                particleMaterial
                             )
                         )
                         dimensions

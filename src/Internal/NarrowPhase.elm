@@ -9,9 +9,9 @@ import Collision.SphereConvex
 import Collision.SphereParticle
 import Collision.SphereSphere
 import Internal.Contact as Contact exposing (Contact, SolverContact)
+import Internal.Coordinates exposing (WorldCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Shape exposing (Shape(..))
-import Physics.Coordinates exposing (WorldCoordinates)
 
 
 getContacts : String -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact

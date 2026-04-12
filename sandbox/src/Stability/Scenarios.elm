@@ -20,9 +20,9 @@ Boxes: 1 m × 1 m × 1 m wood, centered at origin in body coordinates.
 import Block3d exposing (Block3d)
 import Frame3d
 import Length exposing (Meters)
-import Physics
-import Physics.Coordinates exposing (BodyCoordinates)
+import Physics exposing (BodyCoordinates)
 import Physics.Material as Material
+import Plane3d
 import Point3d
 
 
@@ -40,7 +40,7 @@ unitBlock =
 
 ground : ( Int, Physics.Body )
 ground =
-    ( 0, Physics.plane Material.wood )
+    ( 0, Physics.plane Plane3d.xy Material.wood )
 
 
 {-| Five boxes placed at their exact resting positions, already touching, no drop.

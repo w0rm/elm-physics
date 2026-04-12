@@ -15,6 +15,7 @@ import Expect
 import Physics exposing (onEarth)
 import Physics.Material as Material
 import Physics.Types as Types
+import Plane3d
 import Test exposing (Test, describe, test)
 import Vector3d
 
@@ -57,7 +58,7 @@ assignIds =
             \_ ->
                 let
                     ( result, _ ) =
-                        step [ ( "a", Physics.plane Material.wood ) ]
+                        step [ ( "a", Physics.plane Plane3d.xy Material.wood ) ]
                 in
                 Expect.equal [ ( "a", 0 ) ] (List.map ids result)
         , test "multiple new bodies: get consecutive internal ids, external ids and order preserved" <|
@@ -65,9 +66,9 @@ assignIds =
                 let
                     ( result, _ ) =
                         step
-                            [ ( "a", Physics.plane Material.wood )
-                            , ( "b", Physics.plane Material.wood )
-                            , ( "c", Physics.plane Material.wood )
+                            [ ( "a", Physics.plane Plane3d.xy Material.wood )
+                            , ( "b", Physics.plane Plane3d.xy Material.wood )
+                            , ( "c", Physics.plane Plane3d.xy Material.wood )
                             ]
                 in
                 -- foldl assigns ids left-to-right: "a"->0, "b"->1, "c"->2
@@ -79,8 +80,8 @@ assignIds =
                 let
                     ( step1, _ ) =
                         step
-                            [ ( "a", Physics.plane Material.wood )
-                            , ( "b", Physics.plane Material.wood )
+                            [ ( "a", Physics.plane Plane3d.xy Material.wood )
+                            , ( "b", Physics.plane Plane3d.xy Material.wood )
                             ]
 
                     ( step2, _ ) =
@@ -92,14 +93,14 @@ assignIds =
                 let
                     ( step1, _ ) =
                         step
-                            [ ( "a", Physics.plane Material.wood )
-                            , ( "b", Physics.plane Material.wood )
+                            [ ( "a", Physics.plane Plane3d.xy Material.wood )
+                            , ( "b", Physics.plane Plane3d.xy Material.wood )
                             ]
 
                     -- step1 produces: [("a", 0), ("b", 1)]
                     -- add "c" at the end; next available id is 2
                     ( step2, _ ) =
-                        step (step1 ++ [ ( "c", Physics.plane Material.wood ) ])
+                        step (step1 ++ [ ( "c", Physics.plane Plane3d.xy Material.wood ) ])
                 in
                 Expect.equal
                     [ ( "a", 0 ), ( "b", 1 ), ( "c", 2 ) ]
@@ -109,12 +110,12 @@ assignIds =
                 let
                     -- Simulate [b1(id=0), b2(id=2)] — gap at 1
                     existing =
-                        [ ( "a", withInternalId 0 (Physics.plane Material.wood) )
-                        , ( "b", withInternalId 2 (Physics.plane Material.wood) )
+                        [ ( "a", withInternalId 0 (Physics.plane Plane3d.xy Material.wood) )
+                        , ( "b", withInternalId 2 (Physics.plane Plane3d.xy Material.wood) )
                         ]
 
                     ( result, _ ) =
-                        step (existing ++ [ ( "c", Physics.plane Material.wood ) ])
+                        step (existing ++ [ ( "c", Physics.plane Plane3d.xy Material.wood ) ])
                 in
                 -- "c" fills the gap at id=1; array stays compact [0,1,2]
                 Expect.equal
@@ -124,14 +125,14 @@ assignIds =
             \_ ->
                 let
                     ( step1, _ ) =
-                        step [ ( "a", Physics.plane Material.wood ) ]
+                        step [ ( "a", Physics.plane Plane3d.xy Material.wood ) ]
 
                     -- "a" now has some internal id; prepend it again as "b" using ::
                     bodyA =
                         step1
                             |> List.head
                             |> Maybe.map Tuple.second
-                            |> Maybe.withDefault (Physics.plane Material.wood)
+                            |> Maybe.withDefault (Physics.plane Plane3d.xy Material.wood)
 
                     ( result, _ ) =
                         step (( "b", bodyA ) :: step1)
@@ -147,9 +148,9 @@ assignIds =
                     -- "three" is prepended (::) with the same id=0 as "one".
                     -- "three" is the first occurrence so gets a fresh id; "one" keeps id=0.
                     bodies =
-                        [ ( "three", withInternalId 0 (Physics.plane Material.wood) )
-                        , ( "two", withInternalId 1 (Physics.plane Material.wood) )
-                        , ( "one", withInternalId 0 (Physics.plane Material.wood) )
+                        [ ( "three", withInternalId 0 (Physics.plane Plane3d.xy Material.wood) )
+                        , ( "two", withInternalId 1 (Physics.plane Plane3d.xy Material.wood) )
+                        , ( "one", withInternalId 0 (Physics.plane Plane3d.xy Material.wood) )
                         ]
 
                     ( result, _ ) =
@@ -162,8 +163,8 @@ assignIds =
             \_ ->
                 let
                     bodies =
-                        [ ( "a", withInternalId 0 (Physics.plane Material.wood) )
-                        , ( "b", withInternalId 5 (Physics.plane Material.wood) )
+                        [ ( "a", withInternalId 0 (Physics.plane Plane3d.xy Material.wood) )
+                        , ( "b", withInternalId 5 (Physics.plane Plane3d.xy Material.wood) )
                         ]
 
                     ( result, _ ) =

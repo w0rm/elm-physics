@@ -1,13 +1,16 @@
 module Physics.Shape exposing
-    ( Shape, block, sphere, cylinder, unsafeConvex, volume
-    , minus, plus, sum
+    ( Shape, block, sphere, cylinder
+    , minus, plus, sum, unsafeConvex
     )
 
 {-|
 
-@docs Shape, block, sphere, cylinder, unsafeConvex, volume
+@docs Shape, block, sphere, cylinder
 
-@docs minus, plus, sum
+
+# Complex shapes
+
+@docs minus, plus, sum, unsafeConvex
 
 -}
 
@@ -15,68 +18,31 @@ import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
+import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape as Internal
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
-import Physics.Coordinates exposing (BodyCoordinates)
 import Physics.Types as Types
 import Point3d exposing (Point3d)
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
-import Volume
 
 
-{-| Shapes are only needed for creating [dynamic](Physics-Body#dynamic) and [static](Physics-Body#static) bodies.
+{-| Shapes are needed for creating compound [dynamic](Physics#dynamic)
+and [static](Physics#static) bodies.
 
-If you need a body with a single shape, use the corresponding functions
-from the [Physics.Body](Physics-Body) module.
+The supported primitive shapes are [block](#block), [sphere](#sphere),
+and [cylinder](#cylinder). For complex geometry use [unsafeConvex](#unsafeConvex).
 
-The supported primitive shapes are:
-
-  - [block](#block),
-  - [sphere](#sphere),
-  - [cylinder](#cylinder).
-
-For the more complex cases use the [unsafeConvex](#unsafeConvex) shape.
-
-Shapes are defined in the body coordinate system.
-
-Use [plus](#plus) and [minus](#minus) to combine shapes,
-for example to create hollow bodies.
+Shapes within a body **should not overlap** — composing shapes only affects physical
+properties like mass, inertia, and center of mass. Use [plus](#plus) and
+[minus](#minus) to combine shapes, for example to create hollow bodies.
 
 -}
 type alias Shape =
     Types.Shape
-
-
-{-| Add a shape to another.
-
-    Shape.block a |> Shape.plus (Shape.block b)
-
--}
-plus : Shape -> Shape -> Shape
-plus (Types.Shape toAdd) (Types.Shape base) =
-    Types.Shape (base ++ toAdd)
-
-
-{-| Combine a list of shapes.
--}
-sum : List Shape -> Shape
-sum =
-    List.foldl plus (Types.Shape [])
-
-
-{-| Subtract a shape from another, the first argument is subtracted from the second.
-The subtracted shape reduces mass and inertia and is excluded from collision. Useful for hollow bodies.
-
-    Shape.block outer |> Shape.minus (Shape.block inner)
-
--}
-minus : Shape -> Shape -> Shape
-minus (Types.Shape toSubtract) (Types.Shape base) =
-    Types.Shape (base ++ List.map (Tuple.mapSecond negate) toSubtract)
 
 
 {-| -}
@@ -144,16 +110,9 @@ sphere sphere3d =
         ]
 
 
-{-| Create a cylinder shape by specifying the number of subdivisions >= 3.
-
-    cylinder 12 myCylinder -- A cylinder with 12 faces (not counting the top and bottom face)
-
-    cylinder 2 myCylinder -- Too few faces so it has 3 faces instead
-
-Note that it's more efficient to simulate cylinders with an even number of
-faces than an odd number of faces. This is because the collision performance depends
-on the number of unique faces that are not parallel with each other (and edges too).
-
+{-| Create a cylinder shape with the given number of side faces, clamped to at least 3.
+Even numbers are more efficient, because collision performance depends
+on the number of unique non-parallel faces and edges.
 -}
 cylinder : Int -> Cylinder3d Meters BodyCoordinates -> Shape
 cylinder subdivisions cylinder3d =
@@ -178,19 +137,6 @@ cylinder subdivisions cylinder3d =
           , 1
           )
         ]
-
-
-{-| Get the net volume of a shape in cubic meters.
-For compound shapes created with [minus](#minus), void parts are subtracted.
--}
-volume : Shape -> Volume.Volume
-volume (Types.Shape entries) =
-    Volume.cubicMeters
-        (List.foldl
-            (\( shape, sign ) acc -> acc + sign * abs (Internal.volume shape))
-            0
-            entries
-        )
 
 
 {-| Create a shape from a triangular mesh. This is useful if you want
@@ -220,3 +166,44 @@ unsafeConvex triangularMesh =
           , 1
           )
         ]
+
+
+{-| Add a shape to another.
+
+    snowman =
+        Shape.sphere bottom
+            |> Shape.plus (Shape.sphere top)
+
+-}
+plus : Shape -> Shape -> Shape
+plus (Types.Shape toAdd) (Types.Shape base) =
+    Types.Shape (base ++ toAdd)
+
+
+{-| Subtract a shape from another, the first argument is subtracted from the second.
+The subtracted shape reduces volume, mass and inertia and is excluded from collision.
+Useful for hollow bodies.
+
+    crate =
+        Shape.block outer
+            |> Shape.minus (Shape.block inner)
+
+-}
+minus : Shape -> Shape -> Shape
+minus (Types.Shape toSubtract) (Types.Shape base) =
+    Types.Shape (base ++ List.map (Tuple.mapSecond negate) toSubtract)
+
+
+{-| Combine a list of shapes.
+
+    dumbbell =
+        Shape.sum
+            [ Shape.cylinder 12 leftWeight
+            , Shape.cylinder 12 bar
+            , Shape.cylinder 12 rightWeight
+            ]
+
+-}
+sum : List Shape -> Shape
+sum =
+    List.foldl plus (Types.Shape [])

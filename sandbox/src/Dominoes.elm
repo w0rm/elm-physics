@@ -23,10 +23,10 @@ import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, onEarth)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
 import Physics.Material as Material exposing (Material)
 import Physics.Types exposing (Contacts(..))
+import Plane3d
 import Point3d exposing (Point3d)
 import Task
 import WebGL exposing (Mesh)
@@ -126,7 +126,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -155,7 +155,7 @@ floorOffset =
 
 
 slippy =
-    Material.material { density = Density.kilogramsPerCubicMeter 600, bounciness = 0, friction = 0.001 }
+    Material.dense { density = Density.kilogramsPerCubicMeter 600, bounciness = 0, friction = 0.001 }
 
 
 dominoBlock3d : Block3d.Block3d Length.Meters BodyCoordinates
@@ -172,7 +172,7 @@ initialBodies : List ( Int, Body )
 initialBodies =
     let
         floorBody =
-            Physics.plane (Material.surface { friction = 0.3, bounciness = 0 })
+            Physics.plane Plane3d.xy (Material.surface { friction = 0.3, bounciness = 0 })
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
         dominoBody =

@@ -20,8 +20,7 @@ import Force exposing (Force)
 import Frame3d exposing (Frame3d)
 import Length exposing (Length, Meters)
 import Mass
-import Physics exposing (Body)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
 import Point3d exposing (Point3d)
 import Quantity exposing (Quantity(..))
 import Vector3d
@@ -347,7 +346,7 @@ applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
                 centerOfMass =
                     case Physics.centerOfMass carBody of
                         Just com ->
-                            Point3d.placeIn frame com
+                            com
 
                         Nothing ->
                             Frame3d.originPoint frame
@@ -513,7 +512,7 @@ computeImpulseDenominator body point normal =
         position =
             case Physics.centerOfMass body of
                 Just com ->
-                    Point3d.placeIn bodyFrame com
+                    com
 
                 Nothing ->
                     Frame3d.originPoint bodyFrame

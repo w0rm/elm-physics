@@ -43,8 +43,8 @@ import Frame3d
 import Http
 import Length exposing (Length, Meters)
 import Obj.Decode exposing (Decoder)
-import Physics.Coordinates exposing (BodyCoordinates)
-import Physics.Material as Material exposing (HasDensity, Material)
+import Physics exposing (BodyCoordinates)
+import Physics.Material as Material exposing (Dense, Material)
 import Physics.Shape as Shape exposing (Shape)
 import Point3d
 import Polyline3d
@@ -57,7 +57,7 @@ import TriangularMesh
 
 
 type alias Jeep =
-    { collider : List ( Shape, Material HasDensity )
+    { collider : List ( Shape, Material Dense )
     , chassis : Textured BodyCoordinates
     , chassisShadow : Shadow BodyCoordinates
     , wheel : Textured BodyCoordinates

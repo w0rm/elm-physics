@@ -1,11 +1,12 @@
 module Physics exposing
-    ( Body
-    , block, plane, sphere, cylinder, particle
+    ( WorldCoordinates, BodyCoordinates
+    , Body
+    , block, plane, sphere, cylinder, pointMass
     , moveTo, translateBy, rotateAround, placeIn
     , simulate, onEarth, Config
-    , Contacts, contacts, emptyContacts
+    , Contacts, emptyContacts, contactPoints
     , frame, originPoint, velocity, angularVelocity, velocityAt
-    , centerOfMass, mass, volume
+    , centerOfMass, mass
     , raycast, applyForce, applyImpulse
     , dynamic, static
     , damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
@@ -14,11 +15,16 @@ module Physics exposing
 {-|
 
 
+# Coordinates
+
+@docs WorldCoordinates, BodyCoordinates
+
+
 # Bodies
 
 @docs Body
 
-@docs block, plane, sphere, cylinder, particle
+@docs block, plane, sphere, cylinder, pointMass
 
 
 # Positioning
@@ -30,14 +36,14 @@ module Physics exposing
 
 @docs simulate, onEarth, Config
 
-@docs Contacts, contacts, emptyContacts
+@docs Contacts, emptyContacts, contactPoints
 
 
-# Querying
+# Properties
 
 @docs frame, originPoint, velocity, angularVelocity, velocityAt
 
-@docs centerOfMass, mass, volume
+@docs centerOfMass, mass
 
 
 # Interaction
@@ -46,8 +52,6 @@ module Physics exposing
 
 
 # Composite bodies
-
-For bodies made of multiple shapes or custom materials, use these instead of the simple constructors above.
 
 @docs dynamic, static
 
@@ -77,6 +81,7 @@ import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
+import Internal.Coordinates
 import Internal.Shape as InternalShape
 import Internal.Solver as Solver
 import Internal.SolverBody as SolverBody
@@ -85,40 +90,70 @@ import Internal.Vector3 as Vec3
 import Length exposing (Meters)
 import Mass exposing (Kilograms, Mass)
 import Physics.Constraint exposing (Constraint)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
-import Physics.Material exposing (HasDensity, Material)
+import Physics.Material exposing (Dense, Material)
 import Physics.Shape as Shape exposing (Shape)
 import Physics.Types as Types
+import Plane3d exposing (Plane3d)
 import Point3d exposing (Point3d)
 import Quantity exposing (Product, Quantity(..), Rate)
 import Speed exposing (MetersPerSecond)
 import Sphere3d exposing (Sphere3d)
 import Torque exposing (NewtonMeters)
 import Vector3d exposing (Vector3d)
-import Volume exposing (Volume)
+
+
+{-| Coordinate system of the simulation, used for positions and velocities
+of bodies.
+-}
+type alias WorldCoordinates =
+    Internal.Coordinates.WorldCoordinates
+
+
+{-| Coordinate system of a body, used for defining
+[shapes](Physics-Shape#Shape) and [constraints](Physics-Constraint#Constraint)
+relative to the body’s origin.
+-}
+type alias BodyCoordinates =
+    Internal.Coordinates.BodyCoordinates
 
 
 {-| A body is pure physics state — position, velocity, orientation.
 All bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
+
+Use [block](#block), [plane](#plane), [sphere](#sphere), or [cylinder](#cylinder)
+for simple bodies, or [dynamic](#dynamic) and [static](#static) for bodies
+made of multiple [shapes](Physics-Shape#Shape).
+
 -}
 type alias Body =
     Types.Body
 
 
-{-| Create a block body from geometry and material.
--}
-block : Block3d Meters BodyCoordinates -> Material HasDensity -> Body
+{-| -}
+block : Block3d Meters BodyCoordinates -> Material Dense -> Body
 block block3d mat =
     dynamic [ ( Shape.block block3d, mat ) ]
 
 
-{-| Create a static infinite plane. The normal points in the Z direction.
+{-| Create a static plane, collidable only from the direction of the normal,
+e.g. for +Z:
+
+    floor =
+        Physics.plane Plane3d.xy Material.wood
+
 -}
-plane : Material any -> Body
-plane (Types.Material internalMat) =
+plane : Plane3d Meters BodyCoordinates -> Material any -> Body
+plane plane3d (Types.Material internalMat) =
+    let
+        position =
+            Point3d.toMeters (Plane3d.originPoint plane3d)
+
+        normal =
+            Direction3d.unwrap (Plane3d.normalDirection plane3d)
+    in
     Types.Body
         (InternalBody.compound
-            [ ( InternalShape.Plane { position = Vec3.zero, normal = Vec3.zAxis }
+            [ ( InternalShape.Plane { position = position, normal = normal }
               , { internalMat | density = 0 }
               , 1
               )
@@ -126,35 +161,32 @@ plane (Types.Material internalMat) =
         )
 
 
-{-| Create a sphere body from geometry and material.
--}
-sphere : Sphere3d Meters BodyCoordinates -> Material HasDensity -> Body
+{-| -}
+sphere : Sphere3d Meters BodyCoordinates -> Material Dense -> Body
 sphere sphere3d mat =
     dynamic [ ( Shape.sphere sphere3d, mat ) ]
 
 
-{-| Create a cylinder body, approximated with 12 side faces.
+{-| Create a cylinder, approximated with 12 side faces.
 For more subdivisions, use [dynamic](#dynamic) with [Shape.cylinder](Physics-Shape#cylinder).
 -}
-cylinder : Cylinder3d Meters BodyCoordinates -> Material HasDensity -> Body
+cylinder : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
 cylinder cylinder3d mat =
     dynamic [ ( Shape.cylinder 12 cylinder3d, mat ) ]
 
 
-{-| Create a particle — a point mass with no volume.
-Takes mass directly since there is no geometry to derive it from.
-Particles don’t collide with each other.
+{-| Create a point mass — infinitely small, so it doesn’t collide with other point masses.
 -}
-particle : Mass -> Material a -> Body
-particle massVal (Types.Material internalMat) =
+pointMass : Point3d Meters WorldCoordinates -> Mass -> Material any -> Body
+pointMass position massVal (Types.Material internalMat) =
     Types.Body (InternalBody.particle (max 0 (Mass.inKilograms massVal)) internalMat)
+        |> moveTo position
 
 
 {-| Create a dynamic body from shapes and materials. Mass and center of mass
-are derived from geometry and density. Shapes are assumed not to overlap —
-use [Shape.minus](Physics-Shape#minus) for hollow bodies.
+are derived from geometry and density.
 -}
-dynamic : List ( Shape, Material HasDensity ) -> Body
+dynamic : List ( Shape, Material Dense ) -> Body
 dynamic shapesWithMaterials =
     Types.Body
         (InternalBody.compound
@@ -167,10 +199,10 @@ dynamic shapesWithMaterials =
         )
 
 
-{-| Create a static body from shapes and materials. Static bodies don’t move
-but collide with dynamic bodies.
+{-| Create a static body from shapes and materials.
+Static bodies only collide with dynamic bodies.
 -}
-static : List ( Shape, Material a ) -> Body
+static : List ( Shape, Material any ) -> Body
 static shapesWithMaterials =
     Types.Body
         (InternalBody.compound
@@ -288,8 +320,8 @@ rotateAround axis angle (Types.Body body) =
         }
 
 
-{-| Place the body at an absolute position and orientation,
-e.g. to place a body at a specific location and rotation:
+{-| Set the position and orientation of a body. Like [moveTo](#moveTo)
+but also sets the orientation.
 
     placedBody =
         body
@@ -298,12 +330,7 @@ e.g. to place a body at a specific location and rotation:
                     |> Frame3d.rotateAround Axis3d.z (Angle.degrees 45)
                 )
 
-This is similar to [moveTo](#moveTo) but also sets the orientation.
-Like `moveTo`, this is absolute — calling it again overwrites the previous
-position and orientation.
-
-Left-handed (mirrored) frames are not supported — the Z direction is
-recomputed as the cross product of X and Y, so any mirroring is ignored.
+Left-handed frames are not supported — Z is recomputed from X and Y.
 
 -}
 placeIn : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Body
@@ -337,32 +364,19 @@ placeIn frame3d (Types.Body body) =
         }
 
 
-{-| Contacts from the most recent simulation frame. Contains contact points
-and solver state for warm starting.
--}
-type alias Contacts id =
-    Types.Contacts id
-
-
-{-| Get the contact points detected during the most recent simulation frame.
-Each entry is a pair of body ids and a list of world-space contact points between them.
--}
-contacts : Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
-contacts (Types.Contacts c) =
-    c.contactPoints
-
-
 {-| Simulates one frame. Returns updated bodies and contacts.
+Call this on a message from the `onAnimationFrame` subscription
+with [onEarth](#onEarth) to simulate 1/60th of a second in Earth gravity:
 
-Pass `result.contacts` back via the config's `contacts` field to enable warm
-starting, which improves solver stability for stacked objects.
+    ( simulated, contacts ) =
+        simulate onEarth model.bodies
 
-    ( simulated, newContacts ) =
-        simulate onEarth bodies
+To improve solver stability for stacked objects, pass contacts
+from the previous frame back via the config’s `contacts` field:
 
-    -- with warm starting:
-    ( simulated, newContacts ) =
-        simulate { onEarth | contacts = model.contacts } bodies
+    ( simulated, contacts ) =
+        simulate { onEarth | contacts = model.contacts }
+            model.bodies
 
 -}
 simulate :
@@ -411,18 +425,21 @@ simulate config bodiesWithIds =
     , Types.Contacts
         { lambdas = newLambdas
         , iterations = iters
-        , contactPoints = contactsFromWorldHelp dt gravityVec contactGroups solverBodies []
+        , dt = dt
+        , gravity = gravityVec
+        , contactGroups = contactGroups
+        , solverBodies = solverBodies
         }
     )
 
 
 {-| A ready-to-use simulation config with Earth gravity pointing down (-Z)
 at 60 fps. Customize it by updating individual fields,
-see [Config](#Config) for more options.
+see [Config](#Config) for available options.
 -}
 onEarth : Config id
 onEarth =
-    { gravity = Vector3d.withLength (Acceleration.gees 1) Direction3d.negativeZ
+    { gravity = Vector3d.gees 0 0 -1
     , duration = Duration.seconds (1 / 60)
     , solverIterations = 20
     , contacts = emptyContacts
@@ -431,18 +448,10 @@ onEarth =
     }
 
 
-{-| Empty contacts for the first simulation frame (no warm starting).
--}
-emptyContacts : Contacts id
-emptyContacts =
-    Types.Contacts { lambdas = Dict.empty, iterations = 0, contactPoints = [] }
-
-
 {-| Configures a simulation.
 
     onEarth =
-        { gravity = Vector3d.withLength (Acceleration.gees 1)
-            Direction3d.negativeZ
+        { gravity = Vector3d.gees 0 0 -1
         , duration = Duration.seconds (1 / 60)
         , solverIterations = 20
         , contacts = emptyContacts
@@ -456,11 +465,11 @@ emptyContacts =
 
   - `solverIterations` — balance between precision and performance, 20 is a sweet spot
 
-  - `contacts` — pass `Contacts` from the previous frame for warm starting, or leave as default for cold start
+  - `contacts` — pass [Contacts](#Contacts) from the previous frame for warm starting, or leave as default for cold start
 
-  - `constrain` — limit body movement relative to each other, see `Physics.Constraint`
+  - `constrain` — limit body movement relative to each other, see [Constraint](Physics-Constraint#Constraint)
 
-  - `collide` — decide which bodies can collide with each other
+  - `collide` — decide which bodies can collide with each other.
 
 -}
 type alias Config id =
@@ -473,8 +482,44 @@ type alias Config id =
     }
 
 
+{-| Contacts from the most recent simulation frame. Contains contact points
+and solver state for warm starting.
+-}
+type alias Contacts id =
+    Types.Contacts id
+
+
+{-| Get contact points from the most recent simulation frame, filtered by a predicate.
+Each entry is a pair of body ids and a list of world-space contact points between them.
+
+    crash =
+        Physics.contactPoints
+            (\a b -> a == "jeep" && b == "wall")
+            contacts
+
+-}
+contactPoints : (id -> id -> Bool) -> Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
+contactPoints predicate (Types.Contacts c) =
+    contactPointsHelp predicate c.dt c.gravity c.contactGroups c.solverBodies []
+
+
+{-| Empty contacts for the first simulation frame (no warm starting).
+-}
+emptyContacts : Contacts id
+emptyContacts =
+    Types.Contacts
+        { lambdas = Dict.empty
+        , iterations = 0
+        , dt = 0
+        , gravity = Vec3.zero
+        , contactGroups = []
+        , solverBodies = Array.empty
+        }
+
+
 {-| Get the position and orientation of the body in the world as Frame3d.
-Useful to transform points and directions between world and body coordinates.
+Useful to transform points and directions between world and body coordinates,
+e.g. for rendering.
 -}
 frame : Body -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
 frame (Types.Body { transform3d, centerOfMassTransform3d }) =
@@ -525,13 +570,13 @@ angularVelocity (Types.Body body) =
 Takes into account both linear and angular velocities.
 -}
 velocityAt : Point3d Meters WorldCoordinates -> Body -> Vector3d MetersPerSecond WorldCoordinates
-velocityAt point (Types.Body body) =
+velocityAt position (Types.Body body) =
     let
         origin =
             Transform3d.originPoint body.transform3d
 
         { x, y, z } =
-            Point3d.toMeters point
+            Point3d.toMeters position
 
         originToPoint =
             { x = x - origin.x
@@ -545,18 +590,18 @@ velocityAt point (Types.Body body) =
     Vector3d.unsafe (Vec3.add cross body.velocity)
 
 
-{-| Get the center of mass of a body in body coordinates. Returns Nothing for static bodies.
+{-| Get the center of mass of a body. Returns Nothing for static bodies.
 -}
-centerOfMass : Body -> Maybe (Point3d Meters BodyCoordinates)
+centerOfMass : Body -> Maybe (Point3d Meters WorldCoordinates)
 centerOfMass (Types.Body body) =
     if body.mass > 0 then
-        Just (Point3d.fromMeters (Transform3d.originPoint body.centerOfMassTransform3d))
+        Just (Point3d.fromMeters (Transform3d.originPoint body.transform3d))
 
     else
         Nothing
 
 
-{-| Get the mass of a body. Returns Nothing if the body is static.
+{-| Get the mass of a body. Returns Nothing for static bodies.
 -}
 mass : Body -> Maybe Mass
 mass (Types.Body body) =
@@ -567,20 +612,10 @@ mass (Types.Body body) =
         Nothing
 
 
-{-| Get the net volume of a body: solid shapes minus void shapes.
--}
-volume : Body -> Volume
-volume (Types.Body body) =
-    Volume.cubicMeters body.volume
+{-| Find the closest intersection of a ray against a list of bodies.
 
-
-{-| Finds the closest intersection of a ray against a list of bodies.
-
-    - particles are always excluded because they have zero size
-    - plane only intersects when the ray is facing the plane’s normal
-
-You may want to prefilter the list of bodies to exclude certain bodies
-from intersection.
+  - point masses are always excluded because they are infinitely small
+  - a plane only intersects when the ray is facing the plane’s normal
 
 -}
 raycast :
@@ -625,27 +660,24 @@ raycast axis bodiesWithIds =
             )
 
 
-{-| Apply a force in a direction at a point on a body.
-The force will be applied during one simulation step.
+{-| Apply a force at a point on a body.
 
 Keep applying the force every simulation step to accelerate.
 
     pushedBox =
         box
-            |> applyForce
-                (Force.newtons 50)
+            |> applyForce (Force.newtons 50)
                 Direction3d.positiveY
                 pointOnBox
 
 -}
 applyForce : Quantity Float Newtons -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyForce (Quantity force) direction point (Types.Body body) =
+applyForce (Quantity force) direction position (Types.Body body) =
     if body.mass > 0 then
         Types.Body
-            (InternalBody.applyForce
-                force
+            (InternalBody.applyForce force
                 (Direction3d.unwrap direction)
-                (Point3d.toMeters point)
+                (Point3d.toMeters position)
                 body
             )
 
@@ -653,13 +685,7 @@ applyForce (Quantity force) direction point (Types.Body body) =
         Types.Body body
 
 
-{-| Apply an impulse in a direction at a point on a body.
-Applying an impulse is the same as applying a force during
-the interval of time. The changes are applied to velocity
-and angular velocity of the body.
-
-For example, to hit a billiard ball with a force of 50 newtons,
-with the duration of the hit 0.005 seconds:
+{-| Apply an impulse at a point on a body.
 
     impulse =
         Force.newtons 50
@@ -667,20 +693,18 @@ with the duration of the hit 0.005 seconds:
 
     hitCueBall =
         cueBall
-            |> applyImpulse
-                impulse
+            |> applyImpulse impulse
                 Direction3d.positiveY
                 hitPoint
 
 -}
 applyImpulse : Quantity Float (Product Newtons Seconds) -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyImpulse (Quantity impulse) direction point (Types.Body body) =
+applyImpulse (Quantity impulse) direction position (Types.Body body) =
     if body.mass > 0 then
         Types.Body
-            (InternalBody.applyImpulse
-                impulse
+            (InternalBody.applyImpulse impulse
                 (Direction3d.unwrap direction)
-                (Point3d.toMeters point)
+                (Point3d.toMeters position)
                 body
             )
 
@@ -688,8 +712,8 @@ applyImpulse (Quantity impulse) direction point (Types.Body body) =
         Types.Body body
 
 
-{-| Scale a dynamic body to the given mass, adjusting the inverse inertia tensor
-proportionally. The volume and center of mass are preserved. Has no effect on static bodies.
+{-| Scale a body to the given mass. The volume and center of mass
+are preserved. Has no effect on static bodies.
 -}
 scaleTo : Mass -> Body -> Body
 scaleTo desiredMass ((Types.Body body) as original) =
@@ -743,20 +767,25 @@ damp { linear, angular } (Types.Body body) =
 
 
 {-| Apply the inverse inertia tensor of a body to a vector.
+Returns Vector3d.zero for static bodies.
 For common cases, see [angularAccelerationFromTorque](#angularAccelerationFromTorque)
 and [angularVelocityDeltaFromAngularImpulse](#angularVelocityDeltaFromAngularImpulse).
 -}
 applyInverseInertia : Body -> Vector3d units WorldCoordinates -> Vector3d (Rate units (Product Kilograms SquareMeters)) WorldCoordinates
-applyInverseInertia (Types.Body { invInertiaWorld }) vector =
-    let
-        { x, y, z } =
-            Vector3d.unwrap vector
-    in
-    Vector3d.unsafe
-        { x = invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
-        , y = invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
-        , z = invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
-        }
+applyInverseInertia (Types.Body body) vector =
+    if body.mass > 0 then
+        let
+            { x, y, z } =
+                Vector3d.unwrap vector
+        in
+        Vector3d.unsafe
+            { x = body.invInertiaWorld.m11 * x + body.invInertiaWorld.m12 * y + body.invInertiaWorld.m13 * z
+            , y = body.invInertiaWorld.m21 * x + body.invInertiaWorld.m22 * y + body.invInertiaWorld.m23 * z
+            , z = body.invInertiaWorld.m31 * x + body.invInertiaWorld.m32 * y + body.invInertiaWorld.m33 * z
+            }
+
+    else
+        Vector3d.zero
 
 
 {-| Compute angular acceleration from torque: α = I⁻¹τ
@@ -779,15 +808,16 @@ angularVelocityDeltaFromAngularImpulse body angularImpulse =
     Vector3d.unsafe (Vector3d.unwrap (applyInverseInertia body angularImpulse))
 
 
-contactsFromWorldHelp :
-    Float
+contactPointsHelp :
+    (id -> id -> Bool)
+    -> Float
     -> Vec3.Vec3
     -> List InternalContact.ContactGroup
     -> Array (SolverBody.SolverBody id)
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
-contactsFromWorldHelp dt gravity contactGroups solverBodies acc =
-    case contactGroups of
+contactPointsHelp predicate dt gravity internalContactGroups solverBodies acc =
+    case internalContactGroups of
         [] ->
             acc
 
@@ -796,34 +826,39 @@ contactsFromWorldHelp dt gravity contactGroups solverBodies acc =
                 Just solverBody1 ->
                     case Array.get contactGroup.body2.id solverBodies of
                         Just solverBody2 ->
-                            let
-                                newBody1 =
-                                    SolverBody.toBody dt gravity solverBody1
+                            if predicate solverBody1.extId solverBody2.extId || predicate solverBody2.extId solverBody1.extId then
+                                let
+                                    newBody1 =
+                                        SolverBody.toBody dt gravity solverBody1
 
-                                -- Transform contact points from pre-sim body1 frame to post-sim body1 frame
-                                transform =
-                                    Transform3d.atOrigin
-                                        |> Transform3d.relativeTo contactGroup.body1.transform3d
-                                        |> Transform3d.placeIn newBody1.transform3d
+                                    -- Transform contact points from pre-sim body1 frame to post-sim body1 frame
+                                    transform =
+                                        Transform3d.atOrigin
+                                            |> Transform3d.relativeTo contactGroup.body1.transform3d
+                                            |> Transform3d.placeIn newBody1.transform3d
 
-                                contactPoints =
-                                    List.map
-                                        (\{ contact } ->
-                                            Point3d.fromMeters (Transform3d.pointPlaceIn transform contact.pi)
-                                        )
-                                        contactGroup.contacts
-                            in
-                            contactsFromWorldHelp dt
-                                gravity
-                                remainingContactGroups
-                                solverBodies
-                                (( solverBody1.extId, solverBody2.extId, contactPoints ) :: acc)
+                                    points =
+                                        List.map
+                                            (\{ contact } ->
+                                                Point3d.fromMeters (Transform3d.pointPlaceIn transform contact.pi)
+                                            )
+                                            contactGroup.contacts
+                                in
+                                contactPointsHelp predicate
+                                    dt
+                                    gravity
+                                    remainingContactGroups
+                                    solverBodies
+                                    (( solverBody1.extId, solverBody2.extId, points ) :: acc)
+
+                            else
+                                contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
 
                         Nothing ->
-                            contactsFromWorldHelp dt gravity remainingContactGroups solverBodies acc
+                            contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
 
                 Nothing ->
-                    contactsFromWorldHelp dt gravity remainingContactGroups solverBodies acc
+                    contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
 
 
 outputBodiesHelp :

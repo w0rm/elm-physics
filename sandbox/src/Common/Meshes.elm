@@ -15,7 +15,7 @@ import Direction3d
 import Frame3d
 import Length exposing (Meters, inMeters)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
-import Physics.Coordinates exposing (BodyCoordinates)
+import Physics exposing (BodyCoordinates)
 import Point3d exposing (Point3d)
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)

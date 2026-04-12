@@ -15,16 +15,31 @@ import Axis3d exposing (Axis3d)
 import Direction3d
 import Frame3d exposing (Frame3d)
 import Internal.Constraint as Internal
+import Internal.Coordinates exposing (BodyCoordinates)
 import Length exposing (Length, Meters)
-import Physics.Coordinates exposing (BodyCoordinates)
 import Physics.Types as Types
 import Point3d exposing (Point3d)
 
 
-{-| Constraint allows to limit the freedom of movement
-of two bodies with relation to each other.
+{-| Limit the freedom of movement of two bodies relative to each other.
 
-Constraints are defined within the bodies’ local coordinate systems.
+Pass a `constrain` function in the [simulation config](Physics#Config). For example, to drag
+a body with the mouse, connect a mouse to a point on the box with
+[pointToPoint](#pointToPoint):
+
+    constrain id =
+        if id == "mouse" then
+            Just
+                (\otherId ->
+                    if otherId == "box" then
+                        [ pointToPoint Point3d.origin pointOnBox ]
+
+                    else
+                        []
+                )
+
+        else
+            Nothing
 
 -}
 type alias Constraint =
@@ -109,7 +124,7 @@ lock frame3d1 frame3d2 =
     Internal.Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2
 
 
-{-| Keep the centers of two bodies at the constant distance
+{-| Keep the centers of mass of two bodies at the constant distance
 from each other.
 -}
 distance : Length -> Constraint

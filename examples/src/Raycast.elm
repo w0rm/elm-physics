@@ -26,8 +26,7 @@ import Html.Events
 import Json.Decode exposing (Decoder)
 import Length exposing (Meters, meters, millimeters)
 import LineSegment3d exposing (LineSegment3d)
-import Physics exposing (Body)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
 import Physics.Material
 import Pixels exposing (Pixels)
 import Plane3d

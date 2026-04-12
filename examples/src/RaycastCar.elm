@@ -27,8 +27,7 @@ import Html.Attributes
 import Json.Decode
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, onEarth)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
 import Physics.Material
 import Physics.Shape
 import Pixels exposing (Pixels)
@@ -108,7 +107,7 @@ init _ =
 
 initialBodies : List ( Id, Body )
 initialBodies =
-    ( Floor, Physics.plane Physics.Material.wood )
+    ( Floor, Physics.plane Plane3d.xy Physics.Material.wood )
         :: ( Ramp
            , Physics.static [ ( Physics.Shape.block rampBlock, Physics.Material.wood ) ]
                 |> Physics.rotateAround Axis3d.x (Angle.radians (pi / 16))

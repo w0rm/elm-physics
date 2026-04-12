@@ -19,8 +19,7 @@ import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Html exposing (Html)
 import Html.Attributes exposing (style)
 import Length exposing (Meters)
-import Physics exposing (Body, onEarth)
-import Physics.Coordinates exposing (WorldCoordinates)
+import Physics exposing (Body, WorldCoordinates, onEarth)
 import Physics.Types exposing (Contacts(..))
 import Point3d exposing (Point3d)
 import Stability.Metrics as Metrics
@@ -141,7 +140,7 @@ view { settings, fps, bodies, contacts, camera, score, frame } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = { x = 0, y = 0, z = 0 }
             }

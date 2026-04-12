@@ -18,11 +18,11 @@ import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
 import Obj.Decode
-import Physics exposing (Body, onEarth)
-import Physics.Coordinates exposing (WorldCoordinates)
+import Physics exposing (Body, WorldCoordinates, onEarth)
 import Physics.Material as Material
 import Physics.Shape as Shape
 import Physics.Types exposing (Contacts(..))
+import Plane3d
 import Point3d exposing (Point3d)
 import Task
 import WebGL exposing (Mesh)
@@ -122,7 +122,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
         [ Scene.view
             { settings = settings
             , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -194,7 +194,7 @@ cubeMesh =
 
 initialBodies : List ( Int, Body )
 initialBodies =
-    [ ( 0, Physics.plane Material.wood |> Physics.moveTo (Point3d.fromMeters floorOffset) )
+    [ ( 0, Physics.plane Plane3d.xy Material.wood |> Physics.moveTo (Point3d.fromMeters floorOffset) )
     , ( 1, cubeBody |> Physics.moveTo (Point3d.meters 0 0 8) )
     , ( 2, icoSphereBody |> Physics.moveTo (Point3d.meters 0.3 0 5) )
     ]

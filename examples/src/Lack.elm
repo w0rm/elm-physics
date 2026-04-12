@@ -26,9 +26,8 @@ import Html.Attributes
 import Html.Events
 import Json.Decode exposing (Decoder)
 import Length exposing (Meters)
-import Physics exposing (Body, onEarth)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
 import Physics.Constraint exposing (Constraint)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material
 import Physics.Shape
 import Pixels exposing (Pixels)
@@ -116,7 +115,7 @@ tableOnFloor =
                 (\block -> ( Physics.Shape.block block, Physics.Material.wood ))
                 tableBlocks
       )
-    , ( Floor, Physics.plane Physics.Material.wood )
+    , ( Floor, Physics.plane Plane3d.xy Physics.Material.wood )
     ]
 
 

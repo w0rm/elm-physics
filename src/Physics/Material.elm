@@ -1,16 +1,19 @@
 module Physics.Material exposing
-    ( Material, HasDensity
-    , material, surface
+    ( Material
     , wood, rubber, steel, ice
+    , Dense, dense, Surface, surface
     )
 
 {-|
 
-@docs Material, HasDensity
-
-@docs material, surface
+@docs Material
 
 @docs wood, rubber, steel, ice
+
+
+# Custom materials
+
+@docs Dense, dense, Surface, surface
 
 -}
 
@@ -21,10 +24,10 @@ import Physics.Types as Types
 
 {-| Material encodes friction, bounciness, and optionally density.
 
-The type parameter uses extensible records to track capabilities:
+The type parameter tracks capabilities:
 
-  - `Material { a | density : () }` — carries density (required for volumetric bodies)
-  - `Material a` — any material (accepted by static bodies and particles)
+  - `Material Dense` — carries density (required for volumetric bodies)
+  - `Material Surface` — surface properties only (for static bodies and point masses)
 
 **Friction** controls how much a body resists sliding against another.
 0 means frictionless (like ice), 1 means maximum grip (like rubber).
@@ -41,49 +44,48 @@ type alias Material kind =
     Types.Material kind
 
 
-{-| Type constraint indicating that a material carries density.
-Used by body constructors that need to compute mass from geometry.
+{-| Density 700 kg/m³, friction 0.4, bounciness 0.3.
 -}
-type alias HasDensity =
-    { density : () }
-
-
-{-| Wood. Density 700 kg/m³, friction 0.4, bounciness 0.3.
--}
-wood : Material { density : () }
+wood : Material any
 wood =
     Types.Material Internal.wood
 
 
-{-| Rubber. Density 1100 kg/m³, friction 0.8, bounciness 0.7.
+{-| Density 1100 kg/m³, friction 0.8, bounciness 0.7.
 -}
-rubber : Material { density : () }
+rubber : Material any
 rubber =
     Types.Material Internal.rubber
 
 
-{-| Steel. Density 7800 kg/m³, friction 0.3, bounciness 0.2.
+{-| Density 7800 kg/m³, friction 0.3, bounciness 0.2.
 -}
-steel : Material { density : () }
+steel : Material any
 steel =
     Types.Material Internal.steel
 
 
-{-| Ice. Density 900 kg/m³, friction 0.03, bounciness 0.1.
+{-| Density 900 kg/m³, friction 0.03, bounciness 0.1.
 -}
-ice : Material { density : () }
+ice : Material any
 ice =
     Types.Material Internal.ice
 
 
-{-| Create a material with density — used for dynamic bodies where mass
-is computed from density and geometry.
+{-| Material with density, required for dynamic bodies
+where mass is computed from geometry.
+-}
+type Dense
+    = Dense Never
+
+
+{-| Create a dense material.
 
 Density is clamped to at least 1 kg/m³. Friction and bounciness are clamped to [0, 1].
 
 -}
-material : { density : Density, friction : Float, bounciness : Float } -> Material { density : () }
-material cfg =
+dense : { density : Density, friction : Float, bounciness : Float } -> Material Dense
+dense cfg =
     Types.Material
         { density = max 1 (Density.inKilogramsPerCubicMeter cfg.density)
         , friction = clamp 0 1 cfg.friction
@@ -91,14 +93,19 @@ material cfg =
         }
 
 
-{-| Create a material with surface properties only — friction and bounciness,
-no density. Useful for static bodies and particles where mass is either
-irrelevant or provided directly.
+{-| Material with surface properties only — friction and bounciness,
+no density. Used for static bodies and point masses.
+-}
+type Surface
+    = Surface Never
+
+
+{-| Create a surface material.
 
 Friction and bounciness are clamped to [0, 1].
 
 -}
-surface : { friction : Float, bounciness : Float } -> Material a
+surface : { friction : Float, bounciness : Float } -> Material Surface
 surface cfg =
     Types.Material
         { density = 0

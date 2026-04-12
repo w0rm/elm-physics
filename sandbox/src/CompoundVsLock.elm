@@ -20,12 +20,12 @@ import Html exposing (Html)
 import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, onEarth)
+import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
 import Physics.Constraint as Constraint exposing (Constraint)
-import Physics.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Physics.Material as Material
 import Physics.Shape as Shape
 import Physics.Types exposing (Contacts(..))
+import Plane3d
 import Point3d exposing (Point3d)
 import Task
 import WebGL exposing (Mesh)
@@ -179,7 +179,7 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                         Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
                     )
                     bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contacts contacts)
+            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
             }
@@ -263,7 +263,7 @@ initialBodies =
             Point3d.meters 2 0 5
 
         floorBody =
-            Physics.plane Material.wood
+            Physics.plane Plane3d.xy Material.wood
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
         blocks =
