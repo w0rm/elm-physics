@@ -456,7 +456,7 @@ onEarth =
         , solverIterations = 20
         , contacts = emptyContacts
         , constrain = \_ -> Nothing
-        , collide = \_ \_ -> True
+        , collide = \_ _ -> True
         }
 
   - `gravity` — set the gravity vector, or `Vector3d.zero` for no gravity
