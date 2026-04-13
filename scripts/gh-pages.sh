@@ -37,5 +37,6 @@ cp ../../elm-physics.gif ../../gh-pages$version_path/examples
 
 cd ../../gh-pages
 git add .
+git diff --cached --quiet && echo "No changes to deploy" && exit 0
 git commit -m "Deploying $version_path to GH Pages"
 git push
