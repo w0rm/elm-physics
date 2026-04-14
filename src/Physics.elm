@@ -316,7 +316,12 @@ rotateAround axis angle (Types.Body body) =
         { body
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+            , invInertiaWorld =
+                if body.mass > 0 then
+                    Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+
+                else
+                    body.invInertiaWorld
         }
 
 
@@ -360,7 +365,12 @@ place frame3d (Types.Body body) =
         { body
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+            , invInertiaWorld =
+                if body.mass > 0 then
+                    Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+
+                else
+                    body.invInertiaWorld
         }
 
 
@@ -729,19 +739,10 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
             scale =
                 body.mass / newMass
 
-            im =
-                body.invInertia
-
             newInvInertia =
-                { m11 = im.m11 * scale
-                , m12 = im.m12 * scale
-                , m13 = im.m13 * scale
-                , m21 = im.m21 * scale
-                , m22 = im.m22 * scale
-                , m23 = im.m23 * scale
-                , m31 = im.m31 * scale
-                , m32 = im.m32 * scale
-                , m33 = im.m33 * scale
+                { x = body.invInertia.x * scale
+                , y = body.invInertia.y * scale
+                , z = body.invInertia.z * scale
                 }
         in
         Types.Body

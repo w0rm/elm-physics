@@ -210,11 +210,13 @@ tangents vec =
                 normalize vec
 
             v =
-                if abs normalized.x < 0.9 then
-                    cross normalized xAxis
+                normalize
+                    (if abs normalized.x < 0.9 then
+                        cross normalized xAxis
 
-                else
-                    cross normalized yAxis
+                     else
+                        cross normalized yAxis
+                    )
         in
         ( v, cross normalized v )
 

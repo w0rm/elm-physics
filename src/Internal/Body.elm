@@ -35,7 +35,7 @@ type alias Body =
 
     -- mass props
     , invMass : Float
-    , invInertia : Mat3
+    , invInertia : Vec3
     , invInertiaWorld : Mat3
     }
 
@@ -144,42 +144,75 @@ placeShapes inverseCenterOfMassTransform3d centerOfMassTransform3d shapes inerti
 compound : List ( Shape BodyCoordinates, Material, Float ) -> Body
 compound shapesWithMaterials =
     let
-        massProps =
+        { totalMass, totalVolume, centerOfMassPoint } =
             accumulateMassProps shapesWithMaterials 0 0 0 0 0
 
+        initialCenterOfMassTransform3d =
+            Transform3d.atPoint centerOfMassPoint
+
+        initialInverseCenterOfMassTransform3d =
+            Transform3d.inverse initialCenterOfMassTransform3d
+
+        initialPlaced =
+            placeShapes initialInverseCenterOfMassTransform3d initialCenterOfMassTransform3d shapesWithMaterials Mat3.zero [] 0
+
+        { eigenvalues, v1, v2, v3 } =
+            Mat3.eigenDecomposition initialPlaced.inertia
+
+        eigenRotation =
+            Transform3d.fromOriginAndBasis Vec3.zero v1 v2 v3
+
         centerOfMassTransform3d =
-            Transform3d.atPoint massProps.centerOfMassPoint
+            Transform3d.placeIn initialCenterOfMassTransform3d eigenRotation
 
         inverseCenterOfMassTransform3d =
             Transform3d.inverse centerOfMassTransform3d
 
-        transform3d =
-            Transform3d.placeIn Transform3d.atOrigin centerOfMassTransform3d
-
         placed =
             placeShapes inverseCenterOfMassTransform3d centerOfMassTransform3d shapesWithMaterials Mat3.zero [] 0
 
+        transform3d =
+            Transform3d.placeIn Transform3d.atOrigin centerOfMassTransform3d
+
         invInertia =
-            Mat3.inverse placed.inertia
+            { x =
+                if eigenvalues.x == 0 then
+                    0
+
+                else
+                    1 / eigenvalues.x
+            , y =
+                if eigenvalues.y == 0 then
+                    0
+
+                else
+                    1 / eigenvalues.y
+            , z =
+                if eigenvalues.z == 0 then
+                    0
+
+                else
+                    1 / eigenvalues.z
+            }
     in
     { id = -1
     , velocity = Vec3.zero
     , angularVelocity = Vec3.zero
     , transform3d = transform3d
     , centerOfMassTransform3d = centerOfMassTransform3d
-    , mass = massProps.totalMass
-    , volume = massProps.totalVolume
+    , mass = totalMass
+    , volume = totalVolume
     , shapesWithMaterials = placed.solidShapes
     , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn transform3d s, m )) placed.solidShapes
     , boundingSphereRadius = placed.boundingSphereRadius
     , linearDamping = 0.01
     , angularDamping = 0.01
     , invMass =
-        if massProps.totalMass == 0 then
+        if totalMass == 0 then
             0
 
         else
-            1 / massProps.totalMass
+            1 / totalMass
     , invInertia = invInertia
     , invInertiaWorld = Transform3d.invertedInertiaRotateIn transform3d invInertia
     , force = Vec3.zero
@@ -214,7 +247,7 @@ particle mass { friction, bounciness } =
 
         else
             0
-    , invInertia = Mat3.zero
+    , invInertia = Vec3.zero
     , invInertiaWorld = Mat3.zero
     , force = Vec3.zero
     , torque = Vec3.zero

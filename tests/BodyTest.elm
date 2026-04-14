@@ -66,7 +66,7 @@ updateMassProperties =
                     body2 =
                         Body.compound [ ( box 4 2 2, mat, 1 ) ]
                 in
-                Expect.mat3 body1.invInertia body2.invInertia
+                Expect.vec3 body1.invInertia body2.invInertia
         , test "cube box body should have the same invInertia as a compound body out of tetrahedrons" <|
             \_ ->
                 let
@@ -83,7 +83,7 @@ updateMassProperties =
                         Body.compound
                             [ ( Shape.Convex (Convex.block Transform3d.atOrigin 2 3 1), mat, 1 ) ]
                 in
-                Expect.mat3 body1.invInertia body2.invInertia
+                Expect.vec3 body1.invInertia body2.invInertia
         ]
 
 
@@ -134,7 +134,7 @@ volume =
                             , ( box 0.8 0.8 0.8, Material.wood, -1 )
                             ]
                 in
-                hollow.invInertia.m11
+                hollow.invInertia.x
                     |> Expect.within (Expect.Relative 0.0001) expectedInvIxx
         ]
 

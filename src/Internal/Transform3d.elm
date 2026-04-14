@@ -199,13 +199,31 @@ inertiaRotateIn transform3d inertia =
         (Mat3.mul inertia (Mat3.transpose rotation))
 
 
-invertedInertiaRotateIn : Transform3d coordinates defines -> Mat3 -> Mat3
-invertedInertiaRotateIn transform3d inertia =
+invertedInertiaRotateIn : Transform3d coordinates defines -> Vec3 -> Mat3
+invertedInertiaRotateIn transform3d invInertia =
     let
-        rotation =
+        { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
             orientation transform3d
+
+        a =
+            invInertia.x
+
+        b =
+            invInertia.y
+
+        c =
+            invInertia.z
     in
-    Mat3.mul (Mat3.transpose rotation) (Mat3.mul inertia rotation)
+    { m11 = m11 * m11 * a + m12 * m12 * b + m13 * m13 * c
+    , m21 = m21 * m11 * a + m22 * m12 * b + m23 * m13 * c
+    , m31 = m31 * m11 * a + m32 * m12 * b + m33 * m13 * c
+    , m12 = m11 * m21 * a + m12 * m22 * b + m13 * m23 * c
+    , m22 = m21 * m21 * a + m22 * m22 * b + m23 * m23 * c
+    , m32 = m31 * m21 * a + m32 * m22 * b + m33 * m23 * c
+    , m13 = m11 * m31 * a + m12 * m32 * b + m13 * m33 * c
+    , m23 = m21 * m31 * a + m22 * m32 * b + m23 * m33 * c
+    , m33 = m31 * m31 * a + m32 * m32 * b + m33 * m33 * c
+    }
 
 
 pointRelativeTo : Transform3d coordinates defines -> Vec3 -> Vec3

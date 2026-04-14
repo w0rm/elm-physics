@@ -34,7 +34,7 @@ sentinel extId =
         , linearDamping = 0
         , angularDamping = 0
         , invMass = 0
-        , invInertia = Mat3.zero
+        , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.zero
         }
     , extId = extId
