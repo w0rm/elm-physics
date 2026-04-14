@@ -180,8 +180,10 @@ plus (Types.Shape toAdd) (Types.Shape base) =
     Types.Shape (base ++ toAdd)
 
 
-{-| Subtract a shape from another, the first argument is subtracted from the second.
-The subtracted shape reduces volume, mass and inertia and is excluded from collision.
+{-| Subtract the first shape from the second. The subtracted shape must be
+fully contained within the other. It reduces volume, mass, and inertia,
+and is excluded from collision detection.
+
 Useful for hollow bodies.
 
     crate =

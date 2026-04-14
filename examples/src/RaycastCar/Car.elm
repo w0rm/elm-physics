@@ -180,6 +180,9 @@ updateSuspension carSettings dt bodies frame originalCar currentWheels updatedCa
                                     |> Force.newtons
                                     |> Quantity.clamp Quantity.zero carSettings.maxSuspensionForce
                                     |> Quantity.times dt
+
+                            impulse =
+                                Vector3d.withLength suspensionImpulse normal
                         in
                         updateSuspension carSettings
                             dt
@@ -187,7 +190,7 @@ updateSuspension carSettings dt bodies frame originalCar currentWheels updatedCa
                             frame
                             originalCar
                             remainingWheels
-                            (Physics.applyImpulse suspensionImpulse normal point updatedCar)
+                            (Physics.applyImpulse impulse point updatedCar)
                             ({ wheel
                                 | contact = Just hitResult
                                 , suspensionLength = suspensionLength
@@ -379,8 +382,8 @@ applyImpulses carSettings dt frame carBody wheels sliding wheelFrictions =
 
                 newCar =
                     carBody
-                        |> Physics.applyImpulse forwardImpulse friction.forward friction.contactPoint
-                        |> Physics.applyImpulse sideImpulse friction.axle closerToCenterOfMass
+                        |> Physics.applyImpulse (Vector3d.withLength forwardImpulse friction.forward) friction.contactPoint
+                        |> Physics.applyImpulse (Vector3d.withLength sideImpulse friction.axle) closerToCenterOfMass
 
                 -- TODO: apply the reverse of the sideImpulse on the ground object too, for now assume it is static
             in

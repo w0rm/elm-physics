@@ -155,7 +155,7 @@ icoSphereBody =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
         Ok triangularMesh ->
             Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
 
         Err _ ->
             Physics.dynamic []
@@ -166,7 +166,7 @@ cubeBody =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
         Ok triangularMesh ->
             Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
 
         Err _ ->
             Physics.dynamic []

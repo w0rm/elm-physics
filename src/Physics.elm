@@ -2,14 +2,14 @@ module Physics exposing
     ( WorldCoordinates, BodyCoordinates
     , Body
     , block, plane, sphere, cylinder, pointMass
-    , moveTo, translateBy, rotateAround, placeIn
+    , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
     , frame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass
     , raycast, applyForce, applyImpulse
     , dynamic, static
-    , damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+    , damp, scaleMassTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
     )
 
 {-|
@@ -29,7 +29,7 @@ module Physics exposing
 
 # Positioning
 
-@docs moveTo, translateBy, rotateAround, placeIn
+@docs moveTo, translateBy, rotateAround, place
 
 
 # Simulation
@@ -58,7 +58,7 @@ module Physics exposing
 
 # Advanced
 
-@docs damp, scaleTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+@docs damp, scaleMassTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
 
 -}
 
@@ -95,7 +95,7 @@ import Physics.Shape as Shape exposing (Shape)
 import Physics.Types as Types
 import Plane3d exposing (Plane3d)
 import Point3d exposing (Point3d)
-import Quantity exposing (Product, Quantity(..), Rate)
+import Quantity exposing (Product, Rate)
 import Speed exposing (MetersPerSecond)
 import Sphere3d exposing (Sphere3d)
 import Torque exposing (NewtonMeters)
@@ -200,7 +200,7 @@ dynamic shapesWithMaterials =
 
 
 {-| Create a static body from shapes and materials.
-Static bodies only collide with dynamic bodies.
+Static bodies only collide with dynamic bodies, not other static bodies.
 -}
 static : List ( Shape, Material any ) -> Body
 static shapesWithMaterials =
@@ -325,7 +325,7 @@ but also sets the orientation.
 
     placedBody =
         body
-            |> placeIn
+            |> place
                 (Frame3d.atPoint (Point3d.meters 2 0 1)
                     |> Frame3d.rotateAround Axis3d.z (Angle.degrees 45)
                 )
@@ -333,8 +333,8 @@ but also sets the orientation.
 Left-handed frames are not supported — Z is recomputed from X and Y.
 
 -}
-placeIn : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Body
-placeIn frame3d (Types.Body body) =
+place : Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Body
+place frame3d (Types.Body body) =
     let
         origin =
             Point3d.toMeters (Frame3d.originPoint frame3d)
@@ -664,19 +664,21 @@ raycast axis bodiesWithIds =
 
 Keep applying the force every simulation step to accelerate.
 
+    force =
+        Vector3d.withLength (Force.newtons 50)
+            Direction3d.positiveY
+
     pushedBox =
         box
-            |> applyForce (Force.newtons 50)
-                Direction3d.positiveY
-                pointOnBox
+            |> applyForce force pointOnBox
 
 -}
-applyForce : Quantity Float Newtons -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyForce (Quantity force) direction position (Types.Body body) =
+applyForce : Vector3d Newtons WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
+applyForce force position (Types.Body body) =
     if body.mass > 0 then
         Types.Body
-            (InternalBody.applyForce force
-                (Direction3d.unwrap direction)
+            (InternalBody.applyForce
+                (Vector3d.unwrap force)
                 (Point3d.toMeters position)
                 body
             )
@@ -688,22 +690,23 @@ applyForce (Quantity force) direction position (Types.Body body) =
 {-| Apply an impulse at a point on a body.
 
     impulse =
-        Force.newtons 50
-            |> Quantity.times (Duration.seconds 0.005)
+        Vector3d.withLength
+            (Quantity.times (Duration.seconds 0.005)
+                (Force.newtons 50)
+            )
+            Direction3d.positiveY
 
     hitCueBall =
         cueBall
-            |> applyImpulse impulse
-                Direction3d.positiveY
-                hitPoint
+            |> applyImpulse impulse hitPoint
 
 -}
-applyImpulse : Quantity Float (Product Newtons Seconds) -> Direction3d WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyImpulse (Quantity impulse) direction position (Types.Body body) =
+applyImpulse : Vector3d (Product Newtons Seconds) WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
+applyImpulse impulse position (Types.Body body) =
     if body.mass > 0 then
         Types.Body
-            (InternalBody.applyImpulse impulse
-                (Direction3d.unwrap direction)
+            (InternalBody.applyImpulse
+                (Vector3d.unwrap impulse)
                 (Point3d.toMeters position)
                 body
             )
@@ -715,8 +718,8 @@ applyImpulse (Quantity impulse) direction position (Types.Body body) =
 {-| Scale a body to the given mass. The volume and center of mass
 are preserved. Has no effect on static bodies.
 -}
-scaleTo : Mass -> Body -> Body
-scaleTo desiredMass ((Types.Body body) as original) =
+scaleMassTo : Mass -> Body -> Body
+scaleMassTo desiredMass ((Types.Body body) as original) =
     let
         newMass =
             Mass.inKilograms desiredMass

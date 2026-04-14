@@ -233,26 +233,26 @@ compoundBlocks =
 makeBox : Body
 makeBox =
     Physics.block boxBlock3d Material.wood
-        |> Physics.scaleTo (Mass.kilograms 5)
+        |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
 makeSphere : Body
 makeSphere =
     Physics.sphere sphere3d Material.wood
-        |> Physics.scaleTo (Mass.kilograms 5)
+        |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
 makeCylinder : Body
 makeCylinder =
     Physics.cylinder cylinder3d Material.wood
-        |> Physics.scaleTo (Mass.kilograms 5)
+        |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
 makeCompound : Body
 makeCompound =
     Physics.dynamic
         (List.map (\b -> ( Shape.block b, Material.wood )) compoundBlocks)
-        |> Physics.scaleTo (Mass.kilograms 5)
+        |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
 initialBodiesAndMeshes : ( List ( Int, Body ), Array (Mesh Attributes), Int )

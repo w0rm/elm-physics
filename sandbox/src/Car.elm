@@ -254,10 +254,13 @@ applySpeed speed baseFrame body =
 
         pointUnderTheWheel =
             wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) (Direction3d.reverse up))
+
+        force =
+            Vector3d.withLength (Force.newtons (speed * 100)) forward
     in
     body
-        |> Physics.applyForce (Force.newtons (-speed * 100)) forward pointOnTheWheel
-        |> Physics.applyForce (Force.newtons (-speed * 100)) (Direction3d.reverse forward) pointUnderTheWheel
+        |> Physics.applyForce force pointUnderTheWheel
+        |> Physics.applyForce (Vector3d.reverse force) pointOnTheWheel
 
 
 constrainCar : Float -> String -> Maybe (String -> List Constraint)
@@ -380,7 +383,7 @@ initialBodies =
         baseBody =
             Physics.dynamic
                 [ ( Shape.sum [ Shape.block top, Shape.block bottom ], Material.wood ) ]
-                |> Physics.scaleTo (Mass.kilograms 80)
+                |> Physics.scaleMassTo (Mass.kilograms 80)
                 |> Physics.moveTo (Point3d.meters 0 0 5)
 
         sphere3d =
@@ -388,7 +391,7 @@ initialBodies =
 
         wheelBody =
             Physics.sphere sphere3d Material.rubber
-                |> Physics.scaleTo (Mass.kilograms 2)
+                |> Physics.scaleMassTo (Mass.kilograms 2)
 
         offset =
             Point3d.meters 0 0 5

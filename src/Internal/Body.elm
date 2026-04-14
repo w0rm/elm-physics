@@ -221,14 +221,11 @@ particle mass { friction, bounciness } =
     }
 
 
-applyImpulse : Float -> Vec3 -> Vec3 -> Body -> Body
-applyImpulse amount direction point body =
+applyImpulse : Vec3 -> Vec3 -> Body -> Body
+applyImpulse impulse point body =
     let
         relativePoint =
             Vec3.sub point (Transform3d.originPoint body.transform3d)
-
-        impulse =
-            Vec3.scale amount direction
 
         { x, y, z } =
             Vec3.cross relativePoint impulse
@@ -250,14 +247,11 @@ applyImpulse amount direction point body =
     }
 
 
-applyForce : Float -> Vec3 -> Vec3 -> Body -> Body
-applyForce amount direction point body =
+applyForce : Vec3 -> Vec3 -> Body -> Body
+applyForce force point body =
     let
         relativePoint =
             Vec3.sub point (Transform3d.originPoint body.transform3d)
-
-        force =
-            Vec3.scale amount direction
 
         torque =
             Vec3.cross relativePoint force

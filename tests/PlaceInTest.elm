@@ -1,4 +1,4 @@
-module PlaceInTest exposing (placeInTests)
+module PlaceInTest exposing (placeTests)
 
 import Angle
 import Axis3d
@@ -18,26 +18,26 @@ unitBlock =
         Material.wood
 
 
-placeInTests : Test
-placeInTests =
-    describe "Physics.placeIn"
-        [ test "placeIn atOrigin is identity" <|
+placeTests : Test
+placeTests =
+    describe "Physics.place"
+        [ test "place atOrigin is identity" <|
             \_ ->
                 unitBlock
-                    |> Physics.placeIn Frame3d.atOrigin
+                    |> Physics.place Frame3d.atOrigin
                     |> Physics.frame
                     |> Expect.frame3d Frame3d.atOrigin
-        , test "placeIn sets position" <|
+        , test "place sets position" <|
             \_ ->
                 let
                     target =
                         Frame3d.atPoint (Point3d.meters 1 2 3)
                 in
                 unitBlock
-                    |> Physics.placeIn target
+                    |> Physics.place target
                     |> Physics.frame
                     |> Expect.frame3d target
-        , test "placeIn sets orientation" <|
+        , test "place sets orientation" <|
             \_ ->
                 let
                     target =
@@ -45,10 +45,10 @@ placeInTests =
                             |> Frame3d.rotateAround Axis3d.z (Angle.degrees 90)
                 in
                 unitBlock
-                    |> Physics.placeIn target
+                    |> Physics.place target
                     |> Physics.frame
                     |> Expect.frame3d target
-        , test "placeIn sets position and orientation" <|
+        , test "place sets position and orientation" <|
             \_ ->
                 let
                     target =
@@ -56,10 +56,10 @@ placeInTests =
                             |> Frame3d.rotateAround Axis3d.x (Angle.degrees 45)
                 in
                 unitBlock
-                    |> Physics.placeIn target
+                    |> Physics.place target
                     |> Physics.frame
                     |> Expect.frame3d target
-        , test "placeIn overwrites previous moveTo" <|
+        , test "place overwrites previous moveTo" <|
             \_ ->
                 let
                     target =
@@ -67,10 +67,10 @@ placeInTests =
                 in
                 unitBlock
                     |> Physics.moveTo (Point3d.meters 1 2 3)
-                    |> Physics.placeIn target
+                    |> Physics.place target
                     |> Physics.frame
                     |> Expect.frame3d target
-        , test "placeIn overwrites previous rotateAround" <|
+        , test "place overwrites previous rotateAround" <|
             \_ ->
                 let
                     target =
@@ -79,10 +79,10 @@ placeInTests =
                 in
                 unitBlock
                     |> Physics.rotateAround Axis3d.z (Angle.degrees 90)
-                    |> Physics.placeIn target
+                    |> Physics.place target
                     |> Physics.frame
                     |> Expect.frame3d target
-        , test "placeIn roundtrips with frame" <|
+        , test "place roundtrips with frame" <|
             \_ ->
                 let
                     moved =
@@ -94,10 +94,10 @@ placeInTests =
                         Physics.frame moved
                 in
                 unitBlock
-                    |> Physics.placeIn bodyFrame
+                    |> Physics.place bodyFrame
                     |> Physics.frame
                     |> Expect.frame3d bodyFrame
-        , test "placeIn with mirrored frame ignores mirroring" <|
+        , test "place with mirrored frame ignores mirroring" <|
             \_ ->
                 let
                     -- reverseX makes a left-handed frame
@@ -114,7 +114,7 @@ placeInTests =
                             |> Frame3d.reverseZ
                 in
                 unitBlock
-                    |> Physics.placeIn mirrored
+                    |> Physics.place mirrored
                     |> Physics.frame
                     |> Expect.frame3d expected
         ]

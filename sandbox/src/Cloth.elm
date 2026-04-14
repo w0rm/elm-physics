@@ -239,7 +239,7 @@ initialBodies =
 
         sphereBody =
             Physics.sphere sphere3d Material.wood
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
                 |> Physics.moveTo (Point3d.meters 0 0 1)
 
         dimensions =

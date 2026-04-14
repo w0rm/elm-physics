@@ -177,7 +177,7 @@ initialBodies =
 
         dominoBody =
             Physics.block dominoBlock3d slippy
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
 
         -- id=0 floor, id=1 tilted first domino, ids 2..12 regular dominos
         tiltedDomino =

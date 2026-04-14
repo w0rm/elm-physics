@@ -173,7 +173,7 @@ update msg model =
                         , bodies =
                             ( Car (Jeep.wheels jeep)
                             , Physics.dynamic jeep.collider
-                                |> Physics.scaleTo (Mass.kilograms 4000)
+                                |> Physics.scaleMassTo (Mass.kilograms 4000)
                                 |> Physics.moveTo (Point3d.meters 0 0 6)
                             )
                                 :: model.bodies

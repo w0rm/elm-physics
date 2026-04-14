@@ -276,12 +276,12 @@ initialBodies =
         compoundBody =
             Physics.dynamic
                 (List.map (\b -> ( Shape.block b, Material.wood )) blocks)
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
                 |> Physics.moveTo compoundPosition
 
         boxBody =
             Physics.block block3d Material.wood
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
     in
     [ ( "floor", floorBody )
     , ( "compound", compoundBody )

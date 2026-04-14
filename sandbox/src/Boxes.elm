@@ -176,7 +176,7 @@ initialBodies =
 
         boxBody =
             Physics.block block3d Material.wood
-                |> Physics.scaleTo (Mass.kilograms 5)
+                |> Physics.scaleMassTo (Mass.kilograms 5)
 
         boxes =
             List.indexedMap
