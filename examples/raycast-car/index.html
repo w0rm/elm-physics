@@ -14519,7 +14519,7 @@ var $ianmackenzie$elm_units$Mass$inKilograms = function (_v0) {
 	var numKilograms = _v0;
 	return numKilograms;
 };
-var $author$project$Physics$scaleTo = F2(
+var $author$project$Physics$scaleMassTo = F2(
 	function (desiredMass, original) {
 		var body = original;
 		var newMass = $ianmackenzie$elm_units$Mass$inKilograms(desiredMass);
@@ -17303,13 +17303,12 @@ var $author$project$Physics$frame = function (_v0) {
 				{ce: m13, cf: m23, cg: m33})
 		});
 };
-var $author$project$Internal$Body$applyImpulse = F4(
-	function (amount, direction, point, body) {
+var $author$project$Internal$Body$applyImpulse = F3(
+	function (impulse, point, body) {
 		var relativePoint = A2(
 			$author$project$Internal$Vector3$sub,
 			point,
 			$author$project$Internal$Transform3d$originPoint(body.fO));
-		var impulse = A2($author$project$Internal$Vector3$scale, amount, direction);
 		var _v0 = A2($author$project$Internal$Vector3$cross, relativePoint, impulse);
 		var z = _v0.cg;
 		var y = _v0.cf;
@@ -17326,14 +17325,12 @@ var $author$project$Internal$Body$applyImpulse = F4(
 				fW: {ce: velocity.ce + (invMass * impulse.ce), cf: velocity.cf + (invMass * impulse.cf), cg: velocity.cg + (invMass * impulse.cg)}
 			});
 	});
-var $author$project$Physics$applyImpulse = F4(
-	function (_v0, direction, position, _v1) {
-		var impulse = _v0;
-		var body = _v1;
-		return (body.eW > 0) ? A4(
+var $author$project$Physics$applyImpulse = F3(
+	function (impulse, position, _v0) {
+		var body = _v0;
+		return (body.eW > 0) ? A3(
 			$author$project$Internal$Body$applyImpulse,
-			impulse,
-			$ianmackenzie$elm_geometry$Direction3d$unwrap(direction),
+			$ianmackenzie$elm_geometry$Vector3d$unwrap(impulse),
 			$ianmackenzie$elm_geometry$Point3d$toMeters(position),
 			body) : body;
 	});
@@ -17771,12 +17768,15 @@ var $author$project$RaycastCar$Car$applyImpulses = F7(
 						up,
 						A2($ianmackenzie$elm_geometry$Vector3d$from, friction.bP, centerOfMass)));
 				var closerToCenterOfMass = A3($ianmackenzie$elm_geometry$Point3d$translateIn, up, verticalDistance, friction.bP);
-				var newCar = A4(
+				var newCar = A3(
 					$author$project$Physics$applyImpulse,
-					sideImpulse,
-					friction.cX,
+					A2($ianmackenzie$elm_geometry$Vector3d$withLength, sideImpulse, friction.cX),
 					closerToCenterOfMass,
-					A4($author$project$Physics$applyImpulse, forwardImpulse, friction.db, friction.bP, carBody));
+					A3(
+						$author$project$Physics$applyImpulse,
+						A2($ianmackenzie$elm_geometry$Vector3d$withLength, forwardImpulse, friction.db),
+						friction.bP,
+						carBody));
 				var $temp$carSettings = carSettings,
 					$temp$dt = dt,
 					$temp$frame = frame,
@@ -18139,13 +18139,14 @@ var $author$project$RaycastCar$Car$updateSuspension = F9(
 											$elm$core$Maybe$map,
 											$ianmackenzie$elm_units$Mass$inKilograms,
 											$author$project$Physics$mass(originalCar))) * (((carSettings.fH * difference) * clippedInvContactDotSuspension) - (damping * suspensionRelativeVelocity)))));
+						var impulse = A2($ianmackenzie$elm_geometry$Vector3d$withLength, suspensionImpulse, normal);
 						var $temp$carSettings = carSettings,
 							$temp$dt = dt,
 							$temp$bodies = bodies,
 							$temp$frame = frame,
 							$temp$originalCar = originalCar,
 							$temp$currentWheels = remainingWheels,
-							$temp$updatedCar = A4($author$project$Physics$applyImpulse, suspensionImpulse, normal, point, updatedCar),
+							$temp$updatedCar = A3($author$project$Physics$applyImpulse, impulse, point, updatedCar),
 							$temp$updatedWheels = A2(
 							$elm$core$List$cons,
 							_Utils_update(
@@ -18346,7 +18347,7 @@ var $author$project$RaycastCar$update = F2(
 										$author$project$Physics$moveTo,
 										A3($ianmackenzie$elm_geometry$Point3d$meters, 0, 0, 6),
 										A2(
-											$author$project$Physics$scaleTo,
+											$author$project$Physics$scaleMassTo,
 											$ianmackenzie$elm_units$Mass$kilograms(4000),
 											$author$project$Physics$dynamic(jeep.gk)))),
 								model.aK),
