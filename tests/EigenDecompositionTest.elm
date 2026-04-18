@@ -2,13 +2,13 @@ module EigenDecompositionTest exposing (eigenDecomposition)
 
 import Expect exposing (FloatingPointTolerance(..))
 import Extra.Expect as Expect
+import Fuzz exposing (Fuzzer)
 import Internal.Body as Body
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex
-import Fuzz exposing (Fuzzer)
 import Test exposing (Test, describe, fuzz, test)
 
 
@@ -21,9 +21,15 @@ eigenDecomposition =
                     let
                         result =
                             Mat3.eigenDecomposition
-                                { m11 = 1, m21 = 0, m31 = 0
-                                , m12 = 0, m22 = 1, m32 = 0
-                                , m13 = 0, m23 = 0, m33 = 1
+                                { m11 = 1
+                                , m21 = 0
+                                , m31 = 0
+                                , m12 = 0
+                                , m22 = 1
+                                , m32 = 0
+                                , m13 = 0
+                                , m23 = 0
+                                , m33 = 1
                                 }
                     in
                     Expect.vec3 { x = 1, y = 1, z = 1 } result.eigenvalues
@@ -32,9 +38,15 @@ eigenDecomposition =
                     let
                         result =
                             Mat3.eigenDecomposition
-                                { m11 = 3, m21 = 0, m31 = 0
-                                , m12 = 0, m22 = 1, m32 = 0
-                                , m13 = 0, m23 = 0, m33 = 2
+                                { m11 = 3
+                                , m21 = 0
+                                , m31 = 0
+                                , m12 = 0
+                                , m22 = 1
+                                , m32 = 0
+                                , m13 = 0
+                                , m23 = 0
+                                , m33 = 2
                                 }
                     in
                     Expect.vec3 { x = 3, y = 1, z = 2 } result.eigenvalues
@@ -45,9 +57,15 @@ eigenDecomposition =
                     let
                         result =
                             Mat3.eigenDecomposition
-                                { m11 = 2, m21 = 1, m31 = 0
-                                , m12 = 1, m22 = 3, m32 = 1
-                                , m13 = 0, m23 = 1, m33 = 2
+                                { m11 = 2
+                                , m21 = 1
+                                , m31 = 0
+                                , m12 = 1
+                                , m22 = 3
+                                , m32 = 1
+                                , m13 = 0
+                                , m23 = 1
+                                , m33 = 2
                                 }
                     in
                     expectEigenvalues [ 4, 2, 1 ] result.eigenvalues
@@ -56,9 +74,15 @@ eigenDecomposition =
                     let
                         result =
                             Mat3.eigenDecomposition
-                                { m11 = 2, m21 = -1, m31 = 0
-                                , m12 = -1, m22 = 2, m32 = -1
-                                , m13 = 0, m23 = -1, m33 = 2
+                                { m11 = 2
+                                , m21 = -1
+                                , m31 = 0
+                                , m12 = -1
+                                , m22 = 2
+                                , m32 = -1
+                                , m13 = 0
+                                , m23 = -1
+                                , m33 = 2
                                 }
                     in
                     expectEigenvalues [ 2 + sqrt 2, 2, 2 - sqrt 2 ] result.eigenvalues
@@ -116,9 +140,15 @@ eigenDecomposition =
                 \_ ->
                     let
                         m =
-                            { m11 = 1, m21 = 0, m31 = 0
-                            , m12 = 0, m22 = 1, m32 = 0
-                            , m13 = 0, m23 = 0, m33 = 1
+                            { m11 = 1
+                            , m21 = 0
+                            , m31 = 0
+                            , m12 = 0
+                            , m22 = 1
+                            , m32 = 0
+                            , m13 = 0
+                            , m23 = 0
+                            , m33 = 1
                             }
                     in
                     Expect.mat3 m (reconstruct (Mat3.eigenDecomposition m))
@@ -126,9 +156,15 @@ eigenDecomposition =
                 \_ ->
                     let
                         m =
-                            { m11 = 5, m21 = 0, m31 = 0
-                            , m12 = 0, m22 = 3, m32 = 0
-                            , m13 = 0, m23 = 0, m33 = 1
+                            { m11 = 5
+                            , m21 = 0
+                            , m31 = 0
+                            , m12 = 0
+                            , m22 = 3
+                            , m32 = 0
+                            , m13 = 0
+                            , m23 = 0
+                            , m33 = 1
                             }
                     in
                     Expect.mat3 m (reconstruct (Mat3.eigenDecomposition m))
@@ -136,9 +172,15 @@ eigenDecomposition =
                 \_ ->
                     let
                         m =
-                            { m11 = 2, m21 = 1, m31 = 0
-                            , m12 = 1, m22 = 3, m32 = 1
-                            , m13 = 0, m23 = 1, m33 = 2
+                            { m11 = 2
+                            , m21 = 1
+                            , m31 = 0
+                            , m12 = 1
+                            , m22 = 3
+                            , m32 = 1
+                            , m13 = 0
+                            , m23 = 1
+                            , m33 = 2
                             }
                     in
                     Expect.mat3 m (reconstruct (Mat3.eigenDecomposition m))
@@ -146,9 +188,15 @@ eigenDecomposition =
                 \_ ->
                     let
                         m =
-                            { m11 = 4, m21 = 2, m31 = 1
-                            , m12 = 2, m22 = 5, m32 = 3
-                            , m13 = 1, m23 = 3, m33 = 6
+                            { m11 = 4
+                            , m21 = 2
+                            , m31 = 1
+                            , m12 = 2
+                            , m22 = 5
+                            , m32 = 3
+                            , m13 = 1
+                            , m23 = 3
+                            , m33 = 6
                             }
                     in
                     Expect.mat3 m (reconstruct (Mat3.eigenDecomposition m))
@@ -205,9 +253,15 @@ eigenDecomposition =
                     let
                         { v1, v2, v3 } =
                             Mat3.eigenDecomposition
-                                { m11 = 4, m21 = 2, m31 = 1
-                                , m12 = 2, m22 = 5, m32 = 3
-                                , m13 = 1, m23 = 3, m33 = 6
+                                { m11 = 4
+                                , m21 = 2
+                                , m31 = 1
+                                , m12 = 2
+                                , m22 = 5
+                                , m32 = 3
+                                , m13 = 1
+                                , m23 = 3
+                                , m33 = 6
                                 }
                     in
                     expectOrthonormal v1 v2 v3
@@ -225,9 +279,15 @@ eigenDecomposition =
                 \_ ->
                     let
                         m =
-                            { m11 = 4, m21 = 2, m31 = 1
-                            , m12 = 2, m22 = 5, m32 = 3
-                            , m13 = 1, m23 = 3, m33 = 6
+                            { m11 = 4
+                            , m21 = 2
+                            , m31 = 1
+                            , m12 = 2
+                            , m22 = 5
+                            , m32 = 3
+                            , m13 = 1
+                            , m23 = 3
+                            , m33 = 6
                             }
 
                         { eigenvalues, v1, v2, v3 } =
@@ -246,9 +306,15 @@ eigenDecomposition =
                     let
                         { v1, v2, v3 } =
                             Mat3.eigenDecomposition
-                                { m11 = 4, m21 = 2, m31 = 1
-                                , m12 = 2, m22 = 5, m32 = 3
-                                , m13 = 1, m23 = 3, m33 = 6
+                                { m11 = 4
+                                , m21 = 2
+                                , m31 = 1
+                                , m12 = 2
+                                , m22 = 5
+                                , m32 = 3
+                                , m13 = 1
+                                , m23 = 3
+                                , m33 = 6
                                 }
                     in
                     Vec3.dot v1 (Vec3.cross v2 v3)
@@ -305,9 +371,15 @@ reconstruct : { eigenvalues : Vec3, v1 : Vec3, v2 : Vec3, v3 : Vec3 } -> Mat3
 reconstruct { eigenvalues, v1, v2, v3 } =
     let
         r =
-            { m11 = v1.x, m12 = v2.x, m13 = v3.x
-            , m21 = v1.y, m22 = v2.y, m23 = v3.y
-            , m31 = v1.z, m32 = v2.z, m33 = v3.z
+            { m11 = v1.x
+            , m12 = v2.x
+            , m13 = v3.x
+            , m21 = v1.y
+            , m22 = v2.y
+            , m23 = v3.y
+            , m31 = v1.z
+            , m32 = v2.z
+            , m33 = v3.z
             }
 
         rt =
@@ -318,9 +390,15 @@ reconstruct { eigenvalues, v1, v2, v3 } =
 
 diag : Vec3 -> Mat3
 diag { x, y, z } =
-    { m11 = x, m21 = 0, m31 = 0
-    , m12 = 0, m22 = y, m32 = 0
-    , m13 = 0, m23 = 0, m33 = z
+    { m11 = x
+    , m21 = 0
+    , m31 = 0
+    , m12 = 0
+    , m22 = y
+    , m32 = 0
+    , m13 = 0
+    , m23 = 0
+    , m33 = z
     }
 
 
