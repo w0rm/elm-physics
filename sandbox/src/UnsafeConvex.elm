@@ -172,6 +172,39 @@ cubeBody =
             Physics.dynamic []
 
 
+wedgeBody : Body
+wedgeBody =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) wedgeObj of
+        Ok triangularMesh ->
+            Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
+                |> Physics.scaleMassTo (Mass.kilograms 5)
+
+        Err _ ->
+            Physics.dynamic []
+
+
+tetraBody : Body
+tetraBody =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) tetraObj of
+        Ok triangularMesh ->
+            Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
+                |> Physics.scaleMassTo (Mass.kilograms 5)
+
+        Err _ ->
+            Physics.dynamic []
+
+
+parallelepipedBody : Body
+parallelepipedBody =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) parallelepipedObj of
+        Ok triangularMesh ->
+            Physics.dynamic [ ( Shape.unsafeConvex triangularMesh, Material.wood ) ]
+                |> Physics.scaleMassTo (Mass.kilograms 5)
+
+        Err _ ->
+            Physics.dynamic []
+
+
 icoSphereMesh : Mesh Attributes
 icoSphereMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
@@ -192,11 +225,44 @@ cubeMesh =
             Meshes.fromTriangles []
 
 
+wedgeMesh : Mesh Attributes
+wedgeMesh =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) wedgeObj of
+        Ok triangularMesh ->
+            Meshes.fromTriangles (Meshes.triangularMesh triangularMesh)
+
+        Err _ ->
+            Meshes.fromTriangles []
+
+
+tetraMesh : Mesh Attributes
+tetraMesh =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) tetraObj of
+        Ok triangularMesh ->
+            Meshes.fromTriangles (Meshes.triangularMesh triangularMesh)
+
+        Err _ ->
+            Meshes.fromTriangles []
+
+
+parallelepipedMesh : Mesh Attributes
+parallelepipedMesh =
+    case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) parallelepipedObj of
+        Ok triangularMesh ->
+            Meshes.fromTriangles (Meshes.triangularMesh triangularMesh)
+
+        Err _ ->
+            Meshes.fromTriangles []
+
+
 initialBodies : List ( Int, Body )
 initialBodies =
     [ ( 0, Physics.plane Plane3d.xy Material.wood |> Physics.moveTo (Point3d.fromMeters floorOffset) )
     , ( 1, cubeBody |> Physics.moveTo (Point3d.meters 0 0 8) )
     , ( 2, icoSphereBody |> Physics.moveTo (Point3d.meters 0.3 0 5) )
+    , ( 3, wedgeBody |> Physics.moveTo (Point3d.meters 0 -3 12) )
+    , ( 4, tetraBody |> Physics.moveTo (Point3d.meters -3 3 15) )
+    , ( 5, parallelepipedBody |> Physics.moveTo (Point3d.meters 4 0 18) )
     ]
 
 
@@ -206,14 +272,15 @@ initialMeshes =
         [ Meshes.fromTriangles []
         , cubeMesh
         , icoSphereMesh
+        , wedgeMesh
+        , tetraMesh
+        , parallelepipedMesh
         ]
 
 
 cubeObj : String
 cubeObj =
-    """# Blender v2.83.3 OBJ File: 'cube'
-# www.blender.org
-v 1.000000 1.000000 -1.000000
+    """v 1.000000 1.000000 -1.000000
 v 1.000000 -1.000000 -1.000000
 v 1.000000 1.000000 1.000000
 v 1.000000 -1.000000 1.000000
@@ -230,11 +297,68 @@ f 6 5 1 2
 """
 
 
+{-| Right triangular prism (doorstop wedge): 3 long in x, 2 in y, 1.5 tall in z.
+The asymmetric triangular cross-section in the xz plane gives non-axis-aligned
+principal axes — two eigenvectors tilt within xz, one points along y.
+-}
+wedgeObj : String
+wedgeObj =
+    """v 0 -1 0
+v 3 -1 0
+v 3 -1 1.5
+v 0 1 0
+v 3 1 0
+v 3 1 1.5
+f 1 2 3
+f 4 6 5
+f 1 4 5 2
+f 2 5 6 3
+f 1 3 6 4
+"""
+
+
+{-| Irregular tetrahedron with no symmetry plane — all three eigenvectors
+end up tilted relative to body xyz.
+-}
+tetraObj : String
+tetraObj =
+    """v -1 -1 -1
+v 3 -1 -1
+v -1 2 -1
+v -1 -1 2.5
+f 1 3 2
+f 1 2 4
+f 1 4 3
+f 2 3 4
+"""
+
+
+{-| Sheared parallelepiped — a box whose top is shifted +2 in x relative to
+its bottom. Symmetric in y, so one eigenvector stays along body-y; the other
+two tilt within the xz plane along the parallelepiped's diagonal directions.
+-}
+parallelepipedObj : String
+parallelepipedObj =
+    """v -1 -1 -1
+v 1 -1 -1
+v 1 1 -1
+v -1 1 -1
+v 1 -1 1
+v 3 -1 1
+v 3 1 1
+v 1 1 1
+f 1 4 3 2
+f 5 6 7 8
+f 1 2 6 5
+f 4 8 7 3
+f 1 5 8 4
+f 2 3 7 6
+"""
+
+
 icoSphereObj : String
 icoSphereObj =
-    """# Blender v2.83.3 OBJ File: 'icosphere'
-# www.blender.org
-v 0.000000 0.000000 -1.000000
+    """v 0.000000 0.000000 -1.000000
 v 0.723607 -0.525725 -0.447220
 v -0.276388 -0.850649 -0.447220
 v -0.894426 0.000000 -0.447216
