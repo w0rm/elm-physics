@@ -2,6 +2,7 @@ module Internal.Matrix3 exposing
     ( Mat3
     , add
     , cylinderInertia
+    , eigenDecomposition
     , inverse
     , mul
     , pointInertia
@@ -276,3 +277,161 @@ tetrahedronInertia m p0 p1 p2 p3 =
     , m32 = -iyz
     , m33 = izz
     }
+
+
+{-| Eigendecomposition of a symmetric 3x3 matrix using Jacobi iteration.
+-}
+eigenDecomposition : Mat3 -> { eigenvalues : Vec3, v1 : Vec3, v2 : Vec3, v3 : Vec3 }
+eigenDecomposition { m11, m22, m33, m12, m13, m23 } =
+    let
+        result =
+            jacobiIterate
+                { steps = 30
+                , d11 = m11
+                , d22 = m22
+                , d33 = m33
+                , a12 = m12
+                , a13 = m13
+                , a23 = m23
+                , r11 = 1
+                , r21 = 0
+                , r31 = 0
+                , r12 = 0
+                , r22 = 1
+                , r32 = 0
+                , r13 = 0
+                , r23 = 0
+                , r33 = 1
+                }
+    in
+    { eigenvalues = { x = result.d11, y = result.d22, z = result.d33 }
+    , v1 = { x = result.r11, y = result.r21, z = result.r31 }
+    , v2 = { x = result.r12, y = result.r22, z = result.r32 }
+    , v3 = { x = result.r13, y = result.r23, z = result.r33 }
+    }
+
+
+jacobiIterate :
+    { steps : Int, d11 : Float, d22 : Float, d33 : Float, a12 : Float, a13 : Float, a23 : Float, r11 : Float, r21 : Float, r31 : Float, r12 : Float, r22 : Float, r32 : Float, r13 : Float, r23 : Float, r33 : Float }
+    -> { steps : Int, d11 : Float, d22 : Float, d33 : Float, a12 : Float, a13 : Float, a23 : Float, r11 : Float, r21 : Float, r31 : Float, r12 : Float, r22 : Float, r32 : Float, r13 : Float, r23 : Float, r33 : Float }
+jacobiIterate s =
+    let
+        abs12 =
+            abs s.a12
+
+        abs13 =
+            abs s.a13
+
+        abs23 =
+            abs s.a23
+    in
+    if s.steps <= 0 || (abs12 < 1.0e-12 && abs13 < 1.0e-12 && abs23 < 1.0e-12) then
+        s
+
+    else if abs12 - abs13 >= 0 && abs12 - abs23 >= 0 then
+        let
+            theta =
+                (s.d22 - s.d11) / (2 * s.a12)
+
+            t =
+                jacobiT theta
+
+            c =
+                1 / sqrt (1 + t * t)
+
+            k =
+                t * c
+        in
+        jacobiIterate
+            { steps = s.steps - 1
+            , d11 = s.d11 - t * s.a12
+            , d22 = s.d22 + t * s.a12
+            , d33 = s.d33
+            , a12 = 0
+            , a13 = c * s.a13 - k * s.a23
+            , a23 = k * s.a13 + c * s.a23
+            , r11 = c * s.r11 - k * s.r12
+            , r21 = c * s.r21 - k * s.r22
+            , r31 = c * s.r31 - k * s.r32
+            , r12 = k * s.r11 + c * s.r12
+            , r22 = k * s.r21 + c * s.r22
+            , r32 = k * s.r31 + c * s.r32
+            , r13 = s.r13
+            , r23 = s.r23
+            , r33 = s.r33
+            }
+
+    else if abs13 - abs23 >= 0 then
+        let
+            theta =
+                (s.d33 - s.d11) / (2 * s.a13)
+
+            t =
+                jacobiT theta
+
+            c =
+                1 / sqrt (1 + t * t)
+
+            k =
+                t * c
+        in
+        jacobiIterate
+            { steps = s.steps - 1
+            , d11 = s.d11 - t * s.a13
+            , d22 = s.d22
+            , d33 = s.d33 + t * s.a13
+            , a12 = c * s.a12 - k * s.a23
+            , a13 = 0
+            , a23 = k * s.a12 + c * s.a23
+            , r11 = c * s.r11 - k * s.r13
+            , r21 = c * s.r21 - k * s.r23
+            , r31 = c * s.r31 - k * s.r33
+            , r12 = s.r12
+            , r22 = s.r22
+            , r32 = s.r32
+            , r13 = k * s.r11 + c * s.r13
+            , r23 = k * s.r21 + c * s.r23
+            , r33 = k * s.r31 + c * s.r33
+            }
+
+    else
+        let
+            theta =
+                (s.d33 - s.d22) / (2 * s.a23)
+
+            t =
+                jacobiT theta
+
+            c =
+                1 / sqrt (1 + t * t)
+
+            k =
+                t * c
+        in
+        jacobiIterate
+            { steps = s.steps - 1
+            , d11 = s.d11
+            , d22 = s.d22 - t * s.a23
+            , d33 = s.d33 + t * s.a23
+            , a12 = c * s.a12 - k * s.a13
+            , a13 = k * s.a12 + c * s.a13
+            , a23 = 0
+            , r11 = s.r11
+            , r21 = s.r21
+            , r31 = s.r31
+            , r12 = c * s.r12 - k * s.r13
+            , r22 = c * s.r22 - k * s.r23
+            , r32 = c * s.r32 - k * s.r33
+            , r13 = k * s.r12 + c * s.r13
+            , r23 = k * s.r22 + c * s.r23
+            , r33 = k * s.r32 + c * s.r33
+            }
+
+
+jacobiT : Float -> Float
+jacobiT theta =
+    if theta >= 0 then
+        1 / (theta + sqrt (1 + theta * theta))
+
+    else
+        1 / (theta - sqrt (1 + theta * theta))

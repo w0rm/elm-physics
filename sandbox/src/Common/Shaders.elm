@@ -1,5 +1,6 @@
 module Common.Shaders exposing
     ( Uniforms
+    , colorFragment
     , fragment
     , shadowFragment
     , vertex
@@ -107,5 +108,17 @@ shadowFragment =
         varying vec3 vposition;
         void main () {
           gl_FragColor = vec4(color, 1);
+        }
+    |]
+
+
+colorFragment : Shader {} Uniforms { vposition : Vec3 }
+colorFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        varying vec3 vposition;
+        void main () {
+          gl_FragColor = vec4(color, 1.0);
         }
     |]
