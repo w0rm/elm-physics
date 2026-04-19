@@ -9,7 +9,8 @@ module Physics exposing
     , centerOfMass, mass
     , raycast, applyForce, applyImpulse
     , dynamic, static
-    , damp, scaleMassTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+    , setVelocityTo, setAngularVelocityTo, scaleMassTo
+    , damp, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
     )
 
 {-|
@@ -56,9 +57,16 @@ module Physics exposing
 @docs dynamic, static
 
 
+# Overrides
+
+Change body state directly, bypassing the simulation.
+
+@docs setVelocityTo, setAngularVelocityTo, scaleMassTo
+
+
 # Advanced
 
-@docs damp, scaleMassTo, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+@docs damp, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
 
 -}
 
@@ -697,7 +705,7 @@ applyForce force position (Types.Body body) =
         Types.Body body
 
 
-{-| Apply an impulse at a point on a body.
+{-| Apply an impulse at a point on a body, adding to its velocity and angular velocity.
 
     impulse =
         Vector3d.withLength
@@ -720,6 +728,40 @@ applyImpulse impulse position (Types.Body body) =
                 (Point3d.toMeters position)
                 body
             )
+
+    else
+        Types.Body body
+
+
+{-| Replace the linear velocity of a body.
+
+For physics-correct changes, prefer [applyImpulse](#applyImpulse). Using
+`setVelocityTo` after `applyImpulse` silently discards the impulse:
+
+    body
+        |> applyImpulse impulse point
+        -- erased by the next line
+        |> setVelocityTo newVelocity
+
+Has no effect on static bodies.
+
+-}
+setVelocityTo : Vector3d MetersPerSecond WorldCoordinates -> Body -> Body
+setVelocityTo newVelocity (Types.Body body) =
+    if body.mass > 0 then
+        Types.Body { body | velocity = Vector3d.unwrap newVelocity }
+
+    else
+        Types.Body body
+
+
+{-| Replace the angular velocity of a body. See [setVelocityTo](#setVelocityTo)
+for guidance. Has no effect on static bodies.
+-}
+setAngularVelocityTo : Vector3d RadiansPerSecond WorldCoordinates -> Body -> Body
+setAngularVelocityTo newAngularVelocity (Types.Body body) =
+    if body.mass > 0 then
+        Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
 
     else
         Types.Body body
