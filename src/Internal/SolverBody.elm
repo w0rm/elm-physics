@@ -50,9 +50,9 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                 (1.0 - body.angularDamping) ^ dt
 
             newVelocity =
-                { x = (gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + vX
-                , y = (gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + vY
-                , z = (gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + vZ
+                { x = ((gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + vX) * body.linearLock.x
+                , y = ((gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + vY) * body.linearLock.y
+                , z = ((gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + vZ) * body.linearLock.z
                 }
 
             velocityLength =
@@ -73,9 +73,9 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                     Vec3.scale (body.boundingSphereRadius / (velocityLength * dt)) newVelocity
 
             newAngularVelocity =
-                { x = (body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + wX
-                , y = (body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + wY
-                , z = (body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wZ
+                { x = ((body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + wX) * body.angularLock.x
+                , y = ((body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + wY) * body.angularLock.y
+                , z = ((body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wZ) * body.angularLock.z
                 }
 
             newTransform3d =
@@ -101,6 +101,8 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
         , invMass = body.invMass
         , invInertia = body.invInertia
         , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
 
         -- clear forces
         , force = Vec3.zero

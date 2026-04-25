@@ -3,11 +3,13 @@ module Internal.Body exposing
     , applyForce
     , applyImpulse
     , compound
+    , lock
     , particle
     , raycast
     )
 
 import Internal.Coordinates exposing (BodyCoordinates, WorldCoordinates)
+import Internal.Lock as Lock exposing (Lock)
 import Internal.Material exposing (Material)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Shape as Shape exposing (CenterOfMassCoordinates, Shape(..))
@@ -37,6 +39,10 @@ type alias Body =
     , invMass : Float
     , invInertia : Vec3
     , invInertiaWorld : Mat3
+
+    -- world-axis DOF masks: 0 = locked, 1 = free
+    , linearLock : Vec3
+    , angularLock : Vec3
     }
 
 
@@ -217,6 +223,8 @@ compound shapesWithMaterials =
     , invInertiaWorld = Transform3d.invertedInertiaRotateIn transform3d invInertia
     , force = Vec3.zero
     , torque = Vec3.zero
+    , linearLock = { x = 1, y = 1, z = 1 }
+    , angularLock = { x = 1, y = 1, z = 1 }
     }
 
 
@@ -251,6 +259,8 @@ particle mass { friction, bounciness } =
     , invInertiaWorld = Mat3.zero
     , force = Vec3.zero
     , torque = Vec3.zero
+    , linearLock = { x = 1, y = 1, z = 1 }
+    , angularLock = { x = 1, y = 1, z = 1 }
     }
 
 
@@ -292,6 +302,23 @@ applyForce force point body =
     { body
         | force = Vec3.add body.force force
         , torque = Vec3.add body.torque torque
+    }
+
+
+{-| Replace the body’s locked degrees of freedom. The list fully describes
+the lock state — calling `lock` again replaces the previous locks. An empty
+list clears all locks. The body’s current velocities are left untouched; the
+mask is enforced at the next simulation step.
+-}
+lock : List Lock -> Body -> Body
+lock locks body =
+    let
+        ( linearLock, angularLock ) =
+            Lock.masks locks
+    in
+    { body
+        | linearLock = linearLock
+        , angularLock = angularLock
     }
 
 

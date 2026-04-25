@@ -10,7 +10,7 @@ module Physics exposing
     , raycast, applyForce, applyImpulse
     , dynamic, static
     , setVelocityTo, setAngularVelocityTo, scaleMassTo
-    , damp, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+    , damp, lock, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
     )
 
 {-|
@@ -66,7 +66,7 @@ Change body state directly, bypassing the simulation.
 
 # Advanced
 
-@docs damp, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
+@docs damp, lock, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
 
 -}
 
@@ -98,6 +98,7 @@ import Internal.Vector3 as Vec3
 import Length exposing (Meters)
 import Mass exposing (Kilograms, Mass)
 import Physics.Constraint exposing (Constraint)
+import Physics.Lock exposing (Lock)
 import Physics.Material exposing (Dense, Material)
 import Physics.Shape as Shape exposing (Shape)
 import Physics.Types as Types
@@ -810,6 +811,28 @@ damp { linear, angular } (Types.Body body) =
             | linearDamping = clamp 0 1 linear
             , angularDamping = clamp 0 1 angular
         }
+
+
+{-| Restrict a body’s degrees of freedom along world axes. The list fully
+describes the lock state — calling `lock` again replaces the previous
+masks. An empty list clears all locks.
+
+    -- 2D-in-3D gameplay on the XY plane
+    body |> lock [ Lock.translateZ, Lock.rotateX, Lock.rotateY ]
+
+    -- character controller: slides freely, never tips
+    body |> lock Lock.allRotation
+
+See [Physics.Lock](Physics-Lock) for the available tokens. Has no effect on static bodies.
+
+-}
+lock : List Lock -> Body -> Body
+lock locks (Types.Body body) =
+    if body.mass > 0 then
+        Types.Body (InternalBody.lock locks body)
+
+    else
+        Types.Body body
 
 
 {-| Apply the inverse inertia tensor of a body to a vector.

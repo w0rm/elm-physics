@@ -1,4 +1,4 @@
-module Physics.Types exposing (Body(..), Constraint, Contacts(..), Material(..), Shape(..))
+module Physics.Types exposing (Body(..), Constraint, Contacts(..), Lock, Material(..), Shape(..))
 
 import Array exposing (Array)
 import Dict exposing (Dict)
@@ -6,6 +6,7 @@ import Internal.Body as InternalBody
 import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
 import Internal.Coordinates exposing (BodyCoordinates)
+import Internal.Lock as InternalLock
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
 import Internal.SolverBody as SolverBody
@@ -29,6 +30,10 @@ type Contacts id
 
 type alias Constraint =
     InternalConstraint.Constraint BodyCoordinates
+
+
+type alias Lock =
+    InternalLock.Lock
 
 
 type Material kind

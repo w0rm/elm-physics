@@ -12,6 +12,7 @@ module Internal.Vector3 exposing
     , lerp
     , negate
     , normalize
+    , one
     , scale
     , sub
     , tangents
@@ -97,6 +98,11 @@ yNegative =
 zNegative : Vec3
 zNegative =
     { x = 0, y = 0, z = -1 }
+
+
+one : Vec3
+one =
+    { x = 1, y = 1, z = 1 }
 
 
 {-| Vector addition: a + b

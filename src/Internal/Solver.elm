@@ -36,6 +36,8 @@ sentinel extId =
         , invMass = 0
         , invInertia = Vec3.zero
         , invInertiaWorld = Mat3.zero
+        , linearLock = Vec3.one
+        , angularLock = Vec3.one
         }
     , extId = extId
     , vX = 0

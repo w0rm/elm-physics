@@ -156,6 +156,8 @@ withId freshId body =
     , invMass = body.invMass
     , invInertia = body.invInertia
     , invInertiaWorld = body.invInertiaWorld
+    , linearLock = body.linearLock
+    , angularLock = body.angularLock
     }
 
 
