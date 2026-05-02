@@ -41,6 +41,8 @@ a body with the mouse, connect a mouse to a point on the box with
         else
             Nothing
 
+Constraints are skipped unless at least one body is [dynamic](Physics-Body#dynamic).
+
 -}
 type alias Constraint =
     Types.Constraint

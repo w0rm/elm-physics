@@ -19,20 +19,20 @@ boundingSphereRadius =
     describe "Body.boundingSphereRadius"
         [ test "is set to zero by default" <|
             \_ ->
-                Expect.equal 0 (Body.compound [] |> .boundingSphereRadius)
+                Expect.equal 0 (Body.compound Body.Dynamic [] |> .boundingSphereRadius)
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
-                Body.compound [ ( box 2 2 2, Material.wood, 1 ) ]
+                Body.compound Body.Dynamic [ ( box 2 2 2, Material.wood, 1 ) ]
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 1, y = 1, z = 1 })
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
-                Body.compound [ ( box 2 2 2, Material.wood, 1 ), ( box 4 4 4, Material.wood, 1 ) ]
+                Body.compound Body.Dynamic [ ( box 2 2 2, Material.wood, 1 ), ( box 4 4 4, Material.wood, 1 ) ]
                     |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 2, y = 2, z = 2 })
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
             \_ ->
-                Body.compound [ ( plane, Material.wood, 1 ) ]
+                Body.compound Body.Dynamic [ ( plane, Material.wood, 1 ) ]
                     |> .boundingSphereRadius
                     |> Expect.atLeast Const.maxNumber
         ]
@@ -48,7 +48,7 @@ updateMassProperties =
                         { friction = 0, bounciness = 0, density = 700 }
 
                     body1 =
-                        Body.compound
+                        Body.compound Body.Dynamic
                             [ ( Convex.fromBlock 2 2 2
                                     |> Convex.placeIn (Transform3d.atPoint { x = -1, y = 0, z = 0 })
                                     |> Shape.Convex
@@ -64,7 +64,7 @@ updateMassProperties =
                             ]
 
                     body2 =
-                        Body.compound [ ( box 4 2 2, mat, 1 ) ]
+                        Body.compound Body.Dynamic [ ( box 4 2 2, mat, 1 ) ]
                 in
                 Expect.vec3 body1.invInertia body2.invInertia
         , test "cube box body should have the same invInertia as a compound body out of tetrahedrons" <|
@@ -74,13 +74,13 @@ updateMassProperties =
                         { friction = 0, bounciness = 0, density = 700 }
 
                     body1 =
-                        Body.compound
+                        Body.compound Body.Dynamic
                             (Convex.blockOfTetrahedrons 2 3 1
                                 |> List.map (\s -> ( Shape.Convex s, mat, 1 ))
                             )
 
                     body2 =
-                        Body.compound
+                        Body.compound Body.Dynamic
                             [ ( Shape.Convex (Convex.block Transform3d.atOrigin 2 3 1), mat, 1 ) ]
                 in
                 Expect.vec3 body1.invInertia body2.invInertia
@@ -92,13 +92,13 @@ volume =
     describe "Body.volume"
         [ test "solid box has volume equal to its dimensions" <|
             \_ ->
-                Body.compound [ ( box 2 3 4, Material.wood, 1 ) ]
+                Body.compound Body.Dynamic [ ( box 2 3 4, Material.wood, 1 ) ]
                     |> .volume
                     |> Expect.within (Expect.Absolute 0.00001) (2 * 3 * 4)
         , test "hollow crate has correct mass (outer minus inner)" <|
             \_ ->
                 -- mass = density × net_volume = 700 × (1 - 0.8³)
-                Body.compound
+                Body.compound Body.Dynamic
                     [ ( box 1 1 1, Material.wood, 1 )
                     , ( box 0.8 0.8 0.8, Material.wood, -1 )
                     ]
@@ -108,7 +108,7 @@ volume =
             \_ ->
                 -- outer 1×1×1, inner void 0.8×0.8×0.8
                 -- net volume = 1 - 0.512 = 0.488
-                Body.compound
+                Body.compound Body.Dynamic
                     [ ( box 1 1 1, Material.wood, 1 )
                     , ( box 0.8 0.8 0.8, Material.wood, -1 )
                     ]
@@ -129,7 +129,7 @@ volume =
                         6 / (rho * (1 - 0.8 ^ 5))
 
                     hollow =
-                        Body.compound
+                        Body.compound Body.Dynamic
                             [ ( box 1 1 1, Material.wood, 1 )
                             , ( box 0.8 0.8 0.8, Material.wood, -1 )
                             ]

@@ -1,5 +1,6 @@
 module Internal.Body exposing
     ( Body
+    , Kind(..)
     , applyForce
     , applyImpulse
     , compound
@@ -17,8 +18,21 @@ import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
+{-| Static: not moved by the engine, not moved by the user (an immobile wall).
+Dynamic: moved by the engine in response to forces, gravity, and contacts.
+Kinematic: moved by the engine according to the user-set velocity, but ignores
+forces, gravity, and contacts. Other dynamic bodies see the kinematic's
+velocity and respond with friction and contact forces accordingly.
+-}
+type Kind
+    = Static
+    | Dynamic
+    | Kinematic
+
+
 type alias Body =
     { id : Int -- ephemeral index assigned during simulation, -1 when not in a simulation
+    , kind : Kind
     , transform3d : Transform3d WorldCoordinates { defines : CenterOfMassCoordinates }
     , centerOfMassTransform3d : Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
     , velocity : Vec3
@@ -147,9 +161,21 @@ placeShapes inverseCenterOfMassTransform3d centerOfMassTransform3d shapes inerti
                 )
 
 
-compound : List ( Shape BodyCoordinates, Material, Float ) -> Body
-compound shapesWithMaterials =
+compound : Kind -> List ( Shape BodyCoordinates, Material, Float ) -> Body
+compound kind rawShapesWithMaterials =
     let
+        -- Static and kinematic bodies have infinite mass — strip user densities
+        -- so totalMass and inertia come out zero regardless of the materials passed.
+        shapesWithMaterials =
+            case kind of
+                Dynamic ->
+                    rawShapesWithMaterials
+
+                _ ->
+                    List.map
+                        (\( shape, mat, sign ) -> ( shape, { mat | density = 0 }, sign ))
+                        rawShapesWithMaterials
+
         { totalMass, totalVolume, centerOfMassPoint } =
             accumulateMassProps shapesWithMaterials 0 0 0 0 0
 
@@ -202,6 +228,7 @@ compound shapesWithMaterials =
             }
     in
     { id = -1
+    , kind = kind
     , velocity = Vec3.zero
     , angularVelocity = Vec3.zero
     , transform3d = transform3d
@@ -238,6 +265,12 @@ particle mass { friction, bounciness } =
             }
     in
     { id = -1
+    , kind =
+        if mass > 0 then
+            Dynamic
+
+        else
+            Static
     , velocity = Vec3.zero
     , angularVelocity = Vec3.zero
     , transform3d = Transform3d.atOrigin

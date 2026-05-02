@@ -225,7 +225,7 @@ eigenDecomposition =
                             { friction = 0, bounciness = 0, density = 700 }
 
                         body =
-                            Body.compound
+                            Body.compound Body.Dynamic
                                 [ ( Convex.fromBlock 2 1 1
                                         |> Convex.placeIn (Transform3d.atPoint { x = 1, y = 0, z = 0 })
                                         |> Shape.Convex

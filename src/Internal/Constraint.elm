@@ -98,7 +98,7 @@ buildConstraintsInner fn body1 bodies acc =
             acc
 
         ( id2, body2 ) :: rest ->
-            if body1.id - body2.id == 0 then
+            if body1.id - body2.id == 0 || (body1.kind /= Body.Dynamic && body2.kind /= Body.Dynamic) then
                 buildConstraintsInner fn body1 rest acc
 
             else

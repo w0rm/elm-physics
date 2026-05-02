@@ -2,7 +2,7 @@ module Internal.Solver exposing (solve)
 
 import Array exposing (Array)
 import Dict exposing (Dict)
-import Internal.Body exposing (Body)
+import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
 import Internal.Constraint exposing (ConstraintGroup)
 import Internal.Contact exposing (ContactGroup)
@@ -20,6 +20,7 @@ sentinel : id -> SolverBody id
 sentinel extId =
     { body =
         { id = -1
+        , kind = Body.Static
         , transform3d = Transform3d.atOrigin
         , centerOfMassTransform3d = Transform3d.atOrigin
         , velocity = Vec3.zero
@@ -87,48 +88,50 @@ applyGroupWarmStart body1 body2 equations =
                         equation
 
                     newBody1 =
-                        if body1.body.mass > 0 then
-                            let
-                                invI1 =
-                                    body1.body.invInertiaWorld
+                        case body1.body.kind of
+                            Body.Dynamic ->
+                                let
+                                    invI1 =
+                                        body1.body.invInertiaWorld
 
-                                k1 =
-                                    solverLambda * body1.body.invMass
-                            in
-                            { body = body1.body
-                            , extId = body1.extId
-                            , vX = body1.vX - k1 * vB.x
-                            , vY = body1.vY - k1 * vB.y
-                            , vZ = body1.vZ - k1 * vB.z
-                            , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * solverLambda
-                            , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * solverLambda
-                            , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * solverLambda
-                            }
+                                    k1 =
+                                        solverLambda * body1.body.invMass
+                                in
+                                { body = body1.body
+                                , extId = body1.extId
+                                , vX = body1.vX - k1 * vB.x
+                                , vY = body1.vY - k1 * vB.y
+                                , vZ = body1.vZ - k1 * vB.z
+                                , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * solverLambda
+                                , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * solverLambda
+                                , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * solverLambda
+                                }
 
-                        else
-                            body1
+                            _ ->
+                                body1
 
                     newBody2 =
-                        if body2.body.mass > 0 then
-                            let
-                                invI2 =
-                                    body2.body.invInertiaWorld
+                        case body2.body.kind of
+                            Body.Dynamic ->
+                                let
+                                    invI2 =
+                                        body2.body.invInertiaWorld
 
-                                k2 =
-                                    solverLambda * body2.body.invMass
-                            in
-                            { body = body2.body
-                            , extId = body2.extId
-                            , vX = body2.vX + k2 * vB.x
-                            , vY = body2.vY + k2 * vB.y
-                            , vZ = body2.vZ + k2 * vB.z
-                            , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * solverLambda
-                            , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * solverLambda
-                            , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * solverLambda
-                            }
+                                    k2 =
+                                        solverLambda * body2.body.invMass
+                                in
+                                { body = body2.body
+                                , extId = body2.extId
+                                , vX = body2.vX + k2 * vB.x
+                                , vY = body2.vY + k2 * vB.y
+                                , vZ = body2.vZ + k2 * vB.z
+                                , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * solverLambda
+                                , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * solverLambda
+                                , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * solverLambda
+                                }
 
-                        else
-                            body2
+                            _ ->
+                                body2
                 in
                 applyGroupWarmStart newBody1 newBody2 rest
 
@@ -154,7 +157,7 @@ applyWarmStart prevBody1 solverBodies equationsGroups =
                                 prevBody1
 
                 newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.mass == 0 then
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
                         solverBodies
 
                     else
@@ -173,7 +176,7 @@ applyWarmStart prevBody1 solverBodies equationsGroups =
             in
             applyWarmStart
                 newBody1
-                (if newBody2.body.mass > 0 then
+                (if newBody2.body.kind == Body.Dynamic then
                     Array.set bodyId2 newBody2 newSolverBodies
 
                  else
@@ -311,10 +314,10 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                                 prevBody1
 
                 newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.mass == 0 then
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
                         -- if the next equations group has the same body,
                         -- then no need to set it to the array
-                        -- also no need to update the static body
+                        -- also no need to update non-dynamic bodies (static, kinematic)
                         solverBodies
 
                     else
@@ -352,11 +355,11 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                 -- which we generated the contact equation groups (b1, b2), (b1, b3)
                 -- this lets us reduce Array.set operations
                 groupContext.body1
-                (if groupContext.body2.body.mass > 0 then
+                (if groupContext.body2.body.kind == Body.Dynamic then
                     Array.set bodyId2 groupContext.body2 newSolverBodies
 
                  else
-                    -- static bodies don’t change
+                    -- static and kinematic bodies don’t change
                     newSolverBodies
                 )
 
@@ -405,50 +408,52 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         deltalambdaPrev
 
                 newBody1 =
-                    if body1.body.mass > 0 then
-                        let
-                            invI1 =
-                                body1.body.invInertiaWorld
+                    case body1.body.kind of
+                        Body.Dynamic ->
+                            let
+                                invI1 =
+                                    body1.body.invInertiaWorld
 
-                            k1 =
-                                deltalambda * body1.body.invMass
-                        in
-                        { body = body1.body
-                        , extId = body1.extId
-                        , vX = body1.vX - k1 * vB.x
-                        , vY = body1.vY - k1 * vB.y
-                        , vZ = body1.vZ - k1 * vB.z
-                        , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
-                        , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
-                        , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
-                        }
+                                k1 =
+                                    deltalambda * body1.body.invMass
+                            in
+                            { body = body1.body
+                            , extId = body1.extId
+                            , vX = body1.vX - k1 * vB.x
+                            , vY = body1.vY - k1 * vB.y
+                            , vZ = body1.vZ - k1 * vB.z
+                            , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
+                            , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
+                            , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
+                            }
 
-                    else
-                        -- static bodies don’t move
-                        body1
+                        _ ->
+                            -- static and kinematic bodies don’t respond to impulses
+                            body1
 
                 newBody2 =
-                    if body2.body.mass > 0 then
-                        let
-                            invI2 =
-                                body2.body.invInertiaWorld
+                    case body2.body.kind of
+                        Body.Dynamic ->
+                            let
+                                invI2 =
+                                    body2.body.invInertiaWorld
 
-                            k2 =
-                                deltalambda * body2.body.invMass
-                        in
-                        { body = body2.body
-                        , extId = body2.extId
-                        , vX = body2.vX + k2 * vB.x
-                        , vY = body2.vY + k2 * vB.y
-                        , vZ = body2.vZ + k2 * vB.z
-                        , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
-                        , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
-                        , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
-                        }
+                                k2 =
+                                    deltalambda * body2.body.invMass
+                            in
+                            { body = body2.body
+                            , extId = body2.extId
+                            , vX = body2.vX + k2 * vB.x
+                            , vY = body2.vY + k2 * vB.y
+                            , vZ = body2.vZ + k2 * vB.z
+                            , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
+                            , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
+                            , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
+                            }
 
-                    else
-                        -- static bodies don’t move
-                        body2
+                        _ ->
+                            -- static and kinematic bodies don’t respond to impulses
+                            body2
             in
             solveEquationsGroup
                 newBody1

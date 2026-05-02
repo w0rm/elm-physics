@@ -4,7 +4,7 @@ module Internal.BroadPhase exposing (getContacts)
 that checks if the bounding spheres of each two bodies overlap
 -}
 
-import Internal.Body exposing (Body)
+import Internal.Body as Body exposing (Body)
 import Internal.Contact exposing (ContactGroup)
 import Internal.NarrowPhase as NarrowPhase
 import Internal.Transform3d as Transform3d
@@ -94,5 +94,5 @@ bodiesMayContact collide id1 body1 id2 body2 =
             dx * dx + dy * dy + dz * dz
     in
     (boundingRadiuses * boundingRadiuses - distanceSquared > 0)
-        && (body1.mass + body2.mass /= 0)
+        && (body1.kind == Body.Dynamic || body2.kind == Body.Dynamic)
         && collide id1 id2

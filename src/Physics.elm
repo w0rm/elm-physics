@@ -8,7 +8,7 @@ module Physics exposing
     , frame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass
     , raycast, applyForce, applyImpulse
-    , dynamic, static
+    , dynamic, static, kinematic
     , setVelocityTo, setAngularVelocityTo, scaleMassTo
     , damp, lock, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
     )
@@ -54,7 +54,7 @@ module Physics exposing
 
 # Composite bodies
 
-@docs dynamic, static
+@docs dynamic, static, kinematic
 
 
 # Overrides
@@ -129,9 +129,21 @@ type alias BodyCoordinates =
 {-| A body is pure physics state — position, velocity, orientation.
 All bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
 
-Use [block](#block), [plane](#plane), [sphere](#sphere), or [cylinder](#cylinder)
-for simple bodies, or [dynamic](#dynamic) and [static](#static) for bodies
-made of multiple [shapes](Physics-Shape#Shape).
+There are three kinds of bodies:
+
+  - **dynamic** — moved by the engine in response to forces, gravity, and contacts.
+    The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder), and
+    [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
+    [shapes](Physics-Shape#Shape) into one body.
+
+  - **static** — never moves. Used for floors, walls, and other immovable scenery.
+    The default for [plane](#plane); use [static](#static) to combine several
+    [shapes](Physics-Shape#Shape) into one body.
+
+  - **kinematic** — moves at the velocity you set via [setVelocityTo](#setVelocityTo)
+    and [setAngularVelocityTo](#setAngularVelocityTo); ignores forces, gravity, and
+    contacts, but other dynamic bodies feel its motion through friction. Used for
+    moving platforms, elevators, and turntables. Construct with [kinematic](#kinematic).
 
 -}
 type alias Body =
@@ -161,9 +173,9 @@ plane plane3d (Types.Material internalMat) =
             Direction3d.unwrap (Plane3d.normalDirection plane3d)
     in
     Types.Body
-        (InternalBody.compound
+        (InternalBody.compound InternalBody.Static
             [ ( InternalShape.Plane { position = position, normal = normal }
-              , { internalMat | density = 0 }
+              , internalMat
               , 1
               )
             ]
@@ -198,7 +210,7 @@ are derived from geometry and density.
 dynamic : List ( Shape, Material Dense ) -> Body
 dynamic shapesWithMaterials =
     Types.Body
-        (InternalBody.compound
+        (InternalBody.compound InternalBody.Dynamic
             (List.concatMap
                 (\( Types.Shape entries, Types.Material internalMat ) ->
                     List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
@@ -214,11 +226,46 @@ Static bodies only collide with dynamic bodies, not other static bodies.
 static : List ( Shape, Material any ) -> Body
 static shapesWithMaterials =
     Types.Body
-        (InternalBody.compound
+        (InternalBody.compound InternalBody.Static
             (List.concatMap
                 (\( Types.Shape entries, Types.Material internalMat ) ->
-                    -- Strip density so mass = 0 (invMass = 0), making the body truly static
-                    List.map (\( shape, _ ) -> ( shape, { internalMat | density = 0 }, 1 )) entries
+                    List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
+                )
+                shapesWithMaterials
+            )
+        )
+
+
+{-| Create a kinematic body from shapes and materials. Kinematic bodies
+have infinite mass like static bodies — forces, gravity, and contacts don't
+push them — but they're moved by the engine according to their velocity, set
+via [setVelocityTo](#setVelocityTo) and [setAngularVelocityTo](#setAngularVelocityTo).
+
+Useful for moving platforms, elevators, conveyor belts, and turntables.
+Dynamic bodies see the kinematic's velocity at the contact, so a box rests
+on a moving elevator without sliding off, and a conveyor carries crates
+along its surface.
+
+    elevator =
+        Physics.kinematic [ ( Shape.block platform, Material.steel ) ]
+            |> Physics.setVelocityTo (Vector3d.metersPerSecond 0 0 0.5)
+
+    turntable =
+        Physics.kinematic [ ( Shape.cylinder 12 disc, Material.wood ) ]
+            |> Physics.setAngularVelocityTo
+                (Vector3d.unsafe { x = 0, y = 0, z = 1 })
+
+Use [moveTo](#moveTo) / [place](#place) for teleports — they don't touch
+velocity, so the body resumes at the new position with the same velocity.
+
+-}
+kinematic : List ( Shape, Material any ) -> Body
+kinematic shapesWithMaterials =
+    Types.Body
+        (InternalBody.compound InternalBody.Kinematic
+            (List.concatMap
+                (\( Types.Shape entries, Types.Material internalMat ) ->
+                    List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
                 )
                 shapesWithMaterials
             )
@@ -326,7 +373,7 @@ rotateAround axis angle (Types.Body body) =
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
             , invInertiaWorld =
-                if body.mass > 0 then
+                if body.kind == InternalBody.Dynamic then
                     Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
                 else
@@ -375,7 +422,7 @@ place frame3d (Types.Body body) =
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
             , invInertiaWorld =
-                if body.mass > 0 then
+                if body.kind == InternalBody.Dynamic then
                     Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
                 else
@@ -609,26 +656,30 @@ velocityAt position (Types.Body body) =
     Vector3d.unsafe (Vec3.add cross body.velocity)
 
 
-{-| Get the center of mass of a body. Returns Nothing for static bodies.
+{-| Get the center of mass of a body. Returns Nothing for static and
+kinematic bodies (which have infinite mass).
 -}
 centerOfMass : Body -> Maybe (Point3d Meters WorldCoordinates)
 centerOfMass (Types.Body body) =
-    if body.mass > 0 then
-        Just (Point3d.fromMeters (Transform3d.originPoint body.transform3d))
+    case body.kind of
+        InternalBody.Dynamic ->
+            Just (Point3d.fromMeters (Transform3d.originPoint body.transform3d))
 
-    else
-        Nothing
+        _ ->
+            Nothing
 
 
-{-| Get the mass of a body. Returns Nothing for static bodies.
+{-| Get the mass of a body. Returns Nothing for static and kinematic
+bodies (which have infinite mass).
 -}
 mass : Body -> Maybe Mass
 mass (Types.Body body) =
-    if body.mass > 0 then
-        Just (Mass.kilograms body.mass)
+    case body.kind of
+        InternalBody.Dynamic ->
+            Just (Mass.kilograms body.mass)
 
-    else
-        Nothing
+        _ ->
+            Nothing
 
 
 {-| Find the closest intersection of a ray against a list of bodies.
@@ -693,17 +744,18 @@ Keep applying the force every simulation step to accelerate.
 
 -}
 applyForce : Vector3d Newtons WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyForce force position (Types.Body body) =
-    if body.mass > 0 then
-        Types.Body
-            (InternalBody.applyForce
-                (Vector3d.unwrap force)
-                (Point3d.toMeters position)
-                body
-            )
+applyForce force position ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Dynamic ->
+            Types.Body
+                (InternalBody.applyForce
+                    (Vector3d.unwrap force)
+                    (Point3d.toMeters position)
+                    body
+                )
 
-    else
-        Types.Body body
+        _ ->
+            original
 
 
 {-| Apply an impulse at a point on a body, adding to its velocity and angular velocity.
@@ -721,55 +773,62 @@ applyForce force position (Types.Body body) =
 
 -}
 applyImpulse : Vector3d (Product Newtons Seconds) WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
-applyImpulse impulse position (Types.Body body) =
-    if body.mass > 0 then
-        Types.Body
-            (InternalBody.applyImpulse
-                (Vector3d.unwrap impulse)
-                (Point3d.toMeters position)
-                body
-            )
+applyImpulse impulse position ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Dynamic ->
+            Types.Body
+                (InternalBody.applyImpulse
+                    (Vector3d.unwrap impulse)
+                    (Point3d.toMeters position)
+                    body
+                )
 
-    else
-        Types.Body body
+        _ ->
+            original
 
 
-{-| Replace the linear velocity of a body.
+{-| Replace the linear velocity of a body. Works on both [dynamic](#dynamic)
+and [kinematic](#kinematic) bodies.
 
-For physics-correct changes, prefer [applyImpulse](#applyImpulse). Using
-`setVelocityTo` after `applyImpulse` silently discards the impulse:
+For dynamic bodies, prefer [applyImpulse](#applyImpulse) — using `setVelocityTo`
+after `applyImpulse` silently discards the impulse:
 
     body
         |> applyImpulse impulse point
         -- erased by the next line
         |> setVelocityTo newVelocity
 
+For kinematic bodies, this is the primary way to drive motion — the engine
+integrates the position from the velocity each frame.
+
 Has no effect on static bodies.
 
 -}
 setVelocityTo : Vector3d MetersPerSecond WorldCoordinates -> Body -> Body
-setVelocityTo newVelocity (Types.Body body) =
-    if body.mass > 0 then
-        Types.Body { body | velocity = Vector3d.unwrap newVelocity }
+setVelocityTo newVelocity ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Static ->
+            original
 
-    else
-        Types.Body body
+        _ ->
+            Types.Body { body | velocity = Vector3d.unwrap newVelocity }
 
 
 {-| Replace the angular velocity of a body. See [setVelocityTo](#setVelocityTo)
 for guidance. Has no effect on static bodies.
 -}
 setAngularVelocityTo : Vector3d RadiansPerSecond WorldCoordinates -> Body -> Body
-setAngularVelocityTo newAngularVelocity (Types.Body body) =
-    if body.mass > 0 then
-        Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
+setAngularVelocityTo newAngularVelocity ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Static ->
+            original
 
-    else
-        Types.Body body
+        _ ->
+            Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
 
 
 {-| Scale a body to the given mass. The volume and center of mass
-are preserved. Has no effect on static bodies.
+are preserved. Has no effect on static or kinematic bodies.
 -}
 scaleMassTo : Mass -> Body -> Body
 scaleMassTo desiredMass ((Types.Body body) as original) =
@@ -777,27 +836,32 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
         newMass =
             Mass.inKilograms desiredMass
     in
-    if body.mass > 0 && newMass > 0 then
-        let
-            scale =
-                body.mass / newMass
+    case body.kind of
+        InternalBody.Dynamic ->
+            if newMass > 0 then
+                let
+                    scale =
+                        body.mass / newMass
 
-            newInvInertia =
-                { x = body.invInertia.x * scale
-                , y = body.invInertia.y * scale
-                , z = body.invInertia.z * scale
-                }
-        in
-        Types.Body
-            { body
-                | mass = newMass
-                , invMass = 1 / newMass
-                , invInertia = newInvInertia
-                , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
-            }
+                    newInvInertia =
+                        { x = body.invInertia.x * scale
+                        , y = body.invInertia.y * scale
+                        , z = body.invInertia.z * scale
+                        }
+                in
+                Types.Body
+                    { body
+                        | mass = newMass
+                        , invMass = 1 / newMass
+                        , invInertia = newInvInertia
+                        , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
+                    }
 
-    else
-        original
+            else
+                original
+
+        _ ->
+            original
 
 
 {-| Set linear and angular damping, in order to decrease velocity over time.
@@ -823,38 +887,40 @@ masks. An empty list clears all locks.
     -- character controller: slides freely, never tips
     body |> lock Lock.allRotation
 
-See [Physics.Lock](Physics-Lock) for the available tokens. Has no effect on static bodies.
+See [Physics.Lock](Physics-Lock) for the available tokens. Has no effect on
+static or kinematic bodies.
 
 -}
 lock : List Lock -> Body -> Body
-lock locks (Types.Body body) =
-    if body.mass > 0 then
+lock locks ((Types.Body body) as original) =
+    if body.kind == InternalBody.Dynamic then
         Types.Body (InternalBody.lock locks body)
 
     else
-        Types.Body body
+        original
 
 
 {-| Apply the inverse inertia tensor of a body to a vector.
-Returns Vector3d.zero for static bodies.
+Returns Vector3d.zero for static and kinematic bodies.
 For common cases, see [angularAccelerationFromTorque](#angularAccelerationFromTorque)
 and [angularVelocityDeltaFromAngularImpulse](#angularVelocityDeltaFromAngularImpulse).
 -}
 applyInverseInertia : Body -> Vector3d units WorldCoordinates -> Vector3d (Rate units (Product Kilograms SquareMeters)) WorldCoordinates
 applyInverseInertia (Types.Body body) vector =
-    if body.mass > 0 then
-        let
-            { x, y, z } =
-                Vector3d.unwrap vector
-        in
-        Vector3d.unsafe
-            { x = body.invInertiaWorld.m11 * x + body.invInertiaWorld.m12 * y + body.invInertiaWorld.m13 * z
-            , y = body.invInertiaWorld.m21 * x + body.invInertiaWorld.m22 * y + body.invInertiaWorld.m23 * z
-            , z = body.invInertiaWorld.m31 * x + body.invInertiaWorld.m32 * y + body.invInertiaWorld.m33 * z
-            }
+    case body.kind of
+        InternalBody.Dynamic ->
+            let
+                { x, y, z } =
+                    Vector3d.unwrap vector
+            in
+            Vector3d.unsafe
+                { x = body.invInertiaWorld.m11 * x + body.invInertiaWorld.m12 * y + body.invInertiaWorld.m13 * z
+                , y = body.invInertiaWorld.m21 * x + body.invInertiaWorld.m22 * y + body.invInertiaWorld.m23 * z
+                , z = body.invInertiaWorld.m31 * x + body.invInertiaWorld.m32 * y + body.invInertiaWorld.m33 * z
+                }
 
-    else
-        Vector3d.zero
+        _ ->
+            Vector3d.zero
 
 
 {-| Compute angular acceleration from torque: α = I⁻¹τ

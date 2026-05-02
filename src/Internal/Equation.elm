@@ -7,7 +7,7 @@ module Internal.Equation exposing
     )
 
 import Dict exposing (Dict)
-import Internal.Body exposing (Body)
+import Internal.Body as Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, ContactGroup, SolverContact)
 import Internal.Shape exposing (CenterOfMassCoordinates)
@@ -542,14 +542,14 @@ computeGiMf : Vec3 -> Body -> Body -> Equation -> Float
 computeGiMf gravity bi bj { wA, vB, wB } =
     let
         gravityi =
-            if bi.mass > 0 then
+            if bi.kind == Body.Dynamic then
                 gravity
 
             else
                 Vec3.zero
 
         gravityj =
-            if bj.mass > 0 then
+            if bj.kind == Body.Dynamic then
                 gravity
 
             else
