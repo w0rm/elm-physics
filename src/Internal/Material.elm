@@ -3,6 +3,7 @@ module Internal.Material exposing
     , combineBounciness
     , combineFriction
     , ice
+    , plastic
     , rubber
     , steel
     , wood
@@ -50,3 +51,8 @@ steel =
 ice : Material
 ice =
     { friction = 0.03, bounciness = 0.1, density = 900 }
+
+
+plastic : Material
+plastic =
+    { friction = 0.35, bounciness = 0.45, density = 1050 }

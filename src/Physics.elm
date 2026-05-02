@@ -1,13 +1,12 @@
 module Physics exposing
-    ( WorldCoordinates, BodyCoordinates
-    , Body
+    ( Body, BodyCoordinates, WorldCoordinates
     , block, plane, sphere, cylinder, pointMass
     , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
     , frame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass
-    , raycast, applyForce, applyImpulse
+    , raycast, applyForce, applyImpulse, applyTorque, applyAngularImpulse
     , dynamic, static, kinematic
     , setVelocityTo, setAngularVelocityTo, scaleMassTo
     , damp, lock, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
@@ -16,14 +15,9 @@ module Physics exposing
 {-|
 
 
-# Coordinates
-
-@docs WorldCoordinates, BodyCoordinates
-
-
 # Bodies
 
-@docs Body
+@docs Body, BodyCoordinates, WorldCoordinates
 
 @docs block, plane, sphere, cylinder, pointMass
 
@@ -49,7 +43,7 @@ module Physics exposing
 
 # Interaction
 
-@docs raycast, applyForce, applyImpulse
+@docs raycast, applyForce, applyImpulse, applyTorque, applyAngularImpulse
 
 
 # Composite bodies
@@ -87,6 +81,7 @@ import Frame3d exposing (Frame3d)
 import Internal.AssignIds
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
+import Internal.Const as Const
 import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
 import Internal.Coordinates
@@ -111,23 +106,19 @@ import Torque exposing (NewtonMeters)
 import Vector3d exposing (Vector3d)
 
 
-{-| Coordinate system of the simulation, used for positions and velocities
-of bodies.
--}
+{-| -}
 type alias WorldCoordinates =
     Internal.Coordinates.WorldCoordinates
 
 
-{-| Coordinate system of a body, used for defining
-[shapes](Physics-Shape#Shape) and [constraints](Physics-Constraint#Constraint)
-relative to the body’s origin.
--}
+{-| -}
 type alias BodyCoordinates =
     Internal.Coordinates.BodyCoordinates
 
 
-{-| A body is pure physics state — position, velocity, orientation.
-All bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
+{-| A body is anything the simulation moves or collides — a ball, a box, a wall, a moving platform.
+It is defined in [BodyCoordinates](#BodyCoordinates) and positioned in [WorldCoordinates](#WorldCoordinates).
+Bodies start out centered on the origin; use [moveTo](#moveTo) to set the position.
 
 There are three kinds of bodies:
 
@@ -196,12 +187,17 @@ cylinder cylinder3d mat =
     dynamic [ ( Shape.cylinder 12 cylinder3d, mat ) ]
 
 
-{-| Create a point mass — infinitely small, so it doesn’t collide with other point masses.
+{-| Create a point mass — a body with mass but no extent. Two point masses
+pass through each other; with all other bodies they collide normally.
 -}
 pointMass : Point3d Meters WorldCoordinates -> Mass -> Material any -> Body
 pointMass position massVal (Types.Material internalMat) =
-    Types.Body (InternalBody.particle (max 0 (Mass.inKilograms massVal)) internalMat)
-        |> moveTo position
+    Types.Body
+        (InternalBody.pointMass
+            (Point3d.toMeters position)
+            (max Const.precision (Mass.inKilograms massVal))
+            internalMat
+        )
 
 
 {-| Create a dynamic body from shapes and materials. Mass and center of mass
@@ -237,12 +233,12 @@ static shapesWithMaterials =
 
 
 {-| Create a kinematic body from shapes and materials. Kinematic bodies
-have infinite mass like static bodies — forces, gravity, and contacts don't
-push them — but they're moved by the engine according to their velocity, set
+have infinite mass like static bodies — forces, gravity, and contacts don’t
+push them — but they’re moved by the engine according to their velocity, set
 via [setVelocityTo](#setVelocityTo) and [setAngularVelocityTo](#setAngularVelocityTo).
 
 Useful for moving platforms, elevators, conveyor belts, and turntables.
-Dynamic bodies see the kinematic's velocity at the contact, so a box rests
+Dynamic bodies see the kinematic’s velocity at the contact, so a box rests
 on a moving elevator without sliding off, and a conveyor carries crates
 along its surface.
 
@@ -251,12 +247,11 @@ along its surface.
             |> Physics.setVelocityTo (Vector3d.metersPerSecond 0 0 0.5)
 
     turntable =
-        Physics.kinematic [ ( Shape.cylinder 12 disc, Material.wood ) ]
+        Physics.kinematic [ ( Shape.cylinder 16 disc, Material.plastic ) ]
             |> Physics.setAngularVelocityTo
-                (Vector3d.unsafe { x = 0, y = 0, z = 1 })
-
-Use [moveTo](#moveTo) / [place](#place) for teleports — they don't touch
-velocity, so the body resumes at the new position with the same velocity.
+                (Vector3d.withLength (AngularSpeed.radiansPerSecond 1)
+                    Direction3d.positiveZ
+                )
 
 -}
 kinematic : List ( Shape, Material any ) -> Body
@@ -272,8 +267,7 @@ kinematic shapesWithMaterials =
         )
 
 
-{-| Set the position of the body in the world,
-e.g. to raise a body 5 meters above the origin:
+{-| Set the position of the body, e.g. to raise a body 5 meters above the origin:
 
     movedBody =
         body
@@ -388,7 +382,8 @@ but also sets the orientation.
         body
             |> place
                 (Frame3d.atPoint (Point3d.meters 2 0 1)
-                    |> Frame3d.rotateAround Axis3d.z (Angle.degrees 45)
+                    |> Frame3d.rotateAround Axis3d.z
+                        (Angle.degrees 45)
                 )
 
 Left-handed frames are not supported — Z is recomputed from X and Y.
@@ -535,7 +530,7 @@ onEarth =
 
   - `constrain` — limit body movement relative to each other, see [Constraint](Physics-Constraint#Constraint)
 
-  - `collide` — decide which bodies can collide with each other.
+  - `collide` — decide which bodies can collide with each other
 
 -}
 type alias Config id =
@@ -556,7 +551,7 @@ type alias Contacts id =
 
 
 {-| Get contact points from the most recent simulation frame, filtered by a predicate.
-Each entry is a pair of body ids and a list of world-space contact points between them.
+Each entry is a pair of body ids and a list of contact points between them.
 
     crash =
         Physics.contactPoints
@@ -583,7 +578,7 @@ emptyContacts =
         }
 
 
-{-| Get the position and orientation of the body in the world as Frame3d.
+{-| Get the position and orientation of the body as Frame3d.
 Useful to transform points and directions between world and body coordinates,
 e.g. for rendering.
 -}
@@ -604,7 +599,7 @@ frame (Types.Body { transform3d, centerOfMassTransform3d }) =
         }
 
 
-{-| Get the origin point of a body in the world.
+{-| Get the origin point of a body.
 -}
 originPoint : Body -> Point3d Meters WorldCoordinates
 originPoint (Types.Body { transform3d, centerOfMassTransform3d }) =
@@ -787,6 +782,53 @@ applyImpulse impulse position ((Types.Body body) as original) =
             original
 
 
+{-| Apply a pure torque to a body — spin without translation.
+
+Keep applying the torque every simulation step to spin up.
+
+    torque =
+        Vector3d.withLength (Torque.newtonMeters 5)
+            Direction3d.positiveZ
+
+    spinningTop =
+        top
+            |> applyTorque torque
+
+-}
+applyTorque : Vector3d NewtonMeters WorldCoordinates -> Body -> Body
+applyTorque torque ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Dynamic ->
+            Types.Body (InternalBody.applyTorque (Vector3d.unwrap torque) body)
+
+        _ ->
+            original
+
+
+{-| Apply an angular impulse to a body, adding to its angular velocity.
+
+    angularImpulse =
+        Vector3d.withLength
+            (Quantity.times (Duration.seconds 0.005)
+                (Torque.newtonMeters 50)
+            )
+            Direction3d.positiveZ
+
+    spunUp =
+        body
+            |> applyAngularImpulse angularImpulse
+
+-}
+applyAngularImpulse : Vector3d (Product NewtonMeters Seconds) WorldCoordinates -> Body -> Body
+applyAngularImpulse angularImpulse ((Types.Body body) as original) =
+    case body.kind of
+        InternalBody.Dynamic ->
+            Types.Body (InternalBody.applyAngularImpulse (Vector3d.unwrap angularImpulse) body)
+
+        _ ->
+            original
+
+
 {-| Replace the linear velocity of a body. Works on both [dynamic](#dynamic)
 and [kinematic](#kinematic) bodies.
 
@@ -866,7 +908,7 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
 
 {-| Set linear and angular damping, in order to decrease velocity over time.
 These parameters specify the proportion of velocity lost per second.
-Inputs are clamped between 0 and 1, the defaults are 0.01.
+Values are clamped to [0, 1]. Default: 0.01 for both.
 -}
 damp : { linear : Float, angular : Float } -> Body -> Body
 damp { linear, angular } (Types.Body body) =

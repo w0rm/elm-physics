@@ -1,6 +1,6 @@
 module Physics.Material exposing
     ( Material
-    , wood, rubber, steel, ice
+    , wood, rubber, steel, ice, plastic
     , Dense, dense, Surface, surface
     )
 
@@ -8,7 +8,7 @@ module Physics.Material exposing
 
 @docs Material
 
-@docs wood, rubber, steel, ice
+@docs wood, rubber, steel, ice, plastic
 
 
 # Custom materials
@@ -71,6 +71,13 @@ steel =
 ice : Material any
 ice =
     Types.Material Internal.ice
+
+
+{-| Density 1050 kg/m³, friction 0.35, bounciness 0.45.
+-}
+plastic : Material any
+plastic =
+    Types.Material Internal.plastic
 
 
 {-| Material with density, required for dynamic bodies

@@ -1,11 +1,13 @@
 module Internal.Body exposing
     ( Body
     , Kind(..)
+    , applyAngularImpulse
     , applyForce
     , applyImpulse
+    , applyTorque
     , compound
     , lock
-    , particle
+    , pointMass
     , raycast
     )
 
@@ -255,8 +257,8 @@ compound kind rawShapesWithMaterials =
     }
 
 
-particle : Float -> Material -> Body
-particle mass { friction, bounciness } =
+pointMass : Vec3 -> Float -> Material -> Body
+pointMass position mass { friction, bounciness } =
     let
         contactMaterial =
             { friction = friction
@@ -265,35 +267,25 @@ particle mass { friction, bounciness } =
             }
     in
     { id = -1
-    , kind =
-        if mass > 0 then
-            Dynamic
-
-        else
-            Static
+    , kind = Dynamic
     , velocity = Vec3.zero
     , angularVelocity = Vec3.zero
-    , transform3d = Transform3d.atOrigin
+    , transform3d = Transform3d.atPoint position
     , centerOfMassTransform3d = Transform3d.atOrigin
     , mass = mass
     , volume = 0
     , shapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
-    , worldShapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
+    , worldShapesWithMaterials = [ ( Particle position, contactMaterial ) ]
     , boundingSphereRadius = 0
     , linearDamping = 0.01
     , angularDamping = 0.01
-    , invMass =
-        if mass > 0 then
-            1 / mass
-
-        else
-            0
+    , invMass = 1 / mass
     , invInertia = Vec3.zero
     , invInertiaWorld = Mat3.zero
     , force = Vec3.zero
     , torque = Vec3.zero
-    , linearLock = { x = 1, y = 1, z = 1 }
-    , angularLock = { x = 1, y = 1, z = 1 }
+    , linearLock = Vec3.one
+    , angularLock = Vec3.one
     }
 
 
@@ -335,6 +327,29 @@ applyForce force point body =
     { body
         | force = Vec3.add body.force force
         , torque = Vec3.add body.torque torque
+    }
+
+
+applyTorque : Vec3 -> Body -> Body
+applyTorque torque body =
+    { body | torque = Vec3.add body.torque torque }
+
+
+applyAngularImpulse : Vec3 -> Body -> Body
+applyAngularImpulse angularImpulse body =
+    let
+        { x, y, z } =
+            angularImpulse
+
+        { angularVelocity, invInertiaWorld } =
+            body
+    in
+    { body
+        | angularVelocity =
+            { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+            , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+            , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+            }
     }
 
 
