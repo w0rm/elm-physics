@@ -3,7 +3,7 @@
     "name": "w0rm/elm-physics",
     "summary": "3D physics engine",
     "license": "BSD-3-Clause",
-    "version": "6.0.0",
+    "version": "6.0.1",
     "exposed-modules": [
         "Physics",
         "Physics.Material",
