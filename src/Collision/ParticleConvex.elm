@@ -8,55 +8,75 @@ import Shapes.Convex exposing (Convex, Face)
 
 addContacts : String -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
 addContacts idPrefix orderContact particlePosition { faces } contacts =
-    case convexContact idPrefix particlePosition faces Const.maxNumber Nothing of
-        Just contact ->
-            orderContact contact :: contacts
+    case faces of
+        ( primary, partner ) :: rest ->
+            convexContact idPrefix orderContact particlePosition primary partner rest Const.maxNumber Vec3.zero contacts
 
-        Nothing ->
+        [] ->
             contacts
 
 
-convexContact : String -> Vec3 -> List Face -> Float -> Maybe Contact -> Maybe Contact
-convexContact idPrefix particlePosition faces bestDepth bestContact =
-    case faces of
-        [] ->
-            bestContact
+{-| Defers the `Contact` construction to the end of the recursion: tracks
+(`bestDepth`, `bestNormal`) as separate args (sentinel
+`bestDepth = Const.maxNumber` means "not yet found") and constructs the
+contact once when faces are exhausted. The previous version allocated a
+fresh `Contact` for every face that improved the best — for an N-face
+convex that's up to N allocations per particle, of which only the last
+is used.
 
-        { vertices, normal } :: remainingFaces ->
-            let
-                point =
-                    case vertices of
-                        first :: _ ->
-                            first
+Walks the grouped face structure with a single tail-recursive loop that
+threads `currentFace : Face` plus the partner waiting in this group
+(`nextFace : Maybe Face`) and `queuedGroups : List ( Face, Maybe Face )`
+for the rest. Bails on the first face whose half-space excludes the
+particle.
 
-                        [] ->
-                            Vec3.zero
+-}
+convexContact : String -> (Contact -> Contact) -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Float -> Vec3 -> List Contact -> List Contact
+convexContact idPrefix orderContact particlePosition currentFace nextFace queuedGroups bestDepth bestNormal contacts =
+    let
+        point =
+            case currentFace.vertices of
+                first :: _ ->
+                    first
 
-                dot =
-                    Vec3.dot
-                        normal
-                        (Vec3.sub point particlePosition)
-            in
-            if dot >= 0 then
+                [] ->
+                    Vec3.zero
+
+        dot =
+            Vec3.dot
+                currentFace.normal
+                (Vec3.sub point particlePosition)
+    in
+    if dot >= 0 then
+        let
+            ( newDepth, newNormal ) =
                 if dot - bestDepth < 0 then
-                    convexContact idPrefix
-                        particlePosition
-                        remainingFaces
-                        dot
-                        (Just
-                            { id = idPrefix
-                            , ni = Vec3.negate normal
-                            , pi = particlePosition
-                            , pj = Vec3.add particlePosition (Vec3.scale dot normal)
-                            }
-                        )
+                    ( dot, currentFace.normal )
 
                 else
-                    convexContact idPrefix
-                        particlePosition
-                        remainingFaces
-                        bestDepth
-                        bestContact
+                    ( bestDepth, bestNormal )
+        in
+        case nextFace of
+            Just face ->
+                convexContact idPrefix orderContact particlePosition face Nothing queuedGroups newDepth newNormal contacts
 
-            else
-                Nothing
+            Nothing ->
+                case queuedGroups of
+                    ( primary, partner ) :: restGroups ->
+                        convexContact idPrefix orderContact particlePosition primary partner restGroups newDepth newNormal contacts
+
+                    [] ->
+                        if newDepth - Const.maxNumber < 0 then
+                            orderContact
+                                { id = idPrefix
+                                , ni = Vec3.negate newNormal
+                                , pi = particlePosition
+                                , pj = Vec3.add particlePosition (Vec3.scale newDepth newNormal)
+                                }
+                                :: contacts
+
+                        else
+                            contacts
+
+    else
+        contacts

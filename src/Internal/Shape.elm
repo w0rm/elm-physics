@@ -14,6 +14,7 @@ import Internal.Coordinates exposing (WorldCoordinates)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Shapes.Capsule as Capsule exposing (Capsule)
 import Shapes.Convex as Convex exposing (Convex)
 import Shapes.Plane as Plane exposing (Plane)
 import Shapes.Sphere as Sphere exposing (Sphere)
@@ -27,6 +28,7 @@ type Shape coordinates
     = Convex Convex
     | Plane Plane
     | Sphere Sphere
+    | Capsule Capsule
     | Particle Vec3
 
 
@@ -38,6 +40,9 @@ volume shape =
 
         Convex convex ->
             convex.volume
+
+        Capsule capsule ->
+            capsule.volume
 
         Plane _ ->
             0
@@ -55,6 +60,9 @@ inertia shape =
         Convex convex ->
             convex.inertia
 
+        Capsule capsule ->
+            capsule.inertia
+
         Plane _ ->
             Mat3.zero
 
@@ -70,6 +78,9 @@ centerOfMass shape =
 
         Convex convex ->
             convex.position
+
+        Capsule capsule ->
+            capsule.position
 
         Plane _ ->
             Vec3.zero
@@ -92,6 +103,9 @@ placeIn transform3d shape =
         Sphere sphere ->
             Sphere (Sphere.placeIn transform3d sphere)
 
+        Capsule capsule ->
+            Capsule (Capsule.placeIn transform3d capsule)
+
         Particle position ->
             Particle (Transform3d.pointPlaceIn transform3d position)
 
@@ -104,6 +118,9 @@ expandBoundingSphereRadius shape boundingSphereRadius =
 
         Sphere sphere ->
             Sphere.expandBoundingSphereRadius sphere boundingSphereRadius
+
+        Capsule capsule ->
+            Capsule.expandBoundingSphereRadius capsule boundingSphereRadius
 
         Plane _ ->
             Const.maxNumber
@@ -123,6 +140,9 @@ raycast ray shape =
 
         Convex convex ->
             Convex.raycast ray convex
+
+        Capsule capsule ->
+            Capsule.raycast ray capsule
 
         Particle _ ->
             Nothing

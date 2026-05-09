@@ -1,6 +1,6 @@
 module Physics exposing
     ( Body, BodyCoordinates, WorldCoordinates
-    , block, plane, sphere, cylinder, pointMass
+    , block, plane, sphere, cylinder, capsule, pointMass
     , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
@@ -19,7 +19,7 @@ module Physics exposing
 
 @docs Body, BodyCoordinates, WorldCoordinates
 
-@docs block, plane, sphere, cylinder, pointMass
+@docs block, plane, sphere, cylinder, capsule, pointMass
 
 
 # Positioning
@@ -185,6 +185,13 @@ For more subdivisions, use [dynamic](#dynamic) with [Shape.cylinder](Physics-Sha
 cylinder : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
 cylinder cylinder3d mat =
     dynamic [ ( Shape.cylinder 12 cylinder3d, mat ) ]
+
+
+{-| Create a capsule (a cylinder with hemispherical end caps).
+-}
+capsule : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
+capsule cylinder3d mat =
+    dynamic [ ( Shape.capsule cylinder3d, mat ) ]
 
 
 {-| Create a point mass — a body with mass but no extent. Two point masses

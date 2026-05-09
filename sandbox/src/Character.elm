@@ -1,9 +1,10 @@
 module Character exposing (main)
 
 {-| Character controller demo, modelled directly on cannon-es's
-PointerLockControlsCannon: sphere body, mild friction, high linear
-damping, additive velocity from input. Rotation is locked via
-[Physics.lock](Physics#lock) so the sphere slides instead of rolling.
+PointerLockControlsCannon: capsule body (axis +Z), mild friction,
+high linear damping, additive velocity from input. Rotation is
+locked via [Physics.lock](Physics#lock) so the capsule slides
+upright instead of toppling.
 
 Arrow keys to move, Space to jump.
 
@@ -18,6 +19,7 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Cylinder3d exposing (Cylinder3d)
 import Density
 import Dict exposing (Dict)
 import Direction3d
@@ -37,7 +39,6 @@ import Physics.Types exposing (Contacts(..))
 import Plane3d
 import Point3d exposing (Point3d)
 import Quantity
-import Sphere3d exposing (Sphere3d)
 import Task
 import Vector3d
 import WebGL exposing (Mesh)
@@ -61,7 +62,7 @@ jumpSpeed =
     4
 
 
-{-| Player material with mild friction so the sphere can grip steps and
+{-| Player material with mild friction so the capsule can grip steps and
 edges instead of sliding back. Combined with the floor's friction via
 the geometric mean (√(0.3·0.4) ≈ 0.35), this is enough to hold position
 on stairs but still slippery enough to feel responsive.
@@ -76,7 +77,7 @@ playerMaterial =
 
 
 {-| Slippery material for the staircase — combined with the player's 0.2
-friction via √(0.2·0.02) ≈ 0.063, so the sphere can slide up step edges
+friction via √(0.2·0.02) ≈ 0.063, so the capsule can slide up step edges
 without getting caught by tangential friction at the corner contact.
 -}
 stairMaterial : Material Material.Dense
@@ -149,7 +150,7 @@ init _ =
       , camera =
             Camera.camera
                 { from = { x = 0, y = -12, z = 8 }
-                , to = { x = 0, y = 0, z = 0.5 }
+                , to = { x = 0, y = 0, z = 0.7 }
                 }
       , forwardInput = 0
       , rightInput = 0
@@ -321,10 +322,10 @@ jumpPlayer body =
     Physics.applyImpulse impulse (Physics.originPoint body) body
 
 
-{-| The player is grounded if any of its contact points sits below its
-center. Works for flat floor AND step edges (which contact higher up on
-the sphere than floor contacts). A small 0.1 m offset keeps pure-wall
-contacts (at the sphere's equator) from falsely grounding the player.
+{-| The player is grounded if any of its contact points sits below the
+capsule's lower cylinder cap (with a small 0.1 m bias inside the lower
+cap so wall contacts on the cylinder body — clamped to z ≥ playerZ −
+playerCylinderHalfLength — don't falsely ground the player).
 -}
 playerGrounded : List ( String, Body ) -> Physics.Contacts String -> Bool
 playerGrounded bodies contacts =
@@ -339,7 +340,7 @@ playerGrounded bodies contacts =
                         (Point3d.zCoordinate (Physics.originPoint player))
 
                 threshold =
-                    playerZ - 0.1
+                    playerZ - playerCylinderHalfLength - 0.1
             in
             Physics.contactPoints
                 (\a b -> a == "player" || b == "player")
@@ -427,9 +428,26 @@ playerMass =
     5
 
 
-playerSphere : Sphere3d Meters BodyCoordinates
-playerSphere =
-    Sphere3d.atOrigin (Length.meters 0.4)
+playerRadius : Float
+playerRadius =
+    0.3
+
+
+{-| Half the cylinder body length (excluding the two hemispherical caps).
+Total capsule height = 2*(playerCylinderHalfLength + playerRadius).
+-}
+playerCylinderHalfLength : Float
+playerCylinderHalfLength =
+    0.4
+
+
+playerCapsule : Cylinder3d Meters BodyCoordinates
+playerCapsule =
+    Cylinder3d.centeredOn Point3d.origin
+        Direction3d.z
+        { radius = Length.meters playerRadius
+        , length = Length.meters (2 * playerCylinderHalfLength)
+        }
 
 
 boxBlock : Block3d Meters BodyCoordinates
@@ -495,9 +513,9 @@ initialBodies =
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
         player =
-            Physics.sphere playerSphere playerMaterial
+            Physics.capsule playerCapsule playerMaterial
                 |> Physics.scaleMassTo (Mass.kilograms playerMass)
-                |> Physics.moveTo (Point3d.meters 0 -4 0.4)
+                |> Physics.moveTo (Point3d.meters 0 -4 (playerCylinderHalfLength + playerRadius))
                 |> Physics.lock Lock.allRotation
 
         boxAt x y =
@@ -533,7 +551,7 @@ initialMeshes : Dict String (Mesh Attributes)
 initialMeshes =
     let
         playerMesh =
-            Meshes.fromTriangles (Meshes.sphere 3 playerSphere)
+            Meshes.fromTriangles (Meshes.capsule 12 playerCapsule)
 
         boxMesh =
             Meshes.fromTriangles (Meshes.block boxBlock)

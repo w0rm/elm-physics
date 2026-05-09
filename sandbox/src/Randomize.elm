@@ -41,6 +41,7 @@ type BodyShape
     | SphereShape
     | CylinderShape
     | CompoundShape
+    | CapsuleShape
 
 
 type alias Model =
@@ -213,6 +214,13 @@ cylinder3d =
         { radius = Length.meters 0.5, length = Length.meters 2 }
 
 
+capsule3d : Cylinder3d.Cylinder3d Length.Meters BodyCoordinates
+capsule3d =
+    Cylinder3d.centeredOn Point3d.origin
+        Direction3d.z
+        { radius = Length.meters 0.6, length = Length.meters 2 }
+
+
 compoundBlocks : List (Block3d.Block3d Length.Meters BodyCoordinates)
 compoundBlocks =
     List.map
@@ -248,6 +256,12 @@ makeCylinder =
         |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
+makeCapsule : Body
+makeCapsule =
+    Physics.capsule capsule3d Material.wood
+        |> Physics.scaleMassTo (Mass.kilograms 5)
+
+
 makeCompound : Body
 makeCompound =
     Physics.dynamic
@@ -258,7 +272,7 @@ makeCompound =
 initialBodiesAndMeshes : ( List ( Int, Body ), Array (Mesh Attributes), Int )
 initialBodiesAndMeshes =
     let
-        -- id=0 floor, 1 box, 2 sphere, 3 cylinder, 4 compound
+        -- id=0 floor, 1 box, 2 sphere, 3 cylinder, 4 compound, 5 capsule
         floorBody =
             Physics.plane Plane3d.xy Material.wood
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
@@ -286,12 +300,18 @@ initialBodiesAndMeshes =
                     (Angle.radians (pi / 5))
                 |> Physics.moveTo (Point3d.meters -1.2 0 5)
 
+        capsuleBody =
+            makeCapsule
+                |> Physics.rotateAround Axis3d.x (Angle.radians (pi / 4))
+                |> Physics.moveTo (Point3d.meters 1.5 0 14)
+
         bodies =
             [ ( 0, floorBody )
             , ( 1, boxBody )
             , ( 2, sphereBody )
             , ( 3, cylinderBody )
             , ( 4, compoundBody )
+            , ( 5, capsuleBody )
             ]
 
         meshes =
@@ -301,9 +321,10 @@ initialBodiesAndMeshes =
                 , Meshes.fromTriangles (Meshes.sphere 2 sphere3d)
                 , Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d)
                 , Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks)
+                , Meshes.fromTriangles (Meshes.capsule 12 capsule3d)
                 ]
     in
-    ( bodies, meshes, 5 )
+    ( bodies, meshes, 6 )
 
 
 {-| A random body raised above the plane, shifted or rotated to a random 3d angle
@@ -324,8 +345,11 @@ randomBody =
                         2 ->
                             ( makeCylinder, Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d) )
 
-                        _ ->
+                        3 ->
                             ( makeCompound, Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks) )
+
+                        _ ->
+                            ( makeCapsule, Meshes.fromTriangles (Meshes.capsule 12 capsule3d) )
             in
             ( body
                 |> Physics.rotateAround
@@ -339,4 +363,4 @@ randomBody =
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
-        (Random.int 0 3)
+        (Random.int 0 4)

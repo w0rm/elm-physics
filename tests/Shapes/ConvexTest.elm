@@ -96,6 +96,18 @@ extendContour =
 faces : Test
 faces =
     let
+        flatFaces convex =
+            List.concatMap
+                (\( primary, partner ) ->
+                    case partner of
+                        Just p ->
+                            [ primary, p ]
+
+                        Nothing ->
+                            [ primary ]
+                )
+                convex.faces
+
         normalsPointOutside convex =
             Expect.all
                 (List.map
@@ -113,7 +125,7 @@ faces =
                                     vertices
                                 )
                     )
-                    convex.faces
+                    (flatFaces convex)
                 )
                 ()
 
@@ -128,7 +140,7 @@ faces =
                             _ ->
                                 \_ -> Expect.fail "face with wrong number of vertices"
                     )
-                    convex.faces
+                    (flatFaces convex)
                 )
                 ()
 
@@ -146,14 +158,14 @@ faces =
     describe ".faces"
         [ test "block faces have correct normals" <|
             \_ ->
-                List.map .normal (Convex.fromBlock 2 2 2).faces
+                List.map .normal (flatFaces (Convex.fromBlock 2 2 2))
                     |> Expect.equal
-                        [ Vec3.zNegative
-                        , Vec3.zAxis
-                        , Vec3.yNegative
+                        [ Vec3.zAxis
+                        , Vec3.zNegative
                         , Vec3.yAxis
-                        , Vec3.xNegative
+                        , Vec3.yNegative
                         , Vec3.xAxis
+                        , Vec3.xNegative
                         ]
         , test "block faces have correct winding order" <|
             \_ -> hasCorrectWindingOrder (Convex.fromBlock 2 2 2)
@@ -181,11 +193,11 @@ uniqeNormals =
     describe ".uniqeNormals"
         [ test "works for a block" <|
             \_ ->
-                (Convex.fromBlock 2 2 2).uniqueNormals
-                    |> Expect.equal Vec3.basis
+                List.map (\( primary, _ ) -> primary.normal) (Convex.fromBlock 2 2 2).faces
+                    |> Expect.equal [ Vec3.zAxis, Vec3.yAxis, Vec3.xAxis ]
         , test "works for a square pyramid" <|
             \_ ->
-                List.length Fixtures.Convex.squarePyramid.uniqueNormals
+                List.length Fixtures.Convex.squarePyramid.faces
                     |> Expect.equal 5
         ]
 

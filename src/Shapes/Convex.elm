@@ -27,10 +27,15 @@ type alias Face =
 
 
 type alias Convex =
-    { faces : List Face
+    -- Faces grouped by parallel-or-antiparallel normal direction. For a
+    -- convex polytope each group has at most two faces (one face plus its
+    -- antipodal partner — coplanar adjacent triangles are merged in
+    -- `initFacesHelp`, so non-trivial parallel pairs never arise). The
+    -- partner is `Nothing` for a 1-face group (e.g. an icosphere face
+    -- with no antipode in the mesh) or `Just` the antipodal partner.
+    { faces : List ( Face, Maybe Face )
     , vertices : List Vec3 -- cached for performance
     , uniqueEdges : List Vec3 -- unique edges
-    , uniqueNormals : List Vec3 -- unique face normals
     , position : Vec3
     , inertia : Mat3
     , volume : Float
@@ -38,34 +43,44 @@ type alias Convex =
 
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
-placeIn transform3d { faces, vertices, uniqueEdges, uniqueNormals, position, volume, inertia } =
-    { faces = facesPlaceInHelp transform3d faces []
+placeIn transform3d { faces, vertices, uniqueEdges, position, volume, inertia } =
+    { faces = faceGroupsPlaceInHelp transform3d faces []
     , vertices = Transform3d.pointsPlaceIn transform3d vertices
     , uniqueEdges = Transform3d.directionsPlaceIn transform3d uniqueEdges
-    , uniqueNormals = Transform3d.directionsPlaceIn transform3d uniqueNormals
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
     , inertia = Transform3d.inertiaRotateIn transform3d inertia
     }
 
 
-{-| Places faces into the frame.
+{-| Place each face group: transform the primary face and any antipodal
+partner. Both outer-group order and inner-partner order are reversed by
+the prepend-into-accumulator pattern (same as `List.foldl`). Downstream
+collision code treats each pair as antiparallel via `primary.normal · axis`
+(negated for the partner), which is invariant under any number of reversals.
 -}
-facesPlaceInHelp : Transform3d coordinates defines -> List Face -> List Face -> List Face
-facesPlaceInHelp transform3d faces result =
-    case faces of
-        { vertices, normal } :: remainingFaces ->
-            facesPlaceInHelp
+faceGroupsPlaceInHelp : Transform3d coordinates defines -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+faceGroupsPlaceInHelp transform3d groups result =
+    case groups of
+        ( primary, partner ) :: rest ->
+            faceGroupsPlaceInHelp
                 transform3d
-                remainingFaces
-                ({ vertices = List.reverse (Transform3d.pointsPlaceIn transform3d vertices)
-                 , normal = Transform3d.directionPlaceIn transform3d normal
-                 }
+                rest
+                (( placeFace transform3d primary
+                 , Maybe.map (placeFace transform3d) partner
+                 )
                     :: result
                 )
 
         [] ->
             result
+
+
+placeFace : Transform3d coordinates defines -> Face -> Face
+placeFace transform3d { vertices, normal } =
+    { vertices = List.reverse (Transform3d.pointsPlaceIn transform3d vertices)
+    , normal = Transform3d.directionPlaceIn transform3d normal
+    }
 
 
 fromTriangularMesh : List ( Int, Int, Int ) -> Array Vec3 -> Convex
@@ -88,7 +103,7 @@ fromTriangularMesh faceIndices vertices =
         ( volume, position, inertia ) =
             convexMassProperties averageCenter faceIndices vertices 0 0 0 0 Mat3.zero
     in
-    { faces = faces
+    { faces = groupFacesByNormal faces
     , vertices = allVertices
     , uniqueEdges =
         List.foldl
@@ -102,17 +117,56 @@ fromTriangularMesh faceIndices vertices =
             )
             []
             faces
-    , uniqueNormals =
-        List.foldl
-            (\{ normal } ->
-                addDirectionIfDistinct normal
-            )
-            []
-            faces
     , position = position
     , volume = volume
     , inertia = inertia
     }
+
+
+{-| Group faces by parallel-or-antiparallel normal direction.
+
+The first face inserted into a group becomes the group's primary face;
+a later match becomes the partner. Collision code reads
+`primary.normal · axis` directly (and negates for the partner), so
+the relationship between primary and partner does not matter for
+correctness.
+
+For a convex polytope each direction matches at most two faces (the
+upstream coplanar merge in `initFacesHelp` collapses parallel
+neighbours), so a third match should never arrive — if one did, we
+would replace the existing partner.
+
+Outer order: insert-first (groups in the order their direction was
+first encountered).
+
+-}
+groupFacesByNormal : List Face -> List ( Face, Maybe Face )
+groupFacesByNormal allFaces =
+    groupFacesByNormalHelp allFaces []
+
+
+groupFacesByNormalHelp : List Face -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+groupFacesByNormalHelp faces acc =
+    case faces of
+        [] ->
+            acc
+
+        face :: rest ->
+            groupFacesByNormalHelp rest (insertFaceByNormal face acc)
+
+
+insertFaceByNormal : Face -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+insertFaceByNormal face groups =
+    case groups of
+        [] ->
+            [ ( face, Nothing ) ]
+
+        (( primary, _ ) as group) :: rest ->
+            if Vec3.almostZero (Vec3.cross primary.normal face.normal) then
+                ( primary, Just face ) :: rest
+
+            else
+                group :: insertFaceByNormal face rest
 
 
 convexMassProperties : Vec3 -> List ( Int, Int, Int ) -> Array Vec3 -> Float -> Float -> Float -> Float -> Mat3 -> ( Float, Vec3, Mat3 )
@@ -451,16 +505,27 @@ fromBlock sizeX sizeY sizeZ =
             }
     in
     { faces =
-        [ { vertices = [ v3, v2, v1, v0 ], normal = Vec3.zNegative }
-        , { vertices = [ v4, v5, v6, v7 ], normal = Vec3.zAxis }
-        , { vertices = [ v5, v4, v0, v1 ], normal = Vec3.yNegative }
-        , { vertices = [ v2, v3, v7, v6 ], normal = Vec3.yAxis }
-        , { vertices = [ v0, v4, v7, v3 ], normal = Vec3.xNegative }
-        , { vertices = [ v1, v2, v6, v5 ], normal = Vec3.xAxis }
+        -- Each entry is `( primaryFace, Just antipodalPartner )`. Pair
+        -- order and choice of which face is primary are arbitrary for
+        -- collision — `bestFace` reads `primary.normal · axis` directly
+        -- and negates for the partner.
+        --
+        -- The layout below is chosen so that AFTER a single `placeIn` (how
+        -- collision tests set up bodies, which reverses the outer list), the
+        -- flat traversal order is `[+x, -x, +y, -y, +z, -z]` — the IDs that
+        -- the `-fN` assertions in `CapsuleConvexTest` reference.
+        [ ( { vertices = [ v4, v5, v6, v7 ], normal = Vec3.zAxis }
+          , Just { vertices = [ v3, v2, v1, v0 ], normal = Vec3.zNegative }
+          )
+        , ( { vertices = [ v2, v3, v7, v6 ], normal = Vec3.yAxis }
+          , Just { vertices = [ v5, v4, v0, v1 ], normal = Vec3.yNegative }
+          )
+        , ( { vertices = [ v1, v2, v6, v5 ], normal = Vec3.xAxis }
+          , Just { vertices = [ v0, v4, v7, v3 ], normal = Vec3.xNegative }
+          )
         ]
     , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
     , uniqueEdges = Vec3.basis
-    , uniqueNormals = Vec3.basis
     , volume = volume
     , position = Vec3.zero
     , inertia = inertia
@@ -527,19 +592,20 @@ fromCylinder subdivisions radius length =
                     sides
     in
     { faces =
-        topCap
-            :: bottomCap
-            :: List.map
-                (\{ v0, v1, v2, v3, normal } ->
-                    { vertices = [ v0, v1, v2, v3 ], normal = normal }
-                )
-                sides
+        groupFacesByNormal
+            (topCap
+                :: bottomCap
+                :: List.map
+                    (\{ v0, v1, v2, v3, normal } ->
+                        { vertices = [ v0, v1, v2, v3 ], normal = normal }
+                    )
+                    sides
+            )
     , vertices = topCap.vertices ++ bottomCap.vertices
     , uniqueEdges =
         Vec3.zAxis
             -- Rotate normals by 90 degrees to get edge directions
             :: List.map (\{ x, y } -> { x = -y, y = x, z = 0 }) uniqueSideNormals
-    , uniqueNormals = Vec3.zAxis :: uniqueSideNormals
     , position = Vec3.zero
     , inertia = Mat3.cylinderInertia volume radius length
     , volume = volume
@@ -581,80 +647,104 @@ expandBoundingSphereRadius { vertices } boundingSphereRadius =
 
 raycast : { from : Vec3, direction : Vec3 } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } convex =
-    List.foldl
-        (\{ normal, vertices } maybeHit ->
+    case convex.faces of
+        ( primary, partner ) :: rest ->
+            raycastWalk direction from primary partner rest Nothing
+
+        [] ->
+            Nothing
+
+
+raycastWalk : Vec3 -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastWalk direction from currentFace nextFace queuedGroups maybeHit =
+    let
+        newHit =
+            raycastFace direction from currentFace maybeHit
+    in
+    case nextFace of
+        Just face ->
+            raycastWalk direction from face Nothing queuedGroups newHit
+
+        Nothing ->
+            case queuedGroups of
+                ( primary, partner ) :: restGroups ->
+                    raycastWalk direction from primary partner restGroups newHit
+
+                [] ->
+                    newHit
+
+
+raycastFace : Vec3 -> Vec3 -> Face -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastFace direction from { normal, vertices } maybeHit =
+    let
+        dot =
+            Vec3.dot direction normal
+
+        point =
+            case vertices of
+                first :: _ ->
+                    first
+
+                [] ->
+                    Vec3.zero
+    in
+    if dot < 0 then
+        let
+            pointToFrom =
+                Vec3.sub point from
+
+            scalar =
+                Vec3.dot normal pointToFrom / dot
+        in
+        if scalar >= 0 then
             let
-                dot =
-                    Vec3.dot direction normal
+                intersectionPoint =
+                    { x = direction.x * scalar + from.x
+                    , y = direction.y * scalar + from.y
+                    , z = direction.z * scalar + from.z
+                    }
 
-                point =
-                    case vertices of
-                        first :: _ ->
-                            first
-
-                        [] ->
-                            Vec3.zero
+                isInsidePolygon =
+                    foldFaceEdges
+                        (\p1 p2 result ->
+                            result
+                                && (Vec3.dot
+                                        (Vec3.sub intersectionPoint p1)
+                                        (Vec3.cross normal (Vec3.sub p2 p1))
+                                        > 0
+                                   )
+                        )
+                        True
+                        vertices
             in
-            if dot < 0 then
-                let
-                    pointToFrom =
-                        Vec3.sub point from
+            if isInsidePolygon then
+                case maybeHit of
+                    Just { distance } ->
+                        if scalar - distance < 0 then
+                            Just
+                                { distance = scalar
+                                , point = intersectionPoint
+                                , normal = normal
+                                }
 
-                    scalar =
-                        Vec3.dot normal pointToFrom / dot
-                in
-                if scalar >= 0 then
-                    let
-                        intersectionPoint =
-                            { x = direction.x * scalar + from.x
-                            , y = direction.y * scalar + from.y
-                            , z = direction.z * scalar + from.z
+                        else
+                            maybeHit
+
+                    Nothing ->
+                        Just
+                            { distance = scalar
+                            , point = intersectionPoint
+                            , normal = normal
                             }
-
-                        isInsidePolygon =
-                            foldFaceEdges
-                                (\p1 p2 result ->
-                                    result
-                                        && (Vec3.dot
-                                                (Vec3.sub intersectionPoint p1)
-                                                (Vec3.cross normal (Vec3.sub p2 p1))
-                                                > 0
-                                           )
-                                )
-                                True
-                                vertices
-                    in
-                    if isInsidePolygon then
-                        case maybeHit of
-                            Just { distance } ->
-                                if scalar - distance < 0 then
-                                    Just
-                                        { distance = scalar
-                                        , point = intersectionPoint
-                                        , normal = normal
-                                        }
-
-                                else
-                                    maybeHit
-
-                            Nothing ->
-                                Just
-                                    { distance = scalar
-                                    , point = intersectionPoint
-                                    , normal = normal
-                                    }
-
-                    else
-                        maybeHit
-
-                else
-                    maybeHit
 
             else
                 maybeHit
-        )
-        Nothing
-        convex.faces
+
+        else
+            maybeHit
+
+    else
+        maybeHit
 
 
 {-| Map the function to pairs of consecutive vertices,
