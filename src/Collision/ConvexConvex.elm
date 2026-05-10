@@ -52,13 +52,13 @@ addContacts idPrefix convex1 convex2 contacts =
                 EdgeSeparates ->
                     contacts
 
-                EdgeBeats edgeAxis edgeDir1 edgeDir2 ->
+                EdgeBeats edgeAxis dir1Idx edges1 dir2Idx edges2 ->
                     addEdgeContact idPrefix
-                        convex1
-                        convex2
                         (orientAxis convex1 convex2 edgeAxis)
-                        edgeDir1
-                        edgeDir2
+                        dir1Idx
+                        edges1
+                        dir2Idx
+                        edges2
                         contacts
 
                 NoEdgeBeats ->
@@ -145,102 +145,71 @@ orientAxis convex1 convex2 axis =
         axis
 
 
-addEdgeContact : String -> Convex -> Convex -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
-addEdgeContact idPrefix convex1 convex2 separatingAxis edgeDir1 edgeDir2 contacts =
+{-| Emit a single edge-edge contact from the SAT-winning direction
+groups. The contact id encodes `(dir1Idx, edge1Idx, dir2Idx,
+edge2Idx)` — the indices are stable across `placeIn` for a given
+source convex, so the solver's warm-start cache survives multi-edge
+contacts in the same body pair instead of collapsing every edge-edge
+contact onto a single `"-edge"` key.
+-}
+addEdgeContact : String -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
     let
         reversedSeparatingAxis =
             Vec3.negate separatingAxis
+
+        ( edge1Idx, edge1 ) =
+            pickSupportEdge reversedSeparatingAxis edges1
+
+        ( edge2Idx, edge2 ) =
+            pickSupportEdge separatingAxis edges2
+
+        ( pi, pj ) =
+            closestPointsOnSegments edge1 edge2
     in
-    case findSupportEdge edgeDir1 reversedSeparatingAxis convex1.faces of
-        Just edge1 ->
-            case findSupportEdge edgeDir2 separatingAxis convex2.faces of
-                Just edge2 ->
-                    let
-                        ( pi, pj ) =
-                            closestPointsOnSegments edge1 edge2
-                    in
-                    { id = idPrefix ++ "-edge"
-                    , ni = reversedSeparatingAxis
-                    , pi = pi
-                    , pj = pj
-                    }
-                        :: contacts
-
-                Nothing ->
-                    contacts
-
-        Nothing ->
-            contacts
+    { id =
+        idPrefix
+            ++ "-e-"
+            ++ String.fromInt dir1Idx
+            ++ "."
+            ++ String.fromInt edge1Idx
+            ++ "-"
+            ++ String.fromInt dir2Idx
+            ++ "."
+            ++ String.fromInt edge2Idx
+    , ni = reversedSeparatingAxis
+    , pi = pi
+    , pj = pj
+    }
+        :: contacts
 
 
-{-| Among face edges parallel to `edgeDir`, return the one whose midpoint
-is furthest along `supportDir`.
-
-Implemented as a single tail-recursive walker over (current face's
-remaining vertices, queue of faces) with explicit `(bestV1, bestV2,
-bestDot)` accumulator args. `bestDot = -Const.maxNumber` is the
-sentinel for "no parallel edge found yet"; we wrap into `Just` only at
-the boundary.
-
+{-| Among the parallel edges of a single direction group, return the one
+whose midpoint is furthest along `supportDir`, alongside its 1-based
+index in the group. The index is the warm-start cache key component
+(stable under `placeIn`).
 -}
-findSupportEdge : Vec3 -> Vec3 -> List ( Face, Maybe Face ) -> Maybe ( Vec3, Vec3 )
-findSupportEdge edgeDir supportDir groups =
-    walkSupportEdge edgeDir supportDir Vec3.zero [] Nothing groups Vec3.zero Vec3.zero -Const.maxNumber
+pickSupportEdge : Vec3 -> List ( Vec3, Vec3 ) -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdge supportDir edges =
+    pickSupportEdgeHelp supportDir edges 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
 
 
-walkSupportEdge : Vec3 -> Vec3 -> Vec3 -> List Vec3 -> Maybe Face -> List ( Face, Maybe Face ) -> Vec3 -> Vec3 -> Float -> Maybe ( Vec3, Vec3 )
-walkSupportEdge edgeDir supportDir firstVertex vertices nextFace queuedGroups bestV1 bestV2 bestDot =
-    case vertices of
-        v1 :: rest1 ->
+pickSupportEdgeHelp : Vec3 -> List ( Vec3, Vec3 ) -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
+    case edges of
+        (( v1, v2 ) as edge) :: rest ->
             let
-                v2 =
-                    case rest1 of
-                        [] ->
-                            firstVertex
-
-                        next :: _ ->
-                            next
+                midDot =
+                    supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
             in
-            if Vec3.almostZero (Vec3.cross (Vec3.sub v2 v1) edgeDir) then
-                let
-                    midDot =
-                        supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
-                in
-                if midDot - bestDot > 0 then
-                    walkSupportEdge edgeDir supportDir firstVertex rest1 nextFace queuedGroups v1 v2 midDot
-
-                else
-                    walkSupportEdge edgeDir supportDir firstVertex rest1 nextFace queuedGroups bestV1 bestV2 bestDot
+            if midDot - bestDot > 0 then
+                pickSupportEdgeHelp supportDir rest (idx + 1) idx edge midDot
 
             else
-                walkSupportEdge edgeDir supportDir firstVertex rest1 nextFace queuedGroups bestV1 bestV2 bestDot
+                pickSupportEdgeHelp supportDir rest (idx + 1) bestIdx bestEdge bestDot
 
         [] ->
-            case nextFace of
-                Just face ->
-                    case face.vertices of
-                        f :: _ :: _ ->
-                            walkSupportEdge edgeDir supportDir f face.vertices Nothing queuedGroups bestV1 bestV2 bestDot
-
-                        _ ->
-                            walkSupportEdge edgeDir supportDir firstVertex [] Nothing queuedGroups bestV1 bestV2 bestDot
-
-                Nothing ->
-                    case queuedGroups of
-                        ( primary, partner ) :: restGroups ->
-                            case primary.vertices of
-                                f :: _ :: _ ->
-                                    walkSupportEdge edgeDir supportDir f primary.vertices partner restGroups bestV1 bestV2 bestDot
-
-                                _ ->
-                                    walkSupportEdge edgeDir supportDir firstVertex [] partner restGroups bestV1 bestV2 bestDot
-
-                        [] ->
-                            if bestDot > -Const.maxNumber then
-                                Just ( bestV1, bestV2 )
-
-                            else
-                                Nothing
+            ( bestIdx, bestEdge )
 
 
 {-| Compute the closest points between two line segments (p1, q1) and (p2, q2).
@@ -505,7 +474,7 @@ findSeparatingAxis convex1 convex2 =
                 EdgeSeparates ->
                     Nothing
 
-                EdgeBeats edgeAxis _ _ ->
+                EdgeBeats edgeAxis _ _ _ _ ->
                     Just (orientAxis convex1 convex2 edgeAxis)
 
                 NoEdgeBeats ->
@@ -580,10 +549,40 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
 
 type EdgeResult
     = EdgeSeparates
-    | EdgeBeats Vec3 Vec3 Vec3
+    | EdgeBeats Vec3 Int (List ( Vec3, Vec3 )) Int (List ( Vec3, Vec3 ))
     | NoEdgeBeats
 
 
+{-| Edge SAT must beat face SAT by more than this to take the edge-edge
+contact path (single contact via `closestPointsOnSegments`). Below this
+margin we stay on face-clip (4-corner manifold).
+
+`Const.precision` (1e-6) is too tight: cold simulation of an
+axis-aligned 5-box stack drifts pair-wise into the 1e-6..2e-5 window
+within a few hundred frames; flipping a face-aligned pair onto a
+single edge-edge contact removes the torque arm and the stack tips.
+Bisection on `coldStableFrames` for the 5-box stack: 1e-5 → 14762
+frames, 2e-5 → 73401, 2.5e-5 → 100000 (stable). Genuine edge-edge
+contact (two cubes rotated by pi/6 against each other, ConvexConvexTest)
+clears this threshold by tens of percent, so the cheap edge path
+still fires when it's actually correct.
+
+-}
+edgePreferenceMargin : Float
+edgePreferenceMargin =
+    2.5e-5
+
+
+{-| Iterate `(dir1, dir2)` pairs of unique edge directions. Each
+direction group is `( firstEdge, otherEdges )` — direction is derived
+from the first edge via `Vec3.direction firstEdge.v1 firstEdge.v2`.
+The winner stores its full edge list (`firstEdge :: otherEdges`) so
+the support-edge picker walks only the parallel edges of the chosen
+direction (4 for a cube) instead of every face-edge (24 face-edge-
+visits today). Direction indices are 1-based and assigned in
+iteration order — stable under `placeIn`, which is what makes them
+safe to encode in contact ids.
+-}
 findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
 findEdgeSAT convex1 convex2 faceDmin =
     findEdgeSATHelp convex1
@@ -591,30 +590,38 @@ findEdgeSAT convex1 convex2 faceDmin =
         convex2.uniqueEdges
         convex1.uniqueEdges
         convex2.uniqueEdges
+        1
+        1
         NoEdgeBeats
         faceDmin
 
 
-findEdgeSATHelp : Convex -> Convex -> List Vec3 -> List Vec3 -> List Vec3 -> EdgeResult -> Float -> EdgeResult
-findEdgeSATHelp convex1 convex2 initEdges2 edges1 edges2 best dmin =
-    case edges1 of
+findEdgeSATHelp : Convex -> Convex -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
+findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best dmin =
+    case groups1 of
         [] ->
             best
 
-        edge1 :: remainingEdges1 ->
-            case edges2 of
+        ( ( v1a, v1b ) as firstEdge1, otherEdges1 ) :: remainingGroups1 ->
+            case groups2 of
                 [] ->
-                    -- requeue edges2
-                    findEdgeSATHelp convex1 convex2 initEdges2 remainingEdges1 initEdges2 best dmin
+                    -- requeue groups2 and advance outer
+                    findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 initGroups2 (dir1Idx + 1) 1 best dmin
 
-                edge2 :: remainingEdges2 ->
+                ( ( v2a, v2b ) as firstEdge2, otherEdges2 ) :: remainingGroups2 ->
                     let
+                        dir1 =
+                            Vec3.direction v1a v1b
+
+                        dir2 =
+                            Vec3.direction v2a v2b
+
                         cross =
-                            Vec3.cross edge1 edge2
+                            Vec3.cross dir1 dir2
                     in
                     if Vec3.almostZero cross then
-                        -- skip parallel edges
-                        findEdgeSATHelp convex1 convex2 initEdges2 edges1 remainingEdges2 best dmin
+                        -- skip parallel directions
+                        findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
 
                     else
                         let
@@ -626,15 +633,11 @@ findEdgeSATHelp convex1 convex2 initEdges2 edges1 edges2 best dmin =
                                 EdgeSeparates
 
                             Just dist ->
-                                -- Require the edge axis to clear the face minimum by a small
-                                -- margin. With axis-aligned bodies, edge crosses can equal face
-                                -- normals up to floating-point noise; without the margin, that
-                                -- noise would spuriously pick the edge path.
-                                if dist - dmin + Const.precision < 0 then
-                                    findEdgeSATHelp convex1 convex2 initEdges2 edges1 remainingEdges2 (EdgeBeats normalizedCross edge1 edge2) dist
+                                if dist - dmin + edgePreferenceMargin < 0 then
+                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx (firstEdge1 :: otherEdges1) dir2Idx (firstEdge2 :: otherEdges2)) dist
 
                                 else
-                                    findEdgeSATHelp convex1 convex2 initEdges2 edges1 remainingEdges2 best dmin
+                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
 
 
 {-| If projections of two convexes don’t overlap, then they don’t collide.

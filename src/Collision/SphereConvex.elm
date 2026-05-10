@@ -1,4 +1,4 @@
-module Collision.SphereConvex exposing (addContacts, sphereContact)
+module Collision.SphereConvex exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -45,7 +45,7 @@ Algorithm — two passes over the convex's faces:
     (centre is on the outward side and within `radius` of the plane),
     walk the face's edges in world frame: an edge whose plane excludes
     the sphere centre from the polygon is a "separating" candidate
-    edge for the boundary pass. If a face has *no* separating edges,
+    edge for the boundary pass. If a face has _no_ separating edges,
     the centre projects inside the polygon — that's a face contact and
     we return immediately.
 
@@ -75,19 +75,6 @@ sphereContact center radius { faces } =
 walkFaces : Vec3 -> Float -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> ( Maybe Vec3, Float )
 walkFaces center radius currentFace nextFace queuedGroups candidateEdges =
     let
-        advance newCandidateEdges =
-            case nextFace of
-                Just face ->
-                    walkFaces center radius face Nothing queuedGroups newCandidateEdges
-
-                Nothing ->
-                    case queuedGroups of
-                        ( primary, partner ) :: restGroups ->
-                            walkFaces center radius primary partner restGroups newCandidateEdges
-
-                        [] ->
-                            walkBoundaries center radius newCandidateEdges Vec3.zero (radius * radius)
-
         faceDistance =
             case currentFace.vertices of
                 first :: _ ->
@@ -102,7 +89,23 @@ walkFaces center radius currentFace nextFace queuedGroups candidateEdges =
                 classifyAndCollectEdges center currentFace.normal currentFace.vertices candidateEdges
         in
         if anyOutside then
-            advance newCandidateEdges
+            -- Advance: face partially excludes sphere; move on to the
+            -- antipodal partner / next group / boundary pass. Inlined
+            -- (no `let advance = ...`) so the recursive `walkFaces`
+            -- call sits in tail position for Elm's TCO — Elm doesn't
+            -- TCO recursive calls made through let-bound helpers or
+            -- mutually recursive pairs.
+            case nextFace of
+                Just face ->
+                    walkFaces center radius face Nothing queuedGroups newCandidateEdges
+
+                Nothing ->
+                    case queuedGroups of
+                        ( primary, partner ) :: restGroups ->
+                            walkFaces center radius primary partner restGroups newCandidateEdges
+
+                        [] ->
+                            walkBoundaries center radius newCandidateEdges Vec3.zero (radius * radius)
 
         else
             -- Sphere centre projects inside the face polygon → face contact.
@@ -115,12 +118,22 @@ walkFaces center radius currentFace nextFace queuedGroups candidateEdges =
             )
 
     else
-        advance candidateEdges
+        case nextFace of
+            Just face ->
+                walkFaces center radius face Nothing queuedGroups candidateEdges
+
+            Nothing ->
+                case queuedGroups of
+                    ( primary, partner ) :: restGroups ->
+                        walkFaces center radius primary partner restGroups candidateEdges
+
+                    [] ->
+                        walkBoundaries center radius candidateEdges Vec3.zero (radius * radius)
 
 
 {-| Walks face vertices as consecutive edges. For each edge, an edge whose
 plane excludes the sphere centre is "separating" — the centre is on the
-*outside* of that edge within the face plane. Such edges are prepended
+_outside_ of that edge within the face plane. Such edges are prepended
 onto the candidate list for the boundary pass. The returned `Bool`
 indicates whether any separating edge was found (`False` means centre
 projects inside the polygon → face contact).

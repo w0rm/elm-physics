@@ -427,7 +427,16 @@ supportFeature =
                 , ( sideFace4, Nothing )
                 ]
             , vertices = [ vDiag1, vDiag2, vAdj1, vAdj2, vApex ]
-            , uniqueEdges = []
+            , uniqueEdges =
+                -- Two direction groups span the base. The first edge
+                -- of the first group `(vDiag1, vAdj2)` doubles as the
+                -- direction representative AND is the expected return
+                -- from `supportFeature`. Apex edges omitted:
+                -- irrelevant to this test (their endpoints aren't
+                -- tied at maxProj along -z).
+                [ ( ( vDiag1, vAdj2 ), [ ( vDiag2, vAdj1 ) ] )
+                , ( ( vAdj2, vDiag2 ), [ ( vAdj1, vDiag1 ) ] )
+                ]
             , position = Vec3.zero
             , inertia = Mat3.zero
             , volume = 0

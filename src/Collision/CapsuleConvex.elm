@@ -658,7 +658,7 @@ testConvexNormals : Capsule -> Convex -> Vec3 -> Vec3 -> List ( Face, Maybe Face
 testConvexNormals capsule convex ep1 ep2 groups target dmin =
     case groups of
         [] ->
-            testFaceEdges capsule convex ep1 ep2 convex.faces target dmin
+            testUniqueEdges capsule convex ep1 ep2 convex.uniqueEdges target dmin
 
         ( { normal }, _ ) :: restGroups ->
             case testCapsuleConvexAxis capsule convex normal of
@@ -673,7 +673,7 @@ testConvexNormals capsule convex ep1 ep2 groups target dmin =
                         testConvexNormals capsule convex ep1 ep2 restGroups target dmin
 
 
-{-| For each convex face edge, derive a SAT axis from the closest
+{-| For each unique convex edge, derive a SAT axis from the closest
 points between the capsule axis segment and that edge, then test it.
 This subsumes the cross-product test used in standard convex SAT and
 additionally covers the configuration-dependent axes capsule-vs-convex
@@ -692,35 +692,23 @@ penetration through the edge) the closest-pair direction is undefined,
 so fall back to the cross-product axis. If the cross product is also
 degenerate (segments parallel) skip this edge.
 
-Implemented as a single tail-recursive walker over (current face's
-remaining vertices, queue of next faces). This avoids the per-edge
-`Maybe ( Vec3, Float )` allocation that threading state through
-`Convex.foldFaceEdges` would require — `Nothing` here means "separating
-axis found, bail out completely" and is returned directly rather than
-being threaded as accumulator state.
+Walks `convex.uniqueEdges` (each physical edge appears exactly once
+across direction groups), avoiding the face-shared double-visit a walk
+over `convex.faces` would incur.
 
 -}
-testFaceEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( Face, Maybe Face ) -> Vec3 -> Float -> Maybe Vec3
-testFaceEdges capsule convex ep1 ep2 groups target dmin =
-    walkFaceEdges capsule convex ep1 ep2 Vec3.zero [] Nothing groups target dmin
+testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges capsule convex ep1 ep2 groups target dmin =
+    walkUniqueEdges capsule convex ep1 ep2 [] groups target dmin
 
 
-walkFaceEdges : Capsule -> Convex -> Vec3 -> Vec3 -> Vec3 -> List Vec3 -> Maybe Face -> List ( Face, Maybe Face ) -> Vec3 -> Float -> Maybe Vec3
-walkFaceEdges capsule convex ep1 ep2 firstVertex vertices nextFace queuedGroups target dmin =
-    case vertices of
-        v1 :: rest1 ->
-            let
-                v2 =
-                    case rest1 of
-                        [] ->
-                            firstVertex
-
-                        next :: _ ->
-                            next
-            in
+walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( Vec3, Vec3 ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Vec3 -> Float -> Maybe Vec3
+walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
+    case edges of
+        ( v1, v2 ) :: rest ->
             case edgeAxis capsule ep1 ep2 v1 v2 of
                 Nothing ->
-                    walkFaceEdges capsule convex ep1 ep2 firstVertex rest1 nextFace queuedGroups target dmin
+                    walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
 
                 Just axis ->
                     case testCapsuleConvexAxis capsule convex axis of
@@ -729,40 +717,25 @@ walkFaceEdges capsule convex ep1 ep2 firstVertex vertices nextFace queuedGroups 
 
                         Just dist ->
                             if dist - dmin < 0 then
-                                walkFaceEdges capsule convex ep1 ep2 firstVertex rest1 nextFace queuedGroups axis dist
+                                walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups axis dist
 
                             else
-                                walkFaceEdges capsule convex ep1 ep2 firstVertex rest1 nextFace queuedGroups target dmin
+                                walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
 
         [] ->
-            case nextFace of
-                Just face ->
-                    case face.vertices of
-                        f :: _ :: _ ->
-                            walkFaceEdges capsule convex ep1 ep2 f face.vertices Nothing queuedGroups target dmin
+            case queuedGroups of
+                ( firstEdge, otherEdges ) :: restGroups ->
+                    walkUniqueEdges capsule convex ep1 ep2 (firstEdge :: otherEdges) restGroups target dmin
 
-                        _ ->
-                            walkFaceEdges capsule convex ep1 ep2 firstVertex [] Nothing queuedGroups target dmin
+                [] ->
+                    -- Orient the axis to point FROM convex TOWARDS capsule, so the
+                    -- contact normal `Vec3.negate target` points OUT of the capsule
+                    -- at the contact (matches `SphereConvex` convention).
+                    if Vec3.dot (Vec3.sub convex.position capsule.position) target > 0 then
+                        Just (Vec3.negate target)
 
-                Nothing ->
-                    case queuedGroups of
-                        ( primary, partner ) :: restGroups ->
-                            case primary.vertices of
-                                f :: _ :: _ ->
-                                    walkFaceEdges capsule convex ep1 ep2 f primary.vertices partner restGroups target dmin
-
-                                _ ->
-                                    walkFaceEdges capsule convex ep1 ep2 firstVertex [] partner restGroups target dmin
-
-                        [] ->
-                            -- Orient the axis to point FROM convex TOWARDS capsule, so the
-                            -- contact normal `Vec3.negate target` points OUT of the capsule
-                            -- at the contact (matches `SphereConvex` convention).
-                            if Vec3.dot (Vec3.sub convex.position capsule.position) target > 0 then
-                                Just (Vec3.negate target)
-
-                            else
-                                Just target
+                    else
+                        Just target
 
 
 edgeAxis : Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Maybe Vec3
@@ -801,13 +774,11 @@ Algorithm:
   - Pass 1: max projection over vertices.
   - Pass 2: collect the first two vertices within tolerance of max.
   - If only one is found, return it (vertex support).
-  - If two or more are tied, walk `convex.faces` to find an edge whose both
-    endpoints are within tolerance — consecutive vertices in `face.vertices`
-    are guaranteed edge-adjacent by the data structure. The face walk
-    short-circuits on the first hit. Each shared edge is visited from two
-    faces; that 2× cost only applies on this branch.
+  - If two or more are tied, walk `convex.uniqueEdges` to find an edge
+    whose both endpoints are within tolerance. Each physical edge is
+    visited once (no face-shared double-visit).
   - If no such edge exists (truly degenerate: two tied vertices that aren't
-    edge-adjacent in any face), fall back to the first tied vertex.
+    connected by an edge), fall back to the first tied vertex.
 
 This avoids the earlier "first 2 vertices in `convex.vertices` order" bug
 where the picked pair could be a face diagonal rather than an edge — the
@@ -829,7 +800,7 @@ supportFeature axis convex =
             [ v ]
 
         firstTied :: _ ->
-            case findSupportEdgeOnFaces axis maxProj convex.faces of
+            case findTiedUniqueEdge axis maxProj convex.uniqueEdges of
                 Just ( e1, e2 ) ->
                     [ e1, e2 ]
 
@@ -880,68 +851,34 @@ collectFirstTwoTied axis maxProj verts count v1 =
                 collectFirstTwoTied axis maxProj rest count v1
 
 
-findSupportEdgeOnFaces : Vec3 -> Float -> List ( Face, Maybe Face ) -> Maybe ( Vec3, Vec3 )
-findSupportEdgeOnFaces axis maxProj groups =
+{-| Walk every unique edge across all direction groups and return the
+first whose both endpoints are within tolerance of `maxProj`. Short-
+circuits on first match.
+-}
+findTiedUniqueEdge : Vec3 -> Float -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Maybe ( Vec3, Vec3 )
+findTiedUniqueEdge axis maxProj groups =
     case groups of
-        ( primary, partner ) :: rest ->
-            walkSupportEdgeOnFaces axis maxProj primary partner rest
+        ( firstEdge, otherEdges ) :: restGroups ->
+            case findTiedEdgeInGroup axis maxProj (firstEdge :: otherEdges) of
+                (Just _) as found ->
+                    found
+
+                Nothing ->
+                    findTiedUniqueEdge axis maxProj restGroups
 
         [] ->
             Nothing
 
 
-walkSupportEdgeOnFaces : Vec3 -> Float -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Maybe ( Vec3, Vec3 )
-walkSupportEdgeOnFaces axis maxProj currentFace nextFace queuedGroups =
-    case findTiedEdgeOnFace axis maxProj currentFace.vertices of
-        (Just _) as found ->
-            found
+findTiedEdgeInGroup : Vec3 -> Float -> List ( Vec3, Vec3 ) -> Maybe ( Vec3, Vec3 )
+findTiedEdgeInGroup axis maxProj edges =
+    case edges of
+        ( v1, v2 ) :: rest ->
+            if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot v2 axis < 1.0e-4) then
+                Just ( v1, v2 )
 
-        Nothing ->
-            case nextFace of
-                Just face ->
-                    walkSupportEdgeOnFaces axis maxProj face Nothing queuedGroups
-
-                Nothing ->
-                    case queuedGroups of
-                        ( primary, partner ) :: restGroups ->
-                            walkSupportEdgeOnFaces axis maxProj primary partner restGroups
-
-                        [] ->
-                            Nothing
-
-
-{-| Walk consecutive vertex pairs in a face (mirrors `Convex.foldFaceEdges`)
-and return the first edge whose both endpoints are within tolerance of
-`maxProj`. Short-circuits on first match.
--}
-findTiedEdgeOnFace : Vec3 -> Float -> List Vec3 -> Maybe ( Vec3, Vec3 )
-findTiedEdgeOnFace axis maxProj vertices =
-    case vertices of
-        first :: _ :: _ ->
-            findTiedEdgeOnFaceHelp axis maxProj first vertices
-
-        _ ->
-            Nothing
-
-
-findTiedEdgeOnFaceHelp : Vec3 -> Float -> Vec3 -> List Vec3 -> Maybe ( Vec3, Vec3 )
-findTiedEdgeOnFaceHelp axis maxProj firstVertex vertices =
-    case vertices of
-        v1 :: rest1 ->
-            case rest1 of
-                [] ->
-                    if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot firstVertex axis < 1.0e-4) then
-                        Just ( v1, firstVertex )
-
-                    else
-                        Nothing
-
-                v2 :: _ ->
-                    if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot v2 axis < 1.0e-4) then
-                        Just ( v1, v2 )
-
-                    else
-                        findTiedEdgeOnFaceHelp axis maxProj firstVertex rest1
+            else
+                findTiedEdgeInGroup axis maxProj rest
 
         [] ->
             Nothing

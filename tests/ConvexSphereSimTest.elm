@@ -86,29 +86,6 @@ runStepsTrace n bodies contacts trace =
         runStepsTrace (n - 1) newBodies newContacts (( cubeP, icoP ) :: trace)
 
 
-vecStr : { x : Float, y : Float, z : Float } -> String
-vecStr p =
-    "(" ++ String.fromFloat p.x ++ "," ++ String.fromFloat p.y ++ "," ++ String.fromFloat p.z ++ ")"
-
-
-runSteps : Int -> List ( Int, Body ) -> ( List ( Int, Body ), Physics.Contacts Int )
-runSteps n initial =
-    runStepsHelp n initial Physics.emptyContacts
-
-
-runStepsHelp : Int -> List ( Int, Body ) -> Physics.Contacts Int -> ( List ( Int, Body ), Physics.Contacts Int )
-runStepsHelp n bodies contacts =
-    if n <= 0 then
-        ( bodies, contacts )
-
-    else
-        let
-            ( newBodies, newContacts ) =
-                Physics.simulate { onEarth | contacts = contacts } bodies
-        in
-        runStepsHelp (n - 1) newBodies newContacts
-
-
 
 -- Bodies (mirror sandbox/src/ConvexSphere.elm)
 

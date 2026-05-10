@@ -207,8 +207,48 @@ uniqueEdges =
     describe ".uniqueEdges"
         [ test "works for a block" <|
             \_ ->
+                let
+                    v0 =
+                        { x = -1, y = -1, z = -1 }
+
+                    v1 =
+                        { x = 1, y = -1, z = -1 }
+
+                    v2 =
+                        { x = 1, y = 1, z = -1 }
+
+                    v3 =
+                        { x = -1, y = 1, z = -1 }
+
+                    v4 =
+                        { x = -1, y = -1, z = 1 }
+
+                    v5 =
+                        { x = 1, y = -1, z = 1 }
+
+                    v6 =
+                        { x = 1, y = 1, z = 1 }
+
+                    v7 =
+                        { x = -1, y = 1, z = 1 }
+                in
                 (Convex.fromBlock 2 2 2).uniqueEdges
-                    |> Expect.equal Vec3.basis
+                    |> Expect.equal
+                        [ ( ( v0, v1 ), [ ( v3, v2 ), ( v4, v5 ), ( v7, v6 ) ] )
+                        , ( ( v0, v3 ), [ ( v1, v2 ), ( v4, v7 ), ( v5, v6 ) ] )
+                        , ( ( v0, v4 ), [ ( v1, v5 ), ( v2, v6 ), ( v3, v7 ) ] )
+                        ]
+        , test "block uniqueEdges has 12 edges across 3 directions" <|
+            \_ ->
+                (Convex.fromBlock 2 3 5).uniqueEdges
+                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> Expect.equal [ 4, 4, 4 ]
+        , test "block from triangular mesh has 12 edges across 3 directions" <|
+            \_ ->
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).uniqueEdges
+                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> List.sort
+                    |> Expect.equal [ 4, 4, 4 ]
         , test "works for a square pyramid" <|
             \_ ->
                 List.length Fixtures.Convex.squarePyramid.uniqueEdges
@@ -216,6 +256,7 @@ uniqueEdges =
         , test "works for an off-square pyramid" <|
             \_ ->
                 List.length Fixtures.Convex.askewSquarePyramid.uniqueEdges
+                    -- all edges unique, none parallel
                     |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->

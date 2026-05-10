@@ -90,7 +90,7 @@ addContacts =
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.7, y = 0.7, z = 0.7 })
                 in
                 Collision.ConvexConvex.addContacts "" box1 box2 []
-                    |> List.all (\c -> not (String.endsWith "-edge" c.id))
+                    |> List.all (\c -> not (String.startsWith "-e-" c.id))
                     |> Expect.equal True
         ]
 
