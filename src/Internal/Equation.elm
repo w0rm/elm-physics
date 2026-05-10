@@ -2,14 +2,13 @@ module Internal.Equation exposing
     ( Equation
     , EquationsGroup
     , SolverEquation
-    , constraintEquationsGroup
-    , contactEquationsGroup
+    , pairEquationsGroup
     )
 
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
-import Internal.Contact exposing (Contact, ContactGroup, SolverContact)
+import Internal.Contact exposing (Contact, PairGroup, SolverContact)
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -45,19 +44,14 @@ type alias EquationsGroup =
     }
 
 
-constraintEquationsGroup : Ctx -> Body -> Body -> List (Constraint CenterOfMassCoordinates) -> EquationsGroup
-constraintEquationsGroup ctx body1 body2 constraints =
+pairEquationsGroup : Ctx -> PairGroup -> EquationsGroup
+pairEquationsGroup ctx { body1, body2, contacts, constraints } =
     { bodyId1 = body1.id
     , bodyId2 = body2.id
-    , equations = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
-    }
-
-
-contactEquationsGroup : Ctx -> ContactGroup -> EquationsGroup
-contactEquationsGroup ctx { body1, body2, contacts } =
-    { bodyId1 = body1.id
-    , bodyId2 = body2.id
-    , equations = List.foldl (addContactEquations ctx body1 body2) [] contacts
+    , equations =
+        []
+            |> (\eqs -> List.foldl (addContactEquations ctx body1 body2) eqs contacts)
+            |> (\eqs -> List.foldl (addConstraintEquations ctx body1 body2) eqs constraints)
     }
 
 

@@ -1,13 +1,16 @@
-module Internal.Contact exposing (Contact, ContactGroup, SolverContact, flip)
+module Internal.Contact exposing (Contact, PairGroup, SolverContact, flip)
 
 import Internal.Body exposing (Body)
+import Internal.Constraint exposing (Constraint)
+import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-type alias ContactGroup =
+type alias PairGroup =
     { body1 : Body
     , body2 : Body
     , contacts : List SolverContact
+    , constraints : List (Constraint CenterOfMassCoordinates)
     }
 
 

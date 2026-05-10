@@ -4,8 +4,7 @@ import Array exposing (Array)
 import Dict exposing (Dict)
 import Internal.Body as Body exposing (Body)
 import Internal.Const as Const
-import Internal.Constraint exposing (ConstraintGroup)
-import Internal.Contact exposing (ContactGroup)
+import Internal.Contact exposing (PairGroup)
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
 import Internal.Matrix3 as Mat3
 import Internal.SolverBody as SolverBody exposing (SolverBody)
@@ -182,8 +181,8 @@ applyWarmStart prevBody1 solverBodies equationsGroups =
                 rest
 
 
-solve : Float -> Vec3 -> Int -> List ConstraintGroup -> List ContactGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
-solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds lambdas =
+solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
+solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
     case bodiesWithIds of
         [] ->
             ( Array.empty, Dict.empty, 0 )
@@ -203,38 +202,13 @@ solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds l
                 solverBodies =
                     makeSolverBodies maxId bodiesWithIds
 
-                -- make equations from contacts
-                contactEquationsGroups =
-                    List.foldl
-                        (\contactGroup groups ->
-                            Equation.contactEquationsGroup ctx contactGroup :: groups
-                        )
-                        []
-                        contactGroups
-
-                -- add equations from constraints
                 equationsGroups =
                     List.foldl
-                        (\{ bodyId1, bodyId2, constraints } groups ->
-                            case Array.get bodyId1 solverBodies of
-                                Nothing ->
-                                    groups
-
-                                Just body1 ->
-                                    case Array.get bodyId2 solverBodies of
-                                        Nothing ->
-                                            groups
-
-                                        Just body2 ->
-                                            Equation.constraintEquationsGroup
-                                                ctx
-                                                body1.body
-                                                body2.body
-                                                constraints
-                                                :: groups
+                        (\pairGroup groups ->
+                            Equation.pairEquationsGroup ctx pairGroup :: groups
                         )
-                        contactEquationsGroups
-                        constraintGroups
+                        []
+                        pairGroups
 
                 -- warm start: apply cached lambdas as impulses to body delta-v
                 warmStartedBodies =
@@ -250,8 +224,16 @@ solve dt gravity iterations constraintGroups contactGroups maxId bodiesWithIds l
                                 Nothing ->
                                     solverBodies
 
-                ( finalSolverBodies, finalEquationsGroups, remainingIterations ) =
-                    step iterations 0 [] equationsGroups fillingBody warmStartedBodies
+                bodiesList =
+                    List.filterMap
+                        (\( _, b ) -> Array.get b.id warmStartedBodies)
+                        bodiesWithIds
+
+                ( finalBodiesList, finalEquationsGroups, remainingIterations ) =
+                    runIterations iterations bodiesList equationsGroups
+
+                finalSolverBodies =
+                    listToArray maxId firstExtId finalBodiesList
 
                 iterationsUsed =
                     max 1 (iterations - remainingIterations)
@@ -462,3 +444,101 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 )
                 (deltalambdaTot + abs deltalambda)
                 remainingEquations
+
+
+
+-- LIST-BASED SOLVER (prototype)
+--
+-- The body list is kept in gravity-sort order — the same order BroadPhase
+-- walked when generating equation pairs — so the equations are in CSR
+-- order over body-list positions. Each PGS iteration walks both lists in
+-- lockstep with pure forward linear search.
+
+
+listToArray : Int -> id -> List (SolverBody id) -> Array (SolverBody id)
+listToArray maxId firstExtId bodies =
+    List.foldl
+        (\b arr -> Array.set b.body.id b arr)
+        (Array.repeat (maxId + 1) (sentinel firstExtId))
+        bodies
+
+
+runIterations : Int -> List (SolverBody id) -> List EquationsGroup -> ( List (SolverBody id), List EquationsGroup, Int )
+runIterations remainingIterations bodies groups =
+    let
+        ( newBodies, newGroups, deltaTot ) =
+            listIteration groups bodies [] [] 0
+
+        nextGroups =
+            List.reverse newGroups
+    in
+    if remainingIterations - 1 == 0 then
+        ( newBodies, nextGroups, 0 )
+
+    else if deltaTot - Const.precision < 0 then
+        ( newBodies, nextGroups, remainingIterations - 1 )
+
+    else
+        runIterations (remainingIterations - 1) newBodies nextGroups
+
+
+listIteration : List EquationsGroup -> List (SolverBody id) -> List EquationsGroup -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
+listIteration groupsIn bodiesIn groupsOut bodiesOut deltaTot =
+    case groupsIn of
+        [] ->
+            ( List.reverse bodiesOut ++ bodiesIn, groupsOut, deltaTot )
+
+        firstGroup :: _ ->
+            advanceToPivot firstGroup.bodyId1 groupsIn bodiesIn groupsOut bodiesOut deltaTot
+
+
+advanceToPivot : Int -> List EquationsGroup -> List (SolverBody id) -> List EquationsGroup -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
+advanceToPivot pivotId groupsIn bodiesIn groupsOut bodiesOut deltaTot =
+    case bodiesIn of
+        [] ->
+            ( List.reverse bodiesOut, groupsOut, deltaTot )
+
+        body :: restBodies ->
+            if body.body.id - pivotId == 0 then
+                processRow body restBodies pivotId groupsIn groupsOut bodiesOut [] deltaTot
+
+            else
+                advanceToPivot pivotId groupsIn restBodies groupsOut (body :: bodiesOut) deltaTot
+
+
+processRow : SolverBody id -> List (SolverBody id) -> Int -> List EquationsGroup -> List EquationsGroup -> List (SolverBody id) -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
+processRow pivot bodies pivotId groupsIn groupsOut bodiesOut rowBuffer deltaTot =
+    case groupsIn of
+        firstGroup :: restGroups ->
+            if firstGroup.bodyId1 - pivotId == 0 then
+                advanceToPartner pivot bodies pivotId firstGroup restGroups groupsOut bodiesOut rowBuffer deltaTot
+
+            else
+                listIteration groupsIn (List.reverse rowBuffer ++ bodies) groupsOut (pivot :: bodiesOut) deltaTot
+
+        [] ->
+            ( List.reverse (pivot :: bodiesOut) ++ List.reverse rowBuffer ++ bodies, groupsOut, deltaTot )
+
+
+advanceToPartner : SolverBody id -> List (SolverBody id) -> Int -> EquationsGroup -> List EquationsGroup -> List EquationsGroup -> List (SolverBody id) -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
+advanceToPartner pivot bodies pivotId group restGroups groupsOut bodiesOut rowBuffer deltaTot =
+    case bodies of
+        [] ->
+            listIteration restGroups (List.reverse rowBuffer) groupsOut (pivot :: bodiesOut) deltaTot
+
+        body :: restBodies ->
+            if body.body.id - group.bodyId2 == 0 then
+                let
+                    result =
+                        solveEquationsGroup pivot body [] deltaTot group.equations
+
+                    updatedGroup =
+                        { bodyId1 = group.bodyId1
+                        , bodyId2 = group.bodyId2
+                        , equations = result.equations
+                        }
+                in
+                processRow result.body1 restBodies pivotId restGroups (updatedGroup :: groupsOut) bodiesOut (result.body2 :: rowBuffer) result.deltalambdaTot
+
+            else
+                advanceToPartner pivot restBodies pivotId group restGroups groupsOut bodiesOut (body :: rowBuffer) deltaTot

@@ -1,72 +1,147 @@
-module Internal.BroadPhase exposing (getContacts)
+module Internal.BroadPhase exposing (getPairs)
 
-{-| This is very naive implementation of BroadPhase,
-that checks if the bounding spheres of each two bodies overlap
+{-| Walks the gravity-sorted body list pairwise. For each pair, runs narrow
+phase and the user `constrain` callback. Emits a `PairGroup` whenever either
+contacts or constraints are non-empty, in CSR order over gravity-sort
+positions.
 -}
 
 import Internal.Body as Body exposing (Body)
-import Internal.Contact exposing (ContactGroup)
+import Internal.Constraint as Constraint exposing (Constraint)
+import Internal.Contact exposing (PairGroup)
+import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.NarrowPhase as NarrowPhase
+import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d
 
 
-getContacts : (id -> id -> Bool) -> List ( id, Body ) -> List ContactGroup
-getContacts collide bodies =
+getPairs :
+    (id -> id -> Bool)
+    -> (id -> Maybe (id -> List (Constraint BodyCoordinates)))
+    -> List ( id, Body )
+    -> List PairGroup
+getPairs collide constrain bodies =
     case bodies of
         ( id1, body1 ) :: restBodies ->
-            getContactsHelp collide id1 body1 restBodies restBodies []
+            getPairsHelp collide constrain id1 body1 (constrain id1) restBodies restBodies []
 
         [] ->
             []
 
 
-{-| This will generate all pairs for body1, then all pairs for body2, etc.
-We rely on this order in the Solver.elm
--}
-getContactsHelp : (id -> id -> Bool) -> id -> Body -> List ( id, Body ) -> List ( id, Body ) -> List ContactGroup -> List ContactGroup
-getContactsHelp collide id1 body1 currentBodies restBodies result =
+getPairsHelp :
+    (id -> id -> Bool)
+    -> (id -> Maybe (id -> List (Constraint BodyCoordinates)))
+    -> id
+    -> Body
+    -> Maybe (id -> List (Constraint BodyCoordinates))
+    -> List ( id, Body )
+    -> List ( id, Body )
+    -> List PairGroup
+    -> List PairGroup
+getPairsHelp collide constrain id1 body1 constrainFn1 currentBodies restBodies result =
     case restBodies of
         ( id2, body2 ) :: newRestBodies ->
-            getContactsHelp
-                collide
-                id1
-                body1
-                currentBodies
-                newRestBodies
-                (if bodiesMayContact collide id1 body1 id2 body2 then
-                    case
+            let
+                contacts =
+                    if bodiesMayContact collide id1 body1 id2 body2 then
                         NarrowPhase.getContacts
                             (String.fromInt body1.id ++ "-" ++ String.fromInt body2.id)
                             body1.worldShapesWithMaterials
                             body2.worldShapesWithMaterials
-                    of
-                        [] ->
-                            result
 
-                        contacts ->
-                            { body1 = body1
-                            , body2 = body2
-                            , contacts = contacts
-                            }
-                                :: result
+                    else
+                        []
 
-                 else
-                    result
+                constraints =
+                    constraintsBetween constrain constrainFn1 id1 body1 id2 body2
+            in
+            getPairsHelp collide
+                constrain
+                id1
+                body1
+                constrainFn1
+                currentBodies
+                newRestBodies
+                (case ( contacts, constraints ) of
+                    ( [], [] ) ->
+                        result
+
+                    _ ->
+                        { body1 = body1
+                        , body2 = body2
+                        , contacts = contacts
+                        , constraints = constraints
+                        }
+                            :: result
                 )
 
         [] ->
             case currentBodies of
                 ( newId1, newBody1 ) :: newRestBodies ->
-                    getContactsHelp
-                        collide
+                    getPairsHelp collide
+                        constrain
                         newId1
                         newBody1
+                        (constrain newId1)
                         newRestBodies
                         newRestBodies
                         result
 
                 [] ->
                     result
+
+
+{-| User can register the constrain callback on either body of a pair.
+We try (body1 → body2) first; if empty, try (body2 → body1) and `flip` the
+constraint so its body1 slot still refers to PairGroup's body1 (the
+smaller-position body). Avoids duplicates because we only walk each pair
+once (j > i in the outer/inner iteration).
+-}
+constraintsBetween :
+    (id -> Maybe (id -> List (Constraint BodyCoordinates)))
+    -> Maybe (id -> List (Constraint BodyCoordinates))
+    -> id
+    -> Body
+    -> id
+    -> Body
+    -> List (Constraint CenterOfMassCoordinates)
+constraintsBetween constrain constrainFn1 id1 body1 id2 body2 =
+    if body1.kind /= Body.Dynamic && body2.kind /= Body.Dynamic then
+        []
+
+    else
+        let
+            forward =
+                case constrainFn1 of
+                    Just fn ->
+                        fn id2
+
+                    Nothing ->
+                        []
+        in
+        case forward of
+            _ :: _ ->
+                List.map
+                    (Constraint.relativeToCenterOfMass
+                        body1.centerOfMassTransform3d
+                        body2.centerOfMassTransform3d
+                    )
+                    forward
+
+            [] ->
+                case constrain id2 of
+                    Just fn ->
+                        fn id1
+                            |> List.map
+                                (Constraint.relativeToCenterOfMass
+                                    body2.centerOfMassTransform3d
+                                    body1.centerOfMassTransform3d
+                                    >> Constraint.flip
+                                )
+
+                    Nothing ->
+                        []
 
 
 bodiesMayContact : (id -> id -> Bool) -> id -> Body -> id -> Body -> Bool

@@ -23,7 +23,7 @@ type Contacts id
         , iterations : Int
         , dt : Float
         , gravity : Vec3
-        , contactGroups : List InternalContact.ContactGroup
+        , pairGroups : List InternalContact.PairGroup
         , solverBodies : Array (SolverBody.SolverBody id)
         }
 
