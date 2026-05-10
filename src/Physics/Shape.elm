@@ -35,7 +35,8 @@ import TriangularMesh exposing (TriangularMesh)
 and [static](Physics#static) bodies.
 
 The supported primitive shapes are [block](#block), [sphere](#sphere),
-and [cylinder](#cylinder). For complex geometry use [unsafeConvex](#unsafeConvex).
+[cylinder](#cylinder), and [capsule](#capsule). For complex geometry
+use [unsafeConvex](#unsafeConvex).
 
 Shapes within a body **should not overlap** — composing shapes only affects physical
 properties like mass, inertia, and center of mass. Use [plus](#plus) and

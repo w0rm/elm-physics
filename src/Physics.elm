@@ -123,8 +123,8 @@ Bodies start out centered on the origin; use [moveTo](#moveTo) to set the positi
 There are three kinds of bodies:
 
   - **dynamic** — moved by the engine in response to forces, gravity, and contacts.
-    The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder), and
-    [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
+    The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder),
+    [capsule](#capsule), and [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
     [shapes](Physics-Shape#Shape) into one body.
 
   - **static** — never moves. Used for floors, walls, and other immovable scenery.

@@ -54,13 +54,9 @@ expandBoundingSphereRadius { radius, halfLength, position } boundingSphereRadius
     max (Vec3.length position + halfLength + radius) boundingSphereRadius
 
 
-{-| Intersect a ray with a capsule. Returned normal is NOT normalized;
-Physics.elm normalizes it via Direction3d.unsafe (matches Sphere/Convex.raycast).
--}
 raycast : { from : Vec3, direction : Vec3 } -> Capsule -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { from, direction } { radius, halfLength, axis, position } =
     let
-        -- Ray origin relative to the capsule center
         p =
             Vec3.sub from position
 
@@ -70,7 +66,6 @@ raycast { from, direction } { radius, halfLength, axis, position } =
         dDotAxis =
             Vec3.dot direction axis
 
-        -- Perpendicular components (reject axis projection)
         pPerpX =
             p.x - pDotAxis * axis.x
 
@@ -89,19 +84,27 @@ raycast { from, direction } { radius, halfLength, axis, position } =
         dPerpZ =
             direction.z - dDotAxis * axis.z
 
-        -- Sphere cap helper: returns the first non-negative t, if any.
-        -- epOffset is the offset from capsule center to cap center along axis.
-        sphereCapT epOffset =
+        -- The capsule is contained within the infinite cylinder around its
+        -- axis line, so a ray that misses this cylinder also misses the capsule.
+        cylA =
+            dPerpX * dPerpX + dPerpY * dPerpY + dPerpZ * dPerpZ
+
+        cylB =
+            2 * (pPerpX * dPerpX + pPerpY * dPerpY + pPerpZ * dPerpZ)
+
+        cylC =
+            pPerpX * pPerpX + pPerpY * pPerpY + pPerpZ * pPerpZ - radius * radius
+
+        capEntry capOffset =
             let
-                -- Ray origin relative to this sphere cap center
                 qx =
-                    p.x - epOffset * axis.x
+                    p.x - capOffset * axis.x
 
                 qy =
-                    p.y - epOffset * axis.y
+                    p.y - capOffset * axis.y
 
                 qz =
-                    p.z - epOffset * axis.z
+                    p.z - capOffset * axis.z
 
                 b =
                     2 * (direction.x * qx + direction.y * qy + direction.z * qz)
@@ -117,88 +120,57 @@ raycast { from, direction } { radius, halfLength, axis, position } =
 
             else
                 let
-                    sqrtDelta =
-                        sqrt delta
-
-                    t1 =
-                        (-b - sqrtDelta) / 2
+                    t =
+                        (-b - sqrt delta) / 2
                 in
-                if t1 >= 0 then
-                    Just t1
+                if t < 0 then
+                    Nothing
 
                 else
-                    let
-                        t2 =
-                            (-b + sqrtDelta) / 2
-                    in
-                    if t2 >= 0 then
-                        Just t2
+                    Just t
 
-                    else
-                        Nothing
+        maybeT =
+            if cylA < 1.0e-10 then
+                if cylC > 0 then
+                    Nothing
 
-        -- Cylinder body intersection (restricted to |axial| <= halfLength)
-        cylAv =
-            dPerpX * dPerpX + dPerpY * dPerpY + dPerpZ * dPerpZ
+                else if dDotAxis < 0 then
+                    capEntry halfLength
 
-        cylBv =
-            2 * (pPerpX * dPerpX + pPerpY * dPerpY + pPerpZ * dPerpZ)
-
-        cylCv =
-            pPerpX * pPerpX + pPerpY * pPerpY + pPerpZ * pPerpZ - radius * radius
-
-        cylinderT =
-            if cylAv < 1.0e-10 then
-                -- Ray is parallel to the capsule axis — no cylinder-body hit
-                Nothing
+                else
+                    capEntry -halfLength
 
             else
                 let
                     delta =
-                        cylBv * cylBv - 4 * cylAv * cylCv
+                        cylB * cylB - 4 * cylA * cylC
                 in
                 if delta < 0 then
                     Nothing
 
                 else
                     let
-                        sqrtDelta =
-                            sqrt delta
-
                         t =
-                            (-cylBv - sqrtDelta) / (2 * cylAv)
-
-                        tValid =
-                            if t >= 0 then
-                                t
-
-                            else
-                                (-cylBv + sqrtDelta) / (2 * cylAv)
+                            (-cylB - sqrt delta) / (2 * cylA)
                     in
-                    if tValid < 0 then
+                    if t < 0 then
                         Nothing
 
                     else
                         let
-                            axialCoord =
-                                pDotAxis + tValid * dDotAxis
+                            axial =
+                                pDotAxis + t * dDotAxis
                         in
-                        if axialCoord < -halfLength || axialCoord > halfLength then
-                            Nothing
+                        if axial > halfLength then
+                            capEntry halfLength
+
+                        else if axial < -halfLength then
+                            capEntry -halfLength
 
                         else
-                            Just tValid
-
-        tCap1 =
-            sphereCapT halfLength
-
-        tCap2 =
-            sphereCapT -halfLength
-
-        bestT =
-            minPositive (minPositive tCap1 tCap2) cylinderT
+                            Just t
     in
-    case bestT of
+    case maybeT of
         Nothing ->
             Nothing
 
@@ -210,55 +182,15 @@ raycast { from, direction } { radius, halfLength, axis, position } =
                     , z = from.z + direction.z * t
                     }
 
-                -- Axial coordinate of the hit point relative to capsule center
-                axialCoord =
-                    pDotAxis + t * dDotAxis
-
                 clampedAxial =
-                    if axialCoord > halfLength then
-                        halfLength
-
-                    else if axialCoord < -halfLength then
-                        -halfLength
-
-                    else
-                        axialCoord
-
-                -- Closest point on the capsule axis to the hit point
-                closestOnAxisX =
-                    position.x + clampedAxial * axis.x
-
-                closestOnAxisY =
-                    position.y + clampedAxial * axis.y
-
-                closestOnAxisZ =
-                    position.z + clampedAxial * axis.z
+                    clamp -halfLength halfLength (pDotAxis + t * dDotAxis)
             in
             Just
                 { distance = t
                 , point = hitPoint
-
-                -- Not normalized: Physics.elm normalises via Direction3d.unsafe
                 , normal =
-                    { x = hitPoint.x - closestOnAxisX
-                    , y = hitPoint.y - closestOnAxisY
-                    , z = hitPoint.z - closestOnAxisZ
+                    { x = hitPoint.x - position.x - clampedAxial * axis.x
+                    , y = hitPoint.y - position.y - clampedAxial * axis.y
+                    , z = hitPoint.z - position.z - clampedAxial * axis.z
                     }
                 }
-
-
-minPositive : Maybe Float -> Maybe Float -> Maybe Float
-minPositive a b =
-    case ( a, b ) of
-        ( Nothing, _ ) ->
-            b
-
-        ( _, Nothing ) ->
-            a
-
-        ( Just ta, Just tb ) ->
-            if ta <= tb then
-                a
-
-            else
-                b
