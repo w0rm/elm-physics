@@ -31,8 +31,8 @@ Contact id format (suffix appended to `idPrefix`):
 
   - `-fF` : sphere on convex face F (1-based, flat traversal order
     matching `ConvexConvex.bestFace`)
-  - `-e`  : sphere on convex edge interior
-  - `-v`  : sphere on convex vertex
+  - `-e` : sphere on convex edge interior
+  - `-v` : sphere on convex vertex
 
 The walks emit directly into the `contacts` accumulator at the
 recursion terminus — no intermediate `Maybe Vec3` result type.

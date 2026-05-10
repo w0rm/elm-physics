@@ -177,6 +177,7 @@ group.
 Each group is `( firstEdge, otherParallelEdges )`. The first edge
 doubles as the direction representative; we derive the direction
 on demand via `Vec3.direction firstEdge.v1 firstEdge.v2`.
+
 -}
 groupEdgesByDirection : List Face -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
 groupEdgesByDirection faces =

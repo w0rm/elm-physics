@@ -41,8 +41,8 @@ import Internal.Transform3d as Transform3d
 import Json.Decode as Decode exposing (Decoder)
 import Length exposing (Meters)
 import Math.Matrix4 as Mat4
-import Obj.Decode
 import Math.Vector3 as MathVec3
+import Obj.Decode
 import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
 import Physics.Material as Material
 import Physics.Shape as PhysicsShape
@@ -318,7 +318,8 @@ update msg model =
                         { model
                             | cameraAzimuth = model.cameraAzimuth - dx * 0.005
                             , cameraElevation =
-                                clamp (degrees -85) (degrees 85)
+                                clamp (degrees -85)
+                                    (degrees 85)
                                     (model.cameraElevation + dy * 0.005)
                         }
                 in

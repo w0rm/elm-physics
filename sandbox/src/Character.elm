@@ -434,7 +434,7 @@ playerRadius =
 
 
 {-| Half the cylinder body length (excluding the two hemispherical caps).
-Total capsule height = 2*(playerCylinderHalfLength + playerRadius).
+Total capsule height = 2\*(playerCylinderHalfLength + playerRadius).
 -}
 playerCylinderHalfLength : Float
 playerCylinderHalfLength =
