@@ -132,53 +132,51 @@ applyGroupWarmStart body1 body2 equations =
                 applyGroupWarmStart newBody1 newBody2 rest
 
 
-applyWarmStart : SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
-applyWarmStart prevBody1 solverBodies equationsGroups =
+applyWarmStart : SolverBody id -> SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
+applyWarmStart prevA prevB solverBodies equationsGroups =
     case equationsGroups of
         [] ->
-            Array.set prevBody1.body.id prevBody1 solverBodies
+            flushSlot prevB (flushSlot prevA solverBodies)
 
         { bodyId1, bodyId2, equations } :: rest ->
             let
-                body1 =
-                    if prevBody1.body.id - bodyId1 == 0 then
-                        prevBody1
+                ( body1, slotA1, slotB1 ) =
+                    if prevA.body.id - bodyId1 == 0 then
+                        ( prevA, freeSlot prevA, prevB )
+
+                    else if prevB.body.id - bodyId1 == 0 then
+                        ( prevB, prevA, freeSlot prevA )
 
                     else
                         case Array.get bodyId1 solverBodies of
                             Just b ->
-                                b
+                                ( b, prevA, prevB )
 
                             Nothing ->
-                                prevBody1
+                                ( prevA, prevA, prevB )
 
-                newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
-                        solverBodies
+                ( body2, slotA2, slotB2 ) =
+                    if slotA1.body.id - bodyId2 == 0 then
+                        ( slotA1, freeSlot prevA, slotB1 )
+
+                    else if slotB1.body.id - bodyId2 == 0 then
+                        ( slotB1, slotA1, freeSlot prevA )
 
                     else
-                        Array.set prevBody1.body.id prevBody1 solverBodies
+                        case Array.get bodyId2 solverBodies of
+                            Just b ->
+                                ( b, slotA1, slotB1 )
 
-                body2 =
-                    case Array.get bodyId2 newSolverBodies of
-                        Just b ->
-                            b
+                            Nothing ->
+                                ( prevA, slotA1, slotB1 )
 
-                        Nothing ->
-                            prevBody1
+                arrFlushed =
+                    flushSlot slotB2 (flushSlot slotA2 solverBodies)
 
                 ( newBody1, newBody2 ) =
                     applyGroupWarmStart body1 body2 equations
             in
-            applyWarmStart
-                newBody1
-                (if newBody2.body.kind == Body.Dynamic then
-                    Array.set bodyId2 newBody2 newSolverBodies
-
-                 else
-                    newSolverBodies
-                )
-                rest
+            applyWarmStart newBody1 newBody2 arrFlushed rest
 
 
 solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
@@ -212,28 +210,10 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
 
                 -- warm start: apply cached lambdas as impulses to body delta-v
                 warmStartedBodies =
-                    case equationsGroups of
-                        [] ->
-                            solverBodies
+                    applyWarmStart fillingBody fillingBody solverBodies equationsGroups
 
-                        { bodyId1 } :: _ ->
-                            case Array.get bodyId1 solverBodies of
-                                Just firstBody ->
-                                    applyWarmStart firstBody solverBodies equationsGroups
-
-                                Nothing ->
-                                    solverBodies
-
-                bodiesList =
-                    List.filterMap
-                        (\( _, b ) -> Array.get b.id warmStartedBodies)
-                        bodiesWithIds
-
-                ( finalBodiesList, finalEquationsGroups, remainingIterations ) =
-                    runIterations iterations bodiesList equationsGroups
-
-                finalSolverBodies =
-                    listToArray maxId firstExtId finalBodiesList
+                ( finalSolverBodies, finalEquationsGroups, remainingIterations ) =
+                    step iterations 0 [] equationsGroups fillingBody fillingBody warmStartedBodies
 
                 iterationsUsed =
                     max 1 (iterations - remainingIterations)
@@ -258,67 +238,67 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
             ( finalSolverBodies, finalLambdas, iterationsUsed )
 
 
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
-step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
+{-| Two-body in-flight: keep both bodies of the just-processed group in
+slots `prevA` and `prevB`. At the next group, look for body1 and body2 in
+the slots first; only fetch from the array on a miss. Slots that aren't
+reused are flushed to the array. Catches both today's "same body1 across
+groups" pattern (wide piles) AND the "body2 of one group = body1 of next"
+pattern (chains).
+-}
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
+step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevA prevB solverBodies =
     case currentEquationsGroups of
         [] ->
+            let
+                arrFlushed =
+                    flushSlot prevB (flushSlot prevA solverBodies)
+            in
             if remainingIterations == 0 then
-                -- the max number of iterations elapsed
-                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, 0 )
+                ( arrFlushed, equationsGroups, 0 )
 
             else if deltalambdaTot - Const.precision < 0 then
-                -- tolerance reached
-                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, remainingIterations - 1 )
+                ( arrFlushed, equationsGroups, remainingIterations - 1 )
 
             else
-                -- requeue equationsGroups for the next step
-                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
+                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) (freeSlot prevA) (freeSlot prevA) arrFlushed
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             let
-                body1 =
-                    if prevBody1.body.id - bodyId1 == 0 then
-                        -- if the next equations group has the same body
-                        -- then no need to get it from the array
-                        prevBody1
+                ( body1, slotA1, slotB1 ) =
+                    if prevA.body.id - bodyId1 == 0 then
+                        ( prevA, freeSlot prevA, prevB )
+
+                    else if prevB.body.id - bodyId1 == 0 then
+                        ( prevB, prevA, freeSlot prevA )
 
                     else
                         case Array.get bodyId1 solverBodies of
                             Just nextBody ->
-                                nextBody
+                                ( nextBody, prevA, prevB )
 
                             Nothing ->
-                                -- this shouldn’t happen, we just
-                                -- don’t want to allocate a Just
-                                prevBody1
+                                ( prevA, prevA, prevB )
 
-                newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
-                        -- if the next equations group has the same body,
-                        -- then no need to set it to the array
-                        -- also no need to update non-dynamic bodies (static, kinematic)
-                        solverBodies
+                ( body2, slotA2, slotB2 ) =
+                    if slotA1.body.id - bodyId2 == 0 then
+                        ( slotA1, freeSlot prevA, slotB1 )
+
+                    else if slotB1.body.id - bodyId2 == 0 then
+                        ( slotB1, slotA1, freeSlot prevA )
 
                     else
-                        Array.set prevBody1.body.id prevBody1 solverBodies
+                        case Array.get bodyId2 solverBodies of
+                            Just nextBody ->
+                                ( nextBody, slotA1, slotB1 )
 
-                body2 =
-                    case Array.get bodyId2 newSolverBodies of
-                        Just nextBody ->
-                            nextBody
+                            Nothing ->
+                                ( prevA, slotA1, slotB1 )
 
-                        Nothing ->
-                            -- this shouldn’t happen, we just
-                            -- don’t want to allocate a Just
-                            prevBody1
+                arrFlushed =
+                    flushSlot slotB2 (flushSlot slotA2 solverBodies)
 
                 groupContext =
-                    solveEquationsGroup
-                        body1
-                        body2
-                        []
-                        deltalambdaTot
-                        equations
+                    solveEquationsGroup body1 body2 [] deltalambdaTot equations
             in
             step remainingIterations
                 groupContext.deltalambdaTot
@@ -329,18 +309,28 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                     :: equationsGroups
                 )
                 remainingEquationsGroups
-                -- we don’t put body1 in the array, because we might need it
-                -- in the next iteration, because this is the order in
-                -- which we generated the contact equation groups (b1, b2), (b1, b3)
-                -- this lets us reduce Array.set operations
                 groupContext.body1
-                (if groupContext.body2.body.kind == Body.Dynamic then
-                    Array.set bodyId2 groupContext.body2 newSolverBodies
+                groupContext.body2
+                arrFlushed
 
-                 else
-                    -- static and kinematic bodies don’t change
-                    newSolverBodies
-                )
+
+{-| Empty slot: a sentinel body whose id (-1) won't match any real body.
+Reuses the existing sentinel from solve()'s fillingBody, parameterised by
+the given body's extId so the type checks.
+-}
+freeSlot : SolverBody id -> SolverBody id
+freeSlot template =
+    sentinel template.extId
+
+
+flushSlot : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
+flushSlot slot arr =
+    if slot.body.kind /= Body.Dynamic then
+        -- sentinel (Static, id=-1), or static/kinematic body — nothing to write
+        arr
+
+    else
+        Array.set slot.body.id slot arr
 
 
 type alias GroupSolveResult id =
@@ -444,101 +434,3 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                 )
                 (deltalambdaTot + abs deltalambda)
                 remainingEquations
-
-
-
--- LIST-BASED SOLVER (prototype)
---
--- The body list is kept in gravity-sort order — the same order BroadPhase
--- walked when generating equation pairs — so the equations are in CSR
--- order over body-list positions. Each PGS iteration walks both lists in
--- lockstep with pure forward linear search.
-
-
-listToArray : Int -> id -> List (SolverBody id) -> Array (SolverBody id)
-listToArray maxId firstExtId bodies =
-    List.foldl
-        (\b arr -> Array.set b.body.id b arr)
-        (Array.repeat (maxId + 1) (sentinel firstExtId))
-        bodies
-
-
-runIterations : Int -> List (SolverBody id) -> List EquationsGroup -> ( List (SolverBody id), List EquationsGroup, Int )
-runIterations remainingIterations bodies groups =
-    let
-        ( newBodies, newGroups, deltaTot ) =
-            listIteration groups bodies [] [] 0
-
-        nextGroups =
-            List.reverse newGroups
-    in
-    if remainingIterations - 1 == 0 then
-        ( newBodies, nextGroups, 0 )
-
-    else if deltaTot - Const.precision < 0 then
-        ( newBodies, nextGroups, remainingIterations - 1 )
-
-    else
-        runIterations (remainingIterations - 1) newBodies nextGroups
-
-
-listIteration : List EquationsGroup -> List (SolverBody id) -> List EquationsGroup -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
-listIteration groupsIn bodiesIn groupsOut bodiesOut deltaTot =
-    case groupsIn of
-        [] ->
-            ( List.reverse bodiesOut ++ bodiesIn, groupsOut, deltaTot )
-
-        firstGroup :: _ ->
-            advanceToPivot firstGroup.bodyId1 groupsIn bodiesIn groupsOut bodiesOut deltaTot
-
-
-advanceToPivot : Int -> List EquationsGroup -> List (SolverBody id) -> List EquationsGroup -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
-advanceToPivot pivotId groupsIn bodiesIn groupsOut bodiesOut deltaTot =
-    case bodiesIn of
-        [] ->
-            ( List.reverse bodiesOut, groupsOut, deltaTot )
-
-        body :: restBodies ->
-            if body.body.id - pivotId == 0 then
-                processRow body restBodies pivotId groupsIn groupsOut bodiesOut [] deltaTot
-
-            else
-                advanceToPivot pivotId groupsIn restBodies groupsOut (body :: bodiesOut) deltaTot
-
-
-processRow : SolverBody id -> List (SolverBody id) -> Int -> List EquationsGroup -> List EquationsGroup -> List (SolverBody id) -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
-processRow pivot bodies pivotId groupsIn groupsOut bodiesOut rowBuffer deltaTot =
-    case groupsIn of
-        firstGroup :: restGroups ->
-            if firstGroup.bodyId1 - pivotId == 0 then
-                advanceToPartner pivot bodies pivotId firstGroup restGroups groupsOut bodiesOut rowBuffer deltaTot
-
-            else
-                listIteration groupsIn (List.reverse rowBuffer ++ bodies) groupsOut (pivot :: bodiesOut) deltaTot
-
-        [] ->
-            ( List.reverse (pivot :: bodiesOut) ++ List.reverse rowBuffer ++ bodies, groupsOut, deltaTot )
-
-
-advanceToPartner : SolverBody id -> List (SolverBody id) -> Int -> EquationsGroup -> List EquationsGroup -> List EquationsGroup -> List (SolverBody id) -> List (SolverBody id) -> Float -> ( List (SolverBody id), List EquationsGroup, Float )
-advanceToPartner pivot bodies pivotId group restGroups groupsOut bodiesOut rowBuffer deltaTot =
-    case bodies of
-        [] ->
-            listIteration restGroups (List.reverse rowBuffer) groupsOut (pivot :: bodiesOut) deltaTot
-
-        body :: restBodies ->
-            if body.body.id - group.bodyId2 == 0 then
-                let
-                    result =
-                        solveEquationsGroup pivot body [] deltaTot group.equations
-
-                    updatedGroup =
-                        { bodyId1 = group.bodyId1
-                        , bodyId2 = group.bodyId2
-                        , equations = result.equations
-                        }
-                in
-                processRow result.body1 restBodies pivotId restGroups (updatedGroup :: groupsOut) bodiesOut (result.body2 :: rowBuffer) result.deltalambdaTot
-
-            else
-                advanceToPartner pivot restBodies pivotId group restGroups groupsOut bodiesOut (body :: rowBuffer) deltaTot
