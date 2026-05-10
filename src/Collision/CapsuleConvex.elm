@@ -165,14 +165,14 @@ addContacts idPrefix orderContact capsule convex contacts =
                                             -- Skew: single closest-pair contact.
                                             let
                                                 ( pCapsule, _ ) =
-                                                    closestPointsBetweenSegments ep1 ep2 v1 v2
+                                                    Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
                                             in
                                             addDirectContact (idPrefix ++ "-c" ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
 
                                     v :: [] ->
                                         let
                                             ( pCapsule, _ ) =
-                                                closestPointsBetweenSegments ep1 ep2 v v
+                                                Vec3.closestPointsBetweenSegments ep1 ep2 v v
                                         in
                                         addDirectContact (idPrefix ++ "-c" ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
 
@@ -219,7 +219,7 @@ addParallelEdgeContacts idPrefix featureTag orderContact ep1 ep2 v1 v2 separatin
     else
         let
             ( pCapsule, _ ) =
-                closestPointsBetweenSegments ep1 ep2 v1 v2
+                Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
         in
         addDirectContact (idPrefix ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
 
@@ -438,7 +438,7 @@ walkClosestEdge ep1 ep2 firstVertex vertices bestPCap bestPEdge bestDistSq =
                             next
 
                 ( pCap, pEdge ) =
-                    closestPointsBetweenSegments ep1 ep2 v1 v2
+                    Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
 
                 dx =
                     pCap.x - pEdge.x
@@ -460,78 +460,6 @@ walkClosestEdge ep1 ep2 firstVertex vertices bestPCap bestPEdge bestDistSq =
 
         [] ->
             { pCapsule = bestPCap, pEdge = bestPEdge, distSq = bestDistSq }
-
-
-{-| Closest points between segments p1-q1 and p2-q2, returned as
-`(pointOnFirst, pointOnSecond)`. Adapted from Christer Ericson's
-"Real-Time Collision Detection".
--}
-closestPointsBetweenSegments : Vec3 -> Vec3 -> Vec3 -> Vec3 -> ( Vec3, Vec3 )
-closestPointsBetweenSegments p1 q1 p2 q2 =
-    let
-        d1 =
-            Vec3.sub q1 p1
-
-        d2 =
-            Vec3.sub q2 p2
-
-        r =
-            Vec3.sub p1 p2
-
-        a =
-            Vec3.dot d1 d1
-
-        e =
-            Vec3.dot d2 d2
-
-        f =
-            Vec3.dot d2 r
-
-        ( s, t ) =
-            if a <= Const.precision && e <= Const.precision then
-                ( 0, 0 )
-
-            else if a <= Const.precision then
-                ( 0, clamp 0 1 (f / e) )
-
-            else
-                let
-                    c =
-                        Vec3.dot d1 r
-                in
-                if e <= Const.precision then
-                    ( clamp 0 1 (-c / a), 0 )
-
-                else
-                    let
-                        b =
-                            Vec3.dot d1 d2
-
-                        denom =
-                            a * e - b * b
-
-                        sInit =
-                            if denom /= 0.0 then
-                                clamp 0 1 ((b * f - c * e) / denom)
-
-                            else
-                                0.0
-
-                        tNom =
-                            b * sInit + f
-                    in
-                    if tNom < 0.0 then
-                        ( clamp 0 1 (-c / a), 0 )
-
-                    else if tNom > e then
-                        ( clamp 0 1 ((b - c) / a), 1 )
-
-                    else
-                        ( sInit, tNom / e )
-    in
-    ( Vec3.add p1 (Vec3.scale s d1)
-    , Vec3.add p2 (Vec3.scale t d2)
-    )
 
 
 findSeparatingAxis : Capsule -> Convex -> Vec3 -> Vec3 -> Maybe Vec3
@@ -606,7 +534,7 @@ edgeAxis : Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Maybe Vec3
 edgeAxis capsule ep1 ep2 v1 v2 =
     let
         ( pCap, pEdge ) =
-            closestPointsBetweenSegments ep1 ep2 v1 v2
+            Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
 
         diff =
             Vec3.sub pCap pEdge

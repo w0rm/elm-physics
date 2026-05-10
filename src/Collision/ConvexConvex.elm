@@ -140,14 +140,14 @@ addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
         reversedSeparatingAxis =
             Vec3.negate separatingAxis
 
-        ( edge1Idx, edge1 ) =
+        ( edge1Idx, ( e1p, e1q ) ) =
             pickSupportEdge reversedSeparatingAxis edges1
 
-        ( edge2Idx, edge2 ) =
+        ( edge2Idx, ( e2p, e2q ) ) =
             pickSupportEdge separatingAxis edges2
 
         ( pi, pj ) =
-            closestPointsOnSegments edge1 edge2
+            Vec3.closestPointsBetweenSegments e1p e1q e2p e2q
     in
     { id =
         idPrefix
@@ -190,74 +190,6 @@ pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
 
         [] ->
             ( bestIdx, bestEdge )
-
-
-{-| Compute the closest points between two line segments (p1, q1) and (p2, q2).
-Returns (point on segment 1, point on segment 2).
--}
-closestPointsOnSegments : ( Vec3, Vec3 ) -> ( Vec3, Vec3 ) -> ( Vec3, Vec3 )
-closestPointsOnSegments ( p1, q1 ) ( p2, q2 ) =
-    let
-        d1 =
-            Vec3.sub q1 p1
-
-        d2 =
-            Vec3.sub q2 p2
-
-        r =
-            Vec3.sub p1 p2
-
-        a =
-            Vec3.dot d1 d1
-
-        e =
-            Vec3.dot d2 d2
-
-        f =
-            Vec3.dot d2 r
-
-        c =
-            Vec3.dot d1 r
-
-        b =
-            Vec3.dot d1 d2
-
-        denom =
-            a * e - b * b
-    in
-    if denom < Const.precision then
-        -- Parallel segments: pick midpoints.
-        ( { x = p1.x + 0.5 * d1.x, y = p1.y + 0.5 * d1.y, z = p1.z + 0.5 * d1.z }
-        , { x = p2.x + 0.5 * d2.x, y = p2.y + 0.5 * d2.y, z = p2.z + 0.5 * d2.z }
-        )
-
-    else
-        let
-            sUnclamped =
-                (b * f - c * e) / denom
-
-            tUnclamped =
-                (a * f - b * c) / denom
-
-            ( s, t ) =
-                if sUnclamped < 0 then
-                    ( 0, clamp 0 1 (f / e) )
-
-                else if sUnclamped > 1 then
-                    ( 1, clamp 0 1 ((b + f) / e) )
-
-                else if tUnclamped < 0 then
-                    ( clamp 0 1 (-c / a), 0 )
-
-                else if tUnclamped > 1 then
-                    ( clamp 0 1 ((b - c) / a), 1 )
-
-                else
-                    ( sUnclamped, tUnclamped )
-        in
-        ( { x = p1.x + s * d1.x, y = p1.y + s * d1.y, z = p1.z + s * d1.z }
-        , { x = p2.x + t * d2.x, y = p2.y + t * d2.y, z = p2.z + t * d2.z }
-        )
 
 
 clipTwoFaces : String -> Face -> Face -> Vec3 -> List Contact -> List Contact

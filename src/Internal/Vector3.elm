@@ -3,6 +3,7 @@ module Internal.Vector3 exposing
     , add
     , almostZero
     , basis
+    , closestPointsBetweenSegments
     , cross
     , direction
     , distance
@@ -236,3 +237,75 @@ lerp t v1 v2 =
     , y = v1.y + t * (v2.y - v1.y)
     , z = v1.z + t * (v2.z - v1.z)
     }
+
+
+{-| Closest points between segments p1-q1 and p2-q2, returned as
+`(pointOnFirst, pointOnSecond)`. Adapted from Christer Ericson's
+"Real-Time Collision Detection" §5.1.9.
+-}
+closestPointsBetweenSegments : Vec3 -> Vec3 -> Vec3 -> Vec3 -> ( Vec3, Vec3 )
+closestPointsBetweenSegments p1 q1 p2 q2 =
+    let
+        d1 =
+            sub q1 p1
+
+        d2 =
+            sub q2 p2
+
+        r =
+            sub p1 p2
+
+        a =
+            dot d1 d1
+
+        e =
+            dot d2 d2
+
+        f =
+            dot d2 r
+
+        ( s, t ) =
+            if a <= Const.precision && e <= Const.precision then
+                ( 0, 0 )
+
+            else if a <= Const.precision then
+                ( 0, clamp 0 1 (f / e) )
+
+            else
+                let
+                    c =
+                        dot d1 r
+                in
+                if e <= Const.precision then
+                    ( clamp 0 1 (-c / a), 0 )
+
+                else
+                    let
+                        b =
+                            dot d1 d2
+
+                        denom =
+                            a * e - b * b
+
+                        sInit =
+                            if denom /= 0.0 then
+                                clamp 0 1 ((b * f - c * e) / denom)
+
+                            else
+                                0.0
+
+                        tNom =
+                            b * sInit + f
+                    in
+                    if tNom < 0.0 then
+                        ( clamp 0 1 (-c / a), 0 )
+
+                    else if tNom > e then
+                        ( clamp 0 1 ((b - c) / a), 1 )
+
+                    else
+                        ( sInit, tNom / e )
+    in
+    ( add p1 (scale s d1)
+    , add p2 (scale t d2)
+    )
