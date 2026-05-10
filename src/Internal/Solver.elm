@@ -132,51 +132,53 @@ applyGroupWarmStart body1 body2 equations =
                 applyGroupWarmStart newBody1 newBody2 rest
 
 
-applyWarmStart : SolverBody id -> SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
-applyWarmStart prevA prevB solverBodies equationsGroups =
+applyWarmStart : SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
+applyWarmStart prevBody1 solverBodies equationsGroups =
     case equationsGroups of
         [] ->
-            flushSlot prevB (flushSlot prevA solverBodies)
+            Array.set prevBody1.body.id prevBody1 solverBodies
 
         { bodyId1, bodyId2, equations } :: rest ->
             let
-                ( body1, slotA1, slotB1 ) =
-                    if prevA.body.id - bodyId1 == 0 then
-                        ( prevA, freeSlot prevA, prevB )
-
-                    else if prevB.body.id - bodyId1 == 0 then
-                        ( prevB, prevA, freeSlot prevA )
+                body1 =
+                    if prevBody1.body.id - bodyId1 == 0 then
+                        prevBody1
 
                     else
                         case Array.get bodyId1 solverBodies of
                             Just b ->
-                                ( b, prevA, prevB )
+                                b
 
                             Nothing ->
-                                ( prevA, prevA, prevB )
+                                prevBody1
 
-                ( body2, slotA2, slotB2 ) =
-                    if slotA1.body.id - bodyId2 == 0 then
-                        ( slotA1, freeSlot prevA, slotB1 )
-
-                    else if slotB1.body.id - bodyId2 == 0 then
-                        ( slotB1, slotA1, freeSlot prevA )
+                newSolverBodies =
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
+                        solverBodies
 
                     else
-                        case Array.get bodyId2 solverBodies of
-                            Just b ->
-                                ( b, slotA1, slotB1 )
+                        Array.set prevBody1.body.id prevBody1 solverBodies
 
-                            Nothing ->
-                                ( prevA, slotA1, slotB1 )
+                body2 =
+                    case Array.get bodyId2 newSolverBodies of
+                        Just b ->
+                            b
 
-                arrFlushed =
-                    flushSlot slotB2 (flushSlot slotA2 solverBodies)
+                        Nothing ->
+                            prevBody1
 
                 ( newBody1, newBody2 ) =
                     applyGroupWarmStart body1 body2 equations
             in
-            applyWarmStart newBody1 newBody2 arrFlushed rest
+            applyWarmStart
+                newBody1
+                (if newBody2.body.kind == Body.Dynamic then
+                    Array.set bodyId2 newBody2 newSolverBodies
+
+                 else
+                    newSolverBodies
+                )
+                rest
 
 
 solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
@@ -210,10 +212,20 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
 
                 -- warm start: apply cached lambdas as impulses to body delta-v
                 warmStartedBodies =
-                    applyWarmStart fillingBody fillingBody solverBodies equationsGroups
+                    case equationsGroups of
+                        [] ->
+                            solverBodies
+
+                        { bodyId1 } :: _ ->
+                            case Array.get bodyId1 solverBodies of
+                                Just firstBody ->
+                                    applyWarmStart firstBody solverBodies equationsGroups
+
+                                Nothing ->
+                                    solverBodies
 
                 ( finalSolverBodies, finalEquationsGroups, remainingIterations ) =
-                    step iterations 0 [] equationsGroups fillingBody fillingBody warmStartedBodies
+                    step iterations 0 [] equationsGroups fillingBody warmStartedBodies
 
                 iterationsUsed =
                     max 1 (iterations - remainingIterations)
@@ -238,67 +250,67 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
             ( finalSolverBodies, finalLambdas, iterationsUsed )
 
 
-{-| Two-body in-flight: keep both bodies of the just-processed group in
-slots `prevA` and `prevB`. At the next group, look for body1 and body2 in
-the slots first; only fetch from the array on a miss. Slots that aren't
-reused are flushed to the array. Catches both today's "same body1 across
-groups" pattern (wide piles) AND the "body2 of one group = body1 of next"
-pattern (chains).
--}
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
-step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevA prevB solverBodies =
+step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
+step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
     case currentEquationsGroups of
         [] ->
-            let
-                arrFlushed =
-                    flushSlot prevB (flushSlot prevA solverBodies)
-            in
             if remainingIterations == 0 then
-                ( arrFlushed, equationsGroups, 0 )
+                -- the max number of iterations elapsed
+                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, 0 )
 
             else if deltalambdaTot - Const.precision < 0 then
-                ( arrFlushed, equationsGroups, remainingIterations - 1 )
+                -- tolerance reached
+                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, remainingIterations - 1 )
 
             else
-                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) (freeSlot prevA) (freeSlot prevA) arrFlushed
+                -- requeue equationsGroups for the next step
+                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
 
         { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
             let
-                ( body1, slotA1, slotB1 ) =
-                    if prevA.body.id - bodyId1 == 0 then
-                        ( prevA, freeSlot prevA, prevB )
-
-                    else if prevB.body.id - bodyId1 == 0 then
-                        ( prevB, prevA, freeSlot prevA )
+                body1 =
+                    if prevBody1.body.id - bodyId1 == 0 then
+                        -- if the next equations group has the same body
+                        -- then no need to get it from the array
+                        prevBody1
 
                     else
                         case Array.get bodyId1 solverBodies of
                             Just nextBody ->
-                                ( nextBody, prevA, prevB )
+                                nextBody
 
                             Nothing ->
-                                ( prevA, prevA, prevB )
+                                -- this shouldn’t happen, we just
+                                -- don’t want to allocate a Just
+                                prevBody1
 
-                ( body2, slotA2, slotB2 ) =
-                    if slotA1.body.id - bodyId2 == 0 then
-                        ( slotA1, freeSlot prevA, slotB1 )
-
-                    else if slotB1.body.id - bodyId2 == 0 then
-                        ( slotB1, slotA1, freeSlot prevA )
+                newSolverBodies =
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
+                        -- if the next equations group has the same body,
+                        -- then no need to set it to the array
+                        -- also no need to update non-dynamic bodies (static, kinematic)
+                        solverBodies
 
                     else
-                        case Array.get bodyId2 solverBodies of
-                            Just nextBody ->
-                                ( nextBody, slotA1, slotB1 )
+                        Array.set prevBody1.body.id prevBody1 solverBodies
 
-                            Nothing ->
-                                ( prevA, slotA1, slotB1 )
+                body2 =
+                    case Array.get bodyId2 newSolverBodies of
+                        Just nextBody ->
+                            nextBody
 
-                arrFlushed =
-                    flushSlot slotB2 (flushSlot slotA2 solverBodies)
+                        Nothing ->
+                            -- this shouldn’t happen, we just
+                            -- don’t want to allocate a Just
+                            prevBody1
 
                 groupContext =
-                    solveEquationsGroup body1 body2 [] deltalambdaTot equations
+                    solveEquationsGroup
+                        body1
+                        body2
+                        []
+                        deltalambdaTot
+                        equations
             in
             step remainingIterations
                 groupContext.deltalambdaTot
@@ -309,28 +321,18 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                     :: equationsGroups
                 )
                 remainingEquationsGroups
+                -- we don’t put body1 in the array, because we might need it
+                -- in the next iteration, because this is the order in
+                -- which we generated the contact equation groups (b1, b2), (b1, b3)
+                -- this lets us reduce Array.set operations
                 groupContext.body1
-                groupContext.body2
-                arrFlushed
+                (if groupContext.body2.body.kind == Body.Dynamic then
+                    Array.set bodyId2 groupContext.body2 newSolverBodies
 
-
-{-| Empty slot: a sentinel body whose id (-1) won't match any real body.
-Reuses the existing sentinel from solve()'s fillingBody, parameterised by
-the given body's extId so the type checks.
--}
-freeSlot : SolverBody id -> SolverBody id
-freeSlot template =
-    sentinel template.extId
-
-
-flushSlot : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
-flushSlot slot arr =
-    if slot.body.kind /= Body.Dynamic then
-        -- sentinel (Static, id=-1), or static/kinematic body — nothing to write
-        arr
-
-    else
-        Array.set slot.body.id slot arr
+                 else
+                    -- static and kinematic bodies don’t change
+                    newSolverBodies
+                )
 
 
 type alias GroupSolveResult id =
