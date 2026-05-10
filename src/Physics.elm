@@ -82,7 +82,6 @@ import Internal.AssignIds
 import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Const as Const
-import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
 import Internal.Coordinates
 import Internal.Shape as InternalShape
@@ -465,10 +464,6 @@ simulate config bodiesWithIds =
         dt =
             Duration.inSeconds config.duration
 
-        constraints =
-            InternalConstraint.getConstraints config.constrain
-                internalBodiesWithIds
-
         -- Sort bodies by projection onto gravity axis so BroadPhase
         -- discovers ground contacts first, giving bottom-up solver order
         -- regardless of user body list order.
@@ -483,11 +478,11 @@ simulate config bodiesWithIds =
             in
             List.sortBy projection internalBodiesWithIds
 
-        contactGroups =
-            BroadPhase.getContacts config.collide sortedBodies
+        pairGroups =
+            BroadPhase.getPairs config.collide config.constrain sortedBodies
 
         ( solverBodies, newLambdas, iters ) =
-            Solver.solve dt gravityVec config.solverIterations constraints contactGroups maxId internalBodiesWithIds cache.lambdas
+            Solver.solve dt gravityVec config.solverIterations pairGroups maxId sortedBodies cache.lambdas
     in
     ( List.reverse (outputBodiesHelp dt gravityVec solverBodies internalBodiesWithIds [])
     , Types.Contacts
@@ -495,7 +490,7 @@ simulate config bodiesWithIds =
         , iterations = iters
         , dt = dt
         , gravity = gravityVec
-        , contactGroups = contactGroups
+        , pairGroups = pairGroups
         , solverBodies = solverBodies
         }
     )
@@ -568,7 +563,7 @@ Each entry is a pair of body ids and a list of contact points between them.
 -}
 contactPoints : (id -> id -> Bool) -> Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
 contactPoints predicate (Types.Contacts c) =
-    contactPointsHelp predicate c.dt c.gravity c.contactGroups c.solverBodies []
+    contactPointsHelp predicate c.dt c.gravity c.pairGroups c.solverBodies []
 
 
 {-| Empty contacts for the first simulation frame (no warm starting).
@@ -580,7 +575,7 @@ emptyContacts =
         , iterations = 0
         , dt = 0
         , gravity = Vec3.zero
-        , contactGroups = []
+        , pairGroups = []
         , solverBodies = Array.empty
         }
 
@@ -996,53 +991,58 @@ contactPointsHelp :
     (id -> id -> Bool)
     -> Float
     -> Vec3.Vec3
-    -> List InternalContact.ContactGroup
+    -> List InternalContact.PairGroup
     -> Array (SolverBody.SolverBody id)
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
-contactPointsHelp predicate dt gravity internalContactGroups solverBodies acc =
-    case internalContactGroups of
+contactPointsHelp predicate dt gravity pairGroups solverBodies acc =
+    case pairGroups of
         [] ->
             acc
 
-        contactGroup :: remainingContactGroups ->
-            case Array.get contactGroup.body1.id solverBodies of
-                Just solverBody1 ->
-                    case Array.get contactGroup.body2.id solverBodies of
-                        Just solverBody2 ->
-                            if predicate solverBody1.extId solverBody2.extId || predicate solverBody2.extId solverBody1.extId then
-                                let
-                                    newBody1 =
-                                        SolverBody.toBody dt gravity solverBody1
+        pairGroup :: remainingPairGroups ->
+            case pairGroup.contacts of
+                [] ->
+                    contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
 
-                                    -- Transform contact points from pre-sim body1 frame to post-sim body1 frame
-                                    transform =
-                                        Transform3d.atOrigin
-                                            |> Transform3d.relativeTo contactGroup.body1.transform3d
-                                            |> Transform3d.placeIn newBody1.transform3d
+                _ ->
+                    case Array.get pairGroup.body1.id solverBodies of
+                        Just solverBody1 ->
+                            case Array.get pairGroup.body2.id solverBodies of
+                                Just solverBody2 ->
+                                    if predicate solverBody1.extId solverBody2.extId || predicate solverBody2.extId solverBody1.extId then
+                                        let
+                                            newBody1 =
+                                                SolverBody.toBody dt gravity solverBody1
 
-                                    points =
-                                        List.map
-                                            (\{ contact } ->
-                                                Point3d.fromMeters (Transform3d.pointPlaceIn transform contact.pi)
-                                            )
-                                            contactGroup.contacts
-                                in
-                                contactPointsHelp predicate
-                                    dt
-                                    gravity
-                                    remainingContactGroups
-                                    solverBodies
-                                    (( solverBody1.extId, solverBody2.extId, points ) :: acc)
+                                            -- Transform contact points from pre-sim body1 frame to post-sim body1 frame
+                                            transform =
+                                                Transform3d.atOrigin
+                                                    |> Transform3d.relativeTo pairGroup.body1.transform3d
+                                                    |> Transform3d.placeIn newBody1.transform3d
 
-                            else
-                                contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
+                                            points =
+                                                List.map
+                                                    (\{ contact } ->
+                                                        Point3d.fromMeters (Transform3d.pointPlaceIn transform contact.pi)
+                                                    )
+                                                    pairGroup.contacts
+                                        in
+                                        contactPointsHelp predicate
+                                            dt
+                                            gravity
+                                            remainingPairGroups
+                                            solverBodies
+                                            (( solverBody1.extId, solverBody2.extId, points ) :: acc)
+
+                                    else
+                                        contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
+
+                                Nothing ->
+                                    contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
 
                         Nothing ->
-                            contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
-
-                Nothing ->
-                    contactPointsHelp predicate dt gravity remainingContactGroups solverBodies acc
+                            contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
 
 
 outputBodiesHelp :

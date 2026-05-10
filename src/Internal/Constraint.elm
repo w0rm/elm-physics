@@ -1,6 +1,5 @@
-module Internal.Constraint exposing (Constraint(..), ConstraintGroup, getConstraints)
+module Internal.Constraint exposing (Constraint(..), flip, relativeToCenterOfMass)
 
-import Internal.Body as Body
 import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
@@ -12,13 +11,6 @@ type Constraint coordinates
     | Hinge Vec3 Vec3 Vec3 Vec3
     | Lock Vec3 Vec3 Vec3 Vec3 Vec3 Vec3 Vec3 Vec3
     | Distance Float
-
-
-type alias ConstraintGroup =
-    { bodyId1 : Int
-    , bodyId2 : Int
-    , constraints : List (Constraint CenterOfMassCoordinates)
-    }
 
 
 relativeToCenterOfMass :
@@ -55,70 +47,21 @@ relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
             Distance length
 
 
-getConstraints :
-    (id -> Maybe (id -> List (Constraint BodyCoordinates)))
-    -> List ( id, Body.Body )
-    -> List ConstraintGroup
-getConstraints constrain bodiesWithIds =
-    buildConstraintsOuter constrain bodiesWithIds bodiesWithIds []
+{-| Swap body1 and body2 roles. Used when the user registered the constrain
+callback on the body that ends up at the larger gravity-sort position, so
+the constraint must be re-keyed to put the smaller-position body first.
+-}
+flip : Constraint coordinates -> Constraint coordinates
+flip constraint =
+    case constraint of
+        PointToPoint p1 p2 ->
+            PointToPoint p2 p1
 
+        Hinge p1 a1 p2 a2 ->
+            Hinge p2 a2 p1 a1
 
-buildConstraintsOuter :
-    (id -> Maybe (id -> List (Constraint BodyCoordinates)))
-    -> List ( id, Body.Body )
-    -> List ( id, Body.Body )
-    -> List ConstraintGroup
-    -> List ConstraintGroup
-buildConstraintsOuter constrain bodies allBodies acc =
-    case bodies of
-        [] ->
-            acc
+        Lock p1 x1 y1 z1 p2 x2 y2 z2 ->
+            Lock p2 x2 y2 z2 p1 x1 y1 z1
 
-        ( id1, body1 ) :: rest ->
-            case constrain id1 of
-                Nothing ->
-                    buildConstraintsOuter constrain rest allBodies acc
-
-                Just fn ->
-                    buildConstraintsOuter constrain
-                        rest
-                        allBodies
-                        (buildConstraintsInner fn body1 allBodies acc)
-
-
-buildConstraintsInner :
-    (id -> List (Constraint BodyCoordinates))
-    -> Body.Body
-    -> List ( id, Body.Body )
-    -> List ConstraintGroup
-    -> List ConstraintGroup
-buildConstraintsInner fn body1 bodies acc =
-    case bodies of
-        [] ->
-            acc
-
-        ( id2, body2 ) :: rest ->
-            if body1.id - body2.id == 0 || (body1.kind /= Body.Dynamic && body2.kind /= Body.Dynamic) then
-                buildConstraintsInner fn body1 rest acc
-
-            else
-                case fn id2 of
-                    [] ->
-                        buildConstraintsInner fn body1 rest acc
-
-                    cs ->
-                        buildConstraintsInner fn
-                            body1
-                            rest
-                            ({ bodyId1 = body1.id
-                             , bodyId2 = body2.id
-                             , constraints =
-                                List.map
-                                    (relativeToCenterOfMass
-                                        body1.centerOfMassTransform3d
-                                        body2.centerOfMassTransform3d
-                                    )
-                                    cs
-                             }
-                                :: acc
-                            )
+        Distance length ->
+            Distance length
