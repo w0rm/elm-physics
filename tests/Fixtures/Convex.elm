@@ -9,7 +9,6 @@ module Fixtures.Convex exposing
     )
 
 import Array
-import Internal.Const as Const
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Shapes.Convex as Convex exposing (Convex)
 
@@ -127,14 +126,16 @@ squarePyramid =
 
 askewSquarePyramid : Convex
 askewSquarePyramid =
-    -- Use an insignificant epsilon for an approximately square base
-    squareLikePyramid (Const.precision / 3.0)
+    -- Use an insignificant epsilon (well below the parallel tolerance in
+    -- groupEdgesByDirection) for an approximately square base.
+    squareLikePyramid 1.0e-5
 
 
 nonSquareQuadPyramid : Convex
 nonSquareQuadPyramid =
-    -- Use a significant epsilon for a not even approximately square base
-    squareLikePyramid (Const.precision * 3.0)
+    -- Use a significant epsilon (well above the parallel tolerance in
+    -- groupEdgesByDirection) for a not even approximately square base.
+    squareLikePyramid 1.0e-2
 
 
 squareLikePyramid : Float -> Convex

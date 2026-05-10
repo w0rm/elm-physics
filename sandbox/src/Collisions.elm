@@ -32,6 +32,7 @@ import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
 import Direction3d
+import File.Download
 import Frame3d exposing (Frame3d)
 import Html exposing (Html)
 import Html.Attributes
@@ -191,6 +192,7 @@ type Msg
     | MouseMove Float Float
     | MouseWheel Float
     | ToggleContactIds Bool
+    | DownloadFixture
 
 
 main : Program () Model Msg
@@ -340,6 +342,14 @@ update msg model =
 
         ToggleContactIds value ->
             ( { model | showContactIds = value }, Cmd.none )
+
+        DownloadFixture ->
+            ( model
+            , File.Download.string
+                (fixtureFilename model.shape)
+                "text/plain"
+                (fixtureSnippet model.shape model.pose)
+            )
 
 
 applyHeldKeys : Float -> Set String -> Camera -> Pose -> Pose
@@ -511,8 +521,8 @@ targetConvex =
         |> ShapesConvex.placeIn Transform3d.atOrigin
 
 
-computeContacts : ControlledShape -> Pose -> List Contact
-computeContacts shape pose =
+computeContacts : String -> ControlledShape -> Pose -> List Contact
+computeContacts idPrefix shape pose =
     let
         transform =
             frame3dToTransform3d pose
@@ -524,7 +534,7 @@ computeContacts shape pose =
                     ShapesCapsule.atOrigin capsuleRadius capsuleHalfLength
                         |> ShapesCapsule.placeIn transform
             in
-            CapsuleConvex.addContacts "test" identity cap targetConvex []
+            CapsuleConvex.addContacts idPrefix identity cap targetConvex []
 
         ShapeBox ->
             let
@@ -532,7 +542,7 @@ computeContacts shape pose =
                     ShapesConvex.fromBlock controlledBoxSize controlledBoxSize controlledBoxSize
                         |> ShapesConvex.placeIn transform
             in
-            ConvexConvex.addContacts "test" conv targetConvex []
+            ConvexConvex.addContacts idPrefix conv targetConvex []
 
         ShapeSphere ->
             let
@@ -540,7 +550,7 @@ computeContacts shape pose =
                     ShapesSphere.atOrigin sphereRadius
                         |> ShapesSphere.placeIn transform
             in
-            SphereConvex.addContacts "test" identity sph targetConvex []
+            SphereConvex.addContacts idPrefix identity sph targetConvex []
 
         ShapeCylinder ->
             let
@@ -548,12 +558,12 @@ computeContacts shape pose =
                     ShapesConvex.fromCylinder cylinderSubdivisions cylinderRadius cylinderLength
                         |> ShapesConvex.placeIn transform
             in
-            ConvexConvex.addContacts "test" conv targetConvex []
+            ConvexConvex.addContacts idPrefix conv targetConvex []
 
         ShapeUnsafeConvexBox ->
             case unsafeConvexFromObj cubeObj of
                 Just baseConv ->
-                    ConvexConvex.addContacts "test" (ShapesConvex.placeIn transform baseConv) targetConvex []
+                    ConvexConvex.addContacts idPrefix (ShapesConvex.placeIn transform baseConv) targetConvex []
 
                 Nothing ->
                     []
@@ -561,7 +571,7 @@ computeContacts shape pose =
         ShapeUnsafeConvexSphere ->
             case unsafeConvexFromObj icoSphereObj of
                 Just baseConv ->
-                    ConvexConvex.addContacts "test" (ShapesConvex.placeIn transform baseConv) targetConvex []
+                    ConvexConvex.addContacts idPrefix (ShapesConvex.placeIn transform baseConv) targetConvex []
 
                 Nothing ->
                     []
@@ -718,7 +728,7 @@ view : Model -> Html Msg
 view model =
     let
         contactList =
-            computeContacts model.shape model.pose
+            computeContacts "test" model.shape model.pose
 
         contactPoints =
             List.concatMap
@@ -750,6 +760,7 @@ view model =
         , Settings.view ForSettings
             model.settings
             (Html.button [ onClick Reset ] [ Html.text "Reset pose" ]
+                :: Html.button [ onClick DownloadFixture ] [ Html.text "Download fixture" ]
                 :: toggleButton model.showContactIds "show contact ids" ToggleContactIds
                 :: List.map (shapeButton model.shape) allShapes
             )
@@ -1096,3 +1107,257 @@ overlay model contacts =
         , Html.Attributes.style "line-height" "1.4"
         ]
         [ Html.text text ]
+
+
+
+-- Fixture generator
+
+
+fixtureFilename : ControlledShape -> String
+fixtureFilename shape =
+    case shape of
+        ShapeCapsule ->
+            "CapsuleBoxFixture.elm"
+
+        ShapeBox ->
+            "BoxBoxFixture.elm"
+
+        ShapeSphere ->
+            "SphereBoxFixture.elm"
+
+        ShapeCylinder ->
+            "CylinderBoxFixture.elm"
+
+        ShapeUnsafeConvexBox ->
+            "UnsafeConvexBoxBoxFixture.elm"
+
+        ShapeUnsafeConvexSphere ->
+            "UnsafeConvexSphereBoxFixture.elm"
+
+
+fixtureSnippet : ControlledShape -> Pose -> String
+fixtureSnippet shape pose =
+    let
+        contacts =
+            computeContacts "" shape pose
+    in
+    fixtureHeader shape (List.length contacts)
+        ++ fixtureImports shape
+        ++ "\n\nfixture : Test\nfixture =\n    let\n"
+        ++ targetBoxBindings
+        ++ controlledBindings shape pose
+        ++ "    in\n    test \"TODO describe scenario\" <|\n        \\_ ->\n            "
+        ++ callExpression shape
+        ++ "\n                |> Expect.contactsWithIds\n"
+        ++ formatContactList contacts
+
+
+fixtureHeader : ControlledShape -> Int -> String
+fixtureHeader shape contactCount =
+    "module Fixture exposing (fixture)\n\n"
+        ++ "{-| Generated from the Collisions sandbox demo.\n\n"
+        ++ "Shape: "
+        ++ shapeName shape
+        ++ "\nContacts: "
+        ++ String.fromInt contactCount
+        ++ "\n\nPaste into a test module — rename, prettify the floats, and tighten the\n"
+        ++ "scenario description. Generated floats print as e.g. 0.7071067811865475\n"
+        ++ "where the existing tests prefer symbolic forms like `1 / sqrt 2`.\n\n-}\n\n"
+
+
+fixtureImports : ControlledShape -> String
+fixtureImports shape =
+    let
+        common =
+            [ "import Extra.Expect as Expect"
+            , "import Internal.Transform3d as Transform3d"
+            , "import Shapes.Convex as Convex"
+            , "import Test exposing (Test, test)"
+            ]
+
+        extras =
+            case shape of
+                ShapeCapsule ->
+                    [ "import Collision.CapsuleConvex", "import Shapes.Capsule as Capsule" ]
+
+                ShapeBox ->
+                    [ "import Collision.ConvexConvex" ]
+
+                ShapeSphere ->
+                    [ "import Collision.SphereConvex", "import Shapes.Sphere as Sphere" ]
+
+                ShapeCylinder ->
+                    [ "import Collision.ConvexConvex" ]
+
+                ShapeUnsafeConvexBox ->
+                    [ "import Collision.ConvexConvex" ]
+
+                ShapeUnsafeConvexSphere ->
+                    [ "import Collision.ConvexConvex" ]
+    in
+    String.join "\n" (List.sort (common ++ extras))
+
+
+targetBoxBindings : String
+targetBoxBindings =
+    "        boxSize =\n            "
+        ++ formatFloat targetBoxSize
+        ++ "\n\n        box =\n            Convex.fromBlock boxSize boxSize boxSize\n                |> Convex.placeIn Transform3d.atOrigin\n\n"
+
+
+controlledBindings : ControlledShape -> Pose -> String
+controlledBindings shape pose =
+    case shape of
+        ShapeCapsule ->
+            "        radius =\n            "
+                ++ formatFloat capsuleRadius
+                ++ "\n\n        halfLength =\n            "
+                ++ formatFloat capsuleHalfLength
+                ++ "\n\n        capsule =\n            Capsule.atOrigin radius halfLength\n                |> Capsule.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+        ShapeBox ->
+            "        controlledSize =\n            "
+                ++ formatFloat controlledBoxSize
+                ++ "\n\n        controlledBox =\n            Convex.fromBlock controlledSize controlledSize controlledSize\n                |> Convex.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+        ShapeSphere ->
+            "        radius =\n            "
+                ++ formatFloat sphereRadius
+                ++ "\n\n        sphere =\n            Sphere.atOrigin radius\n                |> Sphere.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+        ShapeCylinder ->
+            "        subdivisions =\n            "
+                ++ String.fromInt cylinderSubdivisions
+                ++ "\n\n        radius =\n            "
+                ++ formatFloat cylinderRadius
+                ++ "\n\n        length =\n            "
+                ++ formatFloat cylinderLength
+                ++ "\n\n        cylinder =\n            Convex.fromCylinder subdivisions radius length\n                |> Convex.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+        ShapeUnsafeConvexBox ->
+            "        -- The cubeObj in Collisions.elm is a 2x2x2 cube; the line below is\n"
+                ++ "        -- collision-equivalent. To exercise the OBJ-derived construction\n"
+                ++ "        -- specifically, replace with `unsafeConvexFromObj cubeObj`-style\n"
+                ++ "        -- code (see Collisions.elm).\n"
+                ++ "        controlledBox =\n            Convex.fromBlock 2 2 2\n                |> Convex.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+        ShapeUnsafeConvexSphere ->
+            "        -- The icoSphereObj in Collisions.elm is a faceted approximation of a\n"
+                ++ "        -- unit sphere. There is no native Convex constructor that produces\n"
+                ++ "        -- the same hull, so reproduce the OBJ-derived construction from\n"
+                ++ "        -- Collisions.elm here:\n"
+                ++ "        controlledConvex =\n            Debug.todo \"reproduce icoSphereObj construction\"\n"
+                ++ "                |> Convex.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
+
+callExpression : ControlledShape -> String
+callExpression shape =
+    case shape of
+        ShapeCapsule ->
+            "Collision.CapsuleConvex.addContacts \"\" identity capsule box []"
+
+        ShapeBox ->
+            "Collision.ConvexConvex.addContacts \"\" controlledBox box []"
+
+        ShapeSphere ->
+            "Collision.SphereConvex.addContacts \"\" identity sphere box []"
+
+        ShapeCylinder ->
+            "Collision.ConvexConvex.addContacts \"\" cylinder box []"
+
+        ShapeUnsafeConvexBox ->
+            "Collision.ConvexConvex.addContacts \"\" controlledBox box []"
+
+        ShapeUnsafeConvexSphere ->
+            "Collision.ConvexConvex.addContacts \"\" controlledConvex box []"
+
+
+formatPose : Pose -> String
+formatPose pose =
+    let
+        origin =
+            Point3d.toMeters (Frame3d.originPoint pose)
+
+        xDir =
+            Direction3d.unwrap (Frame3d.xDirection pose)
+
+        yDir =
+            Direction3d.unwrap (Frame3d.yDirection pose)
+
+        zDir =
+            Direction3d.unwrap (Frame3d.zDirection pose)
+    in
+    "                    (Transform3d.fromOriginAndBasis\n"
+        ++ "                        "
+        ++ formatVec3 origin
+        ++ "\n                        "
+        ++ formatVec3 xDir
+        ++ "\n                        "
+        ++ formatVec3 yDir
+        ++ "\n                        "
+        ++ formatVec3 zDir
+        ++ "\n                    )"
+
+
+formatContactList : List Contact -> String
+formatContactList contacts =
+    case contacts of
+        [] ->
+            "                    []\n"
+
+        first :: rest ->
+            let
+                head =
+                    "                    [ " ++ formatContact first ++ "\n"
+
+                tail =
+                    rest
+                        |> List.map (\c -> "                    , " ++ formatContact c ++ "\n")
+                        |> String.concat
+            in
+            head ++ tail ++ "                    ]\n"
+
+
+formatContact : Contact -> String
+formatContact c =
+    "{ id = \""
+        ++ c.id
+        ++ "\"\n                      , ni = "
+        ++ formatVec3 c.ni
+        ++ "\n                      , pi = "
+        ++ formatVec3 c.pi
+        ++ "\n                      , pj = "
+        ++ formatVec3 c.pj
+        ++ "\n                      }"
+
+
+formatVec3 : { x : Float, y : Float, z : Float } -> String
+formatVec3 v =
+    "{ x = "
+        ++ formatFloat v.x
+        ++ ", y = "
+        ++ formatFloat v.y
+        ++ ", z = "
+        ++ formatFloat v.z
+        ++ " }"
+
+
+formatFloat : Float -> String
+formatFloat f =
+    if f == 0 then
+        "0"
+
+    else
+        String.fromFloat f

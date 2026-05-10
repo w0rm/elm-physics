@@ -212,7 +212,16 @@ addEdgeToGroupsHelp v1 v2 direction groups acc =
                 groupDirection =
                     Vec3.direction gv1 gv2
             in
-            if Vec3.almostZero (Vec3.cross direction groupDirection) then
+            -- Use a length-squared tolerance instead of the component-wise
+            -- `almostZero`: nearly-parallel unit vectors can still produce a
+            -- cross with components above 1e-6 (e.g., the icosphere's
+            -- antipodal edge pairs differ by a few microradians from
+            -- 6-decimal OBJ rounding). Splitting them across direction
+            -- groups would make `pickSupportEdge` miss the parallel edge
+            -- closest to the contact, which produces wildly off contact
+            -- points. sin²(0.057°) ≈ 1e-6 is well above the worst case
+            -- here and well below any genuine non-parallel direction.
+            if Vec3.lengthSquared (Vec3.cross direction groupDirection) - parallelTolerance < 0 then
                 if (v1 == gv1 && v2 == gv2) || (v1 == gv2 && v2 == gv1) || hasEdge v1 v2 otherEdges then
                     -- Already added (face-shared): skip.
                     prependReversed acc groups
@@ -222,6 +231,11 @@ addEdgeToGroupsHelp v1 v2 direction groups acc =
 
             else
                 addEdgeToGroupsHelp v1 v2 direction rest (group :: acc)
+
+
+parallelTolerance : Float
+parallelTolerance =
+    1.0e-6
 
 
 hasEdge : Vec3 -> Vec3 -> List ( Vec3, Vec3 ) -> Bool
