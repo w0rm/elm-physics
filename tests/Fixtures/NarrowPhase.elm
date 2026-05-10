@@ -20,14 +20,8 @@ sphereContactBoxPositions center radius boxSize =
         nearEdgeOffset =
             boxHalfExtent - delta
 
-        -- Reposition the box so that it contacts the sphere at each:
-        -- vertex
-        -- edge (midpoint)
-        -- face (center)
-        -- face (at a point near a vertex)
-        -- face (at a point near an edge midpoint).
-        -- The adjustment of -Const.precision represents a minimum
-        -- penetration value.
+        -- Box positions for each contact feature; -Const.precision
+        -- ensures a minimum penetration.
         vertexDimension =
             boxHalfExtent + radius / sqrt 3 - Const.precision
 
@@ -49,7 +43,6 @@ sphereContactBoxPositions center radius boxSize =
         invSqrt2 =
             1 / sqrt 2
     in
-    -- Box positions and their resulting contacts:
     [ -- the 8 vertex contacts
       ceq { cj = { x = vertexDimension, y = vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = -boxHalfExtent, y = -boxHalfExtent, z = -boxHalfExtent } }
     , ceq { cj = { x = -vertexDimension, y = vertexDimension, z = vertexDimension } |> Vec3.add center, ci = center, ni = { x = -invSqrt3, y = invSqrt3, z = invSqrt3 }, rj = { x = boxHalfExtent, y = -boxHalfExtent, z = -boxHalfExtent } }
@@ -110,14 +103,7 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
         delta =
             3 * Const.precision
 
-        -- Reposition the octohedron so that it contacts the sphere at each:
-        -- vertex
-        -- edge (midpoint)
-        -- face (center)
-        -- face (at a point near a vertex)
-        -- face (at a point near an edge midpoint)
-        -- The adjustment of -Const.precision represents a minimum
-        -- penetration value.
+        -- Octahedron positions for each contact feature.
         vertexDimension =
             octoHalfExtent + radius - Const.precision
 
@@ -136,8 +122,7 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
         invSqrt2 =
             1 / sqrt 2
     in
-    [ -- Octohedron positions and their contacts
-      -- 6 vertex contacts
+    [ -- 6 vertex contacts
       ceq { ci = center, cj = { x = vertexDimension, y = 0, z = 0 } |> Vec3.add center, ni = Vec3.xAxis, rj = { x = -octoHalfExtent, y = 0, z = 0 } }
     , ceq { ci = center, cj = { x = 0, y = vertexDimension, z = 0 } |> Vec3.add center, ni = Vec3.yAxis, rj = { x = 0, y = -octoHalfExtent, z = 0 } }
     , ceq { ci = center, cj = { x = 0, y = 0, z = vertexDimension } |> Vec3.add center, ni = Vec3.zAxis, rj = { x = 0, y = 0, z = -octoHalfExtent } }

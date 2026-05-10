@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, block, sphere, cylinder
+    ( Shape, block, sphere, cylinder, capsule
     , minus, plus, sum, unsafeConvex
     )
 
 {-|
 
-@docs Shape, block, sphere, cylinder
+@docs Shape, block, sphere, cylinder, capsule
 
 
 # Complex shapes
@@ -24,6 +24,7 @@ import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics.Types as Types
 import Point3d exposing (Point3d)
+import Shapes.Capsule as Capsule
 import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
@@ -34,7 +35,8 @@ import TriangularMesh exposing (TriangularMesh)
 and [static](Physics#static) bodies.
 
 The supported primitive shapes are [block](#block), [sphere](#sphere),
-and [cylinder](#cylinder). For complex geometry use [unsafeConvex](#unsafeConvex).
+[cylinder](#cylinder), and [capsule](#capsule). For complex geometry
+use [unsafeConvex](#unsafeConvex).
 
 Shapes within a body **should not overlap** — composing shapes only affects physical
 properties like mass, inertia, and center of mass. Use [plus](#plus) and
@@ -134,6 +136,34 @@ cylinder subdivisions cylinder3d =
                 (Length.inMeters (Cylinder3d.length cylinder3d))
                 |> Convex.placeIn transform3d
                 |> Internal.Convex
+          , 1
+          )
+        ]
+
+
+{-| Create a capsule shape: a cylinder with hemispherical end caps.
+The axis, center point, radius, and length are taken from the given `Cylinder3d`.
+-}
+capsule : Cylinder3d Meters BodyCoordinates -> Shape
+capsule cylinder3d =
+    let
+        ( a, b ) =
+            Cylinder3d.axialDirection cylinder3d
+                |> Direction3d.perpendicularBasis
+
+        transform3d =
+            Transform3d.fromOriginAndBasis
+                (Point3d.toMeters (Cylinder3d.centerPoint cylinder3d))
+                (Direction3d.unwrap a)
+                (Direction3d.unwrap b)
+                (Direction3d.unwrap (Cylinder3d.axialDirection cylinder3d))
+    in
+    Types.Shape
+        [ ( Capsule.atOrigin
+                (Length.inMeters (Cylinder3d.radius cylinder3d))
+                (Length.inMeters (Cylinder3d.length cylinder3d) / 2)
+                |> Capsule.placeIn transform3d
+                |> Internal.Capsule
           , 1
           )
         ]

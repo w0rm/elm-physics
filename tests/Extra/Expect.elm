@@ -1,5 +1,6 @@
 module Extra.Expect exposing
     ( contacts
+    , contactsWithIds
     , frame3d
     , mat3
     , vec3
@@ -17,6 +18,22 @@ import Point3d
 contacts : List Contact -> List Contact -> Expectation
 contacts =
     expectList contact
+
+
+contactsWithIds : List Contact -> List Contact -> Expectation
+contactsWithIds expected actual =
+    Expect.all
+        [ \_ ->
+            Expect.equal (List.map .id actual) (List.map .id expected)
+                |> Expect.onFail
+                    ("Contact ids don't match. Expected "
+                        ++ Debug.toString (List.map .id expected)
+                        ++ ", got "
+                        ++ Debug.toString (List.map .id actual)
+                    )
+        , \_ -> contacts expected actual
+        ]
+        ()
 
 
 contact : Contact -> Contact -> Expectation

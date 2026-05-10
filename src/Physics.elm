@@ -1,6 +1,6 @@
 module Physics exposing
     ( Body, BodyCoordinates, WorldCoordinates
-    , block, plane, sphere, cylinder, pointMass
+    , block, plane, sphere, cylinder, capsule, pointMass
     , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
@@ -19,7 +19,7 @@ module Physics exposing
 
 @docs Body, BodyCoordinates, WorldCoordinates
 
-@docs block, plane, sphere, cylinder, pointMass
+@docs block, plane, sphere, cylinder, capsule, pointMass
 
 
 # Positioning
@@ -123,8 +123,8 @@ Bodies start out centered on the origin; use [moveTo](#moveTo) to set the positi
 There are three kinds of bodies:
 
   - **dynamic** — moved by the engine in response to forces, gravity, and contacts.
-    The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder), and
-    [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
+    The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder),
+    [capsule](#capsule), and [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
     [shapes](Physics-Shape#Shape) into one body.
 
   - **static** — never moves. Used for floors, walls, and other immovable scenery.
@@ -185,6 +185,13 @@ For more subdivisions, use [dynamic](#dynamic) with [Shape.cylinder](Physics-Sha
 cylinder : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
 cylinder cylinder3d mat =
     dynamic [ ( Shape.cylinder 12 cylinder3d, mat ) ]
+
+
+{-| Create a capsule (a cylinder with hemispherical end caps).
+-}
+capsule : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
+capsule cylinder3d mat =
+    dynamic [ ( Shape.capsule cylinder3d, mat ) ]
 
 
 {-| Create a point mass — a body with mass but no extent. Two point masses

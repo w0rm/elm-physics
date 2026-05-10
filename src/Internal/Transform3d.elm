@@ -4,7 +4,6 @@ module Internal.Transform3d exposing
     , atPoint
     , directionPlaceIn
     , directionRelativeTo
-    , directionsPlaceIn
     , fromOriginAndBasis
     , inertiaPlaceIn
     , inertiaRotateIn
@@ -239,26 +238,6 @@ directionRelativeTo (Transform3d _ localOrientation) worldVector =
 directionPlaceIn : Transform3d coordinates defines -> Vec3 -> Vec3
 directionPlaceIn (Transform3d _ globalOrientation) worldVector =
     rotate globalOrientation worldVector
-
-
-{-| Transforms list of points, reverses the order
--}
-directionsPlaceIn : Transform3d coordinates defines -> List Vec3 -> List Vec3
-directionsPlaceIn transform directions =
-    directionsPlaceInHelp transform directions []
-
-
-directionsPlaceInHelp : Transform3d coordinates defines -> List Vec3 -> List Vec3 -> List Vec3
-directionsPlaceInHelp transform directions result =
-    case directions of
-        point :: remainingdirections ->
-            directionsPlaceInHelp
-                transform
-                remainingdirections
-                (directionPlaceIn transform point :: result)
-
-        [] ->
-            result
 
 
 placeIn :

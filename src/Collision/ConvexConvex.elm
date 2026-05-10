@@ -1,5 +1,6 @@
 module Collision.ConvexConvex exposing
     ( addContacts
+    , bestFace
     , findSeparatingAxis
     , project
     , testSeparatingAxis
@@ -11,32 +12,252 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex, Face)
 
 
+{-| Which body contributed the winning face axis to SAT.
+-}
+type Side
+    = Convex1
+    | Convex2
+
+
+{-| Result of `findFaceSAT`. Carries the winning face's group so the
+dispatcher can skip one of the two `bestFace` walks. `groupIdx` is 1-based
+in flat traversal order, matching `bestFace` — keeps contact IDs stable
+for warm-start cache keys.
+-}
+type alias FaceWinner =
+    { axis : Vec3
+    , dmin : Float
+    , fromSide : Side
+    , groupIdx : Int
+    , primary : Face
+    , partner : Maybe Face
+    }
+
+
 addContacts : String -> Convex -> Convex -> List Contact -> List Contact
 addContacts idPrefix convex1 convex2 contacts =
-    case findSeparatingAxis convex1 convex2 of
-        Just separatingAxis ->
-            let
-                reversedSeparatingAxis =
-                    Vec3.negate separatingAxis
-            in
-            case bestFace convex1.faces separatingAxis of
-                Just ( id1, face1 ) ->
-                    case bestFace convex2.faces reversedSeparatingAxis of
-                        Just ( id2, face2 ) ->
-                            clipTwoFaces (idPrefix ++ "-" ++ String.fromInt id1 ++ "-" ++ String.fromInt id2)
-                                face1
-                                face2
-                                reversedSeparatingAxis
-                                contacts
-
-                        Nothing ->
-                            contacts
-
-                Nothing ->
-                    contacts
-
+    case findFaceSAT convex1 convex2 of
         Nothing ->
             contacts
+
+        Just winner ->
+            case findEdgeSAT convex1 convex2 winner.dmin of
+                EdgeSeparates ->
+                    contacts
+
+                EdgeBeats edgeAxis dir1Idx edges1 dir2Idx edges2 ->
+                    addEdgeContact idPrefix
+                        (orientAxis convex1 convex2 edgeAxis)
+                        dir1Idx
+                        edges1
+                        dir2Idx
+                        edges2
+                        contacts
+
+                NoEdgeBeats ->
+                    dispatchBestFaces idPrefix convex1 convex2 winner contacts
+
+
+{-| Pick the contact face on the SAT-winning body directly; only run
+`bestFace` against the other body.
+-}
+dispatchBestFaces : String -> Convex -> Convex -> FaceWinner -> List Contact -> List Contact
+dispatchBestFaces idPrefix convex1 convex2 winner contacts =
+    let
+        separatingAxis =
+            orientAxis convex1 convex2 winner.axis
+
+        reversedSeparatingAxis =
+            Vec3.negate separatingAxis
+
+        picked =
+            case winner.fromSide of
+                Convex1 ->
+                    let
+                        ( wid, wface ) =
+                            pickWinningFace winner.groupIdx winner.primary winner.partner separatingAxis
+
+                        ( oid, oface ) =
+                            bestFace convex2.faces reversedSeparatingAxis
+                    in
+                    { id1 = wid, face1 = wface, id2 = oid, face2 = oface }
+
+                Convex2 ->
+                    let
+                        ( oid, oface ) =
+                            bestFace convex1.faces separatingAxis
+
+                        ( wid, wface ) =
+                            pickWinningFace winner.groupIdx winner.primary winner.partner reversedSeparatingAxis
+                    in
+                    { id1 = oid, face1 = oface, id2 = wid, face2 = wface }
+    in
+    if picked.id1 == -1 || picked.id2 == -1 then
+        contacts
+
+    else
+        clipTwoFaces (idPrefix ++ "-f" ++ String.fromInt picked.id1 ++ "-f" ++ String.fromInt picked.id2)
+            picked.face1
+            picked.face2
+            reversedSeparatingAxis
+            contacts
+
+
+{-| Pick the face in the group whose normal is most anti-aligned with
+`axisToward`. The partner's dot is the negation of the primary's, so a
+single dot product decides by sign.
+-}
+pickWinningFace : Int -> Face -> Maybe Face -> Vec3 -> ( Int, Face )
+pickWinningFace groupIdx primary partner axisToward =
+    case partner of
+        Just p ->
+            if Vec3.dot primary.normal axisToward <= 0 then
+                ( groupIdx, primary )
+
+            else
+                ( groupIdx + 1, p )
+
+        Nothing ->
+            ( groupIdx, primary )
+
+
+orientAxis : Convex -> Convex -> Vec3 -> Vec3
+orientAxis convex1 convex2 axis =
+    if Vec3.dot (Vec3.sub convex2.position convex1.position) axis > 0 then
+        Vec3.negate axis
+
+    else
+        axis
+
+
+{-| Emit a single edge-edge contact. The id encodes
+`(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
+warm-start cache keys survive multi-edge contacts in the same body pair.
+-}
+addEdgeContact : String -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
+    let
+        reversedSeparatingAxis =
+            Vec3.negate separatingAxis
+
+        ( edge1Idx, edge1 ) =
+            pickSupportEdge reversedSeparatingAxis edges1
+
+        ( edge2Idx, edge2 ) =
+            pickSupportEdge separatingAxis edges2
+
+        ( pi, pj ) =
+            closestPointsOnSegments edge1 edge2
+    in
+    { id =
+        idPrefix
+            ++ "-e"
+            ++ String.fromInt dir1Idx
+            ++ "."
+            ++ String.fromInt edge1Idx
+            ++ "-e"
+            ++ String.fromInt dir2Idx
+            ++ "."
+            ++ String.fromInt edge2Idx
+    , ni = reversedSeparatingAxis
+    , pi = pi
+    , pj = pj
+    }
+        :: contacts
+
+
+{-| Pick the edge in a direction group whose midpoint is furthest along
+`supportDir`. The 1-based index is part of the warm-start cache key.
+-}
+pickSupportEdge : Vec3 -> List ( Vec3, Vec3 ) -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdge supportDir edges =
+    pickSupportEdgeHelp supportDir edges 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
+
+
+pickSupportEdgeHelp : Vec3 -> List ( Vec3, Vec3 ) -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
+    case edges of
+        (( v1, v2 ) as edge) :: rest ->
+            let
+                midDot =
+                    supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
+            in
+            if midDot - bestDot > 0 then
+                pickSupportEdgeHelp supportDir rest (idx + 1) idx edge midDot
+
+            else
+                pickSupportEdgeHelp supportDir rest (idx + 1) bestIdx bestEdge bestDot
+
+        [] ->
+            ( bestIdx, bestEdge )
+
+
+{-| Compute the closest points between two line segments (p1, q1) and (p2, q2).
+Returns (point on segment 1, point on segment 2).
+-}
+closestPointsOnSegments : ( Vec3, Vec3 ) -> ( Vec3, Vec3 ) -> ( Vec3, Vec3 )
+closestPointsOnSegments ( p1, q1 ) ( p2, q2 ) =
+    let
+        d1 =
+            Vec3.sub q1 p1
+
+        d2 =
+            Vec3.sub q2 p2
+
+        r =
+            Vec3.sub p1 p2
+
+        a =
+            Vec3.dot d1 d1
+
+        e =
+            Vec3.dot d2 d2
+
+        f =
+            Vec3.dot d2 r
+
+        c =
+            Vec3.dot d1 r
+
+        b =
+            Vec3.dot d1 d2
+
+        denom =
+            a * e - b * b
+    in
+    if denom < Const.precision then
+        -- Parallel segments: pick midpoints.
+        ( { x = p1.x + 0.5 * d1.x, y = p1.y + 0.5 * d1.y, z = p1.z + 0.5 * d1.z }
+        , { x = p2.x + 0.5 * d2.x, y = p2.y + 0.5 * d2.y, z = p2.z + 0.5 * d2.z }
+        )
+
+    else
+        let
+            sUnclamped =
+                (b * f - c * e) / denom
+
+            tUnclamped =
+                (a * f - b * c) / denom
+
+            ( s, t ) =
+                if sUnclamped < 0 then
+                    ( 0, clamp 0 1 (f / e) )
+
+                else if sUnclamped > 1 then
+                    ( 1, clamp 0 1 ((b + f) / e) )
+
+                else if tUnclamped < 0 then
+                    ( clamp 0 1 (-c / a), 0 )
+
+                else if tUnclamped > 1 then
+                    ( clamp 0 1 ((b - c) / a), 1 )
+
+                else
+                    ( sUnclamped, tUnclamped )
+        in
+        ( { x = p1.x + s * d1.x, y = p1.y + s * d1.y, z = p1.z + s * d1.z }
+        , { x = p2.x + t * d2.x, y = p2.y + t * d2.y, z = p2.z + t * d2.z }
+        )
 
 
 clipTwoFaces : String -> Face -> Face -> Vec3 -> List Contact -> List Contact
@@ -67,7 +288,6 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
     case vertices of
         vertex :: remainingVertices ->
             let
-                -- used to be (max minDist depth), where minDist = -100
                 depth =
                     Vec3.dot face.normal vertex + facePlaneConstant
             in
@@ -78,7 +298,7 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
                     facePlaneConstant
                     (n + 1)
                     remainingVertices
-                    ({ id = idPrefix ++ String.fromInt (n + 1)
+                    ({ id = idPrefix ++ "-v" ++ String.fromInt (n + 1)
                      , ni = separatingAxis
                      , pi =
                         { x = vertex.x - depth * face.normal.x
@@ -103,52 +323,59 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
             result
 
 
-bestFace : List Face -> Vec3 -> Maybe ( Int, Face )
-bestFace faces separatingAxis =
-    case faces of
-        face :: restFaces ->
-            Just
-                (bestFaceHelp
-                    separatingAxis
-                    1
-                    restFaces
-                    1
-                    face
-                    (Vec3.dot face.normal separatingAxis)
-                )
-
-        [] ->
-            Nothing
+{-| Finds the face whose normal is most aligned with `-separatingAxis`.
+The partner is the antiparallel of the primary, so one dot per group
+covers both. Returns `( -1, emptyFace )` for empty groups.
+-}
+bestFace : List ( Face, Maybe Face ) -> Vec3 -> ( Int, Face )
+bestFace groups separatingAxis =
+    bestFaceWalk separatingAxis groups 1 -1 emptyFace Const.maxNumber
 
 
-bestFaceHelp : Vec3 -> Int -> List Face -> Int -> Face -> Float -> ( Int, Face )
-bestFaceHelp separatingAxis faceId faces currentBestFaceId currentBestFace currentBestDistance =
-    case faces of
-        face :: remainingFaces ->
-            let
-                faceDistance =
-                    Vec3.dot face.normal separatingAxis
-            in
-            if currentBestDistance - faceDistance > 0 then
-                bestFaceHelp
-                    separatingAxis
-                    (faceId + 1)
-                    remainingFaces
-                    faceId
-                    face
-                    faceDistance
+emptyFace : Face
+emptyFace =
+    { vertices = [], normal = Vec3.zero }
 
-            else
-                bestFaceHelp
-                    separatingAxis
-                    (faceId + 1)
-                    remainingFaces
-                    currentBestFaceId
-                    currentBestFace
-                    currentBestDistance
 
+bestFaceWalk : Vec3 -> List ( Face, Maybe Face ) -> Int -> Int -> Face -> Float -> ( Int, Face )
+bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace currentBestDistance =
+    case groups of
         [] ->
             ( currentBestFaceId, currentBestFace )
+
+        ( primary, Just partner ) :: restGroups ->
+            let
+                primaryDot =
+                    Vec3.dot primary.normal separatingAxis
+
+                partnerDot =
+                    -primaryDot
+
+                -- Compete primary against running best.
+                ( id1, f1, d1 ) =
+                    if currentBestDistance - primaryDot > 0 then
+                        ( faceId, primary, primaryDot )
+
+                    else
+                        ( currentBestFaceId, currentBestFace, currentBestDistance )
+            in
+            -- Compete partner against the result.
+            if d1 - partnerDot > 0 then
+                bestFaceWalk separatingAxis restGroups (faceId + 2) (faceId + 1) partner partnerDot
+
+            else
+                bestFaceWalk separatingAxis restGroups (faceId + 2) id1 f1 d1
+
+        ( primary, Nothing ) :: restGroups ->
+            let
+                d =
+                    Vec3.dot primary.normal separatingAxis
+            in
+            if currentBestDistance - d > 0 then
+                bestFaceWalk separatingAxis restGroups (faceId + 1) faceId primary d
+
+            else
+                bestFaceWalk separatingAxis restGroups (faceId + 1) currentBestFaceId currentBestFace currentBestDistance
 
 
 clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3
@@ -201,63 +428,145 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
 
 findSeparatingAxis : Convex -> Convex -> Maybe Vec3
 findSeparatingAxis convex1 convex2 =
-    testUniqueNormals
-        convex1
+    case findFaceSAT convex1 convex2 of
+        Nothing ->
+            Nothing
+
+        Just winner ->
+            case findEdgeSAT convex1 convex2 winner.dmin of
+                EdgeSeparates ->
+                    Nothing
+
+                EdgeBeats edgeAxis _ _ _ _ ->
+                    Just (orientAxis convex1 convex2 edgeAxis)
+
+                NoEdgeBeats ->
+                    Just (orientAxis convex1 convex2 winner.axis)
+
+
+{-| Test every face group's direction as a SAT axis. Returns the winning
+body + group so `dispatchBestFaces` can skip one of the two `bestFace`
+walks while keeping contact IDs stable.
+-}
+findFaceSAT : Convex -> Convex -> Maybe FaceWinner
+findFaceSAT convex1 convex2 =
+    findFaceSATHelp convex1
         convex2
-        (convex1.uniqueNormals ++ convex2.uniqueNormals)
-        Vec3.zero
+        Convex1
+        convex1.faces
+        convex2.faces
+        1
+        -1
+        Convex1
+        emptyFace
+        Nothing
         Const.maxNumber
 
 
-testUniqueNormals : Convex -> Convex -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testUniqueNormals convex1 convex2 normals target dmin =
+findFaceSATHelp : Convex -> Convex -> Side -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> Int -> Int -> Side -> Face -> Maybe Face -> Float -> Maybe FaceWinner
+findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx winnerIdx winnerSide winnerPrimary winnerPartner dmin =
     case normals of
         [] ->
-            testUniqueEdges convex1
-                convex2
-                convex2.uniqueEdges
-                convex1.uniqueEdges
-                convex2.uniqueEdges
-                target
-                dmin
+            case nextNormals of
+                [] ->
+                    if winnerIdx == -1 then
+                        Nothing
 
-        normal :: restNormals ->
-            case testSeparatingAxis convex1 convex2 normal of
+                    else
+                        Just
+                            { axis = winnerPrimary.normal
+                            , dmin = dmin
+                            , fromSide = winnerSide
+                            , groupIdx = winnerIdx
+                            , primary = winnerPrimary
+                            , partner = winnerPartner
+                            }
+
+                _ ->
+                    findFaceSATHelp convex1 convex2 Convex2 nextNormals [] 1 winnerIdx winnerSide winnerPrimary winnerPartner dmin
+
+        ( primary, partner ) :: restNormals ->
+            case testSeparatingAxis convex1 convex2 primary.normal of
                 Nothing ->
                     Nothing
 
                 Just dist ->
+                    let
+                        groupSize =
+                            case partner of
+                                Just _ ->
+                                    2
+
+                                Nothing ->
+                                    1
+                    in
                     if dist - dmin < 0 then
-                        testUniqueNormals convex1 convex2 restNormals normal dist
+                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) nextGroupIdx currentSide primary partner dist
 
                     else
-                        testUniqueNormals convex1 convex2 restNormals target dmin
+                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) winnerIdx winnerSide winnerPrimary winnerPartner dmin
 
 
-testUniqueEdges : Convex -> Convex -> List Vec3 -> List Vec3 -> List Vec3 -> Vec3 -> Float -> Maybe Vec3
-testUniqueEdges convex1 convex2 initEdges2 edges1 edges2 target dmin =
-    case edges1 of
+type EdgeResult
+    = EdgeSeparates
+    | EdgeBeats Vec3 Int (List ( Vec3, Vec3 )) Int (List ( Vec3, Vec3 ))
+    | NoEdgeBeats
+
+
+{-| Edge SAT must beat face SAT by more than this to take the edge-edge
+path. `Const.precision` is too tight: face-aligned stacks drift into the
+noise window within a few hundred frames and tip when flipped onto a
+single edge-edge contact.
+-}
+edgePreferenceMargin : Float
+edgePreferenceMargin =
+    2.5e-5
+
+
+{-| Iterate `(dir1, dir2)` pairs of unique edge directions. The winner
+stores its full edge list so the support-edge picker walks only parallel
+edges (4 for a cube) instead of all face-edges. Direction indices are
+1-based, stable under `placeIn` — safe to encode in contact ids.
+-}
+findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
+findEdgeSAT convex1 convex2 faceDmin =
+    findEdgeSATHelp convex1
+        convex2
+        convex2.uniqueEdges
+        convex1.uniqueEdges
+        convex2.uniqueEdges
+        1
+        1
+        NoEdgeBeats
+        faceDmin
+
+
+findEdgeSATHelp : Convex -> Convex -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
+findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best dmin =
+    case groups1 of
         [] ->
-            if Vec3.dot (Vec3.sub convex2.position convex1.position) target > 0 then
-                Just (Vec3.negate target)
+            best
 
-            else
-                Just target
-
-        edge1 :: remainingEdges1 ->
-            case edges2 of
+        ( ( v1a, v1b ) as firstEdge1, otherEdges1 ) :: remainingGroups1 ->
+            case groups2 of
                 [] ->
-                    -- requeue edges2
-                    testUniqueEdges convex1 convex2 initEdges2 remainingEdges1 initEdges2 target dmin
+                    -- requeue groups2 and advance outer
+                    findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 initGroups2 (dir1Idx + 1) 1 best dmin
 
-                edge2 :: remainingEdges2 ->
+                ( ( v2a, v2b ) as firstEdge2, otherEdges2 ) :: remainingGroups2 ->
                     let
+                        dir1 =
+                            Vec3.direction v1a v1b
+
+                        dir2 =
+                            Vec3.direction v2a v2b
+
                         cross =
-                            Vec3.cross edge1 edge2
+                            Vec3.cross dir1 dir2
                     in
                     if Vec3.almostZero cross then
-                        -- continue because edges are parallel
-                        testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
+                        -- skip parallel directions
+                        findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
 
                     else
                         let
@@ -266,17 +575,14 @@ testUniqueEdges convex1 convex2 initEdges2 edges1 edges2 target dmin =
                         in
                         case testSeparatingAxis convex1 convex2 normalizedCross of
                             Nothing ->
-                                -- exit because hulls don't collide
-                                Nothing
+                                EdgeSeparates
 
                             Just dist ->
-                                if dist - dmin < 0 then
-                                    -- update target and dmin
-                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 normalizedCross dist
+                                if dist - dmin + edgePreferenceMargin < 0 then
+                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx (firstEdge1 :: otherEdges1) dir2Idx (firstEdge2 :: otherEdges2)) dist
 
                                 else
-                                    -- continue
-                                    testUniqueEdges convex1 convex2 initEdges2 edges1 remainingEdges2 target dmin
+                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
 
 
 {-| If projections of two convexes don’t overlap, then they don’t collide.

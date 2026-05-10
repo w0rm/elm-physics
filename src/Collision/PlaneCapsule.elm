@@ -1,0 +1,58 @@
+module Collision.PlaneCapsule exposing (addContacts)
+
+import Internal.Contact exposing (Contact)
+import Internal.Vector3 exposing (Vec3)
+import Shapes.Capsule exposing (Capsule)
+import Shapes.Plane exposing (Plane)
+
+
+addContacts : String -> (Contact -> Contact) -> Plane -> Capsule -> List Contact -> List Contact
+addContacts idPrefix orderContact { normal, position } capsule contacts =
+    let
+        ep1 =
+            { x = capsule.position.x - capsule.halfLength * capsule.axis.x
+            , y = capsule.position.y - capsule.halfLength * capsule.axis.y
+            , z = capsule.position.z - capsule.halfLength * capsule.axis.z
+            }
+
+        ep2 =
+            { x = capsule.position.x + capsule.halfLength * capsule.axis.x
+            , y = capsule.position.y + capsule.halfLength * capsule.axis.y
+            , z = capsule.position.z + capsule.halfLength * capsule.axis.z
+            }
+
+        contacts1 =
+            addCapContact (idPrefix ++ "-e1") orderContact normal position capsule.radius ep1 contacts
+    in
+    addCapContact (idPrefix ++ "-e2") orderContact normal position capsule.radius ep2 contacts1
+
+
+addCapContact : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Vec3 -> List Contact -> List Contact
+addCapContact id orderContact normal planePosition radius ep contacts =
+    let
+        vertex =
+            { x = ep.x - radius * normal.x
+            , y = ep.y - radius * normal.y
+            , z = ep.z - radius * normal.z
+            }
+
+        dot =
+            ((vertex.x - planePosition.x) * normal.x)
+                + ((vertex.y - planePosition.y) * normal.y)
+                + ((vertex.z - planePosition.z) * normal.z)
+    in
+    if dot <= 0 then
+        orderContact
+            { id = id
+            , ni = normal
+            , pi =
+                { x = vertex.x - dot * normal.x
+                , y = vertex.y - dot * normal.y
+                , z = vertex.z - dot * normal.z
+                }
+            , pj = vertex
+            }
+            :: contacts
+
+    else
+        contacts

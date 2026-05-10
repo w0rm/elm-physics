@@ -1,6 +1,7 @@
 module Common.Meshes exposing
     ( Attributes
     , block
+    , capsule
     , contact
     , cylinder
     , fromTriangles
@@ -107,6 +108,182 @@ block block3d =
     , facet v2 v6 v1 1
     , facet v5 v1 v6 1
     ]
+
+
+{-| Render a capsule (cylinder with hemispherical end caps) as a triangle mesh.
+The capsule axis, center, radius, and length are taken from the given `Cylinder3d`,
+matching the convention used by `Shape.capsule`.
+-}
+capsule : Int -> Cylinder3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
+capsule subdivisions cylinder3d =
+    let
+        clampedSubdivisions =
+            max 3 subdivisions
+
+        wedgeAngle =
+            2 * pi / toFloat clampedSubdivisions
+
+        length =
+            Length.inMeters (Cylinder3d.length cylinder3d)
+
+        radius =
+            Length.inMeters (Cylinder3d.radius cylinder3d)
+
+        halfLength =
+            0.5 * length
+
+        -- Number of latitude bands per hemisphere cap
+        latBands =
+            max 2 (clampedSubdivisions // 2)
+
+        ( a, b ) =
+            Cylinder3d.axialDirection cylinder3d
+                |> Direction3d.perpendicularBasis
+
+        cylinderFrame3d =
+            Frame3d.unsafe
+                { originPoint = Cylinder3d.centerPoint cylinder3d
+                , xDirection = a
+                , yDirection = b
+                , zDirection = Cylinder3d.axialDirection cylinder3d
+                }
+
+        transform px py pz =
+            Point3d.placeIn cylinderFrame3d (Point3d.meters px py pz)
+                |> Point3d.toMeters
+                |> Vec3.fromRecord
+
+        -- Cylindrical body sides (no flat end caps)
+        sideWedge startIndex =
+            let
+                theta0 =
+                    wedgeAngle * toFloat startIndex
+
+                theta1 =
+                    wedgeAngle * toFloat (modBy clampedSubdivisions (startIndex + 1))
+
+                p0 =
+                    transform (radius * cos theta0) (radius * sin theta0) -halfLength
+
+                p1 =
+                    transform (radius * cos theta1) (radius * sin theta1) -halfLength
+
+                p2 =
+                    transform (radius * cos theta0) (radius * sin theta0) halfLength
+
+                p3 =
+                    transform (radius * cos theta1) (radius * sin theta1) halfLength
+            in
+            [ facet p1 p3 p0 1
+            , facet p2 p0 p3 1
+            ]
+
+        -- Top hemisphere cap band (outward normal has +z component)
+        topCapBand startIndex j =
+            let
+                theta0 =
+                    wedgeAngle * toFloat startIndex
+
+                theta1 =
+                    wedgeAngle * toFloat (modBy clampedSubdivisions (startIndex + 1))
+
+                phi0 =
+                    pi / 2 * toFloat j / toFloat latBands
+
+                phi1 =
+                    pi / 2 * toFloat (j + 1) / toFloat latBands
+
+                z0 =
+                    halfLength + radius * sin phi0
+
+                z1 =
+                    halfLength + radius * sin phi1
+
+                r0 =
+                    radius * cos phi0
+
+                r1 =
+                    radius * cos phi1
+
+                p0 =
+                    transform (r0 * cos theta0) (r0 * sin theta0) z0
+
+                p1 =
+                    transform (r0 * cos theta1) (r0 * sin theta1) z0
+
+                p2 =
+                    transform (r1 * cos theta0) (r1 * sin theta0) z1
+
+                p3 =
+                    transform (r1 * cos theta1) (r1 * sin theta1) z1
+            in
+            if j == latBands - 1 then
+                -- Last band converges at the pole: emit one triangle
+                [ facet p0 p1 p2 0 ]
+
+            else
+                [ facet p0 p1 p2 0
+                , facet p1 p3 p2 0
+                ]
+
+        -- Bottom hemisphere cap band (outward normal has -z component; winding reversed)
+        bottomCapBand startIndex j =
+            let
+                theta0 =
+                    wedgeAngle * toFloat startIndex
+
+                theta1 =
+                    wedgeAngle * toFloat (modBy clampedSubdivisions (startIndex + 1))
+
+                phi0 =
+                    pi / 2 * toFloat j / toFloat latBands
+
+                phi1 =
+                    pi / 2 * toFloat (j + 1) / toFloat latBands
+
+                z0 =
+                    -(halfLength + radius * sin phi0)
+
+                z1 =
+                    -(halfLength + radius * sin phi1)
+
+                r0 =
+                    radius * cos phi0
+
+                r1 =
+                    radius * cos phi1
+
+                p0 =
+                    transform (r0 * cos theta0) (r0 * sin theta0) z0
+
+                p1 =
+                    transform (r0 * cos theta1) (r0 * sin theta1) z0
+
+                p2 =
+                    transform (r1 * cos theta0) (r1 * sin theta0) z1
+
+                p3 =
+                    transform (r1 * cos theta1) (r1 * sin theta1) z1
+            in
+            if j == latBands - 1 then
+                -- Last band converges at the pole: emit one triangle (reversed winding)
+                [ facet p0 p2 p1 0 ]
+
+            else
+                [ facet p0 p2 p1 0
+                , facet p1 p2 p3 0
+                ]
+    in
+    List.concat
+        [ List.range 0 (clampedSubdivisions - 1)
+            |> List.concatMap sideWedge
+        , List.range 0 (clampedSubdivisions - 1)
+            |> List.concatMap
+                (\i -> List.range 0 (latBands - 1) |> List.concatMap (topCapBand i))
+        , List.range 0 (clampedSubdivisions - 1)
+            |> List.concatMap
+                (\i -> List.range 0 (latBands - 1) |> List.concatMap (bottomCapBand i))
+        ]
 
 
 triangularMesh : TriangularMesh (Point3d Meters BodyCoordinates) -> List ( Attributes, Attributes, Attributes )

@@ -58,6 +58,40 @@ addContacts =
                     []
                     |> List.length
                     |> Expect.equal 2
+        , test "produces a single edge-edge contact when neither body's face normal is the SAT min" <|
+            \_ ->
+                let
+                    box1 =
+                        Convex.fromBlock 1 1 1
+                            |> Convex.placeIn
+                                (Transform3d.atOrigin
+                                    |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 6)
+                                )
+
+                    box2 =
+                        Convex.fromBlock 1 1 1
+                            |> Convex.placeIn
+                                (Transform3d.atPoint { x = 0.6, y = 0.6, z = 0.6 }
+                                    |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 6)
+                                )
+                in
+                Collision.ConvexConvex.addContacts "" box1 box2 []
+                    |> List.length
+                    |> Expect.equal 1
+        , test "axis-aligned corner-on-corner stays on the face-clip path" <|
+            \_ ->
+                let
+                    box1 =
+                        Convex.fromBlock 1 1 1
+                            |> Convex.placeIn Transform3d.atOrigin
+
+                    box2 =
+                        Convex.fromBlock 1 1 1
+                            |> Convex.placeIn (Transform3d.atPoint { x = 0.7, y = 0.7, z = 0.7 })
+                in
+                Collision.ConvexConvex.addContacts "" box1 box2 []
+                    |> List.all (\c -> not (String.startsWith "-e" c.id))
+                    |> Expect.equal True
         ]
 
 

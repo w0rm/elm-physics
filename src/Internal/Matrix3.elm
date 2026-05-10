@@ -1,6 +1,7 @@
 module Internal.Matrix3 exposing
     ( Mat3
     , add
+    , capsuleInertia
     , cylinderInertia
     , eigenDecomposition
     , inverse
@@ -435,3 +436,60 @@ jacobiT theta =
 
     else
         1 / (theta - sqrt (1 + theta * theta))
+
+
+{-| Moment of inertia of a solid capsule aligned along the z-axis.
+The first argument plays the role of mass (use volume for unit-density inertia,
+consistent with sphereInertia and cylinderInertia).
+-}
+capsuleInertia : Float -> Float -> Float -> Mat3
+capsuleInertia m radius halfLength =
+    let
+        r =
+            radius
+
+        h =
+            halfLength
+
+        vCyl =
+            2 * pi * r * r * h
+
+        vSph =
+            (4 / 3) * pi * r * r * r
+
+        vTotal =
+            vCyl + vSph
+
+        mCyl =
+            m * vCyl / vTotal
+
+        mSph =
+            m * vSph / vTotal
+
+        -- Along capsule axis (z)
+        iz =
+            mCyl * r * r / 2 + mSph * r * r * 2 / 5
+
+        -- Perpendicular to capsule axis (x or y)
+        -- Cylinder part: (1/12) * mCyl * (3r² + 4h²)
+        -- Sphere caps: mSph * (2r²/5 + h² + 3rh/4)
+        -- The sphere caps formula comes from transferring hemisphere inertia
+        -- from each cap's own CM (at h + 3r/8 from capsule center) using
+        -- the parallel-axis theorem.
+        ixy =
+            mCyl
+                * (3 * r * r + 4 * h * h)
+                / 12
+                + mSph
+                * (2 * r * r / 5 + h * h + 3 * r * h / 4)
+    in
+    { m11 = ixy
+    , m21 = 0
+    , m31 = 0
+    , m12 = 0
+    , m22 = ixy
+    , m32 = 0
+    , m13 = 0
+    , m23 = 0
+    , m33 = iz
+    }

@@ -9,7 +9,6 @@ module Fixtures.Convex exposing
     )
 
 import Array
-import Internal.Const as Const
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Shapes.Convex as Convex exposing (Convex)
 
@@ -121,20 +120,19 @@ octoHull halfExtent =
 
 squarePyramid : Convex
 squarePyramid =
-    -- Specify 0 for exact precision
     squareLikePyramid 0.0
 
 
 askewSquarePyramid : Convex
 askewSquarePyramid =
-    -- Use an insignificant epsilon for an approximately square base
-    squareLikePyramid (Const.precision / 3.0)
+    -- epsilon below the parallel tolerance in groupEdgesByDirection.
+    squareLikePyramid 1.0e-5
 
 
 nonSquareQuadPyramid : Convex
 nonSquareQuadPyramid =
-    -- Use a significant epsilon for a not even approximately square base
-    squareLikePyramid (Const.precision * 3.0)
+    -- epsilon above the parallel tolerance in groupEdgesByDirection.
+    squareLikePyramid 1.0e-2
 
 
 squareLikePyramid : Float -> Convex
@@ -149,9 +147,7 @@ squareLikePyramid epsilon =
         z =
             1
 
-        -- zOffset is the height of the pyramid's center of gravity above its
-        -- base -- the cube root of 1/2.
-        -- It serves to keep the object vertically centered.
+        -- Center of gravity above the base — keeps the object centered.
         zOffset =
             z * (0.5 ^ (1.0 / 3.0))
 
@@ -169,9 +165,8 @@ squareLikePyramid epsilon =
                 [ { x = -x, y = -y, z = -zOffset }
                 , { x = x, y = -y, z = -zOffset }
 
-                -- An optional adjustment of one base corner controls
-                -- the number (0 or 2) of edge pairs that are exactly
-                -- parallel OR approximately parallel.
+                -- Adjusts one base corner: controls the number of
+                -- exactly/approximately parallel edge pairs.
                 , { x = x + epsilon, y = y + epsilon, z = -zOffset }
                 , { x = -x, y = y, z = -zOffset }
                 , { x = 0, y = 0, z = z - zOffset }

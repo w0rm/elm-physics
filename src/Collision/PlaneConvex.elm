@@ -35,7 +35,7 @@ addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertice
                     (vertexId + 1)
                     remainingVertices
                     (orderContact
-                        { id = idPrefix ++ "-" ++ String.fromInt (vertexId + 1)
+                        { id = idPrefix ++ "-v" ++ String.fromInt (vertexId + 1)
                         , ni = planeNormal
                         , pi =
                             { x = vertex.x - dot * planeNormal.x

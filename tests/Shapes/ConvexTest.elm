@@ -96,6 +96,18 @@ extendContour =
 faces : Test
 faces =
     let
+        flatFaces convex =
+            List.concatMap
+                (\( primary, partner ) ->
+                    case partner of
+                        Just p ->
+                            [ primary, p ]
+
+                        Nothing ->
+                            [ primary ]
+                )
+                convex.faces
+
         normalsPointOutside convex =
             Expect.all
                 (List.map
@@ -113,7 +125,7 @@ faces =
                                     vertices
                                 )
                     )
-                    convex.faces
+                    (flatFaces convex)
                 )
                 ()
 
@@ -128,7 +140,7 @@ faces =
                             _ ->
                                 \_ -> Expect.fail "face with wrong number of vertices"
                     )
-                    convex.faces
+                    (flatFaces convex)
                 )
                 ()
 
@@ -146,14 +158,14 @@ faces =
     describe ".faces"
         [ test "block faces have correct normals" <|
             \_ ->
-                List.map .normal (Convex.fromBlock 2 2 2).faces
+                List.map .normal (flatFaces (Convex.fromBlock 2 2 2))
                     |> Expect.equal
-                        [ Vec3.zNegative
-                        , Vec3.zAxis
-                        , Vec3.yNegative
+                        [ Vec3.zAxis
+                        , Vec3.zNegative
                         , Vec3.yAxis
-                        , Vec3.xNegative
+                        , Vec3.yNegative
                         , Vec3.xAxis
+                        , Vec3.xNegative
                         ]
         , test "block faces have correct winding order" <|
             \_ -> hasCorrectWindingOrder (Convex.fromBlock 2 2 2)
@@ -181,11 +193,11 @@ uniqeNormals =
     describe ".uniqeNormals"
         [ test "works for a block" <|
             \_ ->
-                (Convex.fromBlock 2 2 2).uniqueNormals
-                    |> Expect.equal Vec3.basis
+                List.map (\( primary, _ ) -> primary.normal) (Convex.fromBlock 2 2 2).faces
+                    |> Expect.equal [ Vec3.zAxis, Vec3.yAxis, Vec3.xAxis ]
         , test "works for a square pyramid" <|
             \_ ->
-                List.length Fixtures.Convex.squarePyramid.uniqueNormals
+                List.length Fixtures.Convex.squarePyramid.faces
                     |> Expect.equal 5
         ]
 
@@ -195,8 +207,48 @@ uniqueEdges =
     describe ".uniqueEdges"
         [ test "works for a block" <|
             \_ ->
+                let
+                    v0 =
+                        { x = -1, y = -1, z = -1 }
+
+                    v1 =
+                        { x = 1, y = -1, z = -1 }
+
+                    v2 =
+                        { x = 1, y = 1, z = -1 }
+
+                    v3 =
+                        { x = -1, y = 1, z = -1 }
+
+                    v4 =
+                        { x = -1, y = -1, z = 1 }
+
+                    v5 =
+                        { x = 1, y = -1, z = 1 }
+
+                    v6 =
+                        { x = 1, y = 1, z = 1 }
+
+                    v7 =
+                        { x = -1, y = 1, z = 1 }
+                in
                 (Convex.fromBlock 2 2 2).uniqueEdges
-                    |> Expect.equal Vec3.basis
+                    |> Expect.equal
+                        [ ( ( v0, v1 ), [ ( v3, v2 ), ( v4, v5 ), ( v7, v6 ) ] )
+                        , ( ( v0, v3 ), [ ( v1, v2 ), ( v4, v7 ), ( v5, v6 ) ] )
+                        , ( ( v0, v4 ), [ ( v1, v5 ), ( v2, v6 ), ( v3, v7 ) ] )
+                        ]
+        , test "block uniqueEdges has 12 edges across 3 directions" <|
+            \_ ->
+                (Convex.fromBlock 2 3 5).uniqueEdges
+                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> Expect.equal [ 4, 4, 4 ]
+        , test "block from triangular mesh has 12 edges across 3 directions" <|
+            \_ ->
+                (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).uniqueEdges
+                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> List.sort
+                    |> Expect.equal [ 4, 4, 4 ]
         , test "works for a square pyramid" <|
             \_ ->
                 List.length Fixtures.Convex.squarePyramid.uniqueEdges
@@ -204,6 +256,7 @@ uniqueEdges =
         , test "works for an off-square pyramid" <|
             \_ ->
                 List.length Fixtures.Convex.askewSquarePyramid.uniqueEdges
+                    -- all edges unique, none parallel
                     |> Expect.equal 6
         , test "works for a non-square-quad-based pyramid" <|
             \_ ->

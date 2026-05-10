@@ -1,7 +1,12 @@
 module Internal.NarrowPhase exposing (getContacts)
 
+import Collision.CapsuleCapsule
+import Collision.CapsuleConvex
+import Collision.CapsuleParticle
+import Collision.CapsuleSphere
 import Collision.ConvexConvex
 import Collision.ParticleConvex
+import Collision.PlaneCapsule
 import Collision.PlaneConvex
 import Collision.PlaneParticle
 import Collision.PlaneSphere
@@ -113,6 +118,14 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
                         convex1
                         contacts
 
+                Capsule capsule2 ->
+                    Collision.CapsuleConvex.addContacts
+                        idPrefix
+                        Contact.flip
+                        capsule2
+                        convex1
+                        contacts
+
         Plane plane1 ->
             case shape2 of
                 Plane _ ->
@@ -141,6 +154,14 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
                         identity
                         plane1
                         particle2
+                        contacts
+
+                Capsule capsule2 ->
+                    Collision.PlaneCapsule.addContacts
+                        idPrefix
+                        identity
+                        plane1
+                        capsule2
                         contacts
 
         Sphere sphere1 ->
@@ -176,6 +197,14 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
                         particle2
                         contacts
 
+                Capsule capsule2 ->
+                    Collision.CapsuleSphere.addContacts
+                        idPrefix
+                        Contact.flip
+                        capsule2
+                        sphere1
+                        contacts
+
         Particle particle1 ->
             case shape2 of
                 Plane plane2 ->
@@ -205,3 +234,52 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
                 Particle _ ->
                     -- don't collide two particles
                     contacts
+
+                Capsule capsule2 ->
+                    Collision.CapsuleParticle.addContacts
+                        idPrefix
+                        Contact.flip
+                        capsule2
+                        particle1
+                        contacts
+
+        Capsule capsule1 ->
+            case shape2 of
+                Plane plane2 ->
+                    Collision.PlaneCapsule.addContacts
+                        idPrefix
+                        Contact.flip
+                        plane2
+                        capsule1
+                        contacts
+
+                Convex convex2 ->
+                    Collision.CapsuleConvex.addContacts
+                        idPrefix
+                        identity
+                        capsule1
+                        convex2
+                        contacts
+
+                Sphere sphere2 ->
+                    Collision.CapsuleSphere.addContacts
+                        idPrefix
+                        identity
+                        capsule1
+                        sphere2
+                        contacts
+
+                Capsule capsule2 ->
+                    Collision.CapsuleCapsule.addContacts
+                        idPrefix
+                        capsule1
+                        capsule2
+                        contacts
+
+                Particle particle2 ->
+                    Collision.CapsuleParticle.addContacts
+                        idPrefix
+                        identity
+                        capsule1
+                        particle2
+                        contacts

@@ -42,6 +42,7 @@ import Task
 
 type Id
     = Cylinder
+    | Capsule
     | Block
     | Sphere
     | Floor
@@ -87,6 +88,7 @@ bodies =
     , ( Block, Physics.block block Physics.Material.wood |> Physics.moveTo (Point3d.meters -1 -1 0) )
     , ( Sphere, Physics.sphere sphere Physics.Material.wood |> Physics.moveTo (Point3d.meters 0 1.5 0) )
     , ( Cylinder, Physics.cylinder cylinder Physics.Material.wood |> Physics.moveTo (Point3d.meters 1.5 0 0) )
+    , ( Capsule, Physics.capsule capsule Physics.Material.wood |> Physics.moveTo (Point3d.meters -1.5 1.5 0) )
     ]
 
 
@@ -116,6 +118,20 @@ cylinder =
         { radius = meters 0.5
         , length = meters 1.5
         }
+
+
+capsule : Cylinder3d Meters BodyCoordinates
+capsule =
+    Cylinder3d.startingAt (Point3d.meters 0 0 0.4)
+        Direction3d.positiveZ
+        { radius = meters 0.4
+        , length = meters 0.7
+        }
+
+
+capsuleCap : Cylinder3d Meters BodyCoordinates -> Point3d.Point3d Meters BodyCoordinates -> Sphere3d Meters BodyCoordinates
+capsuleCap c center =
+    Sphere3d.atPoint center (Cylinder3d.radius c)
 
 
 update : Msg -> Model -> Model
@@ -239,6 +255,20 @@ bodyToEntity selection ( id, body ) =
                         }
                     )
                     cylinder
+
+            Capsule ->
+                let
+                    capsuleMaterial =
+                        Material.nonmetal
+                            { baseColor = color Color.orange
+                            , roughness = 0.25
+                            }
+                in
+                Scene3d.group
+                    [ Scene3d.cylinderWithShadow capsuleMaterial capsule
+                    , Scene3d.sphereWithShadow capsuleMaterial (capsuleCap capsule (Cylinder3d.startPoint capsule))
+                    , Scene3d.sphereWithShadow capsuleMaterial (capsuleCap capsule (Cylinder3d.endPoint capsule))
+                    ]
 
 
 decodeMouseRay :

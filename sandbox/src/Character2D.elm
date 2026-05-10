@@ -1,9 +1,10 @@
 module Character2D exposing (main)
 
 {-| 2D character controller demo. Motion is locked to the world XZ
-plane: Y translation is locked, and all rotation is locked. The camera
-looks straight down the -Y axis, so the simulation reads as a classic
-side-scrolling platformer.
+plane: Y translation is locked, and all rotation is locked. The
+player is a capsule with axis +Z. The camera looks straight down the
+-Y axis, so the simulation reads as a classic side-scrolling
+platformer.
 
 Left/Right arrows to move, Space to jump.
 
@@ -20,8 +21,10 @@ import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Cylinder3d exposing (Cylinder3d)
 import Density
 import Dict exposing (Dict)
+import Direction3d
 import Duration
 import Force
 import Frame3d
@@ -38,7 +41,6 @@ import Physics.Types exposing (Contacts(..))
 import Plane3d
 import Point3d exposing (Point3d)
 import Quantity
-import Sphere3d exposing (Sphere3d)
 import Task
 import Vector3d
 import WebGL exposing (Mesh)
@@ -81,7 +83,7 @@ boxMaterial =
         }
 
 
-{-| Lock the sphere to the XZ plane: no Y motion, no rotation.
+{-| Lock the player to the XZ plane: no Y motion, no rotation.
 -}
 planarLock : List Lock.Lock
 planarLock =
@@ -135,7 +137,7 @@ init _ =
       , camera =
             Camera.camera
                 { from = { x = 0, y = -14, z = 2 }
-                , to = { x = 0, y = 0, z = 1 }
+                , to = { x = 0, y = 0, z = 1.2 }
                 }
       , rightInput = 0
       , grounded = False
@@ -316,7 +318,7 @@ playerGrounded bodies contacts =
                         (Point3d.zCoordinate (Physics.originPoint player))
 
                 threshold =
-                    playerZ - 0.1
+                    playerZ - playerCylinderHalfLength - 0.1
             in
             Physics.contactPoints
                 (\a b -> a == "player" || b == "player")
@@ -398,9 +400,26 @@ playerMass =
     5
 
 
-playerSphere : Sphere3d Meters BodyCoordinates
-playerSphere =
-    Sphere3d.atOrigin (Length.meters 0.4)
+playerRadius : Float
+playerRadius =
+    0.3
+
+
+{-| Half the cylinder body length (excluding the two hemispherical caps).
+Total capsule height = 2\*(playerCylinderHalfLength + playerRadius).
+-}
+playerCylinderHalfLength : Float
+playerCylinderHalfLength =
+    0.4
+
+
+playerCapsule : Cylinder3d Meters BodyCoordinates
+playerCapsule =
+    Cylinder3d.centeredOn Point3d.origin
+        Direction3d.z
+        { radius = Length.meters playerRadius
+        , length = Length.meters (2 * playerCylinderHalfLength)
+        }
 
 
 boxBlock : Block3d Meters BodyCoordinates
@@ -484,9 +503,9 @@ initialBodies =
                 |> Physics.moveTo (Point3d.fromMeters floorOffset)
 
         player =
-            Physics.sphere playerSphere playerMaterial
+            Physics.capsule playerCapsule playerMaterial
                 |> Physics.scaleMassTo (Mass.kilograms playerMass)
-                |> Physics.moveTo (Point3d.meters -4 0 0.4)
+                |> Physics.moveTo (Point3d.meters -4 0 (playerCylinderHalfLength + playerRadius))
                 |> Physics.lock planarLock
 
         boxAt x z =
@@ -525,7 +544,7 @@ initialMeshes : Dict String (Mesh Attributes)
 initialMeshes =
     let
         playerMesh =
-            Meshes.fromTriangles (Meshes.sphere 3 playerSphere)
+            Meshes.fromTriangles (Meshes.capsule 12 playerCapsule)
 
         boxMesh =
             Meshes.fromTriangles (Meshes.block boxBlock)

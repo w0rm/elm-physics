@@ -2,327 +2,270 @@ module Collision.SphereConvex exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Shapes.Convex as Convex exposing (Convex)
+import Shapes.Convex exposing (Convex, Face)
 import Shapes.Sphere exposing (Sphere)
 
 
+{-| Generate contacts between a sphere (body 1) and a convex (body 2).
+Contact id suffix: `-fF` (face F, matching `ConvexConvex.bestFace`),
+`-e` (edge interior), `-v` (vertex).
+-}
 addContacts : String -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
-addContacts idPrefix orderContact { radius, position } hull2 contacts =
-    let
-        ( maybeContact, penetration ) =
-            sphereContact position radius hull2
-    in
-    case maybeContact of
-        Just contact2 ->
-            let
-                normal =
-                    Vec3.direction contact2 position
-            in
-            orderContact
-                { id = idPrefix
-                , ni = normal
-                , pi =
-                    { x = contact2.x + penetration * normal.x
-                    , y = contact2.y + penetration * normal.y
-                    , z = contact2.z + penetration * normal.z
-                    }
-                , pj = contact2
-                }
-                :: contacts
+addContacts idPrefix orderContact { radius, position } { faces } contacts =
+    case faces of
+        ( primary, partner ) :: rest ->
+            walkFaces idPrefix orderContact position radius primary 1 partner rest [] contacts
 
-        Nothing ->
+        [] ->
+            -- Degenerate convex with no faces: nothing for the
+            -- boundary pass to walk either, so no contact possible.
             contacts
 
 
-{-| Encapsulated result of sphereTestFace
--}
-type TestFaceResult
-    = QualifiedEdges (List (List ( Vec3, Vec3 )))
-    | FaceContact Vec3 Float
-
-
-isAFaceContact : TestFaceResult -> Bool
-isAFaceContact testFaceResult =
-    case testFaceResult of
-        FaceContact _ _ ->
-            True
-
-        _ ->
-            False
-
-
-type TestBoundaryResult
-    = PossibleVertexContact ( Maybe Vec3, Float )
-    | EdgeContact ( Vec3, Float )
-
-
-isAnEdgeContact : TestBoundaryResult -> Bool
-isAnEdgeContact testEdgeResult =
-    case testEdgeResult of
-        EdgeContact _ ->
-            True
-
-        _ ->
-            False
-
-
-{-| The contact point, if any, of a Convex with a sphere, and
-the sphere's penetration into the Convex beyond that contact.
--}
-sphereContact : Vec3 -> Float -> Convex -> ( Maybe Vec3, Float )
-sphereContact center radius { faces } =
+walkFaces : String -> (Contact -> Contact) -> Vec3 -> Float -> Face -> Int -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace queuedGroups candidateEdges contacts =
     let
-        sphereFaceContact : Vec3 -> Float -> ( Maybe Vec3, Float )
-        sphereFaceContact normal distance =
-            -- The contact is located distance away from
-            -- the sphere center in the OPPOSITE direction of
-            -- the normal.
-            ( Just (Vec3.sub center (Vec3.scale distance normal))
-            , radius - distance
-            )
-
-        sphereBoundaryContact : Vec3 -> Float -> ( Maybe Vec3, Float )
-        sphereBoundaryContact localContact distanceSq =
-            ( Just (Vec3.add localContact center)
-            , radius - sqrt distanceSq
-            )
-
-        spherePossibleBoundaryContact : List (List ( Vec3, Vec3 )) -> ( Maybe Vec3, Float )
-        spherePossibleBoundaryContact faceEdgeList =
-            case sphereTestBoundaries radius faceEdgeList of
-                PossibleVertexContact ( Just localContact, distanceSq ) ->
-                    sphereBoundaryContact localContact distanceSq
-
-                PossibleVertexContact noContact ->
-                    noContact
-
-                EdgeContact ( localContact, distanceSq ) ->
-                    sphereBoundaryContact localContact distanceSq
-
-        reframedVertices faceVertices =
-            List.foldl
-                (\vertex acc ->
-                    Vec3.sub vertex center :: acc
-                )
-                []
-                faceVertices
-
-        -- Find the details of the closest faces.
-        testFaceResult =
-            listRecurseUntil
-                isAFaceContact
-                (\face statusQuo ->
-                    case statusQuo of
-                        QualifiedEdges acc ->
-                            sphereTestFace
-                                radius
-                                face.normal
-                                (reframedVertices face.vertices)
-                                acc
-
-                        FaceContact _ _ ->
-                            -- Since a FaceContact short circuits the
-                            -- recursion, this case is not expected.
-                            statusQuo
-                )
-                (QualifiedEdges [])
-                faces
-    in
-    case testFaceResult of
-        QualifiedEdges faceEdgeList ->
-            -- Check the candidate faces' edges and vertices.
-            spherePossibleBoundaryContact faceEdgeList
-
-        FaceContact faceNormal faceDistance ->
-            sphereFaceContact faceNormal faceDistance
-
-
-{-| The contact point and distance, if any, of a Convex's face
-with a sphere, or otherwise a list of the face's edges that may contain an
-edge or vertex contact.
--}
-sphereTestFace : Float -> Vec3 -> List Vec3 -> List (List ( Vec3, Vec3 )) -> TestFaceResult
-sphereTestFace radius normal vertices acc =
-    let
-        -- Use an arbitrary vertex from the face to measure the distance to
-        -- the origin (sphere center) along the face normal.
         faceDistance =
-            case vertices of
-                point :: _ ->
-                    -(Vec3.dot normal point)
+            case currentFace.vertices of
+                first :: _ ->
+                    currentFace.normal.x * (center.x - first.x) + currentFace.normal.y * (center.y - first.y) + currentFace.normal.z * (center.z - first.z)
 
                 [] ->
-                    -- a negative value prevents a face or edge contact match
                     -1
     in
-    if faceDistance - radius < 0 && faceDistance > 0.0 then
-        -- Sphere intersects the face plane.
-        -- Assume 3 or more valid vertices to proceed
-        -- Check if the sphere center projects onto the face plane INSIDE the face polygon.
-        case originProjection vertices normal of
-            [] ->
-                -- The projection falls within all the face's edges.
-                FaceContact normal faceDistance
-
-            separatingEdges ->
-                -- These origin-excluding edges are candidates for
-                -- having an edge or vertex contact.
-                QualifiedEdges (separatingEdges :: acc)
-
-    else
-        QualifiedEdges acc
-
-
-{-| The edge or vertex contact point and its distance (squared), if any,
-of a Convex's edges with a sphere, limited to a pre-qualified
-list of edges per face.
--}
-sphereTestBoundaries : Float -> List (List ( Vec3, Vec3 )) -> TestBoundaryResult
-sphereTestBoundaries radius faceEdgeList =
-    List.foldl
-        sphereTestBoundary
-        (PossibleVertexContact ( Nothing, radius * radius ))
-        faceEdgeList
-
-
-{-| The edge or possible vertex contact point and its distance (squared),
-if any, of a Convex face's pre-qualified edges with a sphere.
--}
-sphereTestBoundary : List ( Vec3, Vec3 ) -> TestBoundaryResult -> TestBoundaryResult
-sphereTestBoundary faceEdges statusQuo =
-    listRecurseUntil
-        isAnEdgeContact
-        (\( prevVertex, vertex ) statusQuo1 ->
-            case statusQuo1 of
-                PossibleVertexContact soFar ->
-                    sphereTestEdge prevVertex vertex soFar
-
-                EdgeContact _ ->
-                    -- Since an EdgeContact stops the recursion,
-                    -- this case is not expected.
-                    statusQuo1
-        )
-        statusQuo
-        faceEdges
-
-
-{-| The edge or possible vertex contact point and its distance (squared),
-if any, of a Convex face's pre-qualified edge with a sphere.
--}
-sphereTestEdge : Vec3 -> Vec3 -> ( Maybe Vec3, Float ) -> TestBoundaryResult
-sphereTestEdge prevVertex vertex (( _, minDistanceSq ) as statusQuo) =
-    let
-        betterVertexContact : Vec3 -> ( Maybe Vec3, Float )
-        betterVertexContact candidate =
-            let
-                -- Note: the vector length of a sphere-framed vertex
-                -- is its distance from the sphere center
-                vertexLengthSq =
-                    Vec3.lengthSquared candidate
-            in
-            if vertexLengthSq - minDistanceSq < 0 then
-                ( Just candidate, vertexLengthSq )
-
-            else
-                statusQuo
-
-        edge =
-            Vec3.sub vertex prevVertex
-
-        edgeUnit =
-            Vec3.normalize edge
-
-        -- The potential contact is where the sphere center
-        -- projects onto the edge.
-        -- offset is the directed distance between the edge's
-        -- starting vertex and that projection. If it is not
-        -- between 0 and the edge's length, there is no edge contact.
-        -- Yet there may be a contact with whichever vertex is closest
-        -- to the projection.
-        offset =
-            -(Vec3.dot prevVertex edgeUnit)
-    in
-    if offset < 0 then
-        -- prevVertex is closest in this edge,
-        -- but there may be a closer edge or
-        -- no contact.
-        PossibleVertexContact (betterVertexContact prevVertex)
-
-    else if offset * offset - Vec3.lengthSquared edge > 0 then
-        -- vertex is closest in this edge,
-        -- but there may be a closer edge or
-        -- no contact.
-        PossibleVertexContact (betterVertexContact vertex)
-
-    else
+    if faceDistance > 0 && faceDistance - radius < 0 then
         let
-            edgeContact =
-                Vec3.add prevVertex (Vec3.scale offset edgeUnit)
-
-            edgeDistanceSq =
-                Vec3.lengthSquared edgeContact
+            ( anyOutside, newCandidateEdges ) =
+                classifyAndCollectEdges center currentFace.normal currentFace.vertices candidateEdges
         in
-        if edgeDistanceSq - minDistanceSq < 0 then
-            EdgeContact ( edgeContact, edgeDistanceSq )
+        if anyOutside then
+            case nextFace of
+                Just face ->
+                    walkFaces idPrefix orderContact center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
+
+                Nothing ->
+                    case queuedGroups of
+                        ( primary, partner ) :: restGroups ->
+                            walkFaces idPrefix orderContact center radius primary (currentFaceId + 1) partner restGroups newCandidateEdges contacts
+
+                        [] ->
+                            walkBoundaries idPrefix orderContact center radius newCandidateEdges Vec3.zero (radius * radius) contacts
 
         else
-            PossibleVertexContact statusQuo
-
-
-{-| A 2D point-in-polygon check for the projection of the origin
-(e.g. the center of a sphere within its own frame of reference) within a
-polygon (e.g. a Convex face). To simplify post-processing,
-return a relatively short but complete list of qualified edges (adjacent
-vertex pairs) whose lines separate the projection from the polygon.
-If the list is empty, the projection is within the polygon.
--}
-originProjection : List Vec3 -> Vec3 -> List ( Vec3, Vec3 )
-originProjection vertices normal =
-    Convex.foldFaceEdges
-        (\prevVertex vertex acc ->
-            let
-                edge_x_normal =
-                    Vec3.cross normal (Vec3.sub vertex prevVertex)
-            in
-            -- The sign of this dot product determines on which
-            -- side of the directed edge the projected point lies,
-            -- left or right, within the face plane.
-            -- For the projection to be within the face, the sign
-            -- must always be non-negative when circling from vertex
-            -- to vertex in the listed (counter-clockwise) direction.
-            -- Retain any edge that tests negative as a candidate
-            -- for an edge or vertex contact.
-            if Vec3.dot edge_x_normal prevVertex < 0 then
-                ( prevVertex, vertex ) :: acc
-
-            else
-                acc
-        )
-        []
-        vertices
-
-
-{-| Recursively "foldl" the function over the elements of the list,
-until the result passes a test. Using recursion in the place of a true
-fold allows a short-circuit return as soon as the test passes.
-Note: If the short-circuit condition is unlikely, especially towards
-the beginning of the list, it MAY be more efficient to use foldl,
-integrating the short-circuit test into the folding function as an up-front
-pass-through condition.
--}
-listRecurseUntil : (b -> Bool) -> (a -> b -> b) -> b -> List a -> b
-listRecurseUntil test fn resultSoFar list =
-    if test resultSoFar then
-        resultSoFar
+            -- Sphere centre projects inside the face polygon → face contact.
+            emitContact idPrefix
+                orderContact
+                ("-f" ++ String.fromInt currentFaceId)
+                center
+                { x = center.x - faceDistance * currentFace.normal.x
+                , y = center.y - faceDistance * currentFace.normal.y
+                , z = center.z - faceDistance * currentFace.normal.z
+                }
+                (radius - faceDistance)
+                contacts
 
     else
-        case list of
-            head :: tail ->
-                let
-                    acc =
-                        fn head resultSoFar
-                in
-                listRecurseUntil test fn acc tail
+        case nextFace of
+            Just face ->
+                walkFaces idPrefix orderContact center radius face (currentFaceId + 1) Nothing queuedGroups candidateEdges contacts
 
-            _ ->
-                resultSoFar
+            Nothing ->
+                case queuedGroups of
+                    ( primary, partner ) :: restGroups ->
+                        walkFaces idPrefix orderContact center radius primary (currentFaceId + 1) partner restGroups candidateEdges contacts
+
+                    [] ->
+                        walkBoundaries idPrefix orderContact center radius candidateEdges Vec3.zero (radius * radius) contacts
+
+
+{-| Returns the edges that separate the sphere centre from the face polygon
+(prepended to `candidateEdges`) and whether any was found. `False` means
+the centre projects inside the polygon → face contact.
+-}
+classifyAndCollectEdges : Vec3 -> Vec3 -> List Vec3 -> List ( Vec3, Vec3 ) -> ( Bool, List ( Vec3, Vec3 ) )
+classifyAndCollectEdges center normal vertices candidateEdges =
+    case vertices of
+        first :: _ :: _ ->
+            classifyAndCollectEdgesHelp center normal first vertices candidateEdges False
+
+        _ ->
+            -- Degenerate face (< 2 vertices): no edges to test → face contact.
+            ( False, candidateEdges )
+
+
+classifyAndCollectEdgesHelp : Vec3 -> Vec3 -> Vec3 -> List Vec3 -> List ( Vec3, Vec3 ) -> Bool -> ( Bool, List ( Vec3, Vec3 ) )
+classifyAndCollectEdgesHelp center normal firstVertex vertices candidateEdges anyOutside =
+    case vertices of
+        v1 :: rest1 ->
+            let
+                v2 =
+                    case rest1 of
+                        [] ->
+                            firstVertex
+
+                        next :: _ ->
+                            next
+
+                edgeX =
+                    v2.x - v1.x
+
+                edgeY =
+                    v2.y - v1.y
+
+                edgeZ =
+                    v2.z - v1.z
+
+                -- normal × edge
+                cnX =
+                    normal.y * edgeZ - normal.z * edgeY
+
+                cnY =
+                    normal.z * edgeX - normal.x * edgeZ
+
+                cnZ =
+                    normal.x * edgeY - normal.y * edgeX
+
+                -- For CCW winding + outward normal, `normal × edge` points
+                -- inward, so `d > 0` means the centre is outside this edge.
+                d =
+                    cnX * (v1.x - center.x) + cnY * (v1.y - center.y) + cnZ * (v1.z - center.z)
+            in
+            if d > 0 then
+                classifyAndCollectEdgesHelp center normal firstVertex rest1 (( v1, v2 ) :: candidateEdges) True
+
+            else
+                classifyAndCollectEdgesHelp center normal firstVertex rest1 candidateEdges anyOutside
+
+        [] ->
+            ( anyOutside, candidateEdges )
+
+
+{-| Tracks the closest feature (vertex or edge interior) to the sphere
+centre. Short-circuits on the first edge-interior contact closer than
+the current best; at the end, emits a vertex contact if `bestDistSq < radius²`.
+-}
+walkBoundaries : String -> (Contact -> Contact) -> Vec3 -> Float -> List ( Vec3, Vec3 ) -> Vec3 -> Float -> List Contact -> List Contact
+walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq contacts =
+    case edges of
+        [] ->
+            if bestDistSq - radius * radius < 0 then
+                emitContact idPrefix orderContact "-v" center bestPoint (radius - sqrt bestDistSq) contacts
+
+            else
+                contacts
+
+        ( prevVertex, vertex ) :: rest ->
+            let
+                edgeX =
+                    vertex.x - prevVertex.x
+
+                edgeY =
+                    vertex.y - prevVertex.y
+
+                edgeZ =
+                    vertex.z - prevVertex.z
+
+                edgeLenSq =
+                    edgeX * edgeX + edgeY * edgeY + edgeZ * edgeZ
+
+                -- (center - prevVertex) · edge
+                offsetTimesLen =
+                    (center.x - prevVertex.x) * edgeX + (center.y - prevVertex.y) * edgeY + (center.z - prevVertex.z) * edgeZ
+            in
+            if offsetTimesLen < 0 then
+                let
+                    dx =
+                        prevVertex.x - center.x
+
+                    dy =
+                        prevVertex.y - center.y
+
+                    dz =
+                        prevVertex.z - center.z
+
+                    distSq =
+                        dx * dx + dy * dy + dz * dz
+                in
+                if distSq - bestDistSq < 0 then
+                    walkBoundaries idPrefix orderContact center radius rest prevVertex distSq contacts
+
+                else
+                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+
+            else if offsetTimesLen - edgeLenSq > 0 then
+                let
+                    dx =
+                        vertex.x - center.x
+
+                    dy =
+                        vertex.y - center.y
+
+                    dz =
+                        vertex.z - center.z
+
+                    distSq =
+                        dx * dx + dy * dy + dz * dz
+                in
+                if distSq - bestDistSq < 0 then
+                    walkBoundaries idPrefix orderContact center radius rest vertex distSq contacts
+
+                else
+                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+
+            else
+                let
+                    fraction =
+                        offsetTimesLen / edgeLenSq
+
+                    contactX =
+                        prevVertex.x + fraction * edgeX
+
+                    contactY =
+                        prevVertex.y + fraction * edgeY
+
+                    contactZ =
+                        prevVertex.z + fraction * edgeZ
+
+                    dx =
+                        contactX - center.x
+
+                    dy =
+                        contactY - center.y
+
+                    dz =
+                        contactZ - center.z
+
+                    distSq =
+                        dx * dx + dy * dy + dz * dz
+                in
+                if distSq - bestDistSq < 0 then
+                    -- Edge-interior contact closer than current best — short-circuit.
+                    emitContact idPrefix
+                        orderContact
+                        "-e"
+                        center
+                        { x = contactX, y = contactY, z = contactZ }
+                        (radius - sqrt distSq)
+                        contacts
+
+                else
+                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+
+
+emitContact : String -> (Contact -> Contact) -> String -> Vec3 -> Vec3 -> Float -> List Contact -> List Contact
+emitContact idPrefix orderContact featureTag center contactPoint penetration contacts =
+    let
+        normal =
+            Vec3.direction contactPoint center
+    in
+    orderContact
+        { id = idPrefix ++ featureTag
+        , ni = normal
+        , pi =
+            { x = contactPoint.x + penetration * normal.x
+            , y = contactPoint.y + penetration * normal.y
+            , z = contactPoint.z + penetration * normal.z
+            }
+        , pj = contactPoint
+        }
+        :: contacts
