@@ -105,7 +105,7 @@ dispatchBestFaces idPrefix convex1 convex2 winner contacts =
         contacts
 
     else
-        clipTwoFaces (idPrefix ++ "-" ++ String.fromInt picked.id1 ++ "-" ++ String.fromInt picked.id2)
+        clipTwoFaces (idPrefix ++ "-f" ++ String.fromInt picked.id1 ++ "-f" ++ String.fromInt picked.id2)
             picked.face1
             picked.face2
             reversedSeparatingAxis
@@ -169,11 +169,11 @@ addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
     in
     { id =
         idPrefix
-            ++ "-e-"
+            ++ "-e"
             ++ String.fromInt dir1Idx
             ++ "."
             ++ String.fromInt edge1Idx
-            ++ "-"
+            ++ "-e"
             ++ String.fromInt dir2Idx
             ++ "."
             ++ String.fromInt edge2Idx
@@ -319,7 +319,7 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
                     facePlaneConstant
                     (n + 1)
                     remainingVertices
-                    ({ id = idPrefix ++ String.fromInt (n + 1)
+                    ({ id = idPrefix ++ "-v" ++ String.fromInt (n + 1)
                      , ni = separatingAxis
                      , pi =
                         { x = vertex.x - depth * face.normal.x

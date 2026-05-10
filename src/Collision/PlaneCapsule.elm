@@ -22,9 +22,9 @@ addContacts idPrefix orderContact { normal, position } capsule contacts =
             }
 
         contacts1 =
-            addCapContact (idPrefix ++ "-1") orderContact normal position capsule.radius ep1 contacts
+            addCapContact (idPrefix ++ "-e1") orderContact normal position capsule.radius ep1 contacts
     in
-    addCapContact (idPrefix ++ "-2") orderContact normal position capsule.radius ep2 contacts1
+    addCapContact (idPrefix ++ "-e2") orderContact normal position capsule.radius ep2 contacts1
 
 
 addCapContact : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Vec3 -> List Contact -> List Contact
