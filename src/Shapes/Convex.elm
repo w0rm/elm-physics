@@ -27,22 +27,11 @@ type alias Face =
 
 
 type alias Convex =
-    -- Faces grouped by parallel-or-antiparallel normal direction. For a
-    -- convex polytope each group has at most two faces (one face plus its
-    -- antipodal partner — coplanar adjacent triangles are merged in
-    -- `initFacesHelp`, so non-trivial parallel pairs never arise). The
-    -- partner is `Nothing` for a 1-face group (e.g. an icosphere face
-    -- with no antipode in the mesh) or `Just` the antipodal partner.
-    --
-    -- `uniqueEdges` groups edges by parallel-or-antiparallel direction:
-    -- each entry is `( firstEdge, [ otherParallelEdges... ] )`. The
-    -- first edge doubles as the direction representative — collision
-    -- code derives the direction via `Vec3.direction v1 v2` on demand
-    -- instead of carrying a separate normalized Vec3. Each physical
-    -- edge appears exactly once across all groups (no face-shared
-    -- double-visit); its `(dirIdx, edgeIdx)` is stable under `placeIn`
-    -- so collision code can encode the indices into contact ids for
-    -- warm-start cache stability.
+    -- Faces grouped by parallel/antiparallel normal direction: each group is a
+    -- primary face and `Just` its antipodal partner, or `Nothing` for a 1-face
+    -- group. uniqueEdges groups edges similarly; each physical edge appears
+    -- exactly once. (dirIdx, edgeIdx) is stable under `placeIn` so collision
+    -- code can encode indices into contact ids for warm-start cache stability.
     { faces : List ( Face, Maybe Face )
     , vertices : List Vec3 -- cached for performance
     , uniqueEdges : List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
@@ -63,14 +52,9 @@ placeIn transform3d { faces, vertices, uniqueEdges, position, volume, inertia } 
     }
 
 
-{-| Place each unique-edge group: transform every endpoint pair (first
-edge + others). Outer-group order and inner-edge order are reversed by
-the prepend-into-accumulator pattern, but collision code derives
-direction symmetrically (parallel-or-antiparallel match) and reads
-midpoints symmetrically (`v1.x + v2.x`), so neither reversal is
-visible. The reversals are stable per source-convex+transform, so
-`(dirIdx, edgeIdx)` indices used as warm-start cache keys remain stable
-across frames.
+{-| Reverses outer-group and inner-edge order, but collision code reads
+both symmetrically and `(dirIdx, edgeIdx)` stays stable per source
+convex + transform — warm-start cache keys remain valid across frames.
 -}
 uniqueEdgesPlaceIn : Transform3d coordinates defines -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
 uniqueEdgesPlaceIn transform3d groups result =
@@ -109,11 +93,8 @@ uniqueEdgeEndpointsPlaceIn transform3d edges result =
             result
 
 
-{-| Place each face group: transform the primary face and any antipodal
-partner. Both outer-group order and inner-partner order are reversed by
-the prepend-into-accumulator pattern (same as `List.foldl`). Downstream
-collision code treats each pair as antiparallel via `primary.normal · axis`
-(negated for the partner), which is invariant under any number of reversals.
+{-| Reverses group and partner order; collision code treats each pair as
+antiparallel via `primary.normal · axis`, which is invariant under reversal.
 -}
 faceGroupsPlaceInHelp : Transform3d coordinates defines -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
 faceGroupsPlaceInHelp transform3d groups result =
@@ -168,16 +149,10 @@ fromTriangularMesh faceIndices vertices =
     }
 
 
-{-| Bucket every face's edges into direction groups
-(parallel-or-antiparallel). Each physical edge is shared between two
-faces, so the same endpoint pair arrives twice; `addEdgeToGroups`
-deduplicates by endpoint identity within the matching direction
-group.
-
-Each group is `( firstEdge, otherParallelEdges )`. The first edge
-doubles as the direction representative; we derive the direction
-on demand via `Vec3.direction firstEdge.v1 firstEdge.v2`.
-
+{-| Bucket every face's edges into parallel/antiparallel direction groups.
+`addEdgeToGroups` dedupes the duplicate edge each face contributes. Each
+group is `( firstEdge, otherParallelEdges )`; the first edge doubles as
+the direction representative (derived via `Vec3.direction`).
 -}
 groupEdgesByDirection : List Face -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
 groupEdgesByDirection faces =
@@ -262,22 +237,10 @@ prependReversed src dst =
             dst
 
 
-{-| Group faces by parallel-or-antiparallel normal direction.
-
-The first face inserted into a group becomes the group's primary face;
-a later match becomes the partner. Collision code reads
-`primary.normal · axis` directly (and negates for the partner), so
-the relationship between primary and partner does not matter for
-correctness.
-
-For a convex polytope each direction matches at most two faces (the
-upstream coplanar merge in `initFacesHelp` collapses parallel
-neighbours), so a third match should never arrive — if one did, we
-would replace the existing partner.
-
-Outer order: insert-first (groups in the order their direction was
-first encountered).
-
+{-| Group faces by parallel/antiparallel normal direction. First insert
+becomes the primary; a later match becomes the partner. For a convex
+polytope at most two faces match (coplanar merge in `initFacesHelp`
+collapses parallel neighbours).
 -}
 groupFacesByNormal : List Face -> List ( Face, Maybe Face )
 groupFacesByNormal allFaces =

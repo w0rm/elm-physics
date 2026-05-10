@@ -50,11 +50,8 @@ sentinel extId =
     }
 
 
-{-| Build a sparse array indexed by body.id.
-
-Bodies may have non-consecutive IDs (e.g. 0, 2, 5) when some were added mid-simulation.
-Unused slots are filled with the sentinel.
-
+{-| Sparse array indexed by body.id (IDs may be non-consecutive when
+bodies are added mid-simulation). Unused slots are filled with the sentinel.
 -}
 makeSolverBodies : Int -> List ( id, Body ) -> Array (SolverBody id)
 makeSolverBodies maxId bodiesWithIds =

@@ -26,10 +26,8 @@ type alias Contact =
     }
 
 
-{-| Flips the order of two bodies in the contact,
-this is useful to e.g. use the same collision function
-for adding sphere-convex and convex-sphere contacts
-into the same contact group
+{-| Flip the body order in a contact — lets one collision function
+handle both sphere-convex and convex-sphere into the same group.
 -}
 flip : Contact -> Contact
 flip contact =

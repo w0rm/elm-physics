@@ -19,17 +19,10 @@ type Side
     | Convex2
 
 
-{-| The result of `findFaceSAT`. We carry not just the axis and depth that
-SAT chose, but also which body contributed the winning face and that face's
-group key + members. The dispatcher then uses this to skip one of the two
-`bestFace` walks: the SAT-winning body's contact face is already nailed down
-(it's the face whose normal points toward the other body within that group),
-so we only need `bestFace` for the OTHER body.
-
-`groupIdx` is the 1-based index of the winning group's first face in the flat
-traversal order — the same numbering `bestFace` uses, so contact IDs remain
-stable across the two paths (warm-start cache keys depend on this).
-
+{-| Result of `findFaceSAT`. Carries the winning face's group so the
+dispatcher can skip one of the two `bestFace` walks. `groupIdx` is 1-based
+in flat traversal order, matching `bestFace` — keeps contact IDs stable
+for warm-start cache keys.
 -}
 type alias FaceWinner =
     { axis : Vec3
@@ -65,10 +58,8 @@ addContacts idPrefix convex1 convex2 contacts =
                     dispatchBestFaces idPrefix convex1 convex2 winner contacts
 
 
-{-| With the SAT winner's group in hand, pick the contact face on the
-SAT-winning body directly (no `bestFace` walk on that side) and only run
-`bestFace` against the OTHER body. The contact normal is the oriented
-separating axis pointing from convex1 toward convex2.
+{-| Pick the contact face on the SAT-winning body directly; only run
+`bestFace` against the other body.
 -}
 dispatchBestFaces : String -> Convex -> Convex -> FaceWinner -> List Contact -> List Contact
 dispatchBestFaces idPrefix convex1 convex2 winner contacts =
@@ -112,15 +103,9 @@ dispatchBestFaces idPrefix convex1 convex2 winner contacts =
             contacts
 
 
-{-| Pick the contact face from a SAT-winning group: the face on this body
-whose normal is most anti-aligned with `axisToward`.
-
-For a 2-face antiparallel pair (the only valid case for a convex polytope),
-the partner's dot is the negation of the first face's dot, so a single
-`firstFace.normal · axisToward` dot product determines the answer by sign.
-We don't rely on any layout convention — only on the antiparallel pairing
-that `groupFacesByNormal` guarantees.
-
+{-| Pick the face in the group whose normal is most anti-aligned with
+`axisToward`. The partner's dot is the negation of the primary's, so a
+single dot product decides by sign.
 -}
 pickWinningFace : Int -> Face -> Maybe Face -> Vec3 -> ( Int, Face )
 pickWinningFace groupIdx primary partner axisToward =
@@ -145,12 +130,9 @@ orientAxis convex1 convex2 axis =
         axis
 
 
-{-| Emit a single edge-edge contact from the SAT-winning direction
-groups. The contact id encodes `(dir1Idx, edge1Idx, dir2Idx,
-edge2Idx)` — the indices are stable across `placeIn` for a given
-source convex, so the solver's warm-start cache survives multi-edge
-contacts in the same body pair instead of collapsing every edge-edge
-contact onto a single `"-edge"` key.
+{-| Emit a single edge-edge contact. The id encodes
+`(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
+warm-start cache keys survive multi-edge contacts in the same body pair.
 -}
 addEdgeContact : String -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
 addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
@@ -184,10 +166,8 @@ addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
         :: contacts
 
 
-{-| Among the parallel edges of a single direction group, return the one
-whose midpoint is furthest along `supportDir`, alongside its 1-based
-index in the group. The index is the warm-start cache key component
-(stable under `placeIn`).
+{-| Pick the edge in a direction group whose midpoint is furthest along
+`supportDir`. The 1-based index is part of the warm-start cache key.
 -}
 pickSupportEdge : Vec3 -> List ( Vec3, Vec3 ) -> ( Int, ( Vec3, Vec3 ) )
 pickSupportEdge supportDir edges =
@@ -308,7 +288,6 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
     case vertices of
         vertex :: remainingVertices ->
             let
-                -- used to be (max minDist depth), where minDist = -100
                 depth =
                     Vec3.dot face.normal vertex + facePlaneConstant
             in
@@ -344,25 +323,9 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
             result
 
 
-{-| Finds the face whose normal is most aligned with `-separatingAxis`
-(equivalently: minimum `dot face.normal separatingAxis`).
-
-For each 2-face group in a convex polytope, the second face is the
-antiparallel partner of the first, so a single `firstFace.normal · axis`
-dot product gives both faces' dots (the second is the negation). For a
-cube (3 antiparallel pairs) that's 3 dots + 3 sign-tracked comparisons
-instead of 6 dots. For a 32-subdivision cylinder (16 antiparallel side
-pairs + 1 cap pair) it's 17 dots instead of 34. The shortcut needs no
-layout convention — only the antiparallel pairing that
-`groupFacesByNormal` already enforces.
-
-Returns `( -1, emptyFace )` for empty `groups` (defensive — valid convexes
-always have faces). Callers detect this via `id == -1`.
-
-IDs are 1-based and assigned in flat traversal order across groups; for a
-cube `[(+x, [+xf, -xf]), (+y, [+yf, -yf]), (+z, [+zf, -zf])]` the IDs are
-1..6 in that flat order.
-
+{-| Finds the face whose normal is most aligned with `-separatingAxis`.
+The partner is the antiparallel of the primary, so one dot per group
+covers both. Returns `( -1, emptyFace )` for empty groups.
 -}
 bestFace : List ( Face, Maybe Face ) -> Vec3 -> ( Int, Face )
 bestFace groups separatingAxis =
@@ -481,12 +444,9 @@ findSeparatingAxis convex1 convex2 =
                     Just (orientAxis convex1 convex2 winner.axis)
 
 
-{-| Walk every face group on both convexes, testing each group's direction as
-a SAT axis. Returns the winner with enough info (which body, which group) for
-`dispatchBestFaces` to skip one of the two `bestFace` walks. `groupIdx` is
-the 1-based index of the winning group's first face in flat traversal order
-(matching the IDs `bestFace` assigns), so contact IDs stay stable across
-both code paths.
+{-| Test every face group's direction as a SAT axis. Returns the winning
+body + group so `dispatchBestFaces` can skip one of the two `bestFace`
+walks while keeping contact IDs stable.
 -}
 findFaceSAT : Convex -> Convex -> Maybe FaceWinner
 findFaceSAT convex1 convex2 =
@@ -554,34 +514,19 @@ type EdgeResult
 
 
 {-| Edge SAT must beat face SAT by more than this to take the edge-edge
-contact path (single contact via `closestPointsOnSegments`). Below this
-margin we stay on face-clip (4-corner manifold).
-
-`Const.precision` (1e-6) is too tight: cold simulation of an
-axis-aligned 5-box stack drifts pair-wise into the 1e-6..2e-5 window
-within a few hundred frames; flipping a face-aligned pair onto a
-single edge-edge contact removes the torque arm and the stack tips.
-Bisection on `coldStableFrames` for the 5-box stack: 1e-5 → 14762
-frames, 2e-5 → 73401, 2.5e-5 → 100000 (stable). Genuine edge-edge
-contact (two cubes rotated by pi/6 against each other, ConvexConvexTest)
-clears this threshold by tens of percent, so the cheap edge path
-still fires when it's actually correct.
-
+path. `Const.precision` is too tight: face-aligned stacks drift into the
+noise window within a few hundred frames and tip when flipped onto a
+single edge-edge contact.
 -}
 edgePreferenceMargin : Float
 edgePreferenceMargin =
     2.5e-5
 
 
-{-| Iterate `(dir1, dir2)` pairs of unique edge directions. Each
-direction group is `( firstEdge, otherEdges )` — direction is derived
-from the first edge via `Vec3.direction firstEdge.v1 firstEdge.v2`.
-The winner stores its full edge list (`firstEdge :: otherEdges`) so
-the support-edge picker walks only the parallel edges of the chosen
-direction (4 for a cube) instead of every face-edge (24 face-edge-
-visits today). Direction indices are 1-based and assigned in
-iteration order — stable under `placeIn`, which is what makes them
-safe to encode in contact ids.
+{-| Iterate `(dir1, dir2)` pairs of unique edge directions. The winner
+stores its full edge list so the support-edge picker walks only parallel
+edges (4 for a cube) instead of all face-edges. Direction indices are
+1-based, stable under `placeIn` — safe to encode in contact ids.
 -}
 findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
 findEdgeSAT convex1 convex2 faceDmin =

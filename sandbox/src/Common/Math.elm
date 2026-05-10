@@ -58,17 +58,13 @@ makeRotateKTo direction =
         distance =
             Vec3.distance Vec3.k direction
     in
-    -- Specially handle the boundary cases that may throw off the general
-    -- case trig formulas used below.
-    -- These occur when the direction is (almost) vertical
-    -- i.e. ~= Vec3.k or ~= (Vec3.negate Vec3.k)
-    -- giving extreme distance values of ~0.0 or ~2.0.
+    -- Boundary cases: direction is near-vertical (distance ~0 or ~2),
+    -- where the general trig formula below blows up.
     if distance <= precision then
         Mat4.identity
 
     else if abs (distance - 2.0) <= precision then
-        -- A U-turn around the x=y line in the z=0 plane
-        -- negates all x y and z values
+        -- U-turn around x=y in the z=0 plane.
         Mat4.makeRotate pi (vec3 1.0 1.0 0.0)
 
     else

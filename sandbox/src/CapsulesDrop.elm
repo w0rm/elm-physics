@@ -262,9 +262,7 @@ scenarios =
                 |> Physics.moveTo (Point3d.meters x y 6)
     in
     [ ----------------------------------------------------------------
-      -- Row y = -7: cap (endpoint) contacts. Capsule axis ≈ aligned
-      -- with the separating axis so the SAT minimum runs through one
-      -- of the caps and the contact is generated at that cap.
+      -- Row y = -7: cap contacts (capsule axis aligned with SAT axis)
       ----------------------------------------------------------------
       { label = "A vertical cap → face center"
       , box = boxAt -10 -7
@@ -287,10 +285,6 @@ scenarios =
       , capsule = capTiltedX 6 -7 60
       }
     , { label = "F diagonal cap (X 35°, Y 25°) → +x +y top corner"
-
-      -- Two-axis tilt so the capsule axis is off both global axes;
-      -- positioned over the +x +y top corner so the lower cap lands
-      -- on the vertex from a slanted incoming direction.
       , box = boxAt 10 -7
       , capsule =
             capsuleBody
@@ -300,9 +294,7 @@ scenarios =
       }
 
     ----------------------------------------------------------------
-    -- Row y = +7: cylinder-body contacts. Capsule axis ≈ perpendicular
-    -- to the separating axis so the cylinder side is what touches the
-    -- convex.
+    -- Row y = +7: cylinder-body contacts (axis ⊥ SAT axis)
     ----------------------------------------------------------------
     , { label = "G horizontal capsule → face center (Face Support, 2 contacts)"
       , box = boxAt -8 7
@@ -326,8 +318,7 @@ scenarios =
       }
 
     ----------------------------------------------------------------
-    -- Row y = 0: STATIC vertex-up "diamond" blocks. Tests collision
-    -- against a single point feature on a static convex.
+    -- Row y = 0: collisions against a single vertex feature
     ----------------------------------------------------------------
     , { label = "L vertical capsule (cap) → upward vertex of static diamond"
       , box = staticBoxVertexUp -3 0
@@ -350,8 +341,7 @@ initialBodies =
         n =
             List.length scenarios
     in
-    -- Layout: id 0 floor, then n (box, capsule) pairs.
-    -- Box ids are 1..n, capsule ids are n+1..2n, paired by index.
+    -- id 0 floor, boxes 1..n, capsules n+1..2n.
     ( 0, floorBody )
         :: List.indexedMap (\i s -> ( i + 1, s.box )) scenarios
         ++ List.indexedMap (\i s -> ( i + 1 + n, s.capsule )) scenarios

@@ -8,21 +8,17 @@ import Shapes.Capsule exposing (Capsule)
 import Shapes.Convex exposing (Convex, Face)
 
 
-{-| `|dot(capsule.axis, separatingAxis)|` below this is treated as
-perpendicular: the cylinder body is the contact feature, not a cap.
-Wider than `Const.precision` so a slight tilt still snaps to the
-two-contact face-clip path — keeps a near-flat capsule resting on a
-face stable instead of chattering on a single end-cap contact.
+{-| `|dot(capsule.axis, separatingAxis)|` below this snaps to the cylinder
+(face-clip) path. Wider than `Const.precision` so near-flat capsules don't
+chatter between cap-only and two-contact face-clip.
 -}
 perpendicularThreshold : Float
 perpendicularThreshold =
     1.0e-3
 
 
-{-| `dot(face.normal, separatingAxis)` above this means the SAT axis
-IS the face normal: do the Sutherland-Hodgman face clip. Otherwise
-the SAT axis came from an edge or vertex, so use edge/vertex support
-instead.
+{-| `dot(face.normal, separatingAxis)` above this means SAT picked a face
+normal (face-clip path); otherwise the axis came from an edge/vertex.
 -}
 faceAlignedThreshold : Float
 faceAlignedThreshold =
@@ -31,47 +27,8 @@ faceAlignedThreshold =
 
 {-| Generate contacts between a capsule (body 1) and a convex (body 2).
 
-Outline of the algorithm:
-
-1.  SAT to find the minimum-overlap separating axis. The axis is oriented
-    so it points FROM the convex TOWARD the capsule.
-
-2.  Pick the contact-generation strategy from how the capsule axis
-    relates to the separating axis:
-      - `t > 0` : capsule axis aligned with the separating axis,
-        the `ep1` end is deepest. Single contact at `ep1`.
-
-      - `t < 0` : opposite alignment, `ep2` is deepest.
-        Single contact at `ep2`.
-
-      - `t ≈ 0` : capsule axis is roughly perpendicular to the
-        separating axis. The capsule cylinder is what touches the
-        convex. Pick the convex face most facing the capsule:
-          - face normal aligns with the separating axis (Face Support):
-            Sutherland-Hodgman clip the capsule segment against the
-            face's adjacent edge planes; emit one contact per surviving
-            endpoint. If the clip returns `Nothing` (capsule projects
-            entirely outside the face polygon — happens when SAT picked
-            a face whose extent doesn't actually contain the contact,
-            e.g. capsule axis parallel to a face edge), fall back to
-            finding the closest face EDGE to the capsule segment and
-            emit a contact derived from the closest-points geometry.
-          - face normal does NOT align (Edge/Vertex Support): the SAT
-            minimum came from an axis derived from a convex edge or
-            vertex. Find the convex's support feature in the
-            +separatingAxis direction (1+ vertices at maximum
-            projection) and emit one contact at the closest point
-            between the capsule axis and that feature.
-
-Contact convention (matches `SphereConvex.addContacts`):
-
-  - `ni` points OUT OF body 1 (capsule) at the contact, i.e.
-    `Vec3.negate separatingAxis`.
-  - `pi` is on the capsule surface (the deepest cap-sphere point along
-    `ni`); `pj` is the corresponding point on the convex surface, with
-    `pj - pi = -penetration * ni`.
-
-Contact id scheme (suffix appended to `idPrefix`):
+Contact id suffix — encodes which feature each side touches so warm-start
+keys clear cleanly across face/edge/vertex transitions:
 
     | Path                                          | Id                |
     | --------------------------------------------- | ----------------- |
@@ -84,17 +41,8 @@ Contact id scheme (suffix appended to `idPrefix`):
     | Cylinder on convex edge, skew                 | `c-e`             |
     | Cylinder on convex vertex                     | `c-v`             |
 
-  - `e*` = endpoint (cap) contact, `c*` = cylinder body contact.
-  - Numeric suffix `1`/`2` identifies which side of the capsule (1 = ep1
-    side, 2 = ep2 side) and only appears when a sibling contact exists.
-  - Bare `c` / `e1` / `e2` = single contact in that path.
-  - Face-anchored contacts include `-fF` (1-based face index from
-    `ConvexConvex.bestFace`); non-face-anchored contacts use `-e` / `-v`
-    to identify the supporting feature on the convex.
-
-The id is consumed by the solver as a warm-starting key, so the suffix
-encodes which feature each side of the capsule is touching — slides
-across face/edge/vertex transitions invalidate the cache cleanly.
+`e*` = endpoint (cap), `c*` = cylinder body. `1`/`2` distinguishes the
+ep1/ep2 sides when both contribute; bare suffixes are single contacts.
 
 -}
 addContacts : String -> (Contact -> Contact) -> Capsule -> Convex -> List Contact -> List Contact
@@ -126,12 +74,8 @@ addContacts idPrefix orderContact capsule convex contacts =
                         t =
                             Vec3.dot capsule.axis separatingAxis
 
-                        -- Pick the convex face whose outward normal aligns
-                        -- with separatingAxis (the face "most facing" the
-                        -- capsule). Returns Just only if the SAT axis IS a
-                        -- face normal — for non-face axes we treat the
-                        -- contact as edge/vertex-anchored and emit a
-                        -- different id namespace.
+                        -- `Just` only when the SAT axis is a face normal;
+                        -- non-face axes go through the edge/vertex path.
                         faceContext =
                             let
                                 ( fid, f ) =
@@ -146,11 +90,8 @@ addContacts idPrefix orderContact capsule convex contacts =
                             else
                                 Nothing
 
-                        -- For non-face SAT axes, the convex's support
-                        -- feature along the axis is either an edge (2
-                        -- supporting vertices) or a single vertex. Used
-                        -- both as the contact point in the perpendicular
-                        -- branch AND as a feature tag on cap contacts.
+                        -- Convex's support feature along the SAT axis:
+                        -- an edge (2 verts) or a single vertex.
                         supportVerts =
                             case faceContext of
                                 Just _ ->
@@ -159,9 +100,6 @@ addContacts idPrefix orderContact capsule convex contacts =
                                 Nothing ->
                                     supportFeature separatingAxis convex
 
-                        -- Suffix encoding which feature of the convex was
-                        -- contacted: face index for face-aligned SAT axes,
-                        -- "-edge"/"-vert" for cross-product axes.
                         featureTag =
                             case faceContext of
                                 Just ( fid, _ ) ->
@@ -179,12 +117,9 @@ addContacts idPrefix orderContact capsule convex contacts =
                                             ""
                     in
                     if t > perpendicularThreshold then
-                        -- Cap-on-feature: ep1 is the deepest cap.
-                        -- Also pick up cylinder-body contacts where the body
-                        -- crosses the SAT-aligned face: a tilted capsule on a
-                        -- box can have both the cap and a length of cylinder
-                        -- penetrating, and elm-physics has no multi-frame
-                        -- manifold accumulation, so we need to emit them now.
+                        -- Cap-on-feature: ep1 is the deepest cap. Also pick
+                        -- up any cylinder-body contacts on the SAT-aligned
+                        -- face — no multi-frame manifold accumulation.
                         contacts
                             |> addDirectContact (idPrefix ++ "-e1" ++ featureTag) orderContact ep1 separatingAxis penetration capsule
                             |> addBodyContacts idPrefix featureTag orderContact faceContext capsule ep1 ep2 separatingAxis ep1
@@ -199,11 +134,9 @@ addContacts idPrefix orderContact capsule convex contacts =
                         -- Cylinder body touches the convex.
                         case faceContext of
                             Just ( _, face ) ->
-                                -- Face Support: capsule cylinder is parallel
-                                -- to a convex face. Clip the capsule segment
-                                -- against the face's adjacent edge planes
-                                -- (Sutherland-Hodgman); emit one contact per
-                                -- surviving endpoint.
+                                -- Face Support: clip the capsule segment
+                                -- against the face's adjacent edge planes;
+                                -- emit one contact per surviving endpoint.
                                 case clipSegmentAgainstFace face ep1 ep2 of
                                     ClipAlive p1 p2 ->
                                         contacts
@@ -211,36 +144,25 @@ addContacts idPrefix orderContact capsule convex contacts =
                                             |> addDirectContact (idPrefix ++ "-c2" ++ featureTag) orderContact p2 separatingAxis penetration capsule
 
                                     ClipDead ->
-                                        -- Capsule segment lies entirely
-                                        -- outside the face polygon — the
-                                        -- contact is on a face edge.
-                                        -- Re-derive the contact normal and
-                                        -- depth from the actual closest-
-                                        -- points geometry (SAT's penetration
-                                        -- overestimates here).
+                                        -- Segment outside the polygon → the
+                                        -- contact is on a face edge; re-derive
+                                        -- normal and depth from closest-points
+                                        -- geometry (SAT's penetration is too
+                                        -- generous here).
                                         addClosestEdgeContact (idPrefix ++ "-c" ++ featureTag) orderContact face ep1 ep2 capsule contacts
 
                             Nothing ->
-                                -- Edge/Vertex support: SAT picked a non-face axis.
-                                -- Emit one contact at the closest point on
-                                -- the capsule axis to the support feature.
-                                -- featureTag here is "-edge" (2 verts) or
-                                -- "-vert" (1 vert) so the id reads e.g.
-                                -- "test-c-edge" / "test-c-vert".
+                                -- Edge/Vertex support: emit at the closest
+                                -- point between capsule axis and feature.
                                 case supportVerts of
                                     v1 :: v2 :: _ ->
                                         if Vec3.almostZero (Vec3.cross capsule.axis (Vec3.sub v2 v1)) then
-                                            -- Cylinder body and supporting edge are
-                                            -- parallel: the contact is a line
-                                            -- segment, not a point. Emit one
-                                            -- contact at each end of the overlap
-                                            -- (mirrors perpendicular face support's
-                                            -- two clip-endpoint contacts).
+                                            -- Parallel: contact is a segment,
+                                            -- emit one at each end of the overlap.
                                             addParallelEdgeContacts (idPrefix ++ "-c") featureTag orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts
 
                                         else
-                                            -- Skew segments: closest-pair geometry
-                                            -- gives a single contact.
+                                            -- Skew: single closest-pair contact.
                                             let
                                                 ( pCapsule, _ ) =
                                                     closestPointsBetweenSegments ep1 ep2 v1 v2
@@ -258,12 +180,9 @@ addContacts idPrefix orderContact capsule convex contacts =
                                         contacts
 
 
-{-| Emit two contacts for a cylinder-body / convex-edge configuration where
-both segments lie on parallel lines. Project both onto `capsule.axis` and
-take the overlap interval `[sLo, sHi]`; each end of the interval becomes a
-contact at the corresponding capsule-axis point. If the overlap collapses
-to a (numerically) single point, fall back to a one-contact closest-pair
-emit so we still produce something.
+{-| Cylinder body parallel to a convex edge: emit one contact at each end
+of the overlap interval. Falls back to a single closest-pair contact if
+the overlap collapses to a point.
 -}
 addParallelEdgeContacts : String -> String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Float -> Capsule -> List Contact -> List Contact
 addParallelEdgeContacts idPrefix featureTag orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts =
@@ -332,17 +251,9 @@ addDirectContact idPrefix orderContact segmentPoint separatingAxis penetration c
         :: contacts
 
 
-{-| When the cap-on-feature branch fires, the cylinder body may also be
-penetrating the SAT-aligned face elsewhere along its length. Run the
-same Sutherland-Hodgman clip used by the perpendicular branch on the
-capsule axis, recompute per-point penetration against the face plane,
-and emit body contacts at clipped points whose cylinder surface lies
-below the face plane. The cap endpoint is skipped to avoid emitting
-two contacts with different depths at the same world point.
-
-Skipped entirely when SAT picked a non-face axis (`faceContext = Nothing`):
-no face polygon to clip against in that case.
-
+{-| For tilted-cap configurations: emit additional cylinder-body contacts
+where the body crosses the SAT-aligned face. The cap endpoint is skipped
+to avoid two contacts at the same world point with different depths.
 -}
 addBodyContacts : String -> String -> (Contact -> Contact) -> Maybe ( Int, Face ) -> Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
 addBodyContacts idPrefix faceTag orderContact faceContext capsule ep1 ep2 separatingAxis capPoint contacts =
@@ -377,9 +288,6 @@ tryAddBodyPoint idPrefix orderContact face facePlaneConstant separatingAxis caps
 
     else
         let
-            -- Signed distance from the face plane, positive on the +face.normal
-            -- (outward) side. Cylinder surface in the contact direction sits at
-            -- signedDist - radius, so penetration depth is `radius - signedDist`.
             signedDist =
                 Vec3.dot face.normal point + facePlaneConstant
 
@@ -398,19 +306,9 @@ type ClipResult
     | ClipDead
 
 
-{-| Sutherland-Hodgman clip of a segment against a face's adjacent
-edge planes. Each edge plane is built from `cross(face.normal, v1 - v2)`,
-which (for the CCW face winding produced by `Convex.fromBlock` and
-preserved by `Convex.placeIn`) points OUTWARD from the polygon. So
-`d < 0` means a point projects INSIDE the polygon along that edge.
-Returns `ClipAlive p1 p2` for the surviving segment, or `ClipDead`
-if the segment lies entirely outside the face polygon.
-
-Implemented as a single tail-recursive walker over face vertices to
-avoid the per-edge `Maybe ( Vec3, Vec3 )` accumulator that threading
-through `Convex.foldFaceEdges` would require — the dead state short-
-circuits via direct return rather than as a propagated `Nothing`.
-
+{-| Sutherland-Hodgman clip of a segment against a face's adjacent edge
+planes. Returns `ClipAlive p1 p2` for the surviving segment, or `ClipDead`
+if the segment lies entirely outside the polygon.
 -}
 clipSegmentAgainstFace : Face -> Vec3 -> Vec3 -> ClipResult
 clipSegmentAgainstFace face ep1 ep2 =
@@ -466,16 +364,9 @@ walkClipEdge faceNormal firstVertex vertices p1 p2 =
             ClipAlive p1 p2
 
 
-{-| Iterate the face's edges, find the one closest to the capsule
-segment, and emit a single contact derived from the actual closest-
-points geometry. Used as a fallback when face-support clipping
-discards the segment (which means the projected segment fell outside
-the face polygon, so the contact is really on a face edge).
-
-Skipped silently if no edge is within `capsule.radius` of the
-capsule axis — that can happen when SAT picked an axis whose
-overlap claim was geometrically too generous.
-
+{-| Fallback when face-support clipping discards the segment: emit a single
+contact at the closest face edge. Skipped silently if no edge is within
+`capsule.radius` of the capsule axis.
 -}
 addClosestEdgeContact : String -> (Contact -> Contact) -> Face -> Vec3 -> Vec3 -> Capsule -> List Contact -> List Contact
 addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
@@ -486,8 +377,7 @@ addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
         result =
             closestEdgeToSegment face ep1 ep2 radiusSq
     in
-    -- Sentinel: result.distSq == radiusSq means no edge improved the
-    -- initial bound, so no edge is within the capsule radius.
+    -- Sentinel: distSq == radiusSq means no edge was within radius.
     if result.distSq - radiusSq >= 0 then
         contacts
 
@@ -497,13 +387,12 @@ addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
                 sqrt result.distSq
         in
         if distance - Const.precision <= 0 then
-            -- Capsule axis intersects the edge — direction is undefined.
-            -- Skip rather than emit a contact with a garbage normal.
+            -- Axis intersects the edge — direction is undefined.
             contacts
 
         else
             let
-                -- separatingAxis convention: from convex toward capsule.
+                -- separatingAxis: from convex toward capsule.
                 inv =
                     1 / distance
 
@@ -522,12 +411,8 @@ addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
                 contacts
 
 
-{-| Walks `face.vertices` as consecutive edges and returns the closest
-edge to the capsule axis segment as `(pCapsule, pEdge, distSq)`. Uses
-`maxDistSq` as both the starting upper bound and the "no edge found"
-sentinel — if no edge improves it, the caller treats the result as
-"no contact within `sqrt maxDistSq`". Squared distances throughout to
-defer the per-edge `sqrt`.
+{-| Closest face edge to the capsule axis segment. `maxDistSq` is the
+starting upper bound and the "no edge found" sentinel.
 -}
 closestEdgeToSegment : Face -> Vec3 -> Vec3 -> Float -> { pCapsule : Vec3, pEdge : Vec3, distSq : Float }
 closestEdgeToSegment face ep1 ep2 maxDistSq =
@@ -673,29 +558,10 @@ testConvexNormals capsule convex ep1 ep2 groups target dmin =
                         testConvexNormals capsule convex ep1 ep2 restGroups target dmin
 
 
-{-| For each unique convex edge, derive a SAT axis from the closest
-points between the capsule axis segment and that edge, then test it.
-This subsumes the cross-product test used in standard convex SAT and
-additionally covers the configuration-dependent axes capsule-vs-convex
-needs:
-
-  - convex vertex vs cap sphere (axis = vertex → cap centre)
-  - convex vertex vs cylinder (axis = vertex → closest pt on capsule axis)
-  - convex edge vs cap sphere (axis = edge → cap centre, perpendicular
-    to edge)
-
-Without these axes SAT can falsely report overlap when the cap sphere
-is just outside an edge or corner of the convex.
-
-When the segments meet at a point (closest-pair distance is zero —
-penetration through the edge) the closest-pair direction is undefined,
-so fall back to the cross-product axis. If the cross product is also
-degenerate (segments parallel) skip this edge.
-
-Walks `convex.uniqueEdges` (each physical edge appears exactly once
-across direction groups), avoiding the face-shared double-visit a walk
-over `convex.faces` would incur.
-
+{-| Closest-points axis between capsule axis and each unique edge — covers
+the vertex-vs-cap and edge-vs-cap axes that standard convex SAT misses,
+preventing false-overlap reports near convex corners. Falls back to the
+cross product when closest points coincide.
 -}
 testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Vec3 -> Float -> Maybe Vec3
 testUniqueEdges capsule convex ep1 ep2 groups target dmin =
@@ -728,9 +594,7 @@ walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
                     walkUniqueEdges capsule convex ep1 ep2 (firstEdge :: otherEdges) restGroups target dmin
 
                 [] ->
-                    -- Orient the axis to point FROM convex TOWARDS capsule, so the
-                    -- contact normal `Vec3.negate target` points OUT of the capsule
-                    -- at the contact (matches `SphereConvex` convention).
+                    -- Orient the axis from convex toward capsule.
                     if Vec3.dot (Vec3.sub convex.position capsule.position) target > 0 then
                         Just (Vec3.negate target)
 
@@ -765,26 +629,10 @@ edgeAxis capsule ep1 ep2 v1 v2 =
             Just (Vec3.normalize cross)
 
 
-{-| Support feature of `convex` along `axis`: at most two vertices, both at
-maximum projection within a 1.0e-4 tolerance, and (when two are returned)
-guaranteed to form a real edge of the convex.
-
-Algorithm:
-
-  - Pass 1: max projection over vertices.
-  - Pass 2: collect the first two vertices within tolerance of max.
-  - If only one is found, return it (vertex support).
-  - If two or more are tied, walk `convex.uniqueEdges` to find an edge
-    whose both endpoints are within tolerance. Each physical edge is
-    visited once (no face-shared double-visit).
-  - If no such edge exists (truly degenerate: two tied vertices that aren't
-    connected by an edge), fall back to the first tied vertex.
-
-This avoids the earlier "first 2 vertices in `convex.vertices` order" bug
-where the picked pair could be a face diagonal rather than an edge — the
-contact location would then drift off the convex surface and corrupt the
-contact's torque arm.
-
+{-| Support feature of `convex` along `axis`: at most two vertices at the
+same max projection within `1.0e-4` tolerance, and (if two) guaranteed to
+form a real convex edge — picking a face diagonal would drift the contact
+off the surface.
 -}
 supportFeature : Vec3 -> Convex -> List Vec3
 supportFeature axis convex =

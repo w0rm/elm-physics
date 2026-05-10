@@ -54,9 +54,8 @@ expandBoundingSphereRadius { radius, halfLength, position } boundingSphereRadius
     max (Vec3.length position + halfLength + radius) boundingSphereRadius
 
 
-{-| Intersect a ray with a capsule. The returned normal is NOT normalized —
-Physics.elm normalizes it via Direction3d.unsafe, matching the convention
-used by Sphere.raycast and Convex.raycast.
+{-| Intersect a ray with a capsule. Returned normal is NOT normalized;
+Physics.elm normalizes it via Direction3d.unsafe (matches Sphere/Convex.raycast).
 -}
 raycast : { from : Vec3, direction : Vec3 } -> Capsule -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { from, direction } { radius, halfLength, axis, position } =

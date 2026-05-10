@@ -11,25 +11,9 @@ import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
 
-{-| Tests covering all rows of the contact-id table in
-`Collision.CapsuleConvex.addContacts`:
-
-    | Path                                          | Id                |
-    | --------------------------------------------- | ----------------- |
-    | Cap on face F                                 | `e1-fF` / `e2-fF` |
-    | Cap on convex edge                            | `e1-e` / `e2-e`   |
-    | Cap on convex vertex                          | `e1-v` / `e2-v`   |
-    | Cylinder on face F (segment clip)             | `c1-fF` / `c2-fF` |
-    | Cylinder on face F (closest-edge fallback)    | `c-fF`            |
-    | Cylinder on convex edge, parallel             | `c1-e` / `c2-e`   |
-    | Cylinder on convex edge, skew                 | `c-e`             |
-    | Cylinder on convex vertex                     | `c-v`             |
-
-After `Convex.placeIn` (with identity transform) the box's faces are
-stored grouped as `[(+x, [+xf, -xf]), (+y, [+yf, -yf]), (+z, [+zf, -zf])]`,
-and `bestFace` numbers them in flat traversal order 1..6 — so +x is `f1`
-and +z is `f5`. That's where the `-fF` suffixes below come from.
-
+{-| Covers every row of the contact-id table in
+`Collision.CapsuleConvex.addContacts`. Box face numbering: +x = `f1`,
++z = `f5` (flat traversal order from `bestFace`).
 -}
 addContacts : Test
 addContacts =
@@ -63,11 +47,7 @@ addContacts =
             Capsule.atOrigin radius 0.5
                 |> Capsule.placeIn (Transform3d.atPoint { x = 0, y = 0, z = 2.6 })
 
-        -- ─── Cap on face F + body contact on the same face ─────────────────
-        -- Tilted capsule whose lower cap pokes the +z face. SAT axis is +z,
-        -- so the cap branch fires (t > 0); the upper end is too far above
-        -- the face plane to add a body contact, so we get a single cap
-        -- contact "-e1-f5".
+        -- ─── Cap on face F: tilted capsule, lower cap pokes +z face ────────
         capsuleTilted =
             Capsule.atOrigin radius 1.0
                 |> Capsule.placeIn
@@ -76,16 +56,12 @@ addContacts =
                         |> Transform3d.translateBy { x = 0, y = 0, z = 2 }
                     )
 
-        -- ─── Cylinder on face F (segment clip), TWO contacts on +x face ────
-        -- Vertical capsule overhanging the +x edge of the box top — the
-        -- segment clip yields p1 (deeper cylinder, z=0.9) and p2 (clipped
-        -- against the face's top edge, z=1.0).
+        -- ─── Cylinder on face F: vertical capsule overhanging +x edge ──────
         capsuleOverhang =
             Capsule.atOrigin radius 0.5
                 |> Capsule.placeIn (Transform3d.atPoint { x = 1.4, y = 0, z = 1.4 })
 
-        -- ─── Cylinder on convex edge, parallel ──────────────────────────────
-        -- Capsule axis = +x, lying along the box's +y +z top edge.
+        -- ─── Cylinder on convex edge, parallel: along +y +z top edge ───────
         capsuleParallelToEdge =
             Capsule.atOrigin radius 1.0
                 |> Capsule.placeIn
@@ -103,11 +79,7 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.8, y = 0, z = 1.8 }
                     )
 
-        -- ─── Cap on convex edge (`e1-e`) ────────────────────────────────────
-        -- Capsule axis = (1,0,1)/√2 (45° tilt in xz), centred at (1.8,0,1.8).
-        -- Lower cap pokes the +x +z box edge (the closest feature). SAT
-        -- minimum is the edge axis (1,0,1)/√2 itself; t = 1 (axis aligned)
-        -- so the cap branch fires with featureTag = "-e".
+        -- ─── Cap on convex edge (`e1-e`): lower cap pokes +x +z edge ───────
         capsuleCapOnEdge =
             Capsule.atOrigin radius 1.0
                 |> Capsule.placeIn
@@ -116,10 +88,7 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.8, y = 0, z = 1.8 }
                     )
 
-        -- ─── Cap on convex vertex (`e1-v`) ──────────────────────────────────
-        -- Capsule axis = (1,1,1)/√3 (body diagonal). Lower cap pokes the
-        -- +x +y +z box corner. SAT minimum is the vertex axis (1,1,1)/√3;
-        -- t = 1 and only v6 = (1,1,1) supports → "-v" tag.
+        -- ─── Cap on convex vertex (`e1-v`): cap on +x +y +z corner ─────────
         capsuleCapOnVertex =
             Capsule.atOrigin radius 0.5
                 |> Capsule.placeIn
@@ -129,12 +98,9 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.4, y = 1.4, z = 1.4 }
                     )
 
-        -- ─── Cylinder on face F, closest-edge fallback (`c-fF`) ─────────────
-        -- Horizontal capsule axis = +x at (1.5, 0.95, 1.4). SAT picks the
-        -- +z face axis (depth 0.1), but the capsule axis projects onto
-        -- the +z face at x ∈ [1, 2], y = 0.95 — the +x edge plane drops
-        -- the segment. We fall back to the closest face edge (the +x edge
-        -- of the +z face) and emit one contact at (1, 0.95, 1.4).
+        -- ─── Cylinder on face F, closest-edge fallback (`c-fF`) ────────────
+        -- Capsule projects outside the +z face polygon → segment clip
+        -- drops, fallback emits a contact on the closest face edge.
         capsuleClipFallback =
             Capsule.atOrigin radius 0.5
                 |> Capsule.placeIn
@@ -143,11 +109,7 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.5, y = 0.95, z = 1.4 }
                     )
 
-        -- ─── Cylinder on convex edge, skew (`c-e`) ──────────────────────────
-        -- Capsule axis = (1, 0, -1)/√2 — perpendicular to the +x +z edge
-        -- direction (+y) and to the SAT axis (1, 0, 1)/√2. The cylinder
-        -- body grazes the box's +x +z edge from the diagonal direction;
-        -- the supporting feature is that edge but the segments are skew.
+        -- ─── Cylinder on convex edge, skew (`c-e`): grazes +x +z edge ──────
         capsuleCylinderSkew =
             Capsule.atOrigin radius 1.0
                 |> Capsule.placeIn
@@ -156,10 +118,7 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.3, y = 0, z = 1.3 }
                     )
 
-        -- ─── Cylinder on convex vertex (`c-v`) ──────────────────────────────
-        -- Capsule axis = (1, -1, 0)/√2 — perpendicular to the body
-        -- diagonal SAT axis (1,1,1)/√3, so the cylinder body (not a cap)
-        -- grazes the +x +y +z corner.
+        -- ─── Cylinder on convex vertex (`c-v`): grazes +x +y +z corner ─────
         capsuleCylinderVertex =
             Capsule.atOrigin radius 1.0
                 |> Capsule.placeIn
@@ -169,9 +128,6 @@ addContacts =
                         |> Transform3d.translateBy { x = 1.2, y = 1.2, z = 1.2 }
                     )
 
-        -- Convenient builder for parallel-edge expected contacts (test 8).
-        -- ni = (pEdge - pCapsule)/|pEdge - pCapsule| with the +y +z box edge
-        -- at (?, 1, 1) and capsule axis at (?, 1.3, 1.3).
         invSqrt2 =
             1 / sqrt 2
     in
@@ -362,20 +318,10 @@ addContacts =
         ]
 
 
-{-| Regression test for the support-edge correctness fix.
-
-When 3+ vertices of a convex are tied at maximum projection along an axis,
-the prior implementation returned the first 2 vertices in `convex.vertices`
-order. For convexes whose vertices list happens to be ordered such that the
-first two tied vertices are face-diagonal (not connected by a real edge),
-this produced a "virtual edge" cutting through the convex's interior — and
-downstream contact geometry would derive an off-surface contact point.
-
-This test constructs a square pyramid where the four base vertices are
-ordered `[V_diag1, V_diag2, V_adj1, V_adj2]` so that the first two scanned
-along axis = -z (perpendicular to the base) are diagonal, not adjacent.
-The fix walks `convex.faces` and returns a real edge of the base face.
-
+{-| When 3+ vertices tie at max projection, `supportFeature` must return a
+pair connected by a real edge — not a face diagonal — or downstream
+contact points drift off the surface. The pyramid's base vertices are
+hand-ordered so the first two tied along -z are diagonal.
 -}
 supportFeature : Test
 supportFeature =
@@ -395,10 +341,7 @@ supportFeature =
         vApex =
             { x = 0, y = 0, z = 1 }
 
-        -- Square pyramid. `vertices` is hand-ordered so the first two tied
-        -- along -z are face-diagonal, exposing the bug. The base face's
-        -- vertex order is the natural CCW-from-below winding: starting at
-        -- vDiag1 and going around `(1,1) → (1,-1) → (-1,-1) → (-1,1)`.
+        -- Base winding: vDiag1 → vAdj2 → vDiag2 → vAdj1 (CCW from below).
         baseFace =
             { vertices = [ vDiag1, vAdj2, vDiag2, vAdj1 ]
             , normal = { x = 0, y = 0, z = -1 }
@@ -418,8 +361,6 @@ supportFeature =
 
         pyramid =
             { faces =
-                -- Each face has a unique normal direction in this pyramid,
-                -- so each is its own group with no antipodal partner.
                 [ ( baseFace, Nothing )
                 , ( sideFace1, Nothing )
                 , ( sideFace2, Nothing )
@@ -428,12 +369,7 @@ supportFeature =
                 ]
             , vertices = [ vDiag1, vDiag2, vAdj1, vAdj2, vApex ]
             , uniqueEdges =
-                -- Two direction groups span the base. The first edge
-                -- of the first group `(vDiag1, vAdj2)` doubles as the
-                -- direction representative AND is the expected return
-                -- from `supportFeature`. Apex edges omitted:
-                -- irrelevant to this test (their endpoints aren't
-                -- tied at maxProj along -z).
+                -- Apex edges omitted: not tied at maxProj along -z.
                 [ ( ( vDiag1, vAdj2 ), [ ( vDiag2, vAdj1 ) ] )
                 , ( ( vAdj2, vDiag2 ), [ ( vAdj1, vDiag1 ) ] )
                 ]

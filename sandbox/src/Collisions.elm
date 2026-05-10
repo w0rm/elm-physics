@@ -153,13 +153,8 @@ type alias Pose =
 
 initialPose : Pose
 initialPose =
-    -- Vertical capsule (axis +Z, no rotation = no float error in the axis)
-    -- positioned so its lower endpoint sits exactly at z = 1, just past
-    -- the +y face. SAT picks the +y face normal (closest-pair to the
-    -- +y+z edge ties with the face normal, strict less-than keeps the
-    -- face), the segment projects past the +z edge of the +y face
-    -- polygon, so clipSegmentAgainstFace returns Nothing and the
-    -- closest-edge fallback fires → expect a single `c-e-fF` contact.
+    -- Lower endpoint just past the +y face — exercises the closest-edge
+    -- fallback in CapsuleConvex (single `c-e-fF` contact).
     Frame3d.atOrigin
         |> Frame3d.translateBy (Vector3d.fromMeters { x = 0, y = 1.05, z = 2.25 })
 

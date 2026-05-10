@@ -16,20 +16,9 @@ addContacts idPrefix orderContact particlePosition { faces } contacts =
             contacts
 
 
-{-| Defers the `Contact` construction to the end of the recursion: tracks
-(`bestDepth`, `bestNormal`) as separate args (sentinel
-`bestDepth = Const.maxNumber` means "not yet found") and constructs the
-contact once when faces are exhausted. The previous version allocated a
-fresh `Contact` for every face that improved the best — for an N-face
-convex that's up to N allocations per particle, of which only the last
-is used.
-
-Walks the grouped face structure with a single tail-recursive loop that
-threads `currentFace : Face` plus the partner waiting in this group
-(`nextFace : Maybe Face`) and `queuedGroups : List ( Face, Maybe Face )`
-for the rest. Bails on the first face whose half-space excludes the
-particle.
-
+{-| Tracks (bestDepth, bestNormal) and builds the Contact once when faces
+are exhausted (sentinel `bestDepth = Const.maxNumber`). Bails on the first
+face whose half-space excludes the particle.
 -}
 convexContact : String -> (Contact -> Contact) -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Float -> Vec3 -> List Contact -> List Contact
 convexContact idPrefix orderContact particlePosition currentFace nextFace queuedGroups bestDepth bestNormal contacts =

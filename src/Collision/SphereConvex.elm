@@ -7,36 +7,8 @@ import Shapes.Sphere exposing (Sphere)
 
 
 {-| Generate contacts between a sphere (body 1) and a convex (body 2).
-
-Algorithm — two passes over the convex's faces:
-
-  - **Face pass.** For each face whose plane intersects the sphere
-    (centre is on the outward side and within `radius` of the plane),
-    walk the face's edges in world frame: an edge whose plane excludes
-    the sphere centre from the polygon is a "separating" candidate
-    edge for the boundary pass. If a face has _no_ separating edges,
-    the centre projects inside the polygon — that's a face contact and
-    we emit immediately.
-
-  - **Boundary pass.** Walk the accumulated separating edges, find the
-    closest feature (vertex or edge interior) to the sphere centre.
-    Short-circuits on the first edge-interior contact closer than the
-    current best, matching the original's `listRecurseUntil` behaviour.
-
-Works in world frame with inlined component math — no per-vertex
-`Vec3` allocation — and uses direct tail recursion with explicit
-accumulator args.
-
-Contact id format (suffix appended to `idPrefix`):
-
-  - `-fF` : sphere on convex face F (1-based, flat traversal order
-    matching `ConvexConvex.bestFace`)
-  - `-e` : sphere on convex edge interior
-  - `-v` : sphere on convex vertex
-
-The walks emit directly into the `contacts` accumulator at the
-recursion terminus — no intermediate `Maybe Vec3` result type.
-
+Contact id suffix: `-fF` (face F, matching `ConvexConvex.bestFace`),
+`-e` (edge interior), `-v` (vertex).
 -}
 addContacts : String -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
 addContacts idPrefix orderContact { radius, position } { faces } contacts =
@@ -67,12 +39,6 @@ walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace
                 classifyAndCollectEdges center currentFace.normal currentFace.vertices candidateEdges
         in
         if anyOutside then
-            -- Advance: face partially excludes sphere; move on to the
-            -- antipodal partner / next group / boundary pass. Inlined
-            -- (no `let advance = ...`) so the recursive `walkFaces`
-            -- call sits in tail position for Elm's TCO — Elm doesn't
-            -- TCO recursive calls made through let-bound helpers or
-            -- mutually recursive pairs.
             case nextFace of
                 Just face ->
                     walkFaces idPrefix orderContact center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
@@ -112,17 +78,9 @@ walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace
                         walkBoundaries idPrefix orderContact center radius candidateEdges Vec3.zero (radius * radius) contacts
 
 
-{-| Walks face vertices as consecutive edges. For each edge, an edge whose
-plane excludes the sphere centre is "separating" — the centre is on the
-_outside_ of that edge within the face plane. Such edges are prepended
-onto the candidate list for the boundary pass. The returned `Bool`
-indicates whether any separating edge was found (`False` means centre
-projects inside the polygon → face contact).
-
-Inlines the cross-product `normal × edge` and the
-`(prevVertex - center) · (normal × edge)` test as component math, so
-no `Vec3` is allocated per edge.
-
+{-| Returns the edges that separate the sphere centre from the face polygon
+(prepended to `candidateEdges`) and whether any was found. `False` means
+the centre projects inside the polygon → face contact.
 -}
 classifyAndCollectEdges : Vec3 -> Vec3 -> List Vec3 -> List ( Vec3, Vec3 ) -> ( Bool, List ( Vec3, Vec3 ) )
 classifyAndCollectEdges center normal vertices candidateEdges =
@@ -131,8 +89,7 @@ classifyAndCollectEdges center normal vertices candidateEdges =
             classifyAndCollectEdgesHelp center normal first vertices candidateEdges False
 
         _ ->
-            -- Degenerate face (< 2 vertices): no edges to test, no separating edges.
-            -- Matches original behaviour where empty `originProjection` triggers a face contact.
+            -- Degenerate face (< 2 vertices): no edges to test → face contact.
             ( False, candidateEdges )
 
 
@@ -168,11 +125,8 @@ classifyAndCollectEdgesHelp center normal firstVertex vertices candidateEdges an
                 cnZ =
                     normal.x * edgeY - normal.y * edgeX
 
-                -- (v1 - center) · (normal × edge). For CCW face winding with
-                -- outward `normal`, `normal × edge` points toward the polygon
-                -- interior, so a positive dot means `v1 - center` has a
-                -- component pointing inward → the centre is on the *outside*
-                -- of this edge plane → separating edge.
+                -- For CCW winding + outward normal, `normal × edge` points
+                -- inward, so `d > 0` means the centre is outside this edge.
                 d =
                     cnX * (v1.x - center.x) + cnY * (v1.y - center.y) + cnZ * (v1.z - center.z)
             in
@@ -186,12 +140,9 @@ classifyAndCollectEdgesHelp center normal firstVertex vertices candidateEdges an
             ( anyOutside, candidateEdges )
 
 
-{-| Walks the candidate edges, tracking the closest feature (vertex or
-edge interior) to the sphere centre. Emits directly on the first
-edge-interior contact closer than the current best (matches the
-`listRecurseUntil isAnEdgeContact` short-circuit in the original).
-At the end, if `bestDistSq < radius²` a vertex contact is emitted;
-otherwise no contact.
+{-| Tracks the closest feature (vertex or edge interior) to the sphere
+centre. Short-circuits on the first edge-interior contact closer than
+the current best; at the end, emits a vertex contact if `bestDistSq < radius²`.
 -}
 walkBoundaries : String -> (Contact -> Contact) -> Vec3 -> Float -> List ( Vec3, Vec3 ) -> Vec3 -> Float -> List Contact -> List Contact
 walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq contacts =

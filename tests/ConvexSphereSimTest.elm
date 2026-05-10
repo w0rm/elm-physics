@@ -41,11 +41,7 @@ icosphereDoesNotPenetrateCube =
                 trace =
                     runStepsTrace 200 bodies Physics.emptyContacts []
 
-                -- The cube must never tunnel into the icosphere. Check that
-                -- across the simulation the centers stay > 0.5 m apart
-                -- whenever both bodies are still near the impact zone.
-                -- (Sum of half-extents is ~2; deep penetration would mean
-                -- < 0.5.)
+                -- Sum of half-extents is ~2; deep penetration would be < 0.5.
                 minDist =
                     trace |> List.map (\( c, s ) -> dist c s) |> List.minimum |> Maybe.withDefault 0
             in
@@ -103,10 +99,8 @@ icoSphereBody =
 
 
 
--- Meshes: same triangulation Obj.Decode would produce from the OBJ files in
--- ConvexSphere.elm. For each OBJ "f i1 i2 ... iN", the parser builds outIndices
--- in REVERSE order then triangulates as a fan from the LAST OBJ vertex, so the
--- 0-based fan from "f i1 i2 i3 i4" is [(i4, i3, i2), (i4, i2, i1)].
+-- Meshes mirror what Obj.Decode produces from the OBJ files in
+-- ConvexSphere.elm.
 
 
 cubeMesh : TriangularMesh (Point3d Length.Meters Physics.BodyCoordinates)
@@ -127,14 +121,6 @@ cubeMesh =
                 , v -1 -1 1 -- 7  (OBJ 8)
                 ]
 
-        -- Obj.Decode preserves OBJ winding (double-reversal in parser+addTriangles).
-        -- For "f a b c d" (1-based) → fan from first vertex: (a, b, c), (a, c, d) in 0-based.
-        -- f 1 5 7 3 → (0, 4, 6), (0, 6, 2)
-        -- f 4 3 7 8 → (3, 2, 6), (3, 6, 7)
-        -- f 8 7 5 6 → (7, 6, 4), (7, 4, 5)
-        -- f 6 2 4 8 → (5, 1, 3), (5, 3, 7)
-        -- f 2 1 3 4 → (1, 0, 2), (1, 2, 3)
-        -- f 6 5 1 2 → (5, 4, 0), (5, 0, 1)
         faceIndices =
             [ ( 0, 4, 6 )
             , ( 0, 6, 2 )
@@ -205,8 +191,6 @@ icoSphereMesh =
                 , v 0.162456 0.499995 0.850654 -- 41
                 ]
 
-        -- Obj.Decode preserves OBJ winding (double-reverse in parser+addTriangles).
-        -- For triangle "f a b c" (1-based), the output is (a-1, b-1, c-1).
         faceIndices =
             [ ( 0, 13, 12 )
             , ( 1, 13, 15 )
