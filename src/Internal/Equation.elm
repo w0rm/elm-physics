@@ -142,66 +142,15 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
         spookEps =
             4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
 
-        worldAxis1 =
-            Transform3d.directionPlaceIn body1.transform3d axis1
-
         worldAxis2 =
             Transform3d.directionPlaceIn body2.transform3d axis2
 
         ( ni1, ni2 ) =
-            Vec3.tangents worldAxis1
-
-        nj1 =
-            worldAxis2
-
-        nj2 =
-            worldAxis2
+            Vec3.tangents (Transform3d.directionPlaceIn body1.transform3d axis1)
     in
-    initSolverParams
-        (computeRotationalB
-            { ni = ni1
-            , nj = nj1
-            , maxAngleCos = 0 -- cos (pi / 2)
-            }
-        )
-        ctx
-        body1
-        body2
-        { id = ""
-        , minForce = -1000000
-        , maxForce = 1000000
-        , solverB = 0
-        , solverInvC = 0
-        , spookA = spookA
-        , spookB = spookB
-        , spookEps = spookEps
-        , wA = Vec3.cross nj1 ni1
-        , vB = Vec3.zero
-        , wB = Vec3.cross ni1 nj1
-        }
-        :: initSolverParams
-            (computeRotationalB
-                { ni = ni2
-                , nj = nj2
-                , maxAngleCos = 0 -- cos (pi / 2)
-                }
-            )
-            ctx
-            body1
-            body2
-            { id = ""
-            , minForce = -1000000
-            , maxForce = 1000000
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
-            , wA = Vec3.cross nj2 ni2
-            , vB = Vec3.zero
-            , wB = Vec3.cross ni2 nj2
-            }
-        :: equations
+    equations
+        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 ni1 worldAxis2
+        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 ni2 worldAxis2
 
 
 addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
@@ -216,28 +165,36 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
         spookEps =
             4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
 
-        ni1 =
+        worldX1 =
             Transform3d.directionPlaceIn body1.transform3d x1
 
-        nj1 =
-            Transform3d.directionPlaceIn body2.transform3d y2
-
-        ni2 =
+        worldY1 =
             Transform3d.directionPlaceIn body1.transform3d y1
 
-        nj2 =
-            Transform3d.directionPlaceIn body2.transform3d z2
-
-        ni3 =
+        worldZ1 =
             Transform3d.directionPlaceIn body1.transform3d z1
 
-        nj3 =
+        worldX2 =
             Transform3d.directionPlaceIn body2.transform3d x2
+
+        worldY2 =
+            Transform3d.directionPlaceIn body2.transform3d y2
+
+        worldZ2 =
+            Transform3d.directionPlaceIn body2.transform3d z2
     in
+    equations
+        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldX1 worldY2
+        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldY1 worldZ2
+        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldZ1 worldX2
+
+
+addRotationalEquation : Float -> Float -> Float -> Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addRotationalEquation spookA spookB spookEps ctx body1 body2 ni nj equations =
     initSolverParams
         (computeRotationalB
-            { ni = ni1
-            , nj = nj1
+            { ni = ni
+            , nj = nj
             , maxAngleCos = 0 -- cos (pi / 2)
             }
         )
@@ -252,54 +209,10 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , wA = Vec3.cross nj1 ni1
+        , wA = Vec3.cross nj ni
         , vB = Vec3.zero
-        , wB = Vec3.cross ni1 nj1
+        , wB = Vec3.cross ni nj
         }
-        :: initSolverParams
-            (computeRotationalB
-                { ni = ni2
-                , nj = nj2
-                , maxAngleCos = 0 -- cos (pi / 2)
-                }
-            )
-            ctx
-            body1
-            body2
-            { id = ""
-            , minForce = -1000000
-            , maxForce = 1000000
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
-            , wA = Vec3.cross nj2 ni2
-            , vB = Vec3.zero
-            , wB = Vec3.cross ni2 nj2
-            }
-        :: initSolverParams
-            (computeRotationalB
-                { ni = ni3
-                , nj = nj3
-                , maxAngleCos = 0 -- cos (pi / 2)
-                }
-            )
-            ctx
-            body1
-            body2
-            { id = ""
-            , minForce = -1000000
-            , maxForce = 1000000
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
-            , wA = Vec3.cross nj3 ni3
-            , vB = Vec3.zero
-            , wB = Vec3.cross ni3 nj3
-            }
         :: equations
 
 
