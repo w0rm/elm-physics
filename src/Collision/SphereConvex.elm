@@ -174,17 +174,8 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
             in
             if offsetTimesLen < 0 then
                 let
-                    dx =
-                        prevVertex.x - center.x
-
-                    dy =
-                        prevVertex.y - center.y
-
-                    dz =
-                        prevVertex.z - center.z
-
                     distSq =
-                        dx * dx + dy * dy + dz * dz
+                        Vec3.distanceSquared prevVertex center
                 in
                 if distSq - bestDistSq < 0 then
                     walkBoundaries idPrefix orderContact center radius rest prevVertex distSq contacts
@@ -194,17 +185,8 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
 
             else if offsetTimesLen - edgeLenSq > 0 then
                 let
-                    dx =
-                        vertex.x - center.x
-
-                    dy =
-                        vertex.y - center.y
-
-                    dz =
-                        vertex.z - center.z
-
                     distSq =
-                        dx * dx + dy * dy + dz * dz
+                        Vec3.distanceSquared vertex center
                 in
                 if distSq - bestDistSq < 0 then
                     walkBoundaries idPrefix orderContact center radius rest vertex distSq contacts
@@ -217,36 +199,18 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
                     fraction =
                         offsetTimesLen / edgeLenSq
 
-                    contactX =
-                        prevVertex.x + fraction * edgeX
-
-                    contactY =
-                        prevVertex.y + fraction * edgeY
-
-                    contactZ =
-                        prevVertex.z + fraction * edgeZ
-
-                    dx =
-                        contactX - center.x
-
-                    dy =
-                        contactY - center.y
-
-                    dz =
-                        contactZ - center.z
+                    contactPoint =
+                        { x = prevVertex.x + fraction * edgeX
+                        , y = prevVertex.y + fraction * edgeY
+                        , z = prevVertex.z + fraction * edgeZ
+                        }
 
                     distSq =
-                        dx * dx + dy * dy + dz * dz
+                        Vec3.distanceSquared contactPoint center
                 in
                 if distSq - bestDistSq < 0 then
                     -- Edge-interior contact closer than current best — short-circuit.
-                    emitContact idPrefix
-                        orderContact
-                        "-e"
-                        center
-                        { x = contactX, y = contactY, z = contactZ }
-                        (radius - sqrt distSq)
-                        contacts
+                    emitContact idPrefix orderContact "-e" center contactPoint (radius - sqrt distSq) contacts
 
                 else
                     walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts

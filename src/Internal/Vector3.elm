@@ -7,6 +7,7 @@ module Internal.Vector3 exposing
     , cross
     , direction
     , distance
+    , distanceSquared
     , dot
     , length
     , lengthSquared
@@ -170,6 +171,23 @@ distance a b =
             b.z - a.z
     in
     sqrt (x * x + y * y + z * z)
+
+
+{-| The squared distance between two vectors.
+-}
+distanceSquared : Vec3 -> Vec3 -> Float
+distanceSquared a b =
+    let
+        x =
+            b.x - a.x
+
+        y =
+            b.y - a.y
+
+        z =
+            b.z - a.z
+    in
+    x * x + y * y + z * z
 
 
 {-| A unit vector with the same direction as the given vector: a / |a|
