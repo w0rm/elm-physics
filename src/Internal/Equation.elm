@@ -23,9 +23,19 @@ type alias Equation =
     , spookA : Float
     , spookB : Float
     , spookEps : Float
-    , wA : Vec3
-    , vB : Vec3 -- vA = Vec3.negate vB
-    , wB : Vec3
+
+    -- wA, vB, wB are conceptually Vec3, flattened to Floats so the JS
+    -- runtime does one property lookup per access instead of two. The
+    -- solver reads these millions of times per step. vA = -vB.
+    , wAx : Float
+    , wAy : Float
+    , wAz : Float
+    , vBx : Float
+    , vBy : Float
+    , vBz : Float
+    , wBx : Float
+    , wBy : Float
+    , wBz : Float
     }
 
 
@@ -117,9 +127,16 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.cross ni ri
-            , vB = ni
-            , wB = Vec3.cross rj ni
+            -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
+            , wAx = ni.y * ri.z - ni.z * ri.y
+            , wAy = ni.z * ri.x - ni.x * ri.z
+            , wAz = ni.x * ri.y - ni.y * ri.x
+            , vBx = ni.x
+            , vBy = ni.y
+            , vBz = ni.z
+            , wBx = rj.y * ni.z - rj.z * ni.y
+            , wBy = rj.z * ni.x - rj.x * ni.z
+            , wBz = rj.x * ni.y - rj.y * ni.x
             }
         )
 
@@ -203,9 +220,16 @@ addRotationalEquation spookA spookB spookEps ctx body1 body2 ni nj equations =
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , wA = Vec3.cross nj ni
-        , vB = Vec3.zero
-        , wB = Vec3.cross ni nj
+        -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
+        , wAx = nj.y * ni.z - nj.z * ni.y
+        , wAy = nj.z * ni.x - nj.x * ni.z
+        , wAz = nj.x * ni.y - nj.y * ni.x
+        , vBx = 0
+        , vBy = 0
+        , vBz = 0
+        , wBx = ni.y * nj.z - ni.z * nj.y
+        , wBy = ni.z * nj.x - ni.x * nj.z
+        , wBz = ni.x * nj.y - ni.y * nj.x
         }
         :: equations
 
@@ -250,9 +274,16 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , spookA = spookA
                     , spookB = spookB
                     , spookEps = spookEps
-                    , wA = Vec3.cross ni ri
-                    , vB = ni
-                    , wB = Vec3.cross rj ni
+                    -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
+                    , wAx = ni.y * ri.z - ni.z * ri.y
+                    , wAy = ni.z * ri.x - ni.x * ri.z
+                    , wAz = ni.x * ri.y - ni.y * ri.x
+                    , vBx = ni.x
+                    , vBy = ni.y
+                    , vBz = ni.z
+                    , wBx = rj.y * ni.z - rj.z * ni.y
+                    , wBy = rj.z * ni.x - rj.x * ni.z
+                    , wBz = rj.x * ni.y - rj.y * ni.x
                     }
                 )
         )
@@ -301,9 +332,16 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
-        , wA = Vec3.cross contact.ni ri
-        , vB = contact.ni
-        , wB = Vec3.cross rj contact.ni
+        -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
+        , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
+        , wAy = contact.ni.z * ri.x - contact.ni.x * ri.z
+        , wAz = contact.ni.x * ri.y - contact.ni.y * ri.x
+        , vBx = contact.ni.x
+        , vBy = contact.ni.y
+        , vBz = contact.ni.z
+        , wBx = rj.y * contact.ni.z - rj.z * contact.ni.y
+        , wBy = rj.z * contact.ni.x - rj.x * contact.ni.z
+        , wBz = rj.x * contact.ni.y - rj.y * contact.ni.x
         }
         :: initSolverParams
             computeFrictionB
@@ -318,9 +356,17 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.cross t1 ri
-            , vB = t1
-            , wB = Vec3.cross rj t1
+
+            -- wA = Vec3.cross t1 ri, vB = t1, wB = Vec3.cross rj t1
+            , wAx = t1.y * ri.z - t1.z * ri.y
+            , wAy = t1.z * ri.x - t1.x * ri.z
+            , wAz = t1.x * ri.y - t1.y * ri.x
+            , vBx = t1.x
+            , vBy = t1.y
+            , vBz = t1.z
+            , wBx = rj.y * t1.z - rj.z * t1.y
+            , wBy = rj.z * t1.x - rj.x * t1.z
+            , wBz = rj.x * t1.y - rj.y * t1.x
             }
         :: initSolverParams
             computeFrictionB
@@ -335,9 +381,16 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
-            , wA = Vec3.cross t2 ri
-            , vB = t2
-            , wB = Vec3.cross rj t2
+            -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
+            , wAx = t2.y * ri.z - t2.z * ri.y
+            , wAy = t2.z * ri.x - t2.x * ri.z
+            , wAz = t2.x * ri.y - t2.y * ri.x
+            , vBx = t2.x
+            , vBy = t2.y
+            , vBz = t2.z
+            , wBx = rj.y * t2.z - rj.z * t2.y
+            , wBy = rj.z * t2.x - rj.x * t2.z
+            , wBz = rj.x * t2.y - rj.y * t2.x
             }
         :: equations
 
@@ -383,9 +436,15 @@ initSolverParams computeB ctx bi bj solverEquation =
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
-        , wA = solverEquation.wA
-        , vB = solverEquation.vB
-        , wB = solverEquation.wB
+        , wAx = solverEquation.wAx
+        , wAy = solverEquation.wAy
+        , wAz = solverEquation.wAz
+        , vBx = solverEquation.vBx
+        , vBy = solverEquation.vBy
+        , vBz = solverEquation.vBz
+        , wBx = solverEquation.wBx
+        , wBy = solverEquation.wBy
+        , wBz = solverEquation.wBz
         }
     }
 
@@ -395,7 +454,7 @@ type alias ComputeB =
 
 
 computeContactB : Float -> Contact -> ComputeB
-computeContactB bounciness { pi, pj, ni } bi bj { spookA, spookB, wA, wB } =
+computeContactB bounciness { pi, pj, ni } bi bj equation =
     let
         g =
             ((pj.x - pi.x) * ni.x)
@@ -405,10 +464,10 @@ computeContactB bounciness { pi, pj, ni } bi bj { spookA, spookB, wA, wB } =
         gW =
             (bounciness + 1)
                 * (Vec3.dot bj.velocity ni - Vec3.dot bi.velocity ni)
-                + Vec3.dot bj.angularVelocity wB
-                + Vec3.dot bi.angularVelocity wA
+                + (bj.angularVelocity.x * equation.wBx + bj.angularVelocity.y * equation.wBy + bj.angularVelocity.z * equation.wBz)
+                + (bi.angularVelocity.x * equation.wAx + bi.angularVelocity.y * equation.wAy + bi.angularVelocity.z * equation.wAz)
     in
-    -g * spookA - gW * spookB
+    -g * equation.spookA - gW * equation.spookB
 
 
 type alias RotationalEquation =
@@ -446,7 +505,7 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
 
 -}
 computeGiMf : Vec3 -> Body -> Body -> Equation -> Float
-computeGiMf gravity bi bj { wA, vB, wB } =
+computeGiMf gravity bi bj equation =
     let
         gravityi =
             if bi.kind == Body.Dynamic then
@@ -462,35 +521,35 @@ computeGiMf gravity bi bj { wA, vB, wB } =
             else
                 Vec3.zero
     in
-    -(vB.x * (bi.invMass * bi.force.x + gravityi.x) + vB.y * (bi.invMass * bi.force.y + gravityi.y) + vB.z * (bi.invMass * bi.force.z + gravityi.z))
-        + (vB.x * (bj.invMass * bj.force.x + gravityj.x) + vB.y * (bj.invMass * bj.force.y + gravityj.y) + vB.z * (bj.invMass * bj.force.z + gravityj.z))
-        + (wA.x * (bi.invInertiaWorld.m11 * bi.torque.x + bi.invInertiaWorld.m12 * bi.torque.y + bi.invInertiaWorld.m13 * bi.torque.z))
-        + (wA.y * (bi.invInertiaWorld.m21 * bi.torque.x + bi.invInertiaWorld.m22 * bi.torque.y + bi.invInertiaWorld.m23 * bi.torque.z))
-        + (wA.z * (bi.invInertiaWorld.m31 * bi.torque.x + bi.invInertiaWorld.m32 * bi.torque.y + bi.invInertiaWorld.m33 * bi.torque.z))
-        + (wB.x * (bj.invInertiaWorld.m11 * bj.torque.x + bj.invInertiaWorld.m12 * bj.torque.y + bj.invInertiaWorld.m13 * bj.torque.z))
-        + (wB.y * (bj.invInertiaWorld.m21 * bj.torque.x + bj.invInertiaWorld.m22 * bj.torque.y + bj.invInertiaWorld.m23 * bj.torque.z))
-        + (wB.z * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
+    -(equation.vBx * (bi.invMass * bi.force.x + gravityi.x) + equation.vBy * (bi.invMass * bi.force.y + gravityi.y) + equation.vBz * (bi.invMass * bi.force.z + gravityi.z))
+        + (equation.vBx * (bj.invMass * bj.force.x + gravityj.x) + equation.vBy * (bj.invMass * bj.force.y + gravityj.y) + equation.vBz * (bj.invMass * bj.force.z + gravityj.z))
+        + (equation.wAx * (bi.invInertiaWorld.m11 * bi.torque.x + bi.invInertiaWorld.m12 * bi.torque.y + bi.invInertiaWorld.m13 * bi.torque.z))
+        + (equation.wAy * (bi.invInertiaWorld.m21 * bi.torque.x + bi.invInertiaWorld.m22 * bi.torque.y + bi.invInertiaWorld.m23 * bi.torque.z))
+        + (equation.wAz * (bi.invInertiaWorld.m31 * bi.torque.x + bi.invInertiaWorld.m32 * bi.torque.y + bi.invInertiaWorld.m33 * bi.torque.z))
+        + (equation.wBx * (bj.invInertiaWorld.m11 * bj.torque.x + bj.invInertiaWorld.m12 * bj.torque.y + bj.invInertiaWorld.m13 * bj.torque.z))
+        + (equation.wBy * (bj.invInertiaWorld.m21 * bj.torque.x + bj.invInertiaWorld.m22 * bj.torque.y + bj.invInertiaWorld.m23 * bj.torque.z))
+        + (equation.wBz * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
 
 
 {-| Compute G x inv(M) x G', the effective inverse mass for this constraint.
 -}
 computeGimgt : Body -> Body -> Equation -> Float
-computeGimgt bi bj { wA, wB } =
+computeGimgt bi bj equation =
     bi.invMass
         + bj.invMass
-        + (wA.x * (bi.invInertiaWorld.m11 * wA.x + bi.invInertiaWorld.m12 * wA.y + bi.invInertiaWorld.m13 * wA.z))
-        + (wA.y * (bi.invInertiaWorld.m21 * wA.x + bi.invInertiaWorld.m22 * wA.y + bi.invInertiaWorld.m23 * wA.z))
-        + (wA.z * (bi.invInertiaWorld.m31 * wA.x + bi.invInertiaWorld.m32 * wA.y + bi.invInertiaWorld.m33 * wA.z))
-        + (wB.x * (bj.invInertiaWorld.m11 * wB.x + bj.invInertiaWorld.m12 * wB.y + bj.invInertiaWorld.m13 * wB.z))
-        + (wB.y * (bj.invInertiaWorld.m21 * wB.x + bj.invInertiaWorld.m22 * wB.y + bj.invInertiaWorld.m23 * wB.z))
-        + (wB.z * (bj.invInertiaWorld.m31 * wB.x + bj.invInertiaWorld.m32 * wB.y + bj.invInertiaWorld.m33 * wB.z))
+        + (equation.wAx * (bi.invInertiaWorld.m11 * equation.wAx + bi.invInertiaWorld.m12 * equation.wAy + bi.invInertiaWorld.m13 * equation.wAz))
+        + (equation.wAy * (bi.invInertiaWorld.m21 * equation.wAx + bi.invInertiaWorld.m22 * equation.wAy + bi.invInertiaWorld.m23 * equation.wAz))
+        + (equation.wAz * (bi.invInertiaWorld.m31 * equation.wAx + bi.invInertiaWorld.m32 * equation.wAy + bi.invInertiaWorld.m33 * equation.wAz))
+        + (equation.wBx * (bj.invInertiaWorld.m11 * equation.wBx + bj.invInertiaWorld.m12 * equation.wBy + bj.invInertiaWorld.m13 * equation.wBz))
+        + (equation.wBy * (bj.invInertiaWorld.m21 * equation.wBx + bj.invInertiaWorld.m22 * equation.wBy + bj.invInertiaWorld.m23 * equation.wBz))
+        + (equation.wBz * (bj.invInertiaWorld.m31 * equation.wBx + bj.invInertiaWorld.m32 * equation.wBy + bj.invInertiaWorld.m33 * equation.wBz))
 
 
 {-| Computes G x W, where W are the body velocities
 -}
 computeGW : Body -> Body -> Equation -> Float
-computeGW bi bj { wA, vB, wB } =
-    -(vB.x * bi.velocity.x + vB.y * bi.velocity.y + vB.z * bi.velocity.z)
-        + (wA.x * bi.angularVelocity.x + wA.y * bi.angularVelocity.y + wA.z * bi.angularVelocity.z)
-        + (vB.x * bj.velocity.x + vB.y * bj.velocity.y + vB.z * bj.velocity.z)
-        + (wB.x * bj.angularVelocity.x + wB.y * bj.angularVelocity.y + wB.z * bj.angularVelocity.z)
+computeGW bi bj equation =
+    -(equation.vBx * bi.velocity.x + equation.vBy * bi.velocity.y + equation.vBz * bi.velocity.z)
+        + (equation.wAx * bi.angularVelocity.x + equation.wAy * bi.angularVelocity.y + equation.wAz * bi.angularVelocity.z)
+        + (equation.vBx * bj.velocity.x + equation.vBy * bj.velocity.y + equation.vBz * bj.velocity.z)
+        + (equation.wBx * bj.angularVelocity.x + equation.wBy * bj.angularVelocity.y + equation.wBz * bj.angularVelocity.z)

@@ -23,15 +23,38 @@ getPairs :
 getPairs collide constrain bodies =
     case bodies of
         ( id1, body1 ) :: restBodies ->
-            getPairsHelp collide constrain id1 body1 (constrain id1) restBodies restBodies []
+            -- One-time scan: if no body registered a constrain callback, skip
+            -- the per-pair reverse-direction constraint lookup entirely
+            -- (saves N²/2 calls into user's `constrain` for contact-only scenes).
+            let
+                anyConstraints =
+                    hasAnyConstraints constrain bodies
+            in
+            getPairsHelp collide constrain anyConstraints id1 body1 (constrain id1) restBodies restBodies []
 
         [] ->
             []
 
 
+hasAnyConstraints : (id -> Maybe (id -> List (Constraint BodyCoordinates))) -> List ( id, Body ) -> Bool
+hasAnyConstraints constrain bodies =
+    case bodies of
+        [] ->
+            False
+
+        ( extId, _ ) :: rest ->
+            case constrain extId of
+                Just _ ->
+                    True
+
+                Nothing ->
+                    hasAnyConstraints constrain rest
+
+
 getPairsHelp :
     (id -> id -> Bool)
     -> (id -> Maybe (id -> List (Constraint BodyCoordinates)))
+    -> Bool
     -> id
     -> Body
     -> Maybe (id -> List (Constraint BodyCoordinates))
@@ -39,7 +62,7 @@ getPairsHelp :
     -> List ( id, Body )
     -> List PairGroup
     -> List PairGroup
-getPairsHelp collide constrain id1 body1 constrainFn1 currentBodies restBodies result =
+getPairsHelp collide constrain anyConstraints id1 body1 constrainFn1 currentBodies restBodies result =
     case restBodies of
         ( id2, body2 ) :: newRestBodies ->
             let
@@ -54,33 +77,51 @@ getPairsHelp collide constrain id1 body1 constrainFn1 currentBodies restBodies r
                         []
 
                 constraints =
-                    constraintsBetween constrain constrainFn1 id1 body1 id2 body2
+                    if anyConstraints then
+                        constraintsBetween constrain constrainFn1 id1 body1 id2 body2
+
+                    else
+                        []
+
+                newResult =
+                    case contacts of
+                        [] ->
+                            case constraints of
+                                [] ->
+                                    result
+
+                                _ ->
+                                    { body1 = body1
+                                    , body2 = body2
+                                    , contacts = contacts
+                                    , constraints = constraints
+                                    }
+                                        :: result
+
+                        _ ->
+                            { body1 = body1
+                            , body2 = body2
+                            , contacts = contacts
+                            , constraints = constraints
+                            }
+                                :: result
             in
             getPairsHelp collide
                 constrain
+                anyConstraints
                 id1
                 body1
                 constrainFn1
                 currentBodies
                 newRestBodies
-                (case ( contacts, constraints ) of
-                    ( [], [] ) ->
-                        result
-
-                    _ ->
-                        { body1 = body1
-                        , body2 = body2
-                        , contacts = contacts
-                        , constraints = constraints
-                        }
-                            :: result
-                )
+                newResult
 
         [] ->
             case currentBodies of
                 ( newId1, newBody1 ) :: newRestBodies ->
                     getPairsHelp collide
                         constrain
+                        anyConstraints
                         newId1
                         newBody1
                         (constrain newId1)
