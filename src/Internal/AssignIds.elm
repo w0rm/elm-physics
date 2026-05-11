@@ -140,7 +140,7 @@ stable bodies mx acc =
 withId : Int -> InternalBody.Body -> InternalBody.Body
 withId freshId body =
     { id = freshId
-    , kind = body.kind
+    , kindInt = body.kindInt
     , transform3d = body.transform3d
     , centerOfMassTransform3d = body.centerOfMassTransform3d
     , velocity = body.velocity

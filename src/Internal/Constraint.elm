@@ -1,4 +1,4 @@
-module Internal.Constraint exposing (Constraint(..), flip, relativeToCenterOfMass)
+module Internal.Constraint exposing (Constraint(..), relativeToCenterOfMass, relativeToCenterOfMassFlipped)
 
 import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape exposing (CenterOfMassCoordinates)
@@ -47,21 +47,48 @@ relativeToCenterOfMass centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
             Distance length
 
 
-{-| Swap body1 and body2 roles. Used when the user registered the constrain
-callback on the body that ends up at the larger gravity-sort position, so
-the constraint must be re-keyed to put the smaller-position body first.
+{-| Like `relativeToCenterOfMass`, but also swaps body1 and body2 roles in
+the output. Used when the user registered the constrain callback on the
+body that ends up at the larger gravity-sort position: the input pivots are
+labeled relative to (callback-body, partner) but the output must be labeled
+relative to (smaller-position-body, larger-position-body).
+
+Caller passes the frames in the *natural* order (smaller-position body first,
+larger-position body second). The function transforms input.pivot1 (the
+caller-body's pivot) with the larger-position frame and emits it as output
+pivot2; transforms input.pivot2 with the smaller-position frame and emits it
+as output pivot1. Single allocation, vs. `relativeToCenterOfMass >> flip`
+which would allocate twice.
 -}
-flip : Constraint coordinates -> Constraint coordinates
-flip constraint =
+relativeToCenterOfMassFlipped :
+    Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
+    -> Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }
+    -> Constraint BodyCoordinates
+    -> Constraint CenterOfMassCoordinates
+relativeToCenterOfMassFlipped centerOfMassFrame3d1 centerOfMassFrame3d2 constraint =
     case constraint of
-        PointToPoint p1 p2 ->
-            PointToPoint p2 p1
+        PointToPoint pivot1 pivot2 ->
+            PointToPoint
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot2)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot1)
 
-        Hinge p1 a1 p2 a2 ->
-            Hinge p2 a2 p1 a1
+        Hinge pivot1 axis1 pivot2 axis2 ->
+            Hinge
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 axis2)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 axis1)
 
-        Lock p1 x1 y1 z1 p2 x2 y2 z2 ->
-            Lock p2 x2 y2 z2 p1 x1 y1 z1
+        Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2 ->
+            Lock
+                (Transform3d.pointRelativeTo centerOfMassFrame3d1 pivot2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 x2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 y2)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d1 z2)
+                (Transform3d.pointRelativeTo centerOfMassFrame3d2 pivot1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 x1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 y1)
+                (Transform3d.directionRelativeTo centerOfMassFrame3d2 z1)
 
         Distance length ->
             Distance length

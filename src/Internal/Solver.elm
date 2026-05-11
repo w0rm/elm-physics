@@ -19,7 +19,7 @@ sentinel : id -> SolverBody id
 sentinel extId =
     { body =
         { id = -1
-        , kind = Body.Static
+        , kindInt = 1
         , transform3d = Transform3d.atOrigin
         , centerOfMassTransform3d = Transform3d.atOrigin
         , velocity = Vec3.zero
@@ -81,62 +81,93 @@ applyGroupWarmStart body1 body2 equations =
             else
                 let
                     newBody1 =
-                        case body1.body.kind of
-                            Body.Dynamic ->
-                                let
-                                    invI1 =
-                                        body1.body.invInertiaWorld
+                        if body1.body.kindInt == 2 then
+                            let
+                                invI1 =
+                                    body1.body.invInertiaWorld
 
-                                    k1 =
-                                        solverLambda * body1.body.invMass
-                                in
-                                { body = body1.body
-                                , extId = body1.extId
-                                , vX = body1.vX - k1 * equation.vBx
-                                , vY = body1.vY - k1 * equation.vBy
-                                , vZ = body1.vZ - k1 * equation.vBz
-                                , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * solverLambda
-                                , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * solverLambda
-                                , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * solverLambda
-                                }
+                                k1 =
+                                    solverLambda * body1.body.invMass
+                            in
+                            { body = body1.body
+                            , extId = body1.extId
+                            , vX = body1.vX - k1 * equation.vBx
+                            , vY = body1.vY - k1 * equation.vBy
+                            , vZ = body1.vZ - k1 * equation.vBz
+                            , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * solverLambda
+                            , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * solverLambda
+                            , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * solverLambda
+                            }
 
-                            _ ->
-                                body1
+                        else
+                            body1
 
                     newBody2 =
-                        case body2.body.kind of
-                            Body.Dynamic ->
-                                let
-                                    invI2 =
-                                        body2.body.invInertiaWorld
+                        if body2.body.kindInt == 2 then
+                            let
+                                invI2 =
+                                    body2.body.invInertiaWorld
 
-                                    k2 =
-                                        solverLambda * body2.body.invMass
-                                in
-                                { body = body2.body
-                                , extId = body2.extId
-                                , vX = body2.vX + k2 * equation.vBx
-                                , vY = body2.vY + k2 * equation.vBy
-                                , vZ = body2.vZ + k2 * equation.vBz
-                                , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * solverLambda
-                                , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * solverLambda
-                                , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * solverLambda
-                                }
+                                k2 =
+                                    solverLambda * body2.body.invMass
+                            in
+                            { body = body2.body
+                            , extId = body2.extId
+                            , vX = body2.vX + k2 * equation.vBx
+                            , vY = body2.vY + k2 * equation.vBy
+                            , vZ = body2.vZ + k2 * equation.vBz
+                            , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * solverLambda
+                            , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * solverLambda
+                            , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * solverLambda
+                            }
 
-                            _ ->
-                                body2
+                        else
+                            body2
                 in
                 applyGroupWarmStart newBody1 newBody2 rest
 
 
-applyWarmStart : SolverBody id -> Array (SolverBody id) -> List EquationsGroup -> Array (SolverBody id)
-applyWarmStart prevBody1 solverBodies equationsGroups =
-    case equationsGroups of
-        [] ->
-            Array.set prevBody1.body.id prevBody1 solverBodies
+{-| Single pass over pairGroups: build the EquationsGroups list, apply cached
+warm-start impulses, and grow union-find parents — all in one walk. Replaces
+three separate walks of equationsGroups in the previous code.
 
-        { bodyId1, bodyId2, equations } :: rest ->
+`PairGroup` already carries `body1 : Body` and `body2 : Body`, so the union-find
+dynamic-dynamic check reads `kindInt` straight off the PairGroup without an
+Array.get. Warm-start impulses commute (just additions), so processing in
+pairGroups order vs. reversed-equationsGroups order yields the same array.
+
+-}
+buildAndWarmStart :
+    Equation.Ctx
+    -> SolverBody id
+    -> Array (SolverBody id)
+    -> Array Int
+    -> List (EquationsGroup id)
+    -> List PairGroup
+    -> ( List (EquationsGroup id), Array (SolverBody id), Array Int )
+buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
+    case pairGroups of
+        [] ->
+            ( groups
+            , if prevBody1.body.kindInt == 2 then
+                Array.set prevBody1.body.id prevBody1 solverBodies
+
+              else
+                solverBodies
+            , parents
+            )
+
+        pairGroup :: rest ->
             let
+                equations =
+                    Equation.equationsForPair ctx pairGroup
+
+                bodyId1 =
+                    pairGroup.body1.id
+
+                bodyId2 =
+                    pairGroup.body2.id
+
                 body1 =
                     if prevBody1.body.id - bodyId1 == 0 then
                         prevBody1
@@ -149,15 +180,15 @@ applyWarmStart prevBody1 solverBodies equationsGroups =
                             Nothing ->
                                 prevBody1
 
-                newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
+                solverBodies1 =
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kindInt /= 2 then
                         solverBodies
 
                     else
                         Array.set prevBody1.body.id prevBody1 solverBodies
 
                 body2 =
-                    case Array.get bodyId2 newSolverBodies of
+                    case Array.get bodyId2 solverBodies1 of
                         Just b ->
                             b
 
@@ -166,16 +197,28 @@ applyWarmStart prevBody1 solverBodies equationsGroups =
 
                 ( newBody1, newBody2 ) =
                     applyGroupWarmStart body1 body2 equations
-            in
-            applyWarmStart
-                newBody1
-                (if newBody2.body.kind == Body.Dynamic then
-                    Array.set bodyId2 newBody2 newSolverBodies
 
-                 else
-                    newSolverBodies
-                )
-                rest
+                equationsGroup =
+                    { body1 = newBody1
+                    , body2 = newBody2
+                    , equations = equations
+                    }
+
+                solverBodies2 =
+                    if newBody2.body.kindInt == 2 then
+                        Array.set bodyId2 newBody2 solverBodies1
+
+                    else
+                        solverBodies1
+
+                newParents =
+                    if pairGroup.body1.kindInt == 2 && pairGroup.body2.kindInt == 2 then
+                        union bodyId1 bodyId2 parents
+
+                    else
+                        parents
+            in
+            buildAndWarmStart ctx newBody1 solverBodies2 newParents (equationsGroup :: groups) rest
 
 
 solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
@@ -199,33 +242,36 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
                 solverBodies =
                     makeSolverBodies maxId bodiesWithIds
 
-                equationsGroups =
-                    List.foldl
-                        (\pairGroup groups ->
-                            Equation.pairEquationsGroup ctx pairGroup :: groups
-                        )
+                -- Single fused pass over pairGroups: build equationsGroups,
+                -- apply warm-start impulses, and grow union-find parents.
+                -- Partitions equationsGroups into connected components
+                -- ("islands") of dynamic bodies. Each island converges
+                -- independently, so settled regions of the scene exit early
+                -- instead of dragging the whole solver to the max iteration count.
+                ( equationsGroups, warmStartedBodies, islandParents ) =
+                    buildAndWarmStart
+                        ctx
+                        fillingBody
+                        solverBodies
+                        (Array.initialize (maxId + 1) identity)
                         []
                         pairGroups
 
-                -- warm start: apply cached lambdas as impulses to body delta-v
-                warmStartedBodies =
-                    case equationsGroups of
-                        [] ->
-                            solverBodies
+                -- Annotate each group with its island root, then sort so
+                -- consecutive entries belong to the same island. Within-island
+                -- PGS order doesn't need a secondary key — body1/body2
+                -- assignment (already pinned bottom-first by Physics.elm's
+                -- body pre-sort) is what governs stack stability, not the
+                -- pair-visit order inside the island.
+                sortedGroups =
+                    List.sortBy Tuple.first
+                        (annotateGroupsByRoot islandParents equationsGroups [])
 
-                        { bodyId1 } :: _ ->
-                            case Array.get bodyId1 solverBodies of
-                                Just firstBody ->
-                                    applyWarmStart firstBody solverBodies equationsGroups
-
-                                Nothing ->
-                                    solverBodies
-
-                ( finalSolverBodies, finalEquationsGroups, remainingIterations ) =
-                    step iterations 0 [] equationsGroups fillingBody warmStartedBodies
+                ( finalSolverBodies, finalEquationsGroups, minRemainingIterations ) =
+                    solveIslands iterations fillingBody warmStartedBodies sortedGroups
 
                 iterationsUsed =
-                    max 1 (iterations - remainingIterations)
+                    max 1 (iterations - minRemainingIterations)
 
                 finalLambdas =
                     List.foldl
@@ -247,7 +293,7 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
             ( finalSolverBodies, finalLambdas, iterationsUsed )
 
 
-step : Int -> Float -> List EquationsGroup -> List EquationsGroup -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List EquationsGroup, Int )
+step : Int -> Float -> List (EquationsGroup id) -> List (EquationsGroup id) -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
 step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
     case currentEquationsGroups of
         [] ->
@@ -263,8 +309,14 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                 -- requeue equationsGroups for the next step
                 step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
 
-        { bodyId1, bodyId2, equations } :: remainingEquationsGroups ->
+        currentGroup :: remainingEquationsGroups ->
             let
+                bodyId1 =
+                    currentGroup.body1.body.id
+
+                bodyId2 =
+                    currentGroup.body2.body.id
+
                 body1 =
                     if prevBody1.body.id - bodyId1 == 0 then
                         -- if the next equations group has the same body
@@ -282,7 +334,7 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                                 prevBody1
 
                 newSolverBodies =
-                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kind /= Body.Dynamic then
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kindInt /= 2 then
                         -- if the next equations group has the same body,
                         -- then no need to set it to the array
                         -- also no need to update non-dynamic bodies (static, kinematic)
@@ -307,12 +359,12 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                         body2
                         []
                         deltalambdaTot
-                        equations
+                        currentGroup.equations
             in
             step remainingIterations
                 groupContext.deltalambdaTot
-                ({ bodyId1 = bodyId1
-                 , bodyId2 = bodyId2
+                ({ body1 = groupContext.body1
+                 , body2 = groupContext.body2
                  , equations = groupContext.equations
                  }
                     :: equationsGroups
@@ -323,13 +375,185 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                 -- which we generated the contact equation groups (b1, b2), (b1, b3)
                 -- this lets us reduce Array.set operations
                 groupContext.body1
-                (if groupContext.body2.body.kind == Body.Dynamic then
+                (if groupContext.body2.body.kindInt == 2 then
                     Array.set bodyId2 groupContext.body2 newSolverBodies
 
                  else
                     -- static and kinematic bodies don’t change
                     newSolverBodies
                 )
+
+
+
+-- Islands: connected components of dynamic bodies in the contact/constraint
+-- graph. Built with union-find inline during `buildAndWarmStart`. Each island
+-- runs its own PGS iteration with independent convergence — settled regions
+-- stop iterating early.
+
+
+{-| Find the root of `id` while path-halving: every other node on the path is
+relinked to its grandparent. Keeps trees shallow under repeated lookups, which
+matters when bodies are unioned in adversarial id order.
+-}
+findRoot : Int -> Array Int -> ( Array Int, Int )
+findRoot id parents =
+    case Array.get id parents of
+        Just parent ->
+            if parent - id == 0 then
+                ( parents, id )
+
+            else
+                case Array.get parent parents of
+                    Just grandparent ->
+                        if grandparent - parent == 0 then
+                            ( parents, parent )
+
+                        else
+                            findRoot grandparent (Array.set id grandparent parents)
+
+                    Nothing ->
+                        ( parents, parent )
+
+        Nothing ->
+            ( parents, id )
+
+
+union : Int -> Int -> Array Int -> Array Int
+union a b parents =
+    let
+        ( parents1, rootA ) =
+            findRoot a parents
+
+        ( parents2, rootB ) =
+            findRoot b parents1
+    in
+    if rootA - rootB == 0 then
+        parents2
+
+    else if rootA - rootB < 0 then
+        Array.set rootB rootA parents2
+
+    else
+        Array.set rootA rootB parents2
+
+
+{-| Pair each equationsGroup with its island root. Threads `parents` through
+so path-compression updates carry across calls.
+
+What about within-island PGS order? `Physics.elm` already pre-sorts bodies
+by gravity projection, which makes `BroadPhase` emit pairs with body1 =
+bottom-most body of the pair. PGS convergence on stacks is sensitive to that
+body1/body2 assignment (asymmetric `minForce = 0` clamp), but not to the
+order in which pairs _within_ an island are processed — confirmed empirically
+by the sandbox stack-of-5 stability test. So we only need to sort by root.
+
+-}
+annotateGroupsByRoot : Array Int -> List (EquationsGroup id) -> List ( Int, EquationsGroup id ) -> List ( Int, EquationsGroup id )
+annotateGroupsByRoot parents equationsGroups acc =
+    case equationsGroups of
+        [] ->
+            acc
+
+        group :: rest ->
+            let
+                -- Pick the dynamic body's id as the union-find key. If body1
+                -- is static and body2 is dynamic, body1's root is itself
+                -- (never unioned) so we'd misclassify this group as its own
+                -- island.
+                pickedId =
+                    if group.body1.body.kindInt == 2 then
+                        group.body1.body.id
+
+                    else
+                        group.body2.body.id
+
+                ( newParents, root ) =
+                    findRoot pickedId parents
+            in
+            annotateGroupsByRoot newParents rest (( root, group ) :: acc)
+
+
+{-| Walk a list of (root, group) entries sorted by root. Consecutive entries
+with the same root form an island; each island is solved as a unit.
+-}
+solveIslands : Int -> SolverBody id -> Array (SolverBody id) -> List ( Int, EquationsGroup id ) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solveIslands iterations fillingBody arr sorted =
+    case sorted of
+        [] ->
+            ( arr, [], iterations )
+
+        ( firstRoot, firstGroup ) :: rest ->
+            collectAndSolveIsland iterations fillingBody firstRoot [ firstGroup ] arr [] iterations rest
+
+
+collectAndSolveIsland : Int -> SolverBody id -> Int -> List (EquationsGroup id) -> Array (SolverBody id) -> List (EquationsGroup id) -> Int -> List ( Int, EquationsGroup id ) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+collectAndSolveIsland iterations fillingBody currentRoot currentIsland arr accGroups minRem remaining =
+    case remaining of
+        [] ->
+            let
+                ( newArr, newGroups, remIters ) =
+                    solveOneIsland iterations fillingBody currentIsland arr
+            in
+            ( newArr, newGroups ++ accGroups, min minRem remIters )
+
+        ( root, group ) :: rest ->
+            if root - currentRoot == 0 then
+                collectAndSolveIsland iterations fillingBody currentRoot (group :: currentIsland) arr accGroups minRem rest
+
+            else
+                let
+                    ( newArr, newGroups, remIters ) =
+                        solveOneIsland iterations fillingBody currentIsland arr
+                in
+                collectAndSolveIsland iterations fillingBody root [ group ] newArr (newGroups ++ accGroups) (min minRem remIters) rest
+
+
+solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solveOneIsland iterations fillingBody island arr =
+    case island of
+        [ singleGroup ] ->
+            -- 2-body island: bodies are owned by this group (no sharing with
+            -- any other group), so we use the SolverBody refs stashed on the
+            -- group directly — no Array.get needed.
+            solve2Body iterations singleGroup arr
+
+        _ ->
+            step iterations 0 [] island fillingBody arr
+
+
+{-| Specialized PGS for a 2-body island (single equation group). The two
+bodies stay in locals across iterations; only at the end (max iters or
+convergence) do we write back to the array.
+-}
+solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solve2Body remainingIterations group arr =
+    let
+        result =
+            solveEquationsGroup group.body1 group.body2 [] 0 group.equations
+
+        newGroup =
+            { body1 = result.body1
+            , body2 = result.body2
+            , equations = result.equations
+            }
+    in
+    if remainingIterations == 1 then
+        ( flushBody result.body2 (flushBody result.body1 arr), [ newGroup ], 0 )
+
+    else if result.deltalambdaTot - Const.precision < 0 then
+        ( flushBody result.body2 (flushBody result.body1 arr), [ newGroup ], remainingIterations - 1 )
+
+    else
+        solve2Body (remainingIterations - 1) newGroup arr
+
+
+flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
+flushBody body arr =
+    if body.body.kindInt == 2 then
+        Array.set body.body.id body arr
+
+    else
+        arr
 
 
 type alias GroupSolveResult id =
@@ -373,52 +597,50 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                         deltalambdaPrev
 
                 newBody1 =
-                    case body1.body.kind of
-                        Body.Dynamic ->
-                            let
-                                invI1 =
-                                    body1.body.invInertiaWorld
+                    if body1.body.kindInt == 2 then
+                        let
+                            invI1 =
+                                body1.body.invInertiaWorld
 
-                                k1 =
-                                    deltalambda * body1.body.invMass
-                            in
-                            { body = body1.body
-                            , extId = body1.extId
-                            , vX = body1.vX - k1 * equation.vBx
-                            , vY = body1.vY - k1 * equation.vBy
-                            , vZ = body1.vZ - k1 * equation.vBz
-                            , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
-                            , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
-                            , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
-                            }
+                            k1 =
+                                deltalambda * body1.body.invMass
+                        in
+                        { body = body1.body
+                        , extId = body1.extId
+                        , vX = body1.vX - k1 * equation.vBx
+                        , vY = body1.vY - k1 * equation.vBy
+                        , vZ = body1.vZ - k1 * equation.vBz
+                        , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
+                        , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
+                        , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
+                        }
 
-                        _ ->
-                            -- static and kinematic bodies don’t respond to impulses
-                            body1
+                    else
+                        -- static and kinematic bodies don’t respond to impulses
+                        body1
 
                 newBody2 =
-                    case body2.body.kind of
-                        Body.Dynamic ->
-                            let
-                                invI2 =
-                                    body2.body.invInertiaWorld
+                    if body2.body.kindInt == 2 then
+                        let
+                            invI2 =
+                                body2.body.invInertiaWorld
 
-                                k2 =
-                                    deltalambda * body2.body.invMass
-                            in
-                            { body = body2.body
-                            , extId = body2.extId
-                            , vX = body2.vX + k2 * equation.vBx
-                            , vY = body2.vY + k2 * equation.vBy
-                            , vZ = body2.vZ + k2 * equation.vBz
-                            , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
-                            , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
-                            , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
-                            }
+                            k2 =
+                                deltalambda * body2.body.invMass
+                        in
+                        { body = body2.body
+                        , extId = body2.extId
+                        , vX = body2.vX + k2 * equation.vBx
+                        , vY = body2.vY + k2 * equation.vBy
+                        , vZ = body2.vZ + k2 * equation.vBz
+                        , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
+                        , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
+                        , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
+                        }
 
-                        _ ->
-                            -- static and kinematic bodies don’t respond to impulses
-                            body2
+                    else
+                        -- static and kinematic bodies don’t respond to impulses
+                        body2
             in
             solveEquationsGroup
                 newBody1

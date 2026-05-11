@@ -30,7 +30,7 @@ import WebGL exposing (Mesh)
 
 boxesPerDimension : number
 boxesPerDimension =
-    10
+    8
 
 
 type alias Model =

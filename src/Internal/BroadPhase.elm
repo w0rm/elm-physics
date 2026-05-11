@@ -148,7 +148,7 @@ constraintsBetween :
     -> Body
     -> List (Constraint CenterOfMassCoordinates)
 constraintsBetween constrain constrainFn1 id1 body1 id2 body2 =
-    if body1.kind /= Body.Dynamic && body2.kind /= Body.Dynamic then
+    if body1.kindInt /= 2 && body2.kindInt /= 2 then
         []
 
     else
@@ -175,10 +175,9 @@ constraintsBetween constrain constrainFn1 id1 body1 id2 body2 =
                     Just fn ->
                         fn id1
                             |> List.map
-                                (Constraint.relativeToCenterOfMass
-                                    body2.centerOfMassTransform3d
+                                (Constraint.relativeToCenterOfMassFlipped
                                     body1.centerOfMassTransform3d
-                                    >> Constraint.flip
+                                    body2.centerOfMassTransform3d
                                 )
 
                     Nothing ->
@@ -210,5 +209,5 @@ bodiesMayContact collide id1 body1 id2 body2 =
             dx * dx + dy * dy + dz * dz
     in
     (boundingRadiuses * boundingRadiuses - distanceSquared > 0)
-        && (body1.kind == Body.Dynamic || body2.kind == Body.Dynamic)
+        && (body1.kindInt == 2 || body2.kindInt == 2)
         && collide id1 id2
