@@ -80,9 +80,6 @@ applyGroupWarmStart body1 body2 equations =
 
             else
                 let
-                    { vB, wA, wB } =
-                        equation
-
                     newBody1 =
                         case body1.body.kind of
                             Body.Dynamic ->
@@ -95,12 +92,12 @@ applyGroupWarmStart body1 body2 equations =
                                 in
                                 { body = body1.body
                                 , extId = body1.extId
-                                , vX = body1.vX - k1 * vB.x
-                                , vY = body1.vY - k1 * vB.y
-                                , vZ = body1.vZ - k1 * vB.z
-                                , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * solverLambda
-                                , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * solverLambda
-                                , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * solverLambda
+                                , vX = body1.vX - k1 * equation.vBx
+                                , vY = body1.vY - k1 * equation.vBy
+                                , vZ = body1.vZ - k1 * equation.vBz
+                                , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * solverLambda
+                                , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * solverLambda
+                                , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * solverLambda
                                 }
 
                             _ ->
@@ -118,12 +115,12 @@ applyGroupWarmStart body1 body2 equations =
                                 in
                                 { body = body2.body
                                 , extId = body2.extId
-                                , vX = body2.vX + k2 * vB.x
-                                , vY = body2.vY + k2 * vB.y
-                                , vZ = body2.vZ + k2 * vB.z
-                                , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * solverLambda
-                                , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * solverLambda
-                                , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * solverLambda
+                                , vX = body2.vX + k2 * equation.vBx
+                                , vY = body2.vY + k2 * equation.vBy
+                                , vZ = body2.vZ + k2 * equation.vBz
+                                , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * solverLambda
+                                , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * solverLambda
+                                , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * solverLambda
                                 }
 
                             _ ->
@@ -355,25 +352,22 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
 
         { solverLambda, equation } :: remainingEquations ->
             let
-                { wA, vB, wB, minForce, maxForce, solverB, spookEps, solverInvC } =
-                    equation
-
                 -- G x Wlambda, where W are the body velocities
                 gWlambda =
-                    -(vB.x * body1.vX + vB.y * body1.vY + vB.z * body1.vZ)
-                        + (wA.x * body1.wX + wA.y * body1.wY + wA.z * body1.wZ)
-                        + (vB.x * body2.vX + vB.y * body2.vY + vB.z * body2.vZ)
-                        + (wB.x * body2.wX + wB.y * body2.wY + wB.z * body2.wZ)
+                    -(equation.vBx * body1.vX + equation.vBy * body1.vY + equation.vBz * body1.vZ)
+                        + (equation.wAx * body1.wX + equation.wAy * body1.wY + equation.wAz * body1.wZ)
+                        + (equation.vBx * body2.vX + equation.vBy * body2.vY + equation.vBz * body2.vZ)
+                        + (equation.wBx * body2.wX + equation.wBy * body2.wY + equation.wBz * body2.wZ)
 
                 deltalambdaPrev =
-                    solverInvC * (solverB - gWlambda - spookEps * solverLambda)
+                    equation.solverInvC * (equation.solverB - gWlambda - equation.spookEps * solverLambda)
 
                 deltalambda =
-                    if solverLambda + deltalambdaPrev - minForce < 0 then
-                        minForce - solverLambda
+                    if solverLambda + deltalambdaPrev - equation.minForce < 0 then
+                        equation.minForce - solverLambda
 
-                    else if solverLambda + deltalambdaPrev - maxForce > 0 then
-                        maxForce - solverLambda
+                    else if solverLambda + deltalambdaPrev - equation.maxForce > 0 then
+                        equation.maxForce - solverLambda
 
                     else
                         deltalambdaPrev
@@ -390,12 +384,12 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                             in
                             { body = body1.body
                             , extId = body1.extId
-                            , vX = body1.vX - k1 * vB.x
-                            , vY = body1.vY - k1 * vB.y
-                            , vZ = body1.vZ - k1 * vB.z
-                            , wX = body1.wX + (invI1.m11 * wA.x + invI1.m12 * wA.y + invI1.m13 * wA.z) * deltalambda
-                            , wY = body1.wY + (invI1.m21 * wA.x + invI1.m22 * wA.y + invI1.m23 * wA.z) * deltalambda
-                            , wZ = body1.wZ + (invI1.m31 * wA.x + invI1.m32 * wA.y + invI1.m33 * wA.z) * deltalambda
+                            , vX = body1.vX - k1 * equation.vBx
+                            , vY = body1.vY - k1 * equation.vBy
+                            , vZ = body1.vZ - k1 * equation.vBz
+                            , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
+                            , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
+                            , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
                             }
 
                         _ ->
@@ -414,12 +408,12 @@ solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
                             in
                             { body = body2.body
                             , extId = body2.extId
-                            , vX = body2.vX + k2 * vB.x
-                            , vY = body2.vY + k2 * vB.y
-                            , vZ = body2.vZ + k2 * vB.z
-                            , wX = body2.wX + (invI2.m11 * wB.x + invI2.m12 * wB.y + invI2.m13 * wB.z) * deltalambda
-                            , wY = body2.wY + (invI2.m21 * wB.x + invI2.m22 * wB.y + invI2.m23 * wB.z) * deltalambda
-                            , wZ = body2.wZ + (invI2.m31 * wB.x + invI2.m32 * wB.y + invI2.m33 * wB.z) * deltalambda
+                            , vX = body2.vX + k2 * equation.vBx
+                            , vY = body2.vY + k2 * equation.vBy
+                            , vZ = body2.vZ + k2 * equation.vBz
+                            , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
+                            , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
+                            , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
                             }
 
                         _ ->
