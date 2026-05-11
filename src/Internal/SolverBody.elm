@@ -37,11 +37,13 @@ fromBody extId body =
 
 toBody : Float -> Vec3 -> SolverBody id -> Body
 toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
-    case body.kind of
-        Body.Static ->
+    case body.kindInt of
+        1 ->
+            -- Static
             body
 
-        Body.Kinematic ->
+        3 ->
+            -- Kinematic
             let
                 v =
                     body.velocity
@@ -58,7 +60,7 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                         )
             in
             { id = body.id
-            , kind = body.kind
+            , kindInt = body.kindInt
             , velocity = body.velocity
             , angularVelocity = body.angularVelocity
             , transform3d = newTransform3d
@@ -81,7 +83,8 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
             , torque = Vec3.zero
             }
 
-        Body.Dynamic ->
+        _ ->
+            -- Dynamic (or any other; only Dynamic is the live case)
             let
                 -- Apply damping https://code.google.com/archive/p/bullet/issues/74
                 ld =
@@ -128,7 +131,7 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                         )
             in
             { id = body.id
-            , kind = body.kind
+            , kindInt = body.kindInt
             , velocity = newVelocity
             , angularVelocity = newAngularVelocity
             , transform3d = newTransform3d

@@ -163,7 +163,7 @@ plane plane3d (Types.Material internalMat) =
             Direction3d.unwrap (Plane3d.normalDirection plane3d)
     in
     Types.Body
-        (InternalBody.compound InternalBody.Static
+        (InternalBody.compound 1
             [ ( InternalShape.Plane { position = position, normal = normal }
               , internalMat
               , 1
@@ -212,7 +212,7 @@ are derived from geometry and density.
 dynamic : List ( Shape, Material Dense ) -> Body
 dynamic shapesWithMaterials =
     Types.Body
-        (InternalBody.compound InternalBody.Dynamic
+        (InternalBody.compound 2
             (List.concatMap
                 (\( Types.Shape entries, Types.Material internalMat ) ->
                     List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
@@ -228,7 +228,7 @@ Static bodies only collide with dynamic bodies, not other static bodies.
 static : List ( Shape, Material any ) -> Body
 static shapesWithMaterials =
     Types.Body
-        (InternalBody.compound InternalBody.Static
+        (InternalBody.compound 1
             (List.concatMap
                 (\( Types.Shape entries, Types.Material internalMat ) ->
                     List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
@@ -263,7 +263,7 @@ along its surface.
 kinematic : List ( Shape, Material any ) -> Body
 kinematic shapesWithMaterials =
     Types.Body
-        (InternalBody.compound InternalBody.Kinematic
+        (InternalBody.compound 3
             (List.concatMap
                 (\( Types.Shape entries, Types.Material internalMat ) ->
                     List.map (\( shape, sign ) -> ( shape, internalMat, sign )) entries
@@ -373,7 +373,7 @@ rotateAround axis angle (Types.Body body) =
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
             , invInertiaWorld =
-                if body.kind == InternalBody.Dynamic then
+                if body.kindInt == 2 then
                     Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
                 else
@@ -423,7 +423,7 @@ place frame3d (Types.Body body) =
             | transform3d = newTransform3d
             , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
             , invInertiaWorld =
-                if body.kind == InternalBody.Dynamic then
+                if body.kindInt == 2 then
                     Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
                 else
@@ -464,9 +464,14 @@ simulate config bodiesWithIds =
         dt =
             Duration.inSeconds config.duration
 
-        -- Sort bodies by projection onto gravity axis so BroadPhase
-        -- discovers ground contacts first, giving bottom-up solver order
-        -- regardless of user body list order.
+        -- Sort bodies by projection onto the gravity axis so BroadPhase assigns
+        -- body1/body2 within each pair consistently (lower body = body1). The
+        -- solver's within-island gravity sort orders the contacts themselves,
+        -- but doesn't pick which body is body1, and PGS cold-start convergence
+        -- is asymmetric w.r.t. body1/body2 (the minForce=0 clamp + iteration
+        -- order means the same physics converges slightly differently when
+        -- the sides flip). Drops the cold-start stack-of-5 stability score
+        -- from 100k → ~20k frames if removed.
         sortedBodies =
             let
                 projection ( _, body ) =
@@ -658,12 +663,11 @@ kinematic bodies (which have infinite mass).
 -}
 centerOfMass : Body -> Maybe (Point3d Meters WorldCoordinates)
 centerOfMass (Types.Body body) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Just (Point3d.fromMeters (Transform3d.originPoint body.transform3d))
+    if body.kindInt == 2 then
+        Just (Point3d.fromMeters (Transform3d.originPoint body.transform3d))
 
-        _ ->
-            Nothing
+    else
+        Nothing
 
 
 {-| Get the mass of a body. Returns Nothing for static and kinematic
@@ -671,12 +675,11 @@ bodies (which have infinite mass).
 -}
 mass : Body -> Maybe Mass
 mass (Types.Body body) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Just (Mass.kilograms body.mass)
+    if body.kindInt == 2 then
+        Just (Mass.kilograms body.mass)
 
-        _ ->
-            Nothing
+    else
+        Nothing
 
 
 {-| Find the closest intersection of a ray against a list of bodies.
@@ -742,17 +745,16 @@ Keep applying the force every simulation step to accelerate.
 -}
 applyForce : Vector3d Newtons WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
 applyForce force position ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Types.Body
-                (InternalBody.applyForce
-                    (Vector3d.unwrap force)
-                    (Point3d.toMeters position)
-                    body
-                )
+    if body.kindInt == 2 then
+        Types.Body
+            (InternalBody.applyForce
+                (Vector3d.unwrap force)
+                (Point3d.toMeters position)
+                body
+            )
 
-        _ ->
-            original
+    else
+        original
 
 
 {-| Apply an impulse at a point on a body, adding to its velocity and angular velocity.
@@ -771,17 +773,16 @@ applyForce force position ((Types.Body body) as original) =
 -}
 applyImpulse : Vector3d (Product Newtons Seconds) WorldCoordinates -> Point3d Meters WorldCoordinates -> Body -> Body
 applyImpulse impulse position ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Types.Body
-                (InternalBody.applyImpulse
-                    (Vector3d.unwrap impulse)
-                    (Point3d.toMeters position)
-                    body
-                )
+    if body.kindInt == 2 then
+        Types.Body
+            (InternalBody.applyImpulse
+                (Vector3d.unwrap impulse)
+                (Point3d.toMeters position)
+                body
+            )
 
-        _ ->
-            original
+    else
+        original
 
 
 {-| Apply a pure torque to a body — spin without translation.
@@ -799,12 +800,11 @@ Keep applying the torque every simulation step to spin up.
 -}
 applyTorque : Vector3d NewtonMeters WorldCoordinates -> Body -> Body
 applyTorque torque ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Types.Body (InternalBody.applyTorque (Vector3d.unwrap torque) body)
+    if body.kindInt == 2 then
+        Types.Body (InternalBody.applyTorque (Vector3d.unwrap torque) body)
 
-        _ ->
-            original
+    else
+        original
 
 
 {-| Apply an angular impulse to a body, adding to its angular velocity.
@@ -823,12 +823,11 @@ applyTorque torque ((Types.Body body) as original) =
 -}
 applyAngularImpulse : Vector3d (Product NewtonMeters Seconds) WorldCoordinates -> Body -> Body
 applyAngularImpulse angularImpulse ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Dynamic ->
-            Types.Body (InternalBody.applyAngularImpulse (Vector3d.unwrap angularImpulse) body)
+    if body.kindInt == 2 then
+        Types.Body (InternalBody.applyAngularImpulse (Vector3d.unwrap angularImpulse) body)
 
-        _ ->
-            original
+    else
+        original
 
 
 {-| Replace the linear velocity of a body. Works on both [dynamic](#dynamic)
@@ -850,12 +849,11 @@ Has no effect on static bodies.
 -}
 setVelocityTo : Vector3d MetersPerSecond WorldCoordinates -> Body -> Body
 setVelocityTo newVelocity ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Static ->
-            original
+    if body.kindInt == 1 then
+        original
 
-        _ ->
-            Types.Body { body | velocity = Vector3d.unwrap newVelocity }
+    else
+        Types.Body { body | velocity = Vector3d.unwrap newVelocity }
 
 
 {-| Replace the angular velocity of a body. See [setVelocityTo](#setVelocityTo)
@@ -863,12 +861,11 @@ for guidance. Has no effect on static bodies.
 -}
 setAngularVelocityTo : Vector3d RadiansPerSecond WorldCoordinates -> Body -> Body
 setAngularVelocityTo newAngularVelocity ((Types.Body body) as original) =
-    case body.kind of
-        InternalBody.Static ->
-            original
+    if body.kindInt == 1 then
+        original
 
-        _ ->
-            Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
+    else
+        Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
 
 
 {-| Scale a body to the given mass. The volume and center of mass
@@ -880,32 +877,27 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
         newMass =
             Mass.inKilograms desiredMass
     in
-    case body.kind of
-        InternalBody.Dynamic ->
-            if newMass > 0 then
-                let
-                    scale =
-                        body.mass / newMass
+    if body.kindInt == 2 && newMass > 0 then
+        let
+            scale =
+                body.mass / newMass
 
-                    newInvInertia =
-                        { x = body.invInertia.x * scale
-                        , y = body.invInertia.y * scale
-                        , z = body.invInertia.z * scale
-                        }
-                in
-                Types.Body
-                    { body
-                        | mass = newMass
-                        , invMass = 1 / newMass
-                        , invInertia = newInvInertia
-                        , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
-                    }
+            newInvInertia =
+                { x = body.invInertia.x * scale
+                , y = body.invInertia.y * scale
+                , z = body.invInertia.z * scale
+                }
+        in
+        Types.Body
+            { body
+                | mass = newMass
+                , invMass = 1 / newMass
+                , invInertia = newInvInertia
+                , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
+            }
 
-            else
-                original
-
-        _ ->
-            original
+    else
+        original
 
 
 {-| Set linear and angular damping, in order to decrease velocity over time.
@@ -937,7 +929,7 @@ static or kinematic bodies.
 -}
 lock : List Lock -> Body -> Body
 lock locks ((Types.Body body) as original) =
-    if body.kind == InternalBody.Dynamic then
+    if body.kindInt == 2 then
         Types.Body (InternalBody.lock locks body)
 
     else
@@ -951,20 +943,19 @@ and [angularVelocityDeltaFromAngularImpulse](#angularVelocityDeltaFromAngularImp
 -}
 applyInverseInertia : Body -> Vector3d units WorldCoordinates -> Vector3d (Rate units (Product Kilograms SquareMeters)) WorldCoordinates
 applyInverseInertia (Types.Body body) vector =
-    case body.kind of
-        InternalBody.Dynamic ->
-            let
-                { x, y, z } =
-                    Vector3d.unwrap vector
-            in
-            Vector3d.unsafe
-                { x = body.invInertiaWorld.m11 * x + body.invInertiaWorld.m12 * y + body.invInertiaWorld.m13 * z
-                , y = body.invInertiaWorld.m21 * x + body.invInertiaWorld.m22 * y + body.invInertiaWorld.m23 * z
-                , z = body.invInertiaWorld.m31 * x + body.invInertiaWorld.m32 * y + body.invInertiaWorld.m33 * z
-                }
+    if body.kindInt == 2 then
+        let
+            { x, y, z } =
+                Vector3d.unwrap vector
+        in
+        Vector3d.unsafe
+            { x = body.invInertiaWorld.m11 * x + body.invInertiaWorld.m12 * y + body.invInertiaWorld.m13 * z
+            , y = body.invInertiaWorld.m21 * x + body.invInertiaWorld.m22 * y + body.invInertiaWorld.m23 * z
+            , z = body.invInertiaWorld.m31 * x + body.invInertiaWorld.m32 * y + body.invInertiaWorld.m33 * z
+            }
 
-        _ ->
-            Vector3d.zero
+    else
+        Vector3d.zero
 
 
 {-| Compute angular acceleration from torque: α = I⁻¹τ

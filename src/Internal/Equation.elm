@@ -1,8 +1,9 @@
 module Internal.Equation exposing
-    ( Equation
+    ( Ctx
+    , Equation
     , EquationsGroup
     , SolverEquation
-    , pairEquationsGroup
+    , equationsForPair
     )
 
 import Dict exposing (Dict)
@@ -10,6 +11,7 @@ import Internal.Body as Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, PairGroup, SolverContact)
 import Internal.Shape exposing (CenterOfMassCoordinates)
+import Internal.SolverBody exposing (SolverBody)
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
@@ -47,22 +49,24 @@ type alias Ctx =
     }
 
 
-type alias EquationsGroup =
-    { bodyId1 : Int
-    , bodyId2 : Int
+{-| The solver's per-pair record. Carries the two SolverBody refs so the
+solver can look up body state, kind, and id without any Array.get. For 2-body
+islands the solver consumes these refs directly; for multi-body islands the
+refs become stale after the first iteration and the solver falls back to
+`Array.get` on the body ids via `body1.body.id` / `body2.body.id`.
+-}
+type alias EquationsGroup id =
+    { body1 : SolverBody id
+    , body2 : SolverBody id
     , equations : List SolverEquation
     }
 
 
-pairEquationsGroup : Ctx -> PairGroup -> EquationsGroup
-pairEquationsGroup ctx { body1, body2, contacts, constraints } =
-    { bodyId1 = body1.id
-    , bodyId2 = body2.id
-    , equations =
-        []
-            |> (\eqs -> List.foldl (addContactEquations ctx body1 body2) eqs contacts)
-            |> (\eqs -> List.foldl (addConstraintEquations ctx body1 body2) eqs constraints)
-    }
+equationsForPair : Ctx -> PairGroup -> List SolverEquation
+equationsForPair ctx { body1, body2, contacts, constraints } =
+    []
+        |> (\eqs -> List.foldl (addContactEquations ctx body1 body2) eqs contacts)
+        |> (\eqs -> List.foldl (addConstraintEquations ctx body1 body2) eqs constraints)
 
 
 addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
@@ -508,14 +512,14 @@ computeGiMf : Vec3 -> Body -> Body -> Equation -> Float
 computeGiMf gravity bi bj equation =
     let
         gravityi =
-            if bi.kind == Body.Dynamic then
+            if bi.kindInt == 2 then
                 gravity
 
             else
                 Vec3.zero
 
         gravityj =
-            if bj.kind == Body.Dynamic then
+            if bj.kindInt == 2 then
                 gravity
 
             else
