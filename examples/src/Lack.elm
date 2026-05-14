@@ -20,7 +20,9 @@ import Browser.Dom
 import Browser.Events
 import Camera3d exposing (Camera3d)
 import Color
+import Timestep exposing (Timestep)
 import Direction3d
+import Duration
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -49,15 +51,17 @@ type Id
 
 
 type alias Model =
-    { bodies : List ( Id, Body )
+    { prevBodies : List ( Id, Body )
+    , bodies : List ( Id, Body )
     , contacts : Physics.Contacts Id
     , dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
     , dragTarget : Maybe ( Point3d Meters BodyCoordinates, Point3d Meters WorldCoordinates )
+    , timestep : Timestep
     }
 
 
 type Msg
-    = Tick
+    = Tick Duration.Duration
     | Resize Int Int
     | MouseDown (Axis3d Meters WorldCoordinates)
     | MouseMove (Axis3d Meters WorldCoordinates)
@@ -76,10 +80,12 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { bodies = tableOnFloor
+    ( { prevBodies = tableOnFloor
+      , bodies = tableOnFloor
       , contacts = Physics.emptyContacts
       , dimensions = ( Pixels.int 0, Pixels.int 0 )
       , dragTarget = Nothing
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
       }
     , Task.perform
         (\{ viewport } -> Resize (round viewport.width) (round viewport.height))
@@ -122,25 +128,8 @@ tableOnFloor =
 update : Msg -> Model -> Model
 update msg model =
     case msg of
-        Tick ->
-            case model.dragTarget of
-                Just ( pointOnTable, dragPoint ) ->
-                    let
-                        ( simulated, newContacts ) =
-                            Physics.simulate
-                                { onEarth | constrain = lockMouseTo pointOnTable, contacts = model.contacts }
-                                (( Mouse, Physics.static [] |> Physics.moveTo dragPoint )
-                                    :: model.bodies
-                                )
-                    in
-                    { model | bodies = List.drop 1 simulated, contacts = newContacts }
-
-                Nothing ->
-                    let
-                        ( simulated, newContacts ) =
-                            Physics.simulate { onEarth | contacts = model.contacts } model.bodies
-                    in
-                    { model | bodies = simulated, contacts = newContacts }
+        Tick dt ->
+            Timestep.advance simulateStep dt model
 
         MouseDown mouseRay ->
             case Physics.raycast mouseRay model.bodies of
@@ -180,6 +169,34 @@ update msg model =
             { model | dimensions = ( Pixels.int width, Pixels.int height ) }
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        ( newBodies, newContacts ) =
+            case model.dragTarget of
+                Just ( pointOnTable, dragPoint ) ->
+                    let
+                        ( simulated, contacts ) =
+                            Physics.simulate
+                                { onEarth
+                                    | duration = Timestep.duration model.timestep
+                                    , constrain = lockMouseTo pointOnTable
+                                    , contacts = model.contacts
+                                }
+                                (( Mouse, Physics.static [] |> Physics.moveTo dragPoint )
+                                    :: model.bodies
+                                )
+                    in
+                    ( List.drop 1 simulated, contacts )
+
+                Nothing ->
+                    Physics.simulate
+                        { onEarth | duration = Timestep.duration model.timestep, contacts = model.contacts }
+                        model.bodies
+    in
+    { model | prevBodies = model.bodies, bodies = newBodies, contacts = newContacts }
+
+
 camera : Camera3d Meters WorldCoordinates
 camera =
     Camera3d.lookAt
@@ -208,7 +225,7 @@ lockMouseTo pointOnTable mouseId =
 
 
 view : Model -> Html Msg
-view { bodies, dimensions, dragTarget } =
+view { prevBodies, bodies, dimensions, dragTarget, timestep } =
     Html.div
         [ Html.Attributes.style "position" "absolute"
         , Html.Attributes.style "left" "0"
@@ -236,14 +253,17 @@ view { bodies, dimensions, dragTarget } =
                             Nothing ->
                                 Scene3d.nothing
                 in
-                mouseEntity :: List.map bodyEntity bodies
+                mouseEntity
+                    :: List.map2 (bodyEntity timestep)
+                        prevBodies
+                        bodies
             }
         ]
 
 
-bodyEntity : ( Id, Body ) -> Entity WorldCoordinates
-bodyEntity ( id, body ) =
-    Scene3d.placeIn (Physics.frame body) <|
+bodyEntity : Timestep -> ( Id, Body ) -> ( Id, Body ) -> Entity WorldCoordinates
+bodyEntity timestep ( _, prev ) ( id, curr ) =
+    Scene3d.placeIn (Physics.interpolatedFrame (Timestep.progress timestep) prev curr) <|
         case id of
             Mouse ->
                 -- Only used in simulation
@@ -273,7 +293,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize Resize
-        , Browser.Events.onAnimationFrame (\_ -> Tick)
+        , Browser.Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         ]
 
 

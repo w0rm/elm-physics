@@ -18,10 +18,13 @@ import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
+import Timestep exposing (Timestep)
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Common.Sps as Sps exposing (Sps)
+import Duration exposing (Duration)
 import Frame3d
 import Html exposing (Html)
 import Html.Events exposing (onClick)
@@ -57,25 +60,23 @@ peakSpeed =
     platformAmplitude * platformOmega
 
 
-simDt : Float
-simDt =
-    1 / 60
-
-
 type alias Model =
-    { bodies : List ( Int, Body )
+    { prevBodies : List ( Int, Body )
+    , bodies : List ( Int, Body )
     , meshes : Array (Mesh Attributes)
     , contacts : Physics.Contacts Int
     , fps : List Float
     , settings : Settings
     , camera : Camera
     , phase : Float
+    , timestep : Timestep
+    , sps : Sps
     }
 
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
     | Restart
 
@@ -92,7 +93,8 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { bodies = initialBodies
+    ( { prevBodies = initialBodies
+      , bodies = initialBodies
       , meshes = initialMeshes
       , contacts = Physics.emptyContacts
       , fps = []
@@ -103,6 +105,8 @@ init _ =
                 , to = { x = 0, y = 0, z = 1 }
                 }
       , phase = -pi / 2
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
+      , sps = Sps.init
       }
     , Task.perform
         (\{ viewport } -> Resize viewport.width viewport.height)
@@ -120,37 +124,12 @@ update msg model =
 
         Tick dt ->
             let
-                newPhase =
-                    model.phase + simDt * platformOmega
-
-                platformVx =
-                    peakSpeed * cos newPhase
-
-                bodiesPreSim =
-                    model.bodies
-                        |> List.map
-                            (\( id, body ) ->
-                                if id == platformId then
-                                    ( id
-                                    , body
-                                        |> Physics.setVelocityTo
-                                            (Vector3d.metersPerSecond platformVx 0 0)
-                                    )
-
-                                else
-                                    ( id, body )
-                            )
-
-                ( simulated, newContacts ) =
-                    Physics.simulate
-                        { onEarth | contacts = model.contacts }
-                        bodiesPreSim
+                next =
+                    Timestep.advance simulateStep dt model
             in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = simulated
-                , contacts = newContacts
-                , phase = newPhase
+            ( { next
+                | fps = Fps.update dt next.fps
+                , sps = Sps.update dt (Timestep.steps next.timestep) next.sps
               }
             , Cmd.none
             )
@@ -162,7 +141,8 @@ update msg model =
 
         Restart ->
             ( { model
-                | bodies = initialBodies
+                | prevBodies = initialBodies
+                , bodies = initialBodies
                 , contacts = Physics.emptyContacts
                 , phase = -pi / 2
               }
@@ -170,20 +150,60 @@ update msg model =
             )
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        d =
+            Timestep.duration model.timestep
+
+        newPhase =
+            model.phase + Duration.inSeconds d * platformOmega
+
+        platformVx =
+            peakSpeed * cos newPhase
+
+        bodiesPreSim =
+            List.map
+                (\( id, body ) ->
+                    if id == platformId then
+                        ( id
+                        , body
+                            |> Physics.setVelocityTo
+                                (Vector3d.metersPerSecond platformVx 0 0)
+                        )
+
+                    else
+                        ( id, body )
+                )
+                model.bodies
+
+        ( newBodies, newContacts ) =
+            Physics.simulate
+                { onEarth | duration = d, contacts = model.contacts }
+                bodiesPreSim
+    in
+    { model
+        | prevBodies = model.bodies
+        , bodies = newBodies
+        , contacts = newContacts
+        , phase = newPhase
+    }
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         ]
 
 
 view : Model -> Html Msg
-view { settings, fps, bodies, meshes, contacts, camera } =
+view { settings, fps, sps, prevBodies, bodies, meshes, contacts, camera, timestep } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
+            , bodies = Scene.interpolatedBodies (Timestep.progress timestep) prevBodies bodies (\id -> Array.get id meshes)
             , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
@@ -196,7 +216,10 @@ view { settings, fps, bodies, meshes, contacts, camera } =
                 (Contacts c) =
                     contacts
             in
-            Fps.view fps (List.length bodies) c.iterations
+            Html.div []
+                [ Fps.view fps (List.length bodies) c.iterations
+                , Sps.view sps
+                ]
 
           else
             Html.text ""

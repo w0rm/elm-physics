@@ -15,15 +15,17 @@ import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
+import Timestep exposing (Timestep)
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Common.Sps as Sps exposing (Sps)
 import Cylinder3d exposing (Cylinder3d)
 import Density
 import Dict exposing (Dict)
 import Direction3d
-import Duration
+import Duration exposing (Duration)
 import Force
 import Frame3d exposing (Frame3d)
 import Html exposing (Html)
@@ -101,7 +103,8 @@ boxMaterial =
 
 
 type alias Model =
-    { bodies : List ( String, Body )
+    { prevBodies : List ( String, Body )
+    , bodies : List ( String, Body )
     , meshes : Dict String (Mesh Attributes)
     , contacts : Physics.Contacts String
     , fps : List Float
@@ -110,12 +113,14 @@ type alias Model =
     , forwardInput : Float
     , rightInput : Float
     , grounded : Bool
+    , timestep : Timestep
+    , sps : Sps
     }
 
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
     | Restart
     | KeyDown Key
@@ -142,7 +147,8 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { bodies = initialBodies
+    ( { prevBodies = initialBodies
+      , bodies = initialBodies
       , meshes = initialMeshes
       , contacts = Physics.emptyContacts
       , fps = []
@@ -155,6 +161,8 @@ init _ =
       , forwardInput = 0
       , rightInput = 0
       , grounded = False
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
+      , sps = Sps.init
       }
     , Task.perform
         (\{ viewport } -> Resize viewport.width viewport.height)
@@ -170,31 +178,12 @@ update msg model =
 
         Tick dt ->
             let
-                bodiesWithInput =
-                    if model.grounded then
-                        List.map
-                            (\( id, body ) ->
-                                if id == "player" then
-                                    ( id, drivePlayer dt model.rightInput model.forwardInput body )
-
-                                else
-                                    ( id, body )
-                            )
-                            model.bodies
-
-                    else
-                        model.bodies
-
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth | contacts = model.contacts }
-                        bodiesWithInput
+                next =
+                    Timestep.advance simulateStep dt model
             in
-            { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-                , grounded = playerGrounded newBodies newContacts
+            { next
+                | fps = Fps.update dt next.fps
+                , sps = Sps.update dt (Timestep.steps next.timestep) next.sps
             }
 
         Resize width height ->
@@ -202,7 +191,8 @@ update msg model =
 
         Restart ->
             { model
-                | bodies = initialBodies
+                | prevBodies = initialBodies
+                , bodies = initialBodies
                 , contacts = Physics.emptyContacts
             }
 
@@ -281,6 +271,40 @@ update msg model =
             model
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        d =
+            Timestep.duration model.timestep
+
+        bodiesWithInput =
+            if model.grounded then
+                List.map
+                    (\( id, body ) ->
+                        if id == "player" then
+                            ( id, drivePlayer (Duration.inMilliseconds d) model.rightInput model.forwardInput body )
+
+                        else
+                            ( id, body )
+                    )
+                    model.bodies
+
+            else
+                model.bodies
+
+        ( newBodies, newContacts ) =
+            Physics.simulate
+                { onEarth | duration = d, contacts = model.contacts }
+                bodiesWithInput
+    in
+    { model
+        | prevBodies = model.bodies
+        , bodies = newBodies
+        , contacts = newContacts
+        , grounded = playerGrounded newBodies newContacts
+    }
+
+
 {-| Add horizontal velocity each frame via an impulse, matching cannon's
 `velocity.x += inputVelocity.x` pattern. Vertical velocity is left to
 gravity and contacts so contact rebounds don't get fed back into input.
@@ -354,7 +378,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         , Events.onKeyDown (keyDecoder KeyDown)
         , Events.onKeyUp (keyDecoder KeyUp)
         ]
@@ -387,16 +411,11 @@ keyDecoder toMsg =
 
 
 view : Model -> Html Msg
-view { settings, fps, bodies, meshes, contacts, camera } =
+view { settings, fps, sps, prevBodies, bodies, meshes, contacts, camera, timestep } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , bodies =
-                List.filterMap
-                    (\( id, body ) ->
-                        Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
-                    )
-                    bodies
+            , bodies = Scene.interpolatedBodies (Timestep.progress timestep) prevBodies bodies (\id -> Dict.get id meshes)
             , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
@@ -411,7 +430,10 @@ view { settings, fps, bodies, meshes, contacts, camera } =
                 (Contacts c) =
                     contacts
             in
-            Fps.view fps (List.length bodies) c.iterations
+            Html.div []
+                [ Fps.view fps (List.length bodies) c.iterations
+                , Sps.view sps
+                ]
 
           else
             Html.text ""

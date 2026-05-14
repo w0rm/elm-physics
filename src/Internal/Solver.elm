@@ -491,10 +491,10 @@ collectAndSolveIsland iterations fillingBody currentRoot currentIsland arr accGr
     case remaining of
         [] ->
             let
-                ( newArr, newGroups, remIters ) =
-                    solveOneIsland iterations fillingBody currentIsland arr
+                ( newArr, newAccGroups, remIters ) =
+                    solveOneIsland iterations fillingBody currentIsland arr accGroups
             in
-            ( newArr, newGroups ++ accGroups, min minRem remIters )
+            ( newArr, newAccGroups, min minRem remIters )
 
         ( root, group ) :: rest ->
             if root - currentRoot == 0 then
@@ -502,31 +502,35 @@ collectAndSolveIsland iterations fillingBody currentRoot currentIsland arr accGr
 
             else
                 let
-                    ( newArr, newGroups, remIters ) =
-                        solveOneIsland iterations fillingBody currentIsland arr
+                    ( newArr, newAccGroups, remIters ) =
+                        solveOneIsland iterations fillingBody currentIsland arr accGroups
                 in
-                collectAndSolveIsland iterations fillingBody root [ group ] newArr (newGroups ++ accGroups) (min minRem remIters) rest
+                collectAndSolveIsland iterations fillingBody root [ group ] newArr newAccGroups (min minRem remIters) rest
 
 
-solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solveOneIsland iterations fillingBody island arr =
+solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solveOneIsland iterations fillingBody island arr accGroups =
     case island of
         [ singleGroup ] ->
             -- 2-body island: bodies are owned by this group (no sharing with
             -- any other group), so we use the SolverBody refs stashed on the
             -- group directly — no Array.get needed.
-            solve2Body iterations singleGroup arr
+            solve2Body iterations singleGroup arr accGroups
 
         _ ->
-            step iterations 0 [] island fillingBody arr
+            let
+                ( newArr, newGroups, remIters ) =
+                    step iterations 0 [] island fillingBody arr
+            in
+            ( newArr, newGroups ++ accGroups, remIters )
 
 
 {-| Specialized PGS for a 2-body island (single equation group). The two
 bodies stay in locals across iterations; only at the end (max iters or
 convergence) do we write back to the array.
 -}
-solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solve2Body remainingIterations group arr =
+solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solve2Body remainingIterations group arr accGroups =
     let
         result =
             solveEquationsGroup group.body1 group.body2 [] 0 group.equations
@@ -538,13 +542,13 @@ solve2Body remainingIterations group arr =
             }
     in
     if remainingIterations == 1 then
-        ( flushBody result.body2 (flushBody result.body1 arr), [ newGroup ], 0 )
+        ( flushBody result.body2 (flushBody result.body1 arr), newGroup :: accGroups, 0 )
 
     else if result.deltalambdaTot - Const.precision < 0 then
-        ( flushBody result.body2 (flushBody result.body1 arr), [ newGroup ], remainingIterations - 1 )
+        ( flushBody result.body2 (flushBody result.body1 arr), newGroup :: accGroups, remainingIterations - 1 )
 
     else
-        solve2Body (remainingIterations - 1) newGroup arr
+        solve2Body (remainingIterations - 1) newGroup arr accGroups
 
 
 flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)

@@ -26,6 +26,7 @@ import Collision.CapsuleConvex as CapsuleConvex
 import Collision.ConvexConvex as ConvexConvex
 import Collision.SphereConvex as SphereConvex
 import Common.Camera as Camera exposing (Camera)
+import Duration exposing (Duration)
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
@@ -176,7 +177,7 @@ type alias Model =
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
     | Reset
     | SelectShape ControlledShape
@@ -276,7 +277,7 @@ update msg model =
         Tick dt ->
             ( { model
                 | fps = Fps.update dt model.fps
-                , pose = applyHeldKeys dt model.pressedKeys model.camera model.pose
+                , pose = applyHeldKeys (Duration.inMilliseconds dt) model.pressedKeys model.camera model.pose
               }
             , Cmd.none
             )
@@ -462,7 +463,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         , Events.onKeyDown (keyDecoder KeyDown)
         , Events.onKeyUp (keyDecoder KeyUp)
         , if model.orbiting then
@@ -739,8 +740,12 @@ view model =
         [ Scene.view
             { settings = model.settings
             , bodies =
-                [ ( controlledMesh model.shape, controlledBody model.shape model.pose )
-                , ( shapeMeshes.targetBox, targetBody )
+                let
+                    controlled =
+                        controlledBody model.shape model.pose
+                in
+                [ ( controlledMesh model.shape, controlled, Physics.frame controlled )
+                , ( shapeMeshes.targetBox, targetBody, Physics.frame targetBody )
                 ]
             , contacts = contactPoints
             , camera = model.camera

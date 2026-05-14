@@ -11,12 +11,15 @@ import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
+import Timestep exposing (Timestep)
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Common.Sps as Sps exposing (Sps)
 import Dict exposing (Dict)
 import Direction3d
+import Duration exposing (Duration)
 import Force
 import Frame3d exposing (Frame3d)
 import Html exposing (Html)
@@ -66,7 +69,8 @@ keyDecoder toMsg =
 
 
 type alias Model =
-    { bodies : List ( String, Body )
+    { prevBodies : List ( String, Body )
+    , bodies : List ( String, Body )
     , meshes : Dict String (Mesh Attributes)
     , contacts : Physics.Contacts String
     , fps : List Float
@@ -74,12 +78,14 @@ type alias Model =
     , camera : Camera
     , speeding : Float -- -1, 0, 1
     , steering : Float -- -1, 0, 1
+    , timestep : Timestep
+    , sps : Sps
     }
 
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
     | Restart
     | KeyDown Command
@@ -98,7 +104,8 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { bodies = initialBodies
+    ( { prevBodies = initialBodies
+      , bodies = initialBodies
       , meshes = initialMeshes
       , contacts = Physics.emptyContacts
       , fps = []
@@ -110,6 +117,8 @@ init _ =
                 { from = { x = -60, y = 60, z = 40 }
                 , to = { x = 0, y = -7, z = 0 }
                 }
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
+      , sps = Sps.init
       }
     , Task.perform
         (\{ viewport } -> Resize viewport.width viewport.height)
@@ -127,46 +136,23 @@ update msg model =
 
         Tick dt ->
             let
-                baseFrame =
-                    model.bodies
-                        |> List.filterMap
-                            (\( id, body ) ->
-                                if id == "base" then
-                                    Just (Physics.frame body)
-
-                                else
-                                    Nothing
-                            )
-                        |> List.head
-                        |> Maybe.withDefault Frame3d.atOrigin
-
-                bodiesWithForce =
-                    List.map
-                        (\( id, body ) ->
-                            if model.speeding /= 0 && (id == "wheel1" || id == "wheel2") then
-                                ( id, applySpeed model.speeding baseFrame body )
-
-                            else
-                                ( id, body )
-                        )
-                        model.bodies
-
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth | constrain = constrainCar model.steering, contacts = model.contacts }
-                        bodiesWithForce
+                next =
+                    Timestep.advance simulateStep dt model
             in
-            { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
+            { next
+                | fps = Fps.update dt next.fps
+                , sps = Sps.update dt (Timestep.steps next.timestep) next.sps
             }
 
         Resize width height ->
             { model | camera = Camera.resize width height model.camera }
 
         Restart ->
-            { model | bodies = initialBodies, contacts = Physics.emptyContacts }
+            { model
+                | prevBodies = initialBodies
+                , bodies = initialBodies
+                , contacts = Physics.emptyContacts
+            }
 
         KeyDown (Steer k) ->
             { model | steering = k }
@@ -195,27 +181,61 @@ update msg model =
             }
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        baseFrame =
+            model.bodies
+                |> List.filterMap
+                    (\( id, body ) ->
+                        if id == "base" then
+                            Just (Physics.frame body)
+
+                        else
+                            Nothing
+                    )
+                |> List.head
+                |> Maybe.withDefault Frame3d.atOrigin
+
+        bodiesWithForce =
+            List.map
+                (\( id, body ) ->
+                    if model.speeding /= 0 && (id == "wheel1" || id == "wheel2") then
+                        ( id, applySpeed model.speeding baseFrame body )
+
+                    else
+                        ( id, body )
+                )
+                model.bodies
+
+        ( newBodies, newContacts ) =
+            Physics.simulate
+                { onEarth
+                    | duration = Timestep.duration model.timestep
+                    , constrain = constrainCar model.steering
+                    , contacts = model.contacts
+                }
+                bodiesWithForce
+    in
+    { model | prevBodies = model.bodies, bodies = newBodies, contacts = newContacts }
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         , Events.onKeyDown (keyDecoder KeyDown)
         , Events.onKeyUp (keyDecoder KeyUp)
         ]
 
 
 view : Model -> Html Msg
-view { settings, fps, bodies, contacts, meshes, camera } =
+view { settings, fps, sps, prevBodies, bodies, contacts, meshes, camera, timestep } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , bodies =
-                List.filterMap
-                    (\( id, body ) ->
-                        Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
-                    )
-                    bodies
+            , bodies = Scene.interpolatedBodies (Timestep.progress timestep) prevBodies bodies (\id -> Dict.get id meshes)
             , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = floorOffset
@@ -230,7 +250,10 @@ view { settings, fps, bodies, contacts, meshes, camera } =
                 (Contacts c) =
                     contacts
             in
-            Fps.view fps (List.length bodies) c.iterations
+            Html.div []
+                [ Fps.view fps (List.length bodies) c.iterations
+                , Sps.view sps
+                ]
 
           else
             Html.text ""

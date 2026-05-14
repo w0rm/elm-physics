@@ -1,4 +1,4 @@
-module Common.Scene exposing (view)
+module Common.Scene exposing (view, interpolatedBodies)
 
 import Common.Camera exposing (Camera)
 import Common.Math as Math
@@ -27,9 +27,43 @@ import WebGL.Settings.Blend
 import WebGL.Settings.DepthTest
 
 
+{-| Construct the `bodies` parameter for `view` by interpolating each
+body between its previous and current simulation states. `prev` and
+`curr` must be in the same order (typically they are — `Physics.simulate`
+preserves the list shape).
+-}
+interpolatedBodies :
+    Float
+    -> List ( id, Body )
+    -> List ( id, Body )
+    -> (id -> Maybe (Mesh Attributes))
+    ->
+        List
+            ( Mesh Attributes
+            , Body
+            , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+            )
+interpolatedBodies a prev curr lookupMesh =
+    List.filterMap identity
+        (List.map2
+            (\( id, p ) ( _, c ) ->
+                Maybe.map
+                    (\mesh -> ( mesh, c, Physics.interpolatedFrame a p c ))
+                    (lookupMesh id)
+            )
+            prev
+            curr
+        )
+
+
 type alias Params =
     { settings : Settings
-    , bodies : List ( Mesh Attributes, Body )
+    , bodies :
+        List
+            ( Mesh Attributes
+            , Body
+            , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+            )
     , contacts : List (Point3d Meters WorldCoordinates)
     , camera : Camera
     , floorOffset :
@@ -92,12 +126,17 @@ type alias SceneParams =
     }
 
 
-addBodyEntities : SceneParams -> ( Mesh Attributes, Body ) -> List Entity -> List Entity
-addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass } as sceneParams) ( mesh, body ) entities =
+addBodyEntities :
+    SceneParams
+    ->
+        ( Mesh Attributes
+        , Body
+        , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+        )
+    -> List Entity
+    -> List Entity
+addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass } as sceneParams) ( mesh, body, frame ) entities =
     let
-        frame =
-            Physics.frame body
-
         transform =
             Frame3d.toMat4 frame
 

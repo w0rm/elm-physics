@@ -8,13 +8,14 @@ We keep the last 50 time deltas and show the
 weighted average.
 -}
 
+import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes exposing (style)
 
 
-update : Float -> List Float -> List Float
+update : Duration -> List Float -> List Float
 update dt fps =
-    List.take 50 (dt :: fps)
+    List.take 50 (Duration.inMilliseconds dt :: fps)
 
 
 view : List Float -> Int -> Int -> Html a

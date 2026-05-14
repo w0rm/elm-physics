@@ -12,10 +12,13 @@ import Browser
 import Browser.Dom as Dom
 import Browser.Events as Events
 import Common.Camera as Camera exposing (Camera)
+import Timestep exposing (Timestep)
 import Common.Fps as Fps
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
+import Common.Sps as Sps exposing (Sps)
+import Duration exposing (Duration)
 import Html exposing (Html)
 import Html.Attributes exposing (style)
 import Length exposing (Meters)
@@ -29,7 +32,8 @@ import WebGL exposing (Mesh)
 
 
 type alias Model =
-    { bodies : List ( Int, Body )
+    { prevBodies : List ( Int, Body )
+    , bodies : List ( Int, Body )
     , meshes : Array (Mesh Attributes)
     , contacts : Physics.Contacts Int
     , fps : List Float
@@ -37,12 +41,14 @@ type alias Model =
     , camera : Camera
     , frame : Int
     , score : Float
+    , timestep : Timestep
+    , sps : Sps
     }
 
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
 
 
@@ -67,7 +73,8 @@ init _ =
 
 initialModel : Model
 initialModel =
-    { bodies = Scenarios.stackOf5.bodies
+    { prevBodies = Scenarios.stackOf5.bodies
+    , bodies = Scenarios.stackOf5.bodies
     , meshes = meshes
     , contacts = Physics.emptyContacts
     , fps = []
@@ -79,6 +86,8 @@ initialModel =
             }
     , frame = 0
     , score = 0
+    , timestep = Timestep.init { duration = Duration.seconds (1 / 60), maxSteps = 1 }
+    , sps = Sps.init
     }
 
 
@@ -104,18 +113,12 @@ update msg model =
 
         Tick dt ->
             let
-                ( newBodies, newContacts ) =
-                    Physics.simulate { onEarth | contacts = model.contacts } model.bodies
-
-                newScore =
-                    (Metrics.compute newBodies).maxSpeed
+                next =
+                    Timestep.advance simulateStep dt model
             in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-                , frame = model.frame + 1
-                , score = newScore
+            ( { next
+                | fps = Fps.update dt next.fps
+                , sps = Sps.update dt (Timestep.steps next.timestep) next.sps
               }
             , Cmd.none
             )
@@ -126,20 +129,37 @@ update msg model =
             )
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        ( newBodies, newContacts ) =
+            Physics.simulate
+                { onEarth | duration = Timestep.duration model.timestep, contacts = model.contacts }
+                model.bodies
+    in
+    { model
+        | prevBodies = model.bodies
+        , bodies = newBodies
+        , contacts = newContacts
+        , frame = model.frame + 1
+        , score = (Metrics.compute newBodies).maxSpeed
+    }
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         ]
 
 
 view : Model -> Html Msg
-view { settings, fps, bodies, contacts, camera, score, frame } =
+view { settings, fps, sps, prevBodies, bodies, contacts, camera, score, frame, timestep } =
     Html.div []
         [ Scene.view
             { settings = settings
-            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
+            , bodies = Scene.interpolatedBodies (Timestep.progress timestep) prevBodies bodies (\id -> Array.get id meshes)
             , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
             , camera = camera
             , floorOffset = { x = 0, y = 0, z = 0 }
@@ -151,7 +171,10 @@ view { settings, fps, bodies, contacts, camera, score, frame } =
                 (Contacts c) =
                     contacts
             in
-            Fps.view fps (List.length bodies) c.iterations
+            Html.div []
+                [ Fps.view fps (List.length bodies) c.iterations
+                , Sps.view sps
+                ]
 
           else
             Html.text ""
