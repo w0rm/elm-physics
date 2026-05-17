@@ -1,29 +1,28 @@
-module Common.Fps exposing
-    ( update
-    , view
-    )
+module Common.Fps exposing (update, fps)
 
-{-| This module is used to show the FPS meter.
-We keep the last 50 time deltas and show the
-weighted average.
+{-| Tracks frame deltas to compute a weighted-average FPS. The display
+itself is rendered by `Common.Demo` so all stats share one panel.
 -}
 
-import Html exposing (Html)
-import Html.Attributes exposing (style)
+import Duration exposing (Duration)
 
 
-update : Float -> List Float -> List Float
-update dt fps =
-    List.take 50 (dt :: fps)
+update : Duration -> List Float -> List Float
+update dt frames =
+    List.take 50 (Duration.inMilliseconds dt :: frames)
 
 
-view : List Float -> Int -> Int -> Html a
-view fps numBodies iterations =
+fps : List Float -> Float
+fps frames =
     let
         average currentWeight sumOfWeights weightedSum list =
             case list of
                 [] ->
-                    weightedSum / sumOfWeights
+                    if sumOfWeights > 0 then
+                        weightedSum / sumOfWeights
+
+                    else
+                        0
 
                 el :: rest ->
                     average
@@ -31,23 +30,12 @@ view fps numBodies iterations =
                         (currentWeight + sumOfWeights)
                         (el * currentWeight + weightedSum)
                         rest
+
+        avgMs =
+            average 1 0 0 frames
     in
-    Html.div
-        [ style "position" "fixed"
-        , style "font-family" "monospaced"
-        , style "right" "250px"
-        , style "top" "0"
-        , style "color" "white"
-        ]
-        [ Html.span [ style "font" "50px sans-serif" ]
-            [ Html.text (String.fromInt (round (1000 / average 1 0 0 fps))) ]
-        , Html.text " fps"
-        , Html.span
-            [ style "font" "50px sans-serif" ]
-            [ Html.text (" " ++ String.fromInt numBodies) ]
-        , Html.text " bodies"
-        , Html.span
-            [ style "font" "50px sans-serif" ]
-            [ Html.text (" " ++ String.fromInt iterations) ]
-        , Html.text " iterations"
-        ]
+    if avgMs > 0 then
+        1000 / avgMs
+
+    else
+        0

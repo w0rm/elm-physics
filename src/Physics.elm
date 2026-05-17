@@ -4,7 +4,7 @@ module Physics exposing
     , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
-    , frame, originPoint, velocity, angularVelocity, velocityAt
+    , frame, interpolatedFrame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass
     , raycast, applyForce, applyImpulse, applyTorque, applyAngularImpulse
     , dynamic, static, kinematic
@@ -36,7 +36,7 @@ module Physics exposing
 
 # Properties
 
-@docs frame, originPoint, velocity, angularVelocity, velocityAt
+@docs frame, interpolatedFrame, originPoint, velocity, angularVelocity, velocityAt
 
 @docs centerOfMass, mass
 
@@ -594,6 +594,37 @@ frame (Types.Body { transform3d, centerOfMassTransform3d }) =
     let
         bodyCoordinatesTransform3d =
             Transform3d.placeIn transform3d (Transform3d.inverse centerOfMassTransform3d)
+
+        { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
+            Transform3d.orientation bodyCoordinatesTransform3d
+    in
+    Frame3d.unsafe
+        { originPoint = Point3d.fromMeters (Transform3d.originPoint bodyCoordinatesTransform3d)
+        , xDirection = Direction3d.unsafe { x = m11, y = m21, z = m31 }
+        , yDirection = Direction3d.unsafe { x = m12, y = m22, z = m32 }
+        , zDirection = Direction3d.unsafe { x = m13, y = m23, z = m33 }
+        }
+
+
+{-| Interpolate the frame between two simulation states for smooth
+rendering. `progress` is the lerp factor in [0, 1]; both bodies must be
+the same logical body across consecutive simulation steps.
+
+    Physics.interpolatedFrame 0.5 previousBody currentBody
+
+-}
+interpolatedFrame :
+    Float
+    -> Body
+    -> Body
+    -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+interpolatedFrame progress (Types.Body prev) (Types.Body curr) =
+    let
+        lerped =
+            Transform3d.lerp progress prev.transform3d curr.transform3d
+
+        bodyCoordinatesTransform3d =
+            Transform3d.placeIn lerped (Transform3d.inverse curr.centerOfMassTransform3d)
 
         { m11, m21, m31, m12, m22, m32, m13, m23, m33 } =
             Transform3d.orientation bodyCoordinatesTransform3d

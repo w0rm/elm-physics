@@ -9,6 +9,7 @@ module Internal.Transform3d exposing
     , inertiaRotateIn
     , inverse
     , invertedInertiaRotateIn
+    , lerp
     , moveTo
     , normalize
     , orientation
@@ -280,6 +281,70 @@ normalize (Transform3d localOrigin (Orientation3d x y z w)) =
             sqrt (x * x + y * y + z * z + w * w)
     in
     Transform3d localOrigin (Orientation3d (x / len) (y / len) (z / len) (w / len))
+
+
+{-| Interpolate between two transforms. Origin is linearly interpolated;
+orientation uses nlerp (normalized linear interpolation), which is accurate
+for the small rotations between consecutive simulation steps and avoids
+the trig in slerp. Handles quaternion double-cover by negating one of the
+quaternions if their dot product is negative, so we always rotate the
+short way around.
+-}
+lerp : Float -> Transform3d coordinates defines -> Transform3d coordinates defines -> Transform3d coordinates defines
+lerp t (Transform3d o1 (Orientation3d x1 y1 z1 w1)) (Transform3d o2 (Orientation3d x2 y2 z2 w2)) =
+    let
+        dot =
+            x1 * x2 + y1 * y2 + z1 * z2 + w1 * w2
+
+        x2c =
+            if dot < 0 then
+                -x2
+
+            else
+                x2
+
+        y2c =
+            if dot < 0 then
+                -y2
+
+            else
+                y2
+
+        z2c =
+            if dot < 0 then
+                -z2
+
+            else
+                z2
+
+        w2c =
+            if dot < 0 then
+                -w2
+
+            else
+                w2
+
+        x =
+            x1 + (x2c - x1) * t
+
+        y =
+            y1 + (y2c - y1) * t
+
+        z =
+            z1 + (z2c - z1) * t
+
+        w =
+            w1 + (w2c - w1) * t
+
+        len =
+            sqrt (x * x + y * y + z * z + w * w)
+    in
+    Transform3d
+        { x = o1.x + (o2.x - o1.x) * t
+        , y = o1.y + (o2.y - o1.y) * t
+        , z = o1.z + (o2.z - o1.z) * t
+        }
+        (Orientation3d (x / len) (y / len) (z / len) (w / len))
 
 
 originPoint : Transform3d coordinates defines -> Vec3

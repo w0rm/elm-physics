@@ -19,7 +19,9 @@ import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
+import Timestep exposing (Timestep)
 import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Http
@@ -47,9 +49,11 @@ type Id
 type alias Model =
     { material : Maybe (Scene3d.Material.Textured BodyCoordinates)
     , meshData : Maybe { mesh : Textured BodyCoordinates, shadow : Shadow BodyCoordinates }
+    , prevBodies : List ( Id, Body )
     , bodies : List ( Id, Body )
     , contacts : Physics.Contacts Id
     , dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
+    , timestep : Timestep
     }
 
 
@@ -57,7 +61,7 @@ type Msg
     = LoadedTexture (Result WebGL.Texture.Error (Texture Color))
     | LoadedMeshes (Result Http.Error ( Textured BodyCoordinates, Shape ))
     | Resize Int Int
-    | Tick
+    | Tick Duration.Duration
 
 
 main : Program () Model Msg
@@ -74,9 +78,11 @@ init : () -> ( Model, Cmd Msg )
 init () =
     ( { material = Nothing
       , meshData = Nothing
+      , prevBodies = []
       , bodies = []
       , contacts = Physics.emptyContacts
       , dimensions = ( Pixels.int 0, Pixels.int 0 )
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
       }
     , Cmd.batch
         [ Scene3d.Material.load "Duckling.png"
@@ -116,9 +122,8 @@ update msg model =
             model
 
         LoadedMeshes (Ok ( mesh, shape )) ->
-            { model
-                | meshData = Just { mesh = mesh, shadow = Scene3d.Mesh.shadow mesh }
-                , bodies =
+            let
+                initialBodies =
                     let
                         ducklingAt ( axis, degrees, position ) =
                             ( Duckling
@@ -138,20 +143,32 @@ update msg model =
                         , ( Axis3d.y, Angle.degrees 35, Point3d.meters 0 0.5 8 )
                         , ( Axis3d.x, Angle.degrees -45, Point3d.meters 0 0 10 )
                         ]
+            in
+            { model
+                | meshData = Just { mesh = mesh, shadow = Scene3d.Mesh.shadow mesh }
+                , prevBodies = initialBodies
+                , bodies = initialBodies
             }
 
         LoadedMeshes (Err _) ->
             model
 
-        Tick ->
-            let
-                ( simulated, newContacts ) =
-                    Physics.simulate { onEarth | contacts = model.contacts } model.bodies
-            in
-            { model | bodies = simulated, contacts = newContacts }
+        Tick dt ->
+            Timestep.advance simulateStep dt model
 
         Resize width height ->
             { model | dimensions = ( Pixels.int width, Pixels.int height ) }
+
+
+simulateStep : Model -> Model
+simulateStep model =
+    let
+        ( newBodies, newContacts ) =
+            Physics.simulate
+                { onEarth | duration = Timestep.duration model.timestep, contacts = model.contacts }
+                model.bodies
+    in
+    { model | prevBodies = model.bodies, bodies = newBodies, contacts = newContacts }
 
 
 view : Model -> Html Msg
@@ -178,10 +195,10 @@ view model =
                 , background = Scene3d.transparentBackground
                 , clipDepth = Length.meters 0.1
                 , entities =
-                    List.map
-                        (\( data, body ) ->
-                            Scene3d.placeIn (Physics.frame body) <|
-                                case data of
+                    List.map2
+                        (\( _, prev ) ( id, curr ) ->
+                            Scene3d.placeIn (Physics.interpolatedFrame (Timestep.progress model.timestep) prev curr) <|
+                                case id of
                                     Duckling ->
                                         Scene3d.meshWithShadow material mesh shadow
 
@@ -190,6 +207,7 @@ view model =
                                             |> Block3d.centeredOn Frame3d.atOrigin
                                             |> Scene3d.block (Scene3d.Material.matte Color.darkCharcoal)
                         )
+                        model.prevBodies
                         model.bodies
                 }
 
@@ -201,5 +219,5 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize Resize
-        , Browser.Events.onAnimationFrame (\_ -> Tick)
+        , Browser.Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         ]

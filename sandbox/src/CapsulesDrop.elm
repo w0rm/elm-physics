@@ -26,157 +26,34 @@ import Angle
 import Array exposing (Array)
 import Axis3d
 import Block3d
-import Browser
-import Browser.Dom as Dom
-import Browser.Events as Events
-import Common.Camera as Camera exposing (Camera)
-import Common.Fps as Fps
+import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
-import Common.Scene as Scene
-import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
 import Direction3d
 import Frame3d
-import Html exposing (Html)
-import Html.Events exposing (onClick)
-import Length exposing (Meters)
+import Length
 import Mass
-import Physics exposing (Body, WorldCoordinates, onEarth)
+import Physics exposing (Body)
 import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.Types exposing (Contacts(..))
 import Plane3d
-import Point3d exposing (Point3d)
-import Task
+import Point3d
 import WebGL exposing (Mesh)
 
 
-type alias Model =
-    { bodies : List ( Int, Body )
-    , meshes : Array (Mesh Attributes)
-    , contacts : Contacts Int
-    , fps : List Float
-    , settings : Settings
-    , camera : Camera
-    }
-
-
-type Msg
-    = ForSettings SettingsMsg
-    | Tick Float
-    | Resize Float Float
-    | Restart
-
-
-main : Program () Model Msg
+main : Program () (Demo.Model Int ()) (Demo.Msg msg)
 main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
-        }
-
-
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { bodies = initialBodies
-      , meshes = initialMeshes
-      , contacts = Physics.emptyContacts
-      , fps = []
-      , settings = { settings | showFpsMeter = True }
-      , camera =
-            Camera.camera
+    Demo.program
+        (Demo.defaults
+            { initialBodies = initialBodies
+            , lookupMesh = \_ id -> Array.get id initialMeshes
+            , camera =
                 { from = { x = 0, y = 28, z = 22 }
                 , to = { x = 0, y = 0, z = 1 }
                 }
-      }
-    , Task.perform
-        (\{ viewport } -> Resize viewport.width viewport.height)
-        Dom.getViewport
-    )
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        ForSettings settingsMsg ->
-            ( { model
-                | settings = Settings.update settingsMsg model.settings
-              }
-            , Cmd.none
-            )
-
-        Tick dt ->
-            let
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth | contacts = model.contacts }
-                        model.bodies
-            in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-              }
-            , Cmd.none
-            )
-
-        Resize width height ->
-            ( { model | camera = Camera.resize width height model.camera }
-            , Cmd.none
-            )
-
-        Restart ->
-            ( { model
-                | bodies = initialBodies
-                , meshes = initialMeshes
-                , contacts = Physics.emptyContacts
-              }
-            , Cmd.none
-            )
-
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
-        ]
-
-
-view : Model -> Html Msg
-view { settings, fps, bodies, meshes, contacts, camera } =
-    Html.div []
-        [ Scene.view
-            { settings = settings
-            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
-            , camera = camera
-            , floorOffset = floorOffset
+            , initialState = ()
             }
-        , Settings.view ForSettings
-            settings
-            [ Html.button [ onClick Restart ]
-                [ Html.text "Restart the demo" ]
-            ]
-        , if settings.showFpsMeter then
-            let
-                (Contacts c) =
-                    contacts
-            in
-            Fps.view fps (List.length bodies) c.iterations
-
-          else
-            Html.text ""
-        ]
-
-
-{-| Shift the floor a little bit down
--}
-floorOffset : { x : Float, y : Float, z : Float }
-floorOffset =
-    { x = 0, y = 0, z = -1 }
+        )
 
 
 boxBlock3d : Block3d.Block3d Length.Meters Physics.BodyCoordinates
@@ -210,10 +87,6 @@ capsuleBody =
         |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
-{-| Each scenario is a (box, capsule) pair. The two are independent
-"islands" — boxes are spaced wide enough that none of the dropped
-capsules can interact with a neighbour's box.
--}
 type alias Scenario =
     { label : String
     , box : Body
@@ -224,47 +97,34 @@ type alias Scenario =
 scenarios : List Scenario
 scenarios =
     let
-        -- Place the dynamic box at (x, y, 0) with no rotation.
         boxAt x y =
             boxBody |> Physics.moveTo (Point3d.meters x y 0)
 
-        -- Place the dynamic box at (x, y, 0) rotated `angleDeg` around +Z
-        -- (top face stays flat).
         boxAtRotated x y angleDeg =
             boxBody
                 |> Physics.rotateAround Axis3d.z (Angle.degrees angleDeg)
                 |> Physics.moveTo (Point3d.meters x y 0)
 
-        -- Static "diamond" block: rotate around +X by 45° then around +Y
-        -- by -arctan(1/√2) ≈ -35.264° so the (1,1,1) vertex of the unit
-        -- cube ends up pointing along +Z (body diagonal vertical).
         staticBoxVertexUp x y =
             staticBoxBody
                 |> Physics.rotateAround Axis3d.x (Angle.degrees 45)
                 |> Physics.rotateAround Axis3d.y (Angle.degrees -35.264)
                 |> Physics.moveTo (Point3d.meters x y 1)
 
-        -- Drop a vertical capsule (axis +Z) at (x, y, 6).
         capAt x y =
             capsuleBody |> Physics.moveTo (Point3d.meters x y 6)
 
-        -- Drop a capsule rotated `angleDeg` around +X, then placed at (x, y, 6).
-        -- A 90° X rotation makes the capsule axis horizontal (along -Y).
         capTiltedX x y angleDeg =
             capsuleBody
                 |> Physics.rotateAround Axis3d.x (Angle.degrees angleDeg)
                 |> Physics.moveTo (Point3d.meters x y 6)
 
-        -- Drop a capsule rotated 90° around +Y → axis becomes +X.
         capAxisX x y =
             capsuleBody
                 |> Physics.rotateAround Axis3d.y (Angle.degrees 90)
                 |> Physics.moveTo (Point3d.meters x y 6)
     in
-    [ ----------------------------------------------------------------
-      -- Row y = -7: cap contacts (capsule axis aligned with SAT axis)
-      ----------------------------------------------------------------
-      { label = "A vertical cap → face center"
+    [ { label = "A vertical cap → face center"
       , box = boxAt -10 -7
       , capsule = capAt -10 -7
       }
@@ -292,10 +152,6 @@ scenarios =
                 |> Physics.rotateAround Axis3d.y (Angle.degrees 25)
                 |> Physics.moveTo (Point3d.meters (10 + 1) (-7 + 1) 6)
       }
-
-    ----------------------------------------------------------------
-    -- Row y = +7: cylinder-body contacts (axis ⊥ SAT axis)
-    ----------------------------------------------------------------
     , { label = "G horizontal capsule → face center (Face Support, 2 contacts)"
       , box = boxAt -8 7
       , capsule = capTiltedX -8 7 90
@@ -316,10 +172,6 @@ scenarios =
       , box = boxAtRotated 8 7 45
       , capsule = capTiltedX 8 7 90
       }
-
-    ----------------------------------------------------------------
-    -- Row y = 0: collisions against a single vertex feature
-    ----------------------------------------------------------------
     , { label = "L vertical capsule (cap) → upward vertex of static diamond"
       , box = staticBoxVertexUp -3 0
       , capsule = capAt -3 0
@@ -336,12 +188,11 @@ initialBodies =
     let
         floorBody =
             Physics.plane Plane3d.xy Material.wood
-                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+                |> Physics.moveTo (Point3d.fromMeters Demo.floorZ)
 
         n =
             List.length scenarios
     in
-    -- id 0 floor, boxes 1..n, capsules n+1..2n.
     ( 0, floorBody )
         :: List.indexedMap (\i s -> ( i + 1, s.box )) scenarios
         ++ List.indexedMap (\i s -> ( i + 1 + n, s.capsule )) scenarios

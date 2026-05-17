@@ -4,7 +4,7 @@ module Internal.SolverBody exposing
     , toBody
     )
 
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)

@@ -1,15 +1,13 @@
-module Common.Scene exposing (view)
+module Common.Scene exposing (interpolatedBodies, view)
 
 import Common.Camera exposing (Camera)
 import Common.Math as Math
 import Common.Meshes as Meshes exposing (Attributes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
-import Direction3d exposing (Direction3d)
+import Direction3d
 import Frame3d
-import Geometry.Interop.LinearAlgebra.Direction3d as Direction3d
 import Geometry.Interop.LinearAlgebra.Frame3d as Frame3d
-import Geometry.Interop.LinearAlgebra.Point3d as Point3d
 import Html exposing (Html)
 import Html.Attributes as Attributes
 import Internal.Body as InternalBody
@@ -27,9 +25,43 @@ import WebGL.Settings.Blend
 import WebGL.Settings.DepthTest
 
 
+{-| Construct the `bodies` parameter for `view` by interpolating each
+body between its previous and current simulation states. `prev` and
+`curr` must be in the same order (typically they are — `Physics.simulate`
+preserves the list shape).
+-}
+interpolatedBodies :
+    Float
+    -> List ( id, Body )
+    -> List ( id, Body )
+    -> (id -> Maybe (Mesh Attributes))
+    ->
+        List
+            ( Mesh Attributes
+            , Body
+            , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+            )
+interpolatedBodies a prev curr lookupMesh =
+    List.filterMap identity
+        (List.map2
+            (\( id, p ) ( _, c ) ->
+                Maybe.map
+                    (\mesh -> ( mesh, c, Physics.interpolatedFrame a p c ))
+                    (lookupMesh id)
+            )
+            prev
+            curr
+        )
+
+
 type alias Params =
     { settings : Settings
-    , bodies : List ( Mesh Attributes, Body )
+    , bodies :
+        List
+            ( Mesh Attributes
+            , Body
+            , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+            )
     , contacts : List (Point3d Meters WorldCoordinates)
     , camera : Camera
     , floorOffset :
@@ -51,6 +83,7 @@ view { settings, bodies, contacts, floorOffset, camera } =
             , camera = camera
             , debugWireframes = settings.debugWireframes
             , debugCenterOfMass = settings.debugCenterOfMass
+            , debugInertia = settings.debugInertia
             , shadow =
                 Math.makeShadow
                     (Vec3.fromRecord floorOffset)
@@ -88,16 +121,22 @@ type alias SceneParams =
     , camera : Camera
     , debugWireframes : Bool
     , debugCenterOfMass : Bool
+    , debugInertia : Bool
     , shadow : Mat4
     }
 
 
-addBodyEntities : SceneParams -> ( Mesh Attributes, Body ) -> List Entity -> List Entity
-addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass } as sceneParams) ( mesh, body ) entities =
+addBodyEntities :
+    SceneParams
+    ->
+        ( Mesh Attributes
+        , Body
+        , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
+        )
+    -> List Entity
+    -> List Entity
+addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugInertia } as sceneParams) ( mesh, body, frame ) entities =
     let
-        frame =
-            Physics.frame body
-
         transform =
             Frame3d.toMat4 frame
 
@@ -108,9 +147,15 @@ addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterO
             if debugCenterOfMass then
                 case Physics.centerOfMass body of
                     Just com ->
-                        acc
-                            |> addContactIndicator sceneParams com
-                            |> addEigenvectorAxes sceneParams body
+                        let
+                            withDot =
+                                addContactIndicator sceneParams com acc
+                        in
+                        if debugInertia then
+                            addEigenvectorAxes sceneParams body withDot
+
+                        else
+                            withDot
 
                     Nothing ->
                         acc

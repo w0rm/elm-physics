@@ -16,7 +16,6 @@ Controls:
 -}
 
 import Angle
-import Array
 import Axis3d
 import Block3d
 import Browser
@@ -26,23 +25,24 @@ import Collision.CapsuleConvex as CapsuleConvex
 import Collision.ConvexConvex as ConvexConvex
 import Collision.SphereConvex as SphereConvex
 import Common.Camera as Camera exposing (Camera)
-import Common.Fps as Fps
+import Common.ContactLabels as ContactLabels
+import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
+import Common.Orbit as Orbit exposing (Orbit)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
 import Direction3d
+import Duration exposing (Duration)
 import File.Download
 import Frame3d exposing (Frame3d)
 import Html exposing (Html)
 import Html.Attributes
-import Html.Events exposing (onClick)
+import Html.Events
 import Internal.Contact exposing (Contact)
 import Internal.Transform3d as Transform3d
 import Json.Decode as Decode exposing (Decoder)
 import Length exposing (Meters)
-import Math.Matrix4 as Mat4
-import Math.Vector3 as MathVec3
 import Obj.Decode
 import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
 import Physics.Material as Material
@@ -93,10 +93,15 @@ shapeName s =
             "Cylinder × Box"
 
         ShapeUnsafeConvexBox ->
-            "UnsafeConvex Box × Box"
+            "Convex Box × Box"
 
         ShapeUnsafeConvexSphere ->
-            "UnsafeConvex Sphere × Box"
+            "Convex Sphere × Box"
+
+
+shapeFromName : String -> Maybe ControlledShape
+shapeFromName name =
+    allShapes |> List.filter (\s -> shapeName s == name) |> List.head
 
 
 
@@ -161,32 +166,23 @@ initialPose =
 
 type alias Model =
     { settings : Settings
-    , fps : List Float
     , camera : Camera
-    , cameraAzimuth : Float
-    , cameraElevation : Float
-    , cameraDistance : Float
-    , orbiting : Bool
+    , orbit : Orbit
     , pressedKeys : Set String
     , pose : Pose
     , shape : ControlledShape
-    , showContactIds : Bool
     }
 
 
 type Msg
     = ForSettings SettingsMsg
-    | Tick Float
+    | Tick Duration
     | Resize Float Float
     | Reset
-    | SelectShape ControlledShape
+    | SelectShape String
     | KeyDown String
     | KeyUp String
-    | MouseDown
-    | MouseUp
-    | MouseMove Float Float
-    | MouseWheel Float
-    | ToggleContactIds Bool
+    | ForOrbit Orbit.Msg
     | DownloadFixture
 
 
@@ -203,62 +199,22 @@ main =
 init : () -> ( Model, Cmd Msg )
 init _ =
     let
-        azimuth =
-            degrees -60
-
-        elevation =
-            degrees 25
-
-        distance =
-            14
+        cameraConfig =
+            { from = { x = 7, y = -12.1, z = 6.9 }
+            , to = { x = 0, y = 0, z = 1 }
+            }
     in
-    ( { settings = { settings | showFpsMeter = True, debugContacts = True }
-      , fps = []
-      , camera =
-            Camera.camera
-                { from = cameraFrom azimuth elevation distance
-                , to = { x = 0, y = 0, z = 1 }
-                }
-      , cameraAzimuth = azimuth
-      , cameraElevation = elevation
-      , cameraDistance = distance
-      , orbiting = False
+    ( { settings = { settings | debugContacts = True, debugContactIds = True }
+      , camera = Camera.camera cameraConfig
+      , orbit = Orbit.fromCartesian cameraConfig
       , pressedKeys = Set.empty
       , pose = initialPose
       , shape = ShapeCapsule
-      , showContactIds = True
       }
     , Task.perform
         (\{ viewport } -> Resize viewport.width viewport.height)
         Dom.getViewport
     )
-
-
-cameraFrom : Float -> Float -> Float -> { x : Float, y : Float, z : Float }
-cameraFrom azimuth elevation distance =
-    { x = distance * cos elevation * cos azimuth
-    , y = distance * cos elevation * sin azimuth
-    , z = 1 + distance * sin elevation
-    }
-
-
-updateCameraView : Model -> Camera
-updateCameraView model =
-    let
-        from =
-            cameraFrom model.cameraAzimuth model.cameraElevation model.cameraDistance
-
-        cam =
-            model.camera
-    in
-    { cam
-        | from = from
-        , cameraTransform =
-            Mat4.makeLookAt
-                (MathVec3.fromRecord from)
-                (MathVec3.fromRecord cam.to)
-                MathVec3.k
-    }
 
 
 
@@ -275,8 +231,7 @@ update msg model =
 
         Tick dt ->
             ( { model
-                | fps = Fps.update dt model.fps
-                , pose = applyHeldKeys dt model.pressedKeys model.camera model.pose
+                | pose = applyHeldKeys (Duration.inMilliseconds dt) model.pressedKeys model.camera model.pose
               }
             , Cmd.none
             )
@@ -290,7 +245,12 @@ update msg model =
             ( { model | pose = initialPose }, Cmd.none )
 
         SelectShape s ->
-            ( { model | shape = s, pose = initialPose }, Cmd.none )
+            ( { model
+                | shape = Maybe.withDefault model.shape (shapeFromName s)
+                , pose = initialPose
+              }
+            , Cmd.none
+            )
 
         KeyDown key ->
             ( { model | pressedKeys = Set.insert key model.pressedKeys }
@@ -302,41 +262,17 @@ update msg model =
             , Cmd.none
             )
 
-        MouseDown ->
-            ( { model | orbiting = True }, Cmd.none )
-
-        MouseUp ->
-            ( { model | orbiting = False }, Cmd.none )
-
-        MouseMove dx dy ->
-            if model.orbiting then
-                let
-                    new =
-                        { model
-                            | cameraAzimuth = model.cameraAzimuth - dx * 0.005
-                            , cameraElevation =
-                                clamp (degrees -85)
-                                    (degrees 85)
-                                    (model.cameraElevation + dy * 0.005)
-                        }
-                in
-                ( { new | camera = updateCameraView new }, Cmd.none )
-
-            else
-                ( model, Cmd.none )
-
-        MouseWheel deltaY ->
+        ForOrbit orbitMsg ->
             let
-                new =
-                    { model
-                        | cameraDistance =
-                            clamp 4 60 (model.cameraDistance + deltaY * 0.01)
-                    }
+                newOrbit =
+                    Orbit.update orbitMsg model.orbit
             in
-            ( { new | camera = updateCameraView new }, Cmd.none )
-
-        ToggleContactIds value ->
-            ( { model | showContactIds = value }, Cmd.none )
+            ( { model
+                | orbit = newOrbit
+                , camera = Orbit.toCamera newOrbit model.camera
+              }
+            , Cmd.none
+            )
 
         DownloadFixture ->
             ( model
@@ -462,17 +398,10 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
+        , Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         , Events.onKeyDown (keyDecoder KeyDown)
         , Events.onKeyUp (keyDecoder KeyUp)
-        , if model.orbiting then
-            Sub.batch
-                [ Events.onMouseMove mouseMoveDecoder
-                , Events.onMouseUp (Decode.succeed MouseUp)
-                ]
-
-          else
-            Events.onMouseDown (Decode.succeed MouseDown)
+        , Orbit.subscriptions ForOrbit model.orbit
         ]
 
 
@@ -480,19 +409,6 @@ keyDecoder : (String -> Msg) -> Decoder Msg
 keyDecoder toMsg =
     Decode.field "key" Decode.string
         |> Decode.map (String.toLower >> toMsg)
-
-
-mouseMoveDecoder : Decoder Msg
-mouseMoveDecoder =
-    Decode.map2 MouseMove
-        (Decode.field "movementX" Decode.float)
-        (Decode.field "movementY" Decode.float)
-
-
-wheelDecoder : Decoder ( Msg, Bool )
-wheelDecoder =
-    Decode.map (\dy -> ( MouseWheel dy, True ))
-        (Decode.field "deltaY" Decode.float)
 
 
 
@@ -735,168 +651,92 @@ view model =
                 contactList
     in
     Html.div
-        [ Html.Events.preventDefaultOn "wheel" wheelDecoder ]
+        [ Html.Events.preventDefaultOn "wheel" (Orbit.wheelDecoder ForOrbit) ]
         [ Scene.view
             { settings = model.settings
             , bodies =
-                [ ( controlledMesh model.shape, controlledBody model.shape model.pose )
-                , ( shapeMeshes.targetBox, targetBody )
+                let
+                    controlled =
+                        controlledBody model.shape model.pose
+                in
+                [ ( controlledMesh model.shape, controlled, Physics.frame controlled )
+                , ( shapeMeshes.targetBox, targetBody, Physics.frame targetBody )
                 ]
             , contacts = contactPoints
             , camera = model.camera
             , floorOffset = floorOffset
             }
-        , overlay model contactList
-        , if model.showContactIds then
-            contactLabels model.camera contactList
+        , if model.settings.debugContacts && model.settings.debugContactIds then
+            ContactLabels.view model.camera
+                (List.map
+                    (\c -> { id = c.id, point = Point3d.fromMeters c.pi })
+                    contactList
+                )
 
           else
             Html.text ""
         , Settings.view ForSettings
             model.settings
-            (Html.button [ onClick Reset ] [ Html.text "Reset pose" ]
-                :: Html.button [ onClick DownloadFixture ] [ Html.text "Download fixture" ]
-                :: toggleButton model.showContactIds "show contact ids" ToggleContactIds
-                :: List.map (shapeButton model.shape) allShapes
-            )
-        , if model.settings.showFpsMeter then
-            Fps.view model.fps 2 0
-
-          else
-            Html.text ""
+            [ controlsHint ]
+            [ shapeSelect model.shape
+            , Demo.button Reset "Reset pose"
+            , Demo.button DownloadFixture "Download fixture"
+            ]
         ]
 
 
-toggleButton : Bool -> String -> (Bool -> Msg) -> Html Msg
-toggleButton on label toMsg =
-    Html.button
-        [ onClick (toMsg (not on))
+controlsHint : Html msg
+controlsHint =
+    Html.div []
+        [ dim "Move "
+        , Html.text "WASD"
+        , dim ", roll "
+        , Html.text "QE"
+        ]
+
+
+dim : String -> Html msg
+dim s =
+    Html.span [ Html.Attributes.style "opacity" "0.6" ] [ Html.text s ]
+
+
+shapeSelect : ControlledShape -> Html Msg
+shapeSelect current =
+    Html.select
+        [ Html.Events.onInput SelectShape
         , Html.Attributes.style "display" "block"
+        , Html.Attributes.style "box-sizing" "border-box"
         , Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "padding" "6px"
-        , Html.Attributes.style "margin" "4px 0 0"
+        , Html.Attributes.style "padding" "6px 22px 6px 6px"
+        , Html.Attributes.style "margin" "0"
         , Html.Attributes.style "border" "none"
         , Html.Attributes.style "color" "inherit"
         , Html.Attributes.style "font" "inherit"
-        , Html.Attributes.style "background"
-            (if on then
-                "rgb(120, 90, 40)"
-
-             else
-                "rgb(61, 61, 61)"
-            )
+        , Html.Attributes.style "text-align" "center"
+        , Html.Attributes.style "cursor" "pointer"
+        , Html.Attributes.style "appearance" "none"
+        , Html.Attributes.style "-webkit-appearance" "none"
+        , Html.Attributes.style "background-color" "rgb(61, 61, 61)"
+        , Html.Attributes.style "background-image"
+            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path fill='white' d='M2 4 L6 8 L10 4 Z'/></svg>\")"
+        , Html.Attributes.style "background-repeat" "no-repeat"
+        , Html.Attributes.style "background-position" "right 6px center"
+        , Html.Attributes.style "background-size" "12px 12px"
         ]
-        [ Html.text label ]
-
-
-{-| Render the contact id of every Contact as an HTML label, projected
-onto screen coordinates. One label per contact (placed at `pi`).
--}
-contactLabels : Camera -> List Contact -> Html Msg
-contactLabels camera contacts =
-    Html.div
-        [ Html.Attributes.style "position" "fixed"
-        , Html.Attributes.style "top" "0"
-        , Html.Attributes.style "left" "0"
-        , Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "height" "100%"
-        , Html.Attributes.style "pointer-events" "none"
-        ]
-        (List.filterMap (contactLabel camera) contacts)
-
-
-contactLabel : Camera -> Contact -> Maybe (Html Msg)
-contactLabel camera contact =
-    case projectToScreen camera contact.pi of
-        Nothing ->
-            Nothing
-
-        Just { x, y } ->
-            Just
-                (Html.div
-                    [ Html.Attributes.style "position" "absolute"
-                    , Html.Attributes.style "left" (String.fromFloat x ++ "px")
-                    , Html.Attributes.style "top" (String.fromFloat y ++ "px")
-                    , Html.Attributes.style "transform" "translate(8px, -8px)"
-                    , Html.Attributes.style "color" "white"
-                    , Html.Attributes.style "font-family" "monospace"
-                    , Html.Attributes.style "font-size" "11px"
-                    , Html.Attributes.style "background" "rgba(180, 30, 30, 0.85)"
-                    , Html.Attributes.style "padding" "1px 4px"
-                    , Html.Attributes.style "border-radius" "2px"
-                    , Html.Attributes.style "white-space" "nowrap"
+        (List.map
+            (\s ->
+                let
+                    name =
+                        shapeName s
+                in
+                Html.option
+                    [ Html.Attributes.value name
+                    , Html.Attributes.selected (s == current)
                     ]
-                    [ Html.text contact.id ]
-                )
-
-
-{-| Project a world-space point to pixel coordinates within the canvas.
-Returns `Nothing` if the point is behind the camera.
--}
-projectToScreen :
-    Camera
-    -> { x : Float, y : Float, z : Float }
-    -> Maybe { x : Float, y : Float }
-projectToScreen camera point =
-    let
-        forwardX =
-            camera.to.x - camera.from.x
-
-        forwardY =
-            camera.to.y - camera.from.y
-
-        forwardZ =
-            camera.to.z - camera.from.z
-
-        toX =
-            point.x - camera.from.x
-
-        toY =
-            point.y - camera.from.y
-
-        toZ =
-            point.z - camera.from.z
-
-        front =
-            toX * forwardX + toY * forwardY + toZ * forwardZ
-    in
-    if front <= 0 then
-        Nothing
-
-    else
-        let
-            mvp =
-                Mat4.mul camera.perspectiveTransform camera.cameraTransform
-
-            ndc =
-                Mat4.transform mvp (MathVec3.fromRecord point)
-        in
-        Just
-            { x = (MathVec3.getX ndc + 1) * 0.5 * camera.width
-            , y = (1 - MathVec3.getY ndc) * 0.5 * camera.height
-            }
-
-
-shapeButton : ControlledShape -> ControlledShape -> Html Msg
-shapeButton current shape =
-    Html.button
-        [ onClick (SelectShape shape)
-        , Html.Attributes.style "display" "block"
-        , Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "padding" "6px"
-        , Html.Attributes.style "margin" "4px 0 0"
-        , Html.Attributes.style "border" "none"
-        , Html.Attributes.style "color" "inherit"
-        , Html.Attributes.style "font" "inherit"
-        , Html.Attributes.style "background"
-            (if current == shape then
-                "rgb(120, 90, 40)"
-
-             else
-                "rgb(61, 61, 61)"
+                    [ Html.text name ]
             )
-        ]
-        [ Html.text (shapeName shape) ]
+            allShapes
+        )
 
 
 floorOffset : { x : Float, y : Float, z : Float }
@@ -1063,45 +903,6 @@ f 13 15 3
 f 13 14 15
 f 14 2 15
 """
-
-
-overlay : Model -> List Contact -> Html Msg
-overlay model contacts =
-    let
-        origin =
-            Point3d.toMeters (Frame3d.originPoint model.pose)
-
-        f3 v =
-            String.fromFloat (toFloat (round (v * 100)) / 100)
-
-        text =
-            shapeName model.shape
-                ++ "\nposition: ("
-                ++ f3 origin.x
-                ++ ", "
-                ++ f3 origin.y
-                ++ ", "
-                ++ f3 origin.z
-                ++ ")"
-                ++ "\ncontacts: "
-                ++ String.fromInt (List.length contacts)
-                ++ "\n\nWASD move (screen plane) · Q/E roll around view ray"
-                ++ "\nMouse drag to orbit · wheel to zoom"
-    in
-    Html.div
-        [ Html.Attributes.style "position" "fixed"
-        , Html.Attributes.style "top" "0"
-        , Html.Attributes.style "left" "0"
-        , Html.Attributes.style "padding" "10px"
-        , Html.Attributes.style "color" "white"
-        , Html.Attributes.style "font-family" "monospace"
-        , Html.Attributes.style "font-size" "12px"
-        , Html.Attributes.style "background" "rgba(0,0,0,0.45)"
-        , Html.Attributes.style "pointer-events" "none"
-        , Html.Attributes.style "white-space" "pre"
-        , Html.Attributes.style "line-height" "1.4"
-        ]
-        [ Html.text text ]
 
 
 

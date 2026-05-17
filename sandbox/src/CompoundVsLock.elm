@@ -6,198 +6,84 @@ The second way is by using the lock constraint.
 -}
 
 import Block3d exposing (Block3d)
-import Browser
-import Browser.Dom as Dom
-import Browser.Events as Events
-import Common.Camera as Camera exposing (Camera)
-import Common.Fps as Fps
+import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
-import Common.Scene as Scene
-import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Dict exposing (Dict)
 import Frame3d
-import Html exposing (Html)
-import Html.Events exposing (onClick)
 import Length exposing (Meters)
 import Mass
-import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
+import Physics exposing (Body, BodyCoordinates)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.Types exposing (Contacts(..))
 import Plane3d
 import Point3d exposing (Point3d)
-import Task
 import WebGL exposing (Mesh)
 
 
-type alias Model =
-    { bodies : List ( String, Body )
-    , meshes : Dict String (Mesh Attributes)
-    , contacts : Physics.Contacts String
-    , fps : List Float
-    , settings : Settings
-    , camera : Camera
-    }
-
-
-type Msg
-    = ForSettings SettingsMsg
-    | Tick Float
-    | Resize Float Float
-    | Restart
-
-
-main : Program () Model Msg
+main : Program () (Demo.Model String ()) (Demo.Msg msg)
 main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
+    let
+        base =
+            Demo.defaults
+                { initialBodies = initialBodies
+                , lookupMesh = \_ id -> Dict.get id initialMeshes
+                , camera =
+                    { from = { x = 0, y = 30, z = 20 }
+                    , to = { x = 0, y = 0, z = 0 }
+                    }
+                , initialState = ()
+                }
+    in
+    Demo.program
+        { base
+            | constrain = \_ bodies -> constrain (Dict.fromList bodies)
+            , collide = \_ a b -> not (isPiece a && isPiece b)
         }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { bodies = initialBodies
-      , meshes = initialMeshes
-      , contacts = Physics.emptyContacts
-      , fps = []
-      , settings = { settings | showSettings = True }
-      , camera =
-            Camera.camera
-                { from = { x = 0, y = 30, z = 20 }
-                , to = { x = 0, y = 0, z = 0 }
-                }
-      }
-    , Task.perform
-        (\{ viewport } -> Resize viewport.width viewport.height)
-        Dom.getViewport
-    )
+isPiece : String -> Bool
+isPiece id =
+    id == "first" || id == "second" || id == "third"
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        ForSettings settingsMsg ->
-            ( { model
-                | settings = Settings.update settingsMsg model.settings
-              }
-            , Cmd.none
-            )
-
-        Tick dt ->
-            let
-                bodyDict =
-                    Dict.fromList model.bodies
-
-                constrain id1 =
-                    case id1 of
-                        "first" ->
-                            Just
-                                (\id2 ->
-                                    case id2 of
-                                        "second" ->
-                                            case ( Dict.get "first" bodyDict, Dict.get "second" bodyDict ) of
-                                                ( Just b1, Just b2 ) ->
-                                                    [ lockTwoBodies b1 b2 ]
-
-                                                _ ->
-                                                    []
-
-                                        _ ->
-                                            []
-                                )
-
+constrain : Dict String Body -> String -> Maybe (String -> List Constraint)
+constrain bodyDict id1 =
+    case id1 of
+        "first" ->
+            Just
+                (\id2 ->
+                    case id2 of
                         "second" ->
-                            Just
-                                (\id2 ->
-                                    case id2 of
-                                        "third" ->
-                                            case ( Dict.get "second" bodyDict, Dict.get "third" bodyDict ) of
-                                                ( Just b1, Just b2 ) ->
-                                                    [ lockTwoBodies b1 b2 ]
+                            case ( Dict.get "first" bodyDict, Dict.get "second" bodyDict ) of
+                                ( Just b1, Just b2 ) ->
+                                    [ lockTwoBodies b1 b2 ]
 
-                                                _ ->
-                                                    []
-
-                                        _ ->
-                                            []
-                                )
+                                _ ->
+                                    []
 
                         _ ->
-                            Nothing
+                            []
+                )
 
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth
-                            | constrain = constrain
-                            , collide =
-                                \one two ->
-                                    not
-                                        (List.member one [ "first", "second", "third" ]
-                                            && List.member two [ "first", "second", "third" ]
-                                        )
-                            , contacts = model.contacts
-                        }
-                        model.bodies
-            in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-              }
-            , Cmd.none
-            )
+        "second" ->
+            Just
+                (\id2 ->
+                    case id2 of
+                        "third" ->
+                            case ( Dict.get "second" bodyDict, Dict.get "third" bodyDict ) of
+                                ( Just b1, Just b2 ) ->
+                                    [ lockTwoBodies b1 b2 ]
 
-        Resize width height ->
-            ( { model | camera = Camera.resize width height model.camera }
-            , Cmd.none
-            )
+                                _ ->
+                                    []
 
-        Restart ->
-            ( { model | bodies = initialBodies, contacts = Physics.emptyContacts }, Cmd.none )
+                        _ ->
+                            []
+                )
 
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
-        ]
-
-
-view : Model -> Html Msg
-view { settings, fps, bodies, contacts, meshes, camera } =
-    Html.div []
-        [ Scene.view
-            { settings = settings
-            , bodies =
-                List.filterMap
-                    (\( id, body ) ->
-                        Maybe.map (\mesh -> ( mesh, body )) (Dict.get id meshes)
-                    )
-                    bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
-            , camera = camera
-            , floorOffset = floorOffset
-            }
-        , Settings.view ForSettings
-            settings
-            [ Html.button [ onClick Restart ]
-                [ Html.text "Restart the demo" ]
-            ]
-        , if settings.showFpsMeter then
-            let
-                (Contacts c) =
-                    contacts
-            in
-            Fps.view fps (List.length bodies) c.iterations
-
-          else
-            Html.text ""
-        ]
+        _ ->
+            Nothing
 
 
 lockTwoBodies : Body -> Body -> Constraint
@@ -219,13 +105,6 @@ lockTwoBodies b1 b2 =
             Frame3d.atPoint (Point3d.relativeTo (Physics.frame b2) middle)
     in
     Constraint.lock frame1 frame2
-
-
-{-| Shift the floor a little bit down
--}
-floorOffset : { x : Float, y : Float, z : Float }
-floorOffset =
-    { x = 0, y = 0, z = -1 }
 
 
 block3d : Block3d Meters BodyCoordinates
@@ -264,7 +143,7 @@ initialBodies =
 
         floorBody =
             Physics.plane Plane3d.xy Material.wood
-                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+                |> Physics.moveTo (Point3d.fromMeters Demo.floorZ)
 
         blocks =
             List.map

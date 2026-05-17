@@ -8,188 +8,82 @@ import Angle
 import Array exposing (Array)
 import Axis3d
 import Block3d
-import Browser
-import Browser.Dom as Dom
-import Browser.Events as Events
-import Common.Camera as Camera exposing (Camera)
-import Common.Fps as Fps
+import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
-import Common.Scene as Scene
-import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
 import Cylinder3d
 import Direction3d
 import Frame3d
-import Html exposing (Html)
-import Html.Events exposing (onClick)
-import Length exposing (Meters)
+import Length
 import Mass
-import Physics exposing (Body, BodyCoordinates, WorldCoordinates, onEarth)
+import Physics exposing (Body, BodyCoordinates)
 import Physics.Material as Material
 import Physics.Shape as Shape
-import Physics.Types exposing (Contacts(..))
 import Plane3d
-import Point3d exposing (Point3d)
+import Point3d
 import Random
 import Sphere3d
-import Task
 import Vector3d
 import WebGL exposing (Mesh)
 
 
-type BodyShape
-    = BoxShape
-    | SphereShape
-    | CylinderShape
-    | CompoundShape
-    | CapsuleShape
-
-
-type alias Model =
-    { bodies : List ( Int, Body )
-    , meshes : Array (Mesh Attributes)
-    , contacts : Physics.Contacts Int
+type alias State =
+    { meshes : Array (Mesh Attributes)
     , nextId : Int
-    , fps : List Float
-    , settings : Settings
-    , camera : Camera
     }
 
 
 type Msg
-    = ForSettings SettingsMsg
-    | Tick Float
-    | Resize Float Float
-    | Restart
-    | Random
+    = Drop
     | AddRandom ( Body, Mesh Attributes )
 
 
-main : Program () Model Msg
+initialState : State
+initialState =
+    let
+        ( _, meshes, nextId ) =
+            initialBodiesAndMeshes
+    in
+    { meshes = meshes, nextId = nextId }
+
+
+main : Program () (Demo.Model Int State) (Demo.Msg Msg)
 main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
+    let
+        ( bodies, _, _ ) =
+            initialBodiesAndMeshes
+
+        base =
+            Demo.defaults
+                { initialBodies = bodies
+                , lookupMesh = \state id -> Array.get id state.meshes
+                , camera =
+                    { from = { x = 0, y = 30, z = 20 }
+                    , to = { x = 0, y = 0, z = 0 }
+                    }
+                , initialState = initialState
+                }
+    in
+    Demo.program
+        { base
+            | update = update
+            , buttons = \_ -> [ Demo.button Drop "Drop a random body" ]
         }
 
 
-init : () -> ( Model, Cmd Msg )
-init _ =
-    let
-        ( bodies, meshes, nextId ) =
-            initialBodiesAndMeshes
-    in
-    ( { bodies = bodies
-      , contacts = Physics.emptyContacts
-      , meshes = meshes
-      , nextId = nextId
-      , fps = []
-      , settings = { settings | showSettings = True }
-      , camera =
-            Camera.camera
-                { from = { x = 0, y = 30, z = 20 }
-                , to = { x = 0, y = 0, z = 0 }
-                }
-      }
-    , Task.perform
-        (\{ viewport } -> Resize viewport.width viewport.height)
-        Dom.getViewport
-    )
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update : Msg -> State -> List ( Int, Body ) -> ( State, List ( Int, Body ), Cmd Msg )
+update msg state bodies =
     case msg of
-        ForSettings settingsMsg ->
-            ( { model
-                | settings = Settings.update settingsMsg model.settings
-              }
-            , Cmd.none
-            )
-
-        Tick dt ->
-            let
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth | contacts = model.contacts }
-                        model.bodies
-            in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-              }
-            , Cmd.none
-            )
-
-        Resize width height ->
-            ( { model | camera = Camera.resize width height model.camera }
-            , Cmd.none
-            )
-
-        Restart ->
-            let
-                ( bodies, meshes, nextId ) =
-                    initialBodiesAndMeshes
-            in
-            ( { model | bodies = bodies, meshes = meshes, nextId = nextId, contacts = Physics.emptyContacts }, Cmd.none )
-
-        Random ->
-            ( model, Random.generate AddRandom randomBody )
+        Drop ->
+            ( state, bodies, Random.generate AddRandom randomBody )
 
         AddRandom ( body, mesh ) ->
-            ( { model
-                | bodies = ( model.nextId, body ) :: model.bodies
-                , meshes = Array.push mesh model.meshes
-                , nextId = model.nextId + 1
+            ( { state
+                | meshes = Array.push mesh state.meshes
+                , nextId = state.nextId + 1
               }
+            , ( state.nextId, body ) :: bodies
             , Cmd.none
             )
-
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
-        ]
-
-
-view : Model -> Html Msg
-view { settings, fps, bodies, contacts, meshes, camera } =
-    Html.div []
-        [ Scene.view
-            { settings = settings
-            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
-            , camera = camera
-            , floorOffset = floorOffset
-            }
-        , Settings.view ForSettings
-            settings
-            [ Html.button [ onClick Random ]
-                [ Html.text "Drop a random body" ]
-            , Html.button [ onClick Restart ]
-                [ Html.text "Restart the demo" ]
-            ]
-        , if settings.showFpsMeter then
-            let
-                (Contacts c) =
-                    contacts
-            in
-            Fps.view fps (List.length bodies) c.iterations
-
-          else
-            Html.text ""
-        ]
-
-
-{-| Shift the floor a little bit down
--}
-floorOffset : { x : Float, y : Float, z : Float }
-floorOffset =
-    { x = 0, y = 0, z = -1 }
 
 
 boxBlock3d : Block3d.Block3d Length.Meters BodyCoordinates
@@ -272,10 +166,9 @@ makeCompound =
 initialBodiesAndMeshes : ( List ( Int, Body ), Array (Mesh Attributes), Int )
 initialBodiesAndMeshes =
     let
-        -- id=0 floor, 1 box, 2 sphere, 3 cylinder, 4 compound, 5 capsule
         floorBody =
             Physics.plane Plane3d.xy Material.wood
-                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+                |> Physics.moveTo (Point3d.fromMeters Demo.floorZ)
 
         boxBody =
             makeBox
@@ -327,8 +220,6 @@ initialBodiesAndMeshes =
     ( bodies, meshes, 6 )
 
 
-{-| A random body raised above the plane, shifted or rotated to a random 3d angle
--}
 randomBody : Random.Generator ( Body, Mesh Attributes )
 randomBody =
     Random.map5

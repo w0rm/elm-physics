@@ -20,7 +20,9 @@ import Browser.Dom
 import Browser.Events
 import Camera3d exposing (Camera3d)
 import Color
+import Timestep exposing (Timestep)
 import Direction3d
+import Duration
 import Frame3d
 import Html exposing (Html)
 import Html.Attributes
@@ -51,17 +53,19 @@ type Id
 
 type alias Model =
     { dimensions : ( Quantity Int Pixels, Quantity Int Pixels )
+    , prevBodies : List ( Id, Body )
     , bodies : List ( Id, Body )
     , contacts : Physics.Contacts Id
     , jeep : Maybe Jeep
     , speeding : Float
     , steering : Float
     , braking : Bool
+    , timestep : Timestep
     }
 
 
 type Msg
-    = Tick
+    = Tick Duration.Duration
     | Resize Int Int
     | KeyDown Command
     | KeyUp Command
@@ -87,12 +91,14 @@ main =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { dimensions = ( Pixels.int 0, Pixels.int 0 )
+      , prevBodies = initialBodies
       , bodies = initialBodies
       , contacts = Physics.emptyContacts
       , jeep = Nothing
       , speeding = 0
       , steering = 0
       , braking = False
+      , timestep = Timestep.init { duration = Duration.seconds (1 / 120), maxSteps = 2 }
       }
     , Cmd.batch
         [ Task.perform
@@ -168,34 +174,25 @@ update msg model =
         JeepLoaded result ->
             case result of
                 Ok jeep ->
-                    { model
-                        | jeep = Just jeep
-                        , bodies =
+                    let
+                        carEntry =
                             ( Car (Jeep.wheels jeep)
                             , Physics.dynamic jeep.collider
                                 |> Physics.scaleMassTo (Mass.kilograms 4000)
                                 |> Physics.moveTo (Point3d.meters 0 0 6)
                             )
-                                :: model.bodies
+                    in
+                    { model
+                        | jeep = Just jeep
+                        , prevBodies = carEntry :: model.prevBodies
+                        , bodies = carEntry :: model.bodies
                     }
 
                 Err _ ->
                     model
 
-        Tick ->
-            case model.jeep of
-                Just loadedJeep ->
-                    let
-                        updatedBodies =
-                            simulateCar model loadedJeep
-
-                        ( simulated, newContacts ) =
-                            Physics.simulate { onEarth | contacts = model.contacts } updatedBodies
-                    in
-                    { model | bodies = simulated, contacts = newContacts }
-
-                Nothing ->
-                    model
+        Tick dt ->
+            Timestep.advance simulateStep dt model
 
         Resize width height ->
             { model | dimensions = ( Pixels.pixels width, Pixels.pixels height ) }
@@ -233,8 +230,30 @@ update msg model =
             { model | braking = False }
 
 
+simulateStep : Model -> Model
+simulateStep model =
+    case model.jeep of
+        Just loadedJeep ->
+            let
+                d =
+                    Timestep.duration model.timestep
+
+                updatedBodies =
+                    simulateCar model loadedJeep d
+
+                ( newBodies, newContacts ) =
+                    Physics.simulate
+                        { onEarth | duration = d, contacts = model.contacts }
+                        updatedBodies
+            in
+            { model | prevBodies = model.bodies, bodies = newBodies, contacts = newContacts }
+
+        Nothing ->
+            model
+
+
 view : Model -> Html Msg
-view { bodies, jeep, dimensions } =
+view { prevBodies, bodies, jeep, dimensions, timestep } =
     Html.div
         [ Html.Attributes.style "position" "absolute"
         , Html.Attributes.style "left" "0"
@@ -251,7 +270,7 @@ view { bodies, jeep, dimensions } =
             , entities =
                 case jeep of
                     Just loadedJeep ->
-                        List.map (bodyToEntity loadedJeep) bodies
+                        List.map2 (bodyToEntity loadedJeep timestep) prevBodies bodies
 
                     Nothing ->
                         []
@@ -259,8 +278,8 @@ view { bodies, jeep, dimensions } =
         ]
 
 
-simulateCar : Model -> Jeep -> List ( Id, Body )
-simulateCar model jeep =
+simulateCar : Model -> Jeep -> Duration.Duration -> List ( Id, Body )
+simulateCar model jeep duration =
     let
         notACar ( id, _ ) =
             case id of
@@ -277,7 +296,7 @@ simulateCar model jeep =
                     let
                         ( newBody, newWheels ) =
                             Car.simulate
-                                { duration = onEarth.duration
+                                { duration = duration
                                 , bodiesWithoutCar = List.filter notACar model.bodies
                                 , speeding = model.speeding
                                 , steering = model.steering
@@ -306,9 +325,9 @@ camera =
         }
 
 
-bodyToEntity : Jeep -> ( Id, Body ) -> Entity WorldCoordinates
-bodyToEntity jeep ( id, body ) =
-    Scene3d.placeIn (Physics.frame body) <|
+bodyToEntity : Jeep -> Timestep -> ( Id, Body ) -> ( Id, Body ) -> Entity WorldCoordinates
+bodyToEntity jeep timestep ( _, prev ) ( id, curr ) =
+    Scene3d.placeIn (Physics.interpolatedFrame (Timestep.progress timestep) prev curr) <|
         case id of
             Floor ->
                 Scene3d.quad (Scene3d.Material.matte Color.white)
@@ -384,7 +403,7 @@ subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
         [ Browser.Events.onResize Resize
-        , Browser.Events.onAnimationFrameDelta (\_ -> Tick)
+        , Browser.Events.onAnimationFrameDelta (Duration.milliseconds >> Tick)
         , Browser.Events.onKeyDown (keyDecoder KeyDown)
         , Browser.Events.onKeyUp (keyDecoder KeyUp)
         ]

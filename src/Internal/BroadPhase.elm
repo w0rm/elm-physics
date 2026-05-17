@@ -6,7 +6,7 @@ contacts or constraints are non-empty, in CSR order over gravity-sort
 positions.
 -}
 
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
 import Internal.Constraint as Constraint exposing (Constraint)
 import Internal.Contact exposing (PairGroup)
 import Internal.Coordinates exposing (BodyCoordinates)

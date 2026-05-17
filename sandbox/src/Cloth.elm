@@ -5,26 +5,16 @@ connected with distance constraints.
 -}
 
 import Array exposing (Array)
-import Browser
-import Browser.Dom as Dom
-import Browser.Events as Events
-import Common.Camera as Camera exposing (Camera)
-import Common.Fps as Fps
+import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
-import Common.Scene as Scene
-import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
-import Html exposing (Html)
-import Html.Events exposing (onClick)
-import Length exposing (Meters)
+import Length
 import Mass
-import Physics exposing (Body, WorldCoordinates, onEarth)
+import Physics exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Material as Material
-import Physics.Types exposing (Contacts(..))
 import Plane3d
-import Point3d exposing (Point3d)
+import Point3d
 import Sphere3d
-import Task
 import WebGL exposing (Mesh)
 
 
@@ -50,125 +40,24 @@ particleId x y =
     2 + x * particlesPerDimension + y
 
 
-type alias Model =
-    { bodies : List ( Int, Body )
-    , meshes : Array (Mesh Attributes)
-    , contacts : Physics.Contacts Int
-    , fps : List Float
-    , settings : Settings
-    , camera : Camera
-    }
-
-
-type Msg
-    = ForSettings SettingsMsg
-    | Tick Float
-    | Resize Float Float
-    | Restart
-
-
-main : Program () Model Msg
+main : Program () (Demo.Model Int ()) (Demo.Msg msg)
 main =
-    Browser.element
-        { init = init
-        , update = update
-        , subscriptions = subscriptions
-        , view = view
-        }
-
-
-init : () -> ( Model, Cmd Msg )
-init _ =
-    ( { bodies = initialBodies
-      , meshes = initialMeshes
-      , contacts = Physics.emptyContacts
-      , fps = []
-      , settings = { settings | showFpsMeter = True }
-      , camera =
-            Camera.camera
-                { from = { x = 0, y = 30, z = 20 }
-                , to = { x = 0, y = 0, z = 0 }
+    let
+        base =
+            Demo.defaults
+                { initialBodies = initialBodies
+                , lookupMesh = \_ id -> Array.get id initialMeshes
+                , camera =
+                    { from = { x = 0, y = 30, z = 20 }
+                    , to = { x = 0, y = 0, z = 0 }
+                    }
+                , initialState = ()
                 }
-      }
-    , Task.perform
-        (\{ viewport } -> Resize viewport.width viewport.height)
-        Dom.getViewport
-    )
+    in
+    Demo.program { base | constrain = \_ _ -> constrainCloth }
 
 
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        ForSettings settingsMsg ->
-            ( { model
-                | settings = Settings.update settingsMsg model.settings
-              }
-            , Cmd.none
-            )
-
-        Tick dt ->
-            let
-                ( newBodies, newContacts ) =
-                    Physics.simulate
-                        { onEarth | constrain = constrainCloth, contacts = model.contacts }
-                        model.bodies
-            in
-            ( { model
-                | fps = Fps.update dt model.fps
-                , bodies = newBodies
-                , contacts = newContacts
-              }
-            , Cmd.none
-            )
-
-        Resize width height ->
-            ( { model | camera = Camera.resize width height model.camera }
-            , Cmd.none
-            )
-
-        Restart ->
-            ( { model | bodies = initialBodies, contacts = Physics.emptyContacts }, Cmd.none )
-
-
-subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ Events.onResize (\w h -> Resize (toFloat w) (toFloat h))
-        , Events.onAnimationFrameDelta Tick
-        ]
-
-
-view : Model -> Html Msg
-view { settings, fps, bodies, contacts, meshes, camera } =
-    Html.div []
-        [ Scene.view
-            { settings = settings
-            , bodies = List.filterMap (\( id, body ) -> Maybe.map (\mesh -> ( mesh, body )) (Array.get id meshes)) bodies
-            , contacts = List.concatMap (\( _, _, c ) -> c) (Physics.contactPoints (\_ _ -> True) contacts)
-            , camera = camera
-            , floorOffset = floorOffset
-            }
-        , Settings.view ForSettings
-            settings
-            [ Html.button [ onClick Restart ]
-                [ Html.text "Restart the demo" ]
-            ]
-        , if settings.showFpsMeter then
-            let
-                (Contacts c) =
-                    contacts
-            in
-            Fps.view fps (List.length bodies) c.iterations
-
-          else
-            Html.text ""
-        ]
-
-
-{-| Set up constraints between adjacent particles using id arithmetic.
-Particles have IDs: 2 + x \* n + y where n = particlesPerDimension.
-Two particles are horizontally adjacent if they share the same x and differ by 1 in y.
-Two particles are vertically adjacent if they share the same y and differ by n in id.
+{-| Constraints between adjacent particles using id arithmetic.
 -}
 constrainCloth : Int -> Maybe (Int -> List Constraint)
 constrainCloth id1 =
@@ -193,7 +82,6 @@ constrainCloth id1 =
 
                 else
                     let
-                        -- Convert IDs back to (x, y) coordinates
                         idx1 =
                             id1 - firstParticleId
 
@@ -220,19 +108,12 @@ constrainCloth id1 =
             )
 
 
-{-| Shift the floor a little bit down
--}
-floorOffset : { x : Float, y : Float, z : Float }
-floorOffset =
-    { x = 0, y = 0, z = -1 }
-
-
 initialBodies : List ( Int, Body )
 initialBodies =
     let
         floorBody =
             Physics.plane Plane3d.xy Material.wood
-                |> Physics.moveTo (Point3d.fromMeters floorOffset)
+                |> Physics.moveTo (Point3d.fromMeters Demo.floorZ)
 
         sphere3d =
             Sphere3d.atOrigin (Length.meters 2)
@@ -280,7 +161,6 @@ initialMeshes =
         particleSphere3d =
             Sphere3d.atOrigin (Length.meters 0.1)
 
-        -- Total size: 2 (floor + sphere) + n*n particles
         particleCount =
             particlesPerDimension * particlesPerDimension
 

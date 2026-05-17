@@ -5,7 +5,6 @@ module Common.Meshes exposing
     , contact
     , cylinder
     , fromTriangles
-    , normal
     , sphere
     , triangularMesh
     )
@@ -31,11 +30,6 @@ type alias Attributes =
 
 
 -- Meshes
-
-
-normal : Mesh Attributes
-normal =
-    fromTriangles (pyramid 0.05 0.05)
 
 
 contact : Mesh Attributes
@@ -218,12 +212,17 @@ capsule subdivisions cylinder3d =
                     transform (r1 * cos theta1) (r1 * sin theta1) z1
             in
             if j == latBands - 1 then
-                -- Last band converges at the pole: emit one triangle
-                [ facet p0 p1 p2 0 ]
+                -- Last band converges at the pole: emit one triangle.
+                -- Hide both radial spokes (b-c and c-a), keep only the
+                -- latitude rim a-b = p0-p1.
+                [ facet p0 p1 p2 5 ]
 
             else
-                [ facet p0 p1 p2 0
-                , facet p1 p3 p2 0
+                -- Hide the quad diagonal p1-p2: it's edge b-c in
+                -- triangle 1 (remove=1) and edge c-a in triangle 2
+                -- (remove=3).
+                [ facet p0 p1 p2 1
+                , facet p1 p3 p2 3
                 ]
 
         -- Bottom hemisphere cap band (outward normal has -z component; winding reversed)
@@ -266,12 +265,17 @@ capsule subdivisions cylinder3d =
                     transform (r1 * cos theta1) (r1 * sin theta1) z1
             in
             if j == latBands - 1 then
-                -- Last band converges at the pole: emit one triangle (reversed winding)
-                [ facet p0 p2 p1 0 ]
+                -- Last band converges at the pole (reversed winding):
+                -- hide both radial spokes (a-b and b-c), keep only the
+                -- latitude rim c-a = p1-p0.
+                [ facet p0 p2 p1 6 ]
 
             else
-                [ facet p0 p2 p1 0
-                , facet p1 p2 p3 0
+                -- Hide the quad diagonal p1-p2: it's edge b-c in
+                -- triangle 1 (remove=1) and edge a-b in triangle 2
+                -- (remove=4).
+                [ facet p0 p2 p1 1
+                , facet p1 p2 p3 4
                 ]
     in
     List.concat
@@ -298,33 +302,6 @@ triangularMesh mesh =
                     (Vec3.fromRecord v3)
                     0
             )
-
-
-pyramid : Float -> Float -> List ( Attributes, Attributes, Attributes )
-pyramid halfbase baserise =
-    let
-        top =
-            vec3 0 0 1
-
-        rbb =
-            vec3 halfbase -halfbase baserise
-
-        rfb =
-            vec3 halfbase halfbase baserise
-
-        lfb =
-            vec3 -halfbase halfbase baserise
-
-        lbb =
-            vec3 -halfbase -halfbase baserise
-    in
-    [ facet rfb lfb lbb 0
-    , facet lbb rbb rfb 0
-    , facet top rfb rbb 0
-    , facet top lfb rfb 0
-    , facet top lbb lfb 0
-    , facet top rbb lbb 0
-    ]
 
 
 {-| Code taken from elm-3d-scene's Primitives module.
@@ -484,25 +461,64 @@ octahedron radius =
     ]
 
 
+{-| Barycentric encoding controls which of a triangle's three edges
+the wireframe shader draws. The shader takes `min(b.x, b.y, b.z)` as
+"distance to nearest edge", so an edge is drawn iff some component
+reads 0 along it; an edge is hidden iff no component reads 0 along it.
+
+Cases:
+
+  - `0` — all three edges drawn (default, full wireframe).
+  - `1` — hide edge b-c (use on quad diagonals where the diagonal is
+    the b-c edge of the triangle).
+  - `2` — draw only edge b-c (use on radial fans that converge to a
+    centre vertex; keeps only the rim segment).
+  - `3` — hide edge c-a.
+  - `4` — hide edge a-b.
+  - `5` — draw only edge a-b (radial fan to a pole, keep the latitude).
+  - `6` — draw only edge c-a (radial fan to a pole, keep the latitude).
+
+-}
 facet : Vec3 -> Vec3 -> Vec3 -> Int -> ( Attributes, Attributes, Attributes )
 facet a b c remove =
     case remove of
         1 ->
-            -- b c is removed
             ( Attributes a (vec3 0 0 1)
             , Attributes b (vec3 0 1 0)
             , Attributes c (vec3 1 0 1)
             )
 
         2 ->
-            -- only b c is kept
             ( Attributes a (vec3 1 1 1)
             , Attributes b (vec3 1 0 0)
             , Attributes c (vec3 1 0 0)
             )
 
+        3 ->
+            ( Attributes a (vec3 0 1 1)
+            , Attributes b (vec3 0 1 0)
+            , Attributes c (vec3 1 0 0)
+            )
+
+        4 ->
+            ( Attributes a (vec3 0 0 1)
+            , Attributes b (vec3 1 1 0)
+            , Attributes c (vec3 1 0 0)
+            )
+
+        5 ->
+            ( Attributes a (vec3 0 1 1)
+            , Attributes b (vec3 0 1 1)
+            , Attributes c (vec3 1 1 1)
+            )
+
+        6 ->
+            ( Attributes a (vec3 1 0 1)
+            , Attributes b (vec3 1 1 1)
+            , Attributes c (vec3 1 0 1)
+            )
+
         _ ->
-            -- all edges are kept
             ( Attributes a (vec3 0 0 1)
             , Attributes b (vec3 0 1 0)
             , Attributes c (vec3 1 0 0)

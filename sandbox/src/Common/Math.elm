@@ -1,13 +1,10 @@
-module Common.Math exposing
-    ( makeRotateKTo
-    , makeShadow
-    )
+module Common.Math exposing (makeShadow)
 
 {-| Some useful Math utilities.
 -}
 
 import Math.Matrix4 as Mat4 exposing (Mat4)
-import Math.Vector3 as Vec3 exposing (Vec3, vec3)
+import Math.Vector3 as Vec3 exposing (Vec3)
 
 
 {-| A "squash" matrix that smashes things to the ground plane,
@@ -46,33 +43,3 @@ makeShadow position normal light =
         , m34 = l.z * nw
         , m44 = -d
         }
-
-
-{-| A 3D utility function that provides a transform for a rotation that
-reorients the z axis to the given direction (unit vector), choosing any
-convenient rotation for the xy plane.
--}
-makeRotateKTo : Vec3 -> Mat4
-makeRotateKTo direction =
-    let
-        distance =
-            Vec3.distance Vec3.k direction
-    in
-    -- Boundary cases: direction is near-vertical (distance ~0 or ~2),
-    -- where the general trig formula below blows up.
-    if distance <= precision then
-        Mat4.identity
-
-    else if abs (distance - 2.0) <= precision then
-        -- U-turn around x=y in the z=0 plane.
-        Mat4.makeRotate pi (vec3 1.0 1.0 0.0)
-
-    else
-        Mat4.makeRotate
-            (2.0 * asin (distance / 2.0))
-            (Vec3.cross Vec3.k direction)
-
-
-precision : Float
-precision =
-    1.0e-6

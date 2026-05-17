@@ -17,28 +17,31 @@ import Html.Events exposing (onCheck, onClick)
 
 type alias Settings =
     { debugContacts : Bool -- Set to True to see collision points
+    , debugContactIds : Bool -- Set to True to see per-contact id labels (Collisions demo)
     , debugWireframes : Bool -- Set to True to see wireframes
     , debugCenterOfMass : Bool -- Set to True to see center of mass
-    , showFpsMeter : Bool
+    , debugInertia : Bool -- Set to True to see principal-axis inertia ellipsoid
     , showSettings : Bool
     }
 
 
 type SettingsMsg
     = ToggleContacts Bool
+    | ToggleContactIds Bool
     | ToggleWireframes Bool
-    | ToggleFpsMeter Bool
     | ToggleCenterOfMass Bool
+    | ToggleInertia Bool
     | ToggleSettings
 
 
 settings : Settings
 settings =
     { debugContacts = False
+    , debugContactIds = False
     , debugWireframes = False
-    , showSettings = False
-    , showFpsMeter = False
     , debugCenterOfMass = False
+    , debugInertia = False
+    , showSettings = False
     }
 
 
@@ -51,18 +54,26 @@ update msg model =
         ToggleContacts debugContacts ->
             { model | debugContacts = debugContacts }
 
+        ToggleContactIds debugContactIds ->
+            { model | debugContactIds = debugContactIds }
+
         ToggleWireframes debugWireframes ->
             { model | debugWireframes = debugWireframes }
-
-        ToggleFpsMeter showFpsMeter ->
-            { model | showFpsMeter = showFpsMeter }
 
         ToggleCenterOfMass debugCenterOfMass ->
             { model | debugCenterOfMass = debugCenterOfMass }
 
+        ToggleInertia debugInertia ->
+            { model | debugInertia = debugInertia }
 
-view : (SettingsMsg -> msg) -> Settings -> List (Html msg) -> Html msg
-view msg { showSettings, debugContacts, debugWireframes, debugCenterOfMass, showFpsMeter } extraContent =
+
+view :
+    (SettingsMsg -> msg)
+    -> Settings
+    -> List (Html msg)
+    -> List (Html msg)
+    -> Html msg
+view msg { showSettings, debugContacts, debugContactIds, debugWireframes, debugCenterOfMass, debugInertia } header extraContent =
     Html.div
         [ style "position" "fixed"
         , style "right" "6px"
@@ -78,11 +89,11 @@ view msg { showSettings, debugContacts, debugWireframes, debugCenterOfMass, show
                 , style "background" "rgb(50, 50, 50)"
                 , style "border-radius" "0 0 4px 4px"
                 ]
-                ([ checkbox (ToggleContacts >> msg) debugContacts "collision points"
-                 , checkbox (ToggleCenterOfMass >> msg) debugCenterOfMass "center of mass"
-                 , checkbox (ToggleWireframes >> msg) debugWireframes "wireframes"
-                 , checkbox (ToggleFpsMeter >> msg) showFpsMeter "fps meter"
-                 ]
+                (List.map wrapBelow header
+                    ++ [ contactsRow msg debugContacts debugContactIds
+                       , centerRow msg debugCenterOfMass debugInertia
+                       , checkbox (ToggleWireframes >> msg) debugWireframes "wireframes"
+                       ]
                     ++ List.map wrapWithMargin extraContent
                 )
             ]
@@ -95,6 +106,11 @@ view msg { showSettings, debugContacts, debugWireframes, debugCenterOfMass, show
 wrapWithMargin : Html msg -> Html msg
 wrapWithMargin el =
     Html.div [ style "margin" "10px 0 5px" ] [ el ]
+
+
+wrapBelow : Html msg -> Html msg
+wrapBelow el =
+    Html.div [ style "margin" "5px 0 10px" ] [ el ]
 
 
 button : msg -> String -> Html msg
@@ -127,3 +143,53 @@ checkbox msg value label =
             []
         , Html.text label
         ]
+
+
+inlineCheckbox : (Bool -> msg) -> Bool -> String -> Html msg
+inlineCheckbox msg value label =
+    Html.label [ style "display" "inline-flex", style "align-items" "center" ]
+        [ Html.input
+            [ onCheck msg
+            , checked value
+            , type_ "checkbox"
+            , style "margin-right" "10px"
+            ]
+            []
+        , Html.text label
+        ]
+
+
+contactsRow : (SettingsMsg -> msg) -> Bool -> Bool -> Html msg
+contactsRow msg debugContacts debugContactIds =
+    Html.div
+        [ style "display" "flex"
+        , style "gap" "10px"
+        , style "padding" "5px 0"
+        , style "flex-wrap" "wrap"
+        ]
+        (inlineCheckbox (ToggleContacts >> msg) debugContacts "collisions"
+            :: (if debugContacts then
+                    [ inlineCheckbox (ToggleContactIds >> msg) debugContactIds "ids" ]
+
+                else
+                    []
+               )
+        )
+
+
+centerRow : (SettingsMsg -> msg) -> Bool -> Bool -> Html msg
+centerRow msg debugCenterOfMass debugInertia =
+    Html.div
+        [ style "display" "flex"
+        , style "gap" "10px"
+        , style "padding" "5px 0"
+        , style "flex-wrap" "wrap"
+        ]
+        (inlineCheckbox (ToggleCenterOfMass >> msg) debugCenterOfMass "centers"
+            :: (if debugCenterOfMass then
+                    [ inlineCheckbox (ToggleInertia >> msg) debugInertia "inertia" ]
+
+                else
+                    []
+               )
+        )

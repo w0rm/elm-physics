@@ -31,6 +31,7 @@ config =
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
         |> Review.Rule.ignoreErrorsForFiles [ "src/Common/Camera.elm" ]
+        |> Review.Rule.ignoreErrorsForDirectories [ "../src" ]
     , NoUnused.Modules.rule
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule

@@ -7,7 +7,7 @@ module Internal.Equation exposing
     )
 
 import Dict exposing (Dict)
-import Internal.Body as Body exposing (Body)
+import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, PairGroup, SolverContact)
 import Internal.Shape exposing (CenterOfMassCoordinates)
@@ -131,6 +131,7 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
+
             -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
             , wAx = ni.y * ri.z - ni.z * ri.y
             , wAy = ni.z * ri.x - ni.x * ri.z
@@ -224,6 +225,7 @@ addRotationalEquation spookA spookB spookEps ctx body1 body2 ni nj equations =
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
+
         -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
         , wAx = nj.y * ni.z - nj.z * ni.y
         , wAy = nj.z * ni.x - nj.x * ni.z
@@ -278,6 +280,7 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , spookA = spookA
                     , spookB = spookB
                     , spookEps = spookEps
+
                     -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
                     , wAx = ni.y * ri.z - ni.z * ri.y
                     , wAy = ni.z * ri.x - ni.x * ri.z
@@ -336,6 +339,7 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
         , spookA = spookA
         , spookB = spookB
         , spookEps = spookEps
+
         -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
         , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
         , wAy = contact.ni.z * ri.x - contact.ni.x * ri.z
@@ -385,6 +389,7 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , spookA = spookA
             , spookB = spookB
             , spookEps = spookEps
+
             -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
             , wAx = t2.y * ri.z - t2.z * ri.y
             , wAy = t2.z * ri.x - t2.x * ri.z
