@@ -445,14 +445,15 @@ type EdgeResult
     | NoEdgeBeats
 
 
-{-| Edge SAT must beat face SAT by more than this to take the edge-edge
-path. `Const.precision` is too tight: face-aligned stacks drift into the
-noise window within a few hundred frames and tip when flipped onto a
-single edge-edge contact.
+{-| Multiplier on edge SAT depth when ranked against face SAT depth —
+edge must be at least 5% better to take the edge-edge path. Relative so
+it scales with shape size; an absolute window mis-classifies
+shallow-rotation edge-vs-face configurations as edge-edge and emits one
+contact where clipping would emit two.
 -}
-edgePreferenceMargin : Float
-edgePreferenceMargin =
-    2.5e-5
+edgeBiasFactor : Float
+edgeBiasFactor =
+    1.05
 
 
 {-| Iterate `(dir1, dir2)` pairs of unique edge directions. The winner
@@ -462,6 +463,9 @@ edges (4 for a cube) instead of all face-edges. Direction indices are
 -}
 findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
 findEdgeSAT convex1 convex2 faceDmin =
+    -- Pre-bias the threshold so the loop runs plain `dist < dmin`.
+    -- Once an edge wins, subsequent edges compete on raw depth — the
+    -- 5% bias is a face/edge boundary effect, not edge/edge.
     findEdgeSATHelp convex1
         convex2
         convex2.uniqueEdges
@@ -470,7 +474,7 @@ findEdgeSAT convex1 convex2 faceDmin =
         1
         1
         NoEdgeBeats
-        faceDmin
+        (faceDmin / edgeBiasFactor)
 
 
 findEdgeSATHelp : Convex -> Convex -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
@@ -510,7 +514,7 @@ findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best
                                 EdgeSeparates
 
                             Just dist ->
-                                if dist - dmin + edgePreferenceMargin < 0 then
+                                if dist - dmin < 0 then
                                     findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx (firstEdge1 :: otherEdges1) dir2Idx (firstEdge2 :: otherEdges2)) dist
 
                                 else

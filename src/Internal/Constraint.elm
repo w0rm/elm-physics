@@ -53,12 +53,13 @@ body that ends up at the larger gravity-sort position: the input pivots are
 labeled relative to (callback-body, partner) but the output must be labeled
 relative to (smaller-position-body, larger-position-body).
 
-Caller passes the frames in the *natural* order (smaller-position body first,
+Caller passes the frames in the _natural_ order (smaller-position body first,
 larger-position body second). The function transforms input.pivot1 (the
 caller-body's pivot) with the larger-position frame and emits it as output
 pivot2; transforms input.pivot2 with the smaller-position frame and emits it
 as output pivot1. Single allocation, vs. `relativeToCenterOfMass >> flip`
 which would allocate twice.
+
 -}
 relativeToCenterOfMassFlipped :
     Transform3d BodyCoordinates { defines : CenterOfMassCoordinates }

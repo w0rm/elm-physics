@@ -431,12 +431,19 @@ place frame3d (Types.Body body) =
         }
 
 
-{-| Simulates one frame. Returns updated bodies and contacts.
-Call this on a message from the `onAnimationFrame` subscription
-with [onEarth](#onEarth) to simulate 1/60th of a second in Earth gravity:
+{-| Advance the simulation by one fixed step of [`Config.duration`](#Config),
+returning updated bodies and contacts. With [onEarth](#onEarth) that step
+is 1/60th of a second in Earth gravity:
 
     ( simulated, contacts ) =
         simulate onEarth model.bodies
+
+Keep the step constant — don’t feed it
+[`onAnimationFrameDelta`](https://package.elm-lang.org/packages/elm/browser/latest/Browser-Events#onAnimationFrameDelta)
+directly, or the solver will jitter. Render in between steps with
+[`interpolatedFrame`](#interpolatedFrame); the companion
+[elm-timestep](https://package.elm-lang.org/packages/w0rm/elm-timestep/latest/)
+package handles the bookkeeping.
 
 To improve solver stability for stacked objects, pass contacts
 from the previous frame back via the config’s `contacts` field:

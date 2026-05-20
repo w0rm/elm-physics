@@ -20,7 +20,6 @@ import Browser.Dom
 import Browser.Events
 import Camera3d exposing (Camera3d)
 import Color
-import Timestep exposing (Timestep)
 import Direction3d
 import Duration
 import Frame3d
@@ -41,6 +40,7 @@ import RaycastCar.Jeep as Jeep exposing (Jeep)
 import Scene3d exposing (Entity)
 import Scene3d.Material
 import Task
+import Timestep exposing (Timestep)
 import Vector3d
 
 

@@ -1,10 +1,13 @@
 module Internal.SolverBody exposing
     ( SolverBody
-    , fromBody
+    , fromBodies
+    , sentinel
     , toBody
     )
 
+import Array exposing (Array)
 import Internal.Body exposing (Body)
+import Internal.Matrix3 as Mat3
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -25,6 +28,59 @@ type alias SolverBody id =
 fromBody : id -> Body -> SolverBody id
 fromBody extId body =
     { body = body
+    , extId = extId
+    , vX = 0
+    , vY = 0
+    , vZ = 0
+    , wX = 0
+    , wY = 0
+    , wZ = 0
+    }
+
+
+{-| Sparse array indexed by body.id (IDs may be non-consecutive when
+bodies are added mid-simulation). Unused slots are filled with the sentinel.
+-}
+fromBodies : Int -> List ( id, Body ) -> Array (SolverBody id)
+fromBodies maxId bodiesWithIds =
+    case bodiesWithIds of
+        [] ->
+            Array.empty
+
+        ( firstExtId, _ ) :: _ ->
+            List.foldl
+                (\( extId, body ) arr -> Array.set body.id (fromBody extId body) arr)
+                (Array.repeat (maxId + 1) (sentinel firstExtId))
+                bodiesWithIds
+
+
+{-| Fills unused slots in the solver body array. id = -1 is impossible for real
+bodies, so any array lookup that returns this sentinel can be ignored.
+-}
+sentinel : id -> SolverBody id
+sentinel extId =
+    { body =
+        { id = -1
+        , kindInt = 1
+        , transform3d = Transform3d.atOrigin
+        , centerOfMassTransform3d = Transform3d.atOrigin
+        , velocity = Vec3.zero
+        , angularVelocity = Vec3.zero
+        , mass = 0
+        , volume = 0
+        , shapesWithMaterials = []
+        , worldShapesWithMaterials = []
+        , force = Vec3.zero
+        , torque = Vec3.zero
+        , boundingSphereRadius = 0
+        , linearDamping = 0
+        , angularDamping = 0
+        , invMass = 0
+        , invInertia = Vec3.zero
+        , invInertiaWorld = Mat3.zero
+        , linearLock = Vec3.one
+        , angularLock = Vec3.one
+        }
     , extId = extId
     , vX = 0
     , vY = 0

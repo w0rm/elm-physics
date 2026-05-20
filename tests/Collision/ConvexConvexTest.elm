@@ -16,6 +16,24 @@ import Test exposing (Test, describe, test)
 
 addContacts : Test
 addContacts =
+    let
+        -- Captured from the Collisions sandbox: a 1.5-cube whose local
+        -- frame is ~47° off identity plus a ~0.3° tilt. Only the
+        -- origin differs between the two scenarios below.
+        tiltedBox origin =
+            Convex.fromBlock 1.5 1.5 1.5
+                |> Convex.placeIn
+                    (Transform3d.fromOriginAndBasis
+                        origin
+                        { x = -0.001580161067349219, y = 0.9999882020975505, z = -0.004593338296621986 }
+                        { x = -0.6852663896092609, y = -0.004428115539111141, z = -0.7282790447793068 }
+                        { x = -0.7282907924468673, y = 0.0019968621580540736, z = 0.6852653020390244 }
+                    )
+
+        targetBox =
+            Convex.fromBlock 2 2 2
+                |> Convex.placeIn Transform3d.atOrigin
+    in
     describe "Collision.ConvexConvex.addContacts"
         [ test "should return 4 results" <|
             \_ ->
@@ -92,6 +110,22 @@ addContacts =
                 Collision.ConvexConvex.addContacts "" box1 box2 []
                     |> List.all (\c -> not (String.startsWith "-e" c.id))
                     |> Expect.equal True
+        , test "tilted box with edge crossing target top face emits two face-face contacts" <|
+            \_ ->
+                Collision.ConvexConvex.addContacts ""
+                    (tiltedBox { x = -0.11608751888227789, y = 0.5683352706207844, z = 1.9053833288923054 })
+                    targetBox
+                    []
+                    |> List.map .id
+                    |> Expect.equal [ "-f3-f5-v2", "-f3-f5-v1" ]
+        , test "same tilt at shifted y-offset emits two face-face contacts" <|
+            \_ ->
+                Collision.ConvexConvex.addContacts ""
+                    (tiltedBox { x = -0.06790182997043828, y = -0.6276944695546394, z = 1.9053833288923054 })
+                    targetBox
+                    []
+                    |> List.map .id
+                    |> Expect.equal [ "-f3-f5-v3", "-f3-f5-v2" ]
         ]
 
 

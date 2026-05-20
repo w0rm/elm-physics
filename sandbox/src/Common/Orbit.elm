@@ -1,11 +1,11 @@
 module Common.Orbit exposing
-    ( Orbit
-    , Msg
+    ( Msg
+    , Orbit
     , fromCartesian
     , setTarget
+    , subscriptions
     , toCamera
     , update
-    , subscriptions
     , wheelDecoder
     )
 

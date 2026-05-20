@@ -54,11 +54,17 @@ solver can look up body state, kind, and id without any Array.get. For 2-body
 islands the solver consumes these refs directly; for multi-body islands the
 refs become stale after the first iteration and the solver falls back to
 `Array.get` on the body ids via `body1.body.id` / `body2.body.id`.
+
+`deltalambdaTot` is a per-pass scratch field used by the PGS solver; it's
+reset to 0 at the start of every iteration. Carried on the record so
+`solveEquationsGroup` can return its result without allocating a wrapper.
+
 -}
 type alias EquationsGroup id =
     { body1 : SolverBody id
     , body2 : SolverBody id
     , equations : List SolverEquation
+    , deltalambdaTot : Float
     }
 
 

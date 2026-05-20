@@ -1,4 +1,4 @@
-module Common.Sps exposing (Sps, init, update, sps)
+module Common.Sps exposing (Sps, init, sps, update)
 
 {-| Tracks how often physics actually advances when the simulation is
 gated by `Timestep`. The display FPS lies about physics work — at 120Hz

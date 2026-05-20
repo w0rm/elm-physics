@@ -20,7 +20,6 @@ import Browser.Dom
 import Browser.Events
 import Camera3d exposing (Camera3d)
 import Color
-import Timestep exposing (Timestep)
 import Direction3d
 import Duration
 import Html exposing (Html)
@@ -42,6 +41,7 @@ import Scene3d exposing (Entity)
 import Scene3d.Material as Material
 import Sphere3d
 import Task
+import Timestep exposing (Timestep)
 
 
 type Id

@@ -1,4 +1,4 @@
-module Common.Fps exposing (update, fps)
+module Common.Fps exposing (fps, update)
 
 {-| Tracks frame deltas to compute a weighted-average FPS. The display
 itself is rendered by `Common.Demo` so all stats share one panel.

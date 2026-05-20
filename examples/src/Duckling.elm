@@ -19,7 +19,6 @@ import Browser.Dom
 import Browser.Events
 import Camera3d
 import Color exposing (Color)
-import Timestep exposing (Timestep)
 import Direction3d
 import Duration
 import Frame3d
@@ -38,6 +37,7 @@ import Scene3d
 import Scene3d.Material exposing (Texture)
 import Scene3d.Mesh exposing (Shadow, Textured)
 import Task
+import Timestep exposing (Timestep)
 import WebGL.Texture
 
 

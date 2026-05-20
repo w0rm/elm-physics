@@ -20,7 +20,7 @@ import WebGL exposing (Mesh)
 
 boxesPerDimension : number
 boxesPerDimension =
-    10
+    5
 
 
 main : Program () (Demo.Model Int ()) (Demo.Msg msg)

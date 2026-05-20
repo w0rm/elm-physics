@@ -1,4 +1,4 @@
-module Internal.Solver exposing (solve)
+module Internal.Solver exposing (annotateGroupsByRoot, solve)
 
 import Array exposing (Array)
 import Dict exposing (Dict)
@@ -6,63 +6,8 @@ import Internal.Body exposing (Body)
 import Internal.Const as Const
 import Internal.Contact exposing (PairGroup)
 import Internal.Equation as Equation exposing (EquationsGroup, SolverEquation)
-import Internal.Matrix3 as Mat3
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
-
-
-{-| Fills unused slots in the solver body array. id = -1 is impossible for real
-bodies, so any array lookup that returns this sentinel can be ignored.
--}
-sentinel : id -> SolverBody id
-sentinel extId =
-    { body =
-        { id = -1
-        , kindInt = 1
-        , transform3d = Transform3d.atOrigin
-        , centerOfMassTransform3d = Transform3d.atOrigin
-        , velocity = Vec3.zero
-        , angularVelocity = Vec3.zero
-        , mass = 0
-        , volume = 0
-        , shapesWithMaterials = []
-        , worldShapesWithMaterials = []
-        , force = Vec3.zero
-        , torque = Vec3.zero
-        , boundingSphereRadius = 0
-        , linearDamping = 0
-        , angularDamping = 0
-        , invMass = 0
-        , invInertia = Vec3.zero
-        , invInertiaWorld = Mat3.zero
-        , linearLock = Vec3.one
-        , angularLock = Vec3.one
-        }
-    , extId = extId
-    , vX = 0
-    , vY = 0
-    , vZ = 0
-    , wX = 0
-    , wY = 0
-    , wZ = 0
-    }
-
-
-{-| Sparse array indexed by body.id (IDs may be non-consecutive when
-bodies are added mid-simulation). Unused slots are filled with the sentinel.
--}
-makeSolverBodies : Int -> List ( id, Body ) -> Array (SolverBody id)
-makeSolverBodies maxId bodiesWithIds =
-    case bodiesWithIds of
-        [] ->
-            Array.empty
-
-        ( firstExtId, _ ) :: _ ->
-            List.foldl
-                (\( extId, body ) arr -> Array.set body.id (SolverBody.fromBody extId body) arr)
-                (Array.repeat (maxId + 1) (sentinel firstExtId))
-                bodiesWithIds
 
 
 {-| Apply the impulse corresponding to a seeded lambda to both solver bodies.
@@ -127,16 +72,6 @@ applyGroupWarmStart body1 body2 equations =
                 applyGroupWarmStart newBody1 newBody2 rest
 
 
-{-| Single pass over pairGroups: build the EquationsGroups list, apply cached
-warm-start impulses, and grow union-find parents — all in one walk. Replaces
-three separate walks of equationsGroups in the previous code.
-
-`PairGroup` already carries `body1 : Body` and `body2 : Body`, so the union-find
-dynamic-dynamic check reads `kindInt` straight off the PairGroup without an
-Array.get. Warm-start impulses commute (just additions), so processing in
-pairGroups order vs. reversed-equationsGroups order yields the same array.
-
--}
 buildAndWarmStart :
     Equation.Ctx
     -> SolverBody id
@@ -202,6 +137,7 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
                     { body1 = newBody1
                     , body2 = newBody2
                     , equations = equations
+                    , deltalambdaTot = 0
                     }
 
                 solverBodies2 =
@@ -237,10 +173,10 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
                     }
 
                 fillingBody =
-                    sentinel firstExtId
+                    SolverBody.sentinel firstExtId
 
                 solverBodies =
-                    makeSolverBodies maxId bodiesWithIds
+                    SolverBody.fromBodies maxId bodiesWithIds
 
                 -- Single fused pass over pairGroups: build equationsGroups,
                 -- apply warm-start impulses, and grow union-find parents.
@@ -363,12 +299,7 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
             in
             step remainingIterations
                 groupContext.deltalambdaTot
-                ({ body1 = groupContext.body1
-                 , body2 = groupContext.body2
-                 , equations = groupContext.equations
-                 }
-                    :: equationsGroups
-                )
+                (groupContext :: equationsGroups)
                 remainingEquationsGroups
                 -- we don’t put body1 in the array, because we might need it
                 -- in the next iteration, because this is the order in
@@ -440,12 +371,10 @@ union a b parents =
 {-| Pair each equationsGroup with its island root. Threads `parents` through
 so path-compression updates carry across calls.
 
-What about within-island PGS order? `Physics.elm` already pre-sorts bodies
-by gravity projection, which makes `BroadPhase` emit pairs with body1 =
-bottom-most body of the pair. PGS convergence on stacks is sensitive to that
-body1/body2 assignment (asymmetric `minForce = 0` clamp), but not to the
-order in which pairs _within_ an island are processed — confirmed empirically
-by the sandbox stack-of-5 stability test. So we only need to sort by root.
+No secondary sort key for within-island order: PGS needs pairs visited
+bottom-first, and broadphase already emits them that way. Nothing
+between here and `step` disturbs the sequence — `List.sortBy` is stable
+and intermediate reverses don't matter. `SolverIslandsTest` guards it.
 
 -}
 annotateGroupsByRoot : Array Int -> List (EquationsGroup id) -> List ( Int, EquationsGroup id ) -> List ( Int, EquationsGroup id )
@@ -534,21 +463,15 @@ solve2Body remainingIterations group arr accGroups =
     let
         result =
             solveEquationsGroup group.body1 group.body2 [] 0 group.equations
-
-        newGroup =
-            { body1 = result.body1
-            , body2 = result.body2
-            , equations = result.equations
-            }
     in
     if remainingIterations == 1 then
-        ( flushBody result.body2 (flushBody result.body1 arr), newGroup :: accGroups, 0 )
+        ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, 0 )
 
     else if result.deltalambdaTot - Const.precision < 0 then
-        ( flushBody result.body2 (flushBody result.body1 arr), newGroup :: accGroups, remainingIterations - 1 )
+        ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, remainingIterations - 1 )
 
     else
-        solve2Body (remainingIterations - 1) newGroup arr accGroups
+        solve2Body (remainingIterations - 1) result arr accGroups
 
 
 flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
@@ -560,15 +483,7 @@ flushBody body arr =
         arr
 
 
-type alias GroupSolveResult id =
-    { body1 : SolverBody id
-    , body2 : SolverBody id
-    , equations : List SolverEquation
-    , deltalambdaTot : Float
-    }
-
-
-solveEquationsGroup : SolverBody id -> SolverBody id -> List SolverEquation -> Float -> List SolverEquation -> GroupSolveResult id
+solveEquationsGroup : SolverBody id -> SolverBody id -> List SolverEquation -> Float -> List SolverEquation -> EquationsGroup id
 solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
     case currentEquations of
         [] ->
