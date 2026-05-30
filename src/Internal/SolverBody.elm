@@ -22,17 +22,6 @@ type alias SolverBody id =
     , wX : Float
     , wY : Float
     , wZ : Float
-
-    -- Split-impulse pseudo-velocity. Accumulates only the position-correction
-    -- (Baumgarte / SPOOK position) impulse. Used to displace the body's
-    -- transform at end-of-step; never stored as the body's velocity. Reset
-    -- to 0 every step.
-    , pvX : Float
-    , pvY : Float
-    , pvZ : Float
-    , pwX : Float
-    , pwY : Float
-    , pwZ : Float
     }
 
 
@@ -46,12 +35,6 @@ fromBody extId body =
     , wX = 0
     , wY = 0
     , wZ = 0
-    , pvX = 0
-    , pvY = 0
-    , pvZ = 0
-    , pwX = 0
-    , pwY = 0
-    , pwZ = 0
     }
 
 
@@ -105,17 +88,11 @@ sentinel extId =
     , wX = 0
     , wY = 0
     , wZ = 0
-    , pvX = 0
-    , pvY = 0
-    , pvZ = 0
-    , pwX = 0
-    , pwY = 0
-    , pwZ = 0
     }
 
 
 toBody : Float -> Vec3 -> SolverBody id -> Body
-toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ, pvX, pvY, pvZ, pwX, pwY, pwZ } =
+toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
     case body.kindInt of
         1 ->
             -- Static
@@ -201,20 +178,17 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ, pvX, pvY, pvZ, pwX, pwY, pwZ }
                     , z = ((body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wZ) * body.angularLock.z
                     }
 
-                -- Split-impulse: advance transform using real + pseudo
-                -- velocity, but only stored velocity is the real one.
-                -- Penetration recovery doesn't inject kinetic energy.
                 newTransform3d =
                     Transform3d.normalize
                         (Transform3d.translateBy
-                            { x = (cappedVelocity.x + pvX * body.linearLock.x) * dt
-                            , y = (cappedVelocity.y + pvY * body.linearLock.y) * dt
-                            , z = (cappedVelocity.z + pvZ * body.linearLock.z) * dt
+                            { x = cappedVelocity.x * dt
+                            , y = cappedVelocity.y * dt
+                            , z = cappedVelocity.z * dt
                             }
                             (Transform3d.rotateBy
-                                { x = (newAngularVelocity.x + pwX * body.angularLock.x) * dt
-                                , y = (newAngularVelocity.y + pwY * body.angularLock.y) * dt
-                                , z = (newAngularVelocity.z + pwZ * body.angularLock.z) * dt
+                                { x = newAngularVelocity.x * dt
+                                , y = newAngularVelocity.y * dt
+                                , z = newAngularVelocity.z * dt
                                 }
                                 body.transform3d
                             )

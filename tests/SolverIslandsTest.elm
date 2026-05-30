@@ -55,7 +55,8 @@ fakeGroup : ( Int, Int ) -> ( Int, Int ) -> EquationsGroup ()
 fakeGroup ( id1, kind1 ) ( id2, kind2 ) =
     { body1 = fakeBody id1 kind1
     , body2 = fakeBody id2 kind2
-    , equations = []
+    , contacts = []
+    , constraints = []
     , deltalambdaTot = 0
     }
 

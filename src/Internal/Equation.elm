@@ -1,5 +1,6 @@
 module Internal.Equation exposing
-    ( Ctx
+    ( ContactEquations
+    , Ctx
     , Equation
     , EquationsGroup
     , SolverEquation
@@ -21,7 +22,6 @@ type alias Equation =
     , minForce : Float
     , maxForce : Float
     , solverB : Float
-    , solverBPosition : Float
     , solverInvC : Float
     , spookA : Float
     , spookB : Float
@@ -60,30 +60,43 @@ type alias Ctx =
     }
 
 
+{-| One contact point's equations. The normal's post-solve lambda sizes the
+Coulomb cone (±μ·λ_n) for friction1/friction2. Bundling them lets the velocity
+solver run all normals island-wide (pass 1) then all frictions (pass 2) without
+walking past — and skipping — the other phase's equations. friction1 carries
+the t1 direction recorded in the tangent warm-start cache.
+-}
+type alias ContactEquations =
+    { normal : SolverEquation
+    , friction1 : SolverEquation
+    , friction2 : SolverEquation
+    }
+
+
 {-| The solver's per-pair record. Carries the two SolverBody refs so the
 solver can look up body state, kind, and id without any Array.get. For 2-body
 islands the solver consumes these refs directly; for multi-body islands the
 refs become stale after the first iteration and the solver falls back to
 `Array.get` on the body ids via `body1.body.id` / `body2.body.id`.
 
-`deltalambdaTot` is a per-pass scratch field used by the PGS solver; it's
-reset to 0 at the start of every iteration. Carried on the record so
-`solveEquationsGroup` can return its result without allocating a wrapper.
-
+Equations are split: `contacts` (each a normal + its two frictions) and
+`constraints` (joints, non-friction). `deltalambdaTot` is a per-pass scratch
+field, reset to 0 at the start of every iteration.
 -}
 type alias EquationsGroup id =
     { body1 : SolverBody id
     , body2 : SolverBody id
-    , equations : List SolverEquation
+    , contacts : List ContactEquations
+    , constraints : List SolverEquation
     , deltalambdaTot : Float
     }
 
 
-equationsForPair : Ctx -> PairGroup -> List SolverEquation
+equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List SolverEquation }
 equationsForPair ctx { body1, body2, contacts, constraints } =
-    []
-        |> (\eqs -> List.foldl (addContactEquations ctx body1 body2) eqs contacts)
-        |> (\eqs -> List.foldl (addConstraintEquations ctx body1 body2) eqs constraints)
+    { contacts = List.foldl (\contact acc -> contactEquations ctx body1 body2 contact :: acc) [] contacts
+    , constraints = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
+    }
 
 
 addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
@@ -135,7 +148,6 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
-            , solverBPosition = 0
             , solverInvC = 0
             , spookA = erp / ctx.dt
             , spookB = 1
@@ -214,7 +226,6 @@ addRotationalEquation ctx body1 body2 ni nj equations =
         , minForce = -1000000
         , maxForce = 1000000
         , solverB = 0
-        , solverBPosition = 0
         , solverInvC = 0
         , spookA = erp / ctx.dt
         , spookB = 1
@@ -263,7 +274,6 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , minForce = -1000000
                     , maxForce = 1000000
                     , solverB = 0
-                    , solverBPosition = 0
                     , solverInvC = 0
                     , spookA = erp / ctx.dt
                     , spookB = 1
@@ -288,8 +298,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
         Vec3.basis
 
 
-addContactEquations : Ctx -> Body -> Body -> SolverContact -> List SolverEquation -> List SolverEquation
-addContactEquations ctx body1 body2 { friction, bounciness, contact } equations =
+contactEquations : Ctx -> Body -> Body -> SolverContact -> ContactEquations
+contactEquations ctx body1 body2 { friction, bounciness, contact } =
     let
         ri =
             Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
@@ -305,35 +315,36 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
                 Nothing ->
                     Vec3.tangents contact.ni
     in
-    initSolverParams
-        (computeContactB bounciness contact)
-        ctx
-        body1
-        body2
-        { id = contact.id
-        , minForce = 0
-        , maxForce = 1000000
-        , solverB = 0
-        , solverBPosition = 0
-        , solverInvC = 0
-        , spookA = erp / ctx.dt
-        , spookB = 1
-        , spookEps = cfm
-        , isContactNormal = True
-        , frictionCoefficient = 0
+    { normal =
+        initSolverParams
+            (computeContactB bounciness contact)
+            ctx
+            body1
+            body2
+            { id = contact.id
+            , minForce = 0
+            , maxForce = 1000000
+            , solverB = 0
+            , solverInvC = 0
+            , spookA = erp / ctx.dt
+            , spookB = 1
+            , spookEps = cfm
+            , isContactNormal = True
+            , frictionCoefficient = 0
 
-        -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
-        , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
-        , wAy = contact.ni.z * ri.x - contact.ni.x * ri.z
-        , wAz = contact.ni.x * ri.y - contact.ni.y * ri.x
-        , vBx = contact.ni.x
-        , vBy = contact.ni.y
-        , vBz = contact.ni.z
-        , wBx = rj.y * contact.ni.z - rj.z * contact.ni.y
-        , wBy = rj.z * contact.ni.x - rj.x * contact.ni.z
-        , wBz = rj.x * contact.ni.y - rj.y * contact.ni.x
-        }
-        :: initSolverParams
+            -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
+            , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
+            , wAy = contact.ni.z * ri.x - contact.ni.x * ri.z
+            , wAz = contact.ni.x * ri.y - contact.ni.y * ri.x
+            , vBx = contact.ni.x
+            , vBy = contact.ni.y
+            , vBz = contact.ni.z
+            , wBx = rj.y * contact.ni.z - rj.z * contact.ni.y
+            , wBy = rj.z * contact.ni.x - rj.x * contact.ni.z
+            , wBz = rj.x * contact.ni.y - rj.y * contact.ni.x
+            }
+    , friction1 =
+        initSolverParams
             computeFrictionB
             ctx
             body1
@@ -345,7 +356,6 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , minForce = 0
             , maxForce = 0
             , solverB = 0
-            , solverBPosition = 0
             , solverInvC = 0
             , spookA = erp / ctx.dt
             , spookB = 1
@@ -364,7 +374,8 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , wBy = rj.z * t1.x - rj.x * t1.z
             , wBz = rj.x * t1.y - rj.y * t1.x
             }
-        :: initSolverParams
+    , friction2 =
+        initSolverParams
             computeFrictionB
             ctx
             body1
@@ -373,7 +384,6 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , minForce = 0
             , maxForce = 0
             , solverB = 0
-            , solverBPosition = 0
             , solverInvC = 0
             , spookA = erp / ctx.dt
             , spookB = 1
@@ -392,7 +402,7 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             , wBy = rj.z * t2.x - rj.x * t2.z
             , wBz = rj.x * t2.y - rj.y * t2.x
             }
-        :: equations
+    }
 
 
 {-| Reuse the previous step's t1 direction by projecting it onto the current
@@ -436,7 +446,8 @@ warmStartFactor =
 
 
 {-| Bullet's default Error Reduction Parameter — fraction of penetration
-resolved per step via the position-correction pseudo-velocity.
+resolved per step via the contact-normal velocity bias (`-g * erp/dt` folded
+into the velocity solve's RHS).
 -}
 erp : Float
 erp =
@@ -460,18 +471,13 @@ cfm =
 type alias SolverEquation =
     { equation : Equation
     , solverLambda : Float
-
-    -- Split-impulse position-correction lambda. Starts at 0 each step
-    -- (never warm-started); the pseudo-velocity it drives is discarded
-    -- at end-of-step.
-    , positionLambda : Float
     }
 
 
 initSolverParams : ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
 initSolverParams computeB ctx bi bj solverEquation =
     let
-        ( velocityB, positionB ) =
+        velocityB =
             computeB bi bj solverEquation
     in
     { solverLambda =
@@ -485,7 +491,6 @@ initSolverParams computeB ctx bi bj solverEquation =
 
                 Nothing ->
                     0
-    , positionLambda = 0
     , equation =
         { id = solverEquation.id
         , minForce = solverEquation.minForce
@@ -493,7 +498,6 @@ initSolverParams computeB ctx bi bj solverEquation =
         , solverB =
             velocityB
                 - (ctx.dt * computeGiMf ctx.gravity bi bj solverEquation)
-        , solverBPosition = positionB
         , solverInvC = 1 / (computeGimgt bi bj solverEquation + solverEquation.spookEps)
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
@@ -514,7 +518,7 @@ initSolverParams computeB ctx bi bj solverEquation =
 
 
 type alias ComputeB =
-    Body -> Body -> Equation -> ( Float, Float )
+    Body -> Body -> Equation -> Float
 
 
 computeContactB : Float -> Contact -> ComputeB
@@ -531,7 +535,7 @@ computeContactB bounciness { pi, pj, ni } bi bj equation =
                 + (bj.angularVelocity.x * equation.wBx + bj.angularVelocity.y * equation.wBy + bj.angularVelocity.z * equation.wBz)
                 + (bi.angularVelocity.x * equation.wAx + bi.angularVelocity.y * equation.wAy + bi.angularVelocity.z * equation.wAz)
     in
-    ( -g * equation.spookA - gW * equation.spookB, 0 )
+    -g * equation.spookA - gW * equation.spookB
 
 
 type alias RotationalEquation =
@@ -550,7 +554,7 @@ computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEq
         gW =
             computeGW bi bj solverEquation
     in
-    ( -g * spookA - gW * spookB, 0 )
+    -g * spookA - gW * spookB
 
 
 computeFrictionB : ComputeB
@@ -559,7 +563,7 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
         gW =
             computeGW bi bj solverEquation
     in
-    ( -gW * spookB, 0 )
+    -gW * spookB
 
 
 {-| Computes G x inv(M) x f, where
