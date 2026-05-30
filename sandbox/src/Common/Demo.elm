@@ -52,8 +52,10 @@ import Html.Events
 import Physics exposing (Body, onEarth)
 import Physics.Constraint exposing (Constraint)
 import Physics.Types exposing (Contacts(..))
+import Speed
 import Task
 import Timestep exposing (Timestep)
+import Vector3d
 import WebGL exposing (Mesh)
 
 
@@ -95,6 +97,7 @@ type alias Config id state msg =
         -> state
     , cameraTarget : state -> List ( id, Body ) -> Maybe Vec3R
     , reset : state -> state
+    , restartBodies : state -> List ( id, Body )
     , settingsInit : Settings -> Settings
     , update :
         msg
@@ -136,7 +139,8 @@ defaults base =
     , preSimulate = \_ s b -> ( s, b )
     , postSimulate = \_ _ _ s -> s
     , cameraTarget = \_ _ -> Nothing
-    , reset = identity
+    , reset = \_ -> base.initialState
+    , restartBodies = \_ -> base.initialBodies
     , settingsInit = identity
     , update = \_ s b -> ( s, b, Cmd.none )
     , subscriptions = \_ -> Sub.none
@@ -170,6 +174,7 @@ type alias Model id state =
     , orbit : Orbit
     , timestep : Timestep
     , sps : Sps
+    , frame : Int
     , state : state
     }
 
@@ -208,6 +213,7 @@ init config _ =
       , orbit = Orbit.fromCartesian config.camera
       , timestep = Timestep.init config.timestep
       , sps = Sps.init
+      , frame = 0
       , state = config.initialState
       }
     , Task.perform (\{ viewport } -> Resize viewport.width viewport.height)
@@ -249,11 +255,23 @@ update config msg model =
             )
 
         Restart ->
+            let
+                -- Reset state (demos that track a selection, e.g. a scene
+                -- dropdown, keep it here), then reload the bodies that match
+                -- the reset state. Defaults reset to the initial state and
+                -- bodies, so this restarts whatever the demo currently shows.
+                newState =
+                    config.reset model.state
+
+                bodies =
+                    config.restartBodies newState
+            in
             ( { model
-                | prevBodies = config.initialBodies
-                , bodies = config.initialBodies
+                | prevBodies = bodies
+                , bodies = bodies
                 , contacts = Physics.emptyContacts
-                , state = config.reset config.initialState
+                , state = newState
+                , frame = 0
               }
             , Cmd.none
             )
@@ -326,6 +344,7 @@ simulateStep config model =
         , state = newState
         , orbit = newOrbit
         , camera = newCamera
+        , frame = model.frame + 1
     }
 
 
@@ -383,19 +402,20 @@ view config model =
                 , sps = Sps.sps model.sps
                 , bodies = List.length model.bodies
                 , iterations = c.iterations
+                , frame = model.frame
+                , maxV = maxBodySpeed model.bodies
                 }
             ]
-            (button Restart "Restart the demo"
-                :: List.map (Html.map Custom) (config.buttons model.state)
-                ++ controlsView config.controls
+            (List.map (Html.map Custom) (config.buttons model.state)
+                ++ (button Restart "Restart the demo" :: controlsView config.controls)
             )
         ]
 
 
 statsPanel :
-    { fps : Float, sps : Int, bodies : Int, iterations : Int }
+    { fps : Float, sps : Int, bodies : Int, iterations : Int, frame : Int, maxV : Float }
     -> Html msg
-statsPanel { fps, sps, bodies, iterations } =
+statsPanel { fps, sps, bodies, iterations, frame, maxV } =
     Html.div
         [ Attributes.style "display" "grid"
         , Attributes.style "grid-template-columns" "auto 1fr"
@@ -404,11 +424,64 @@ statsPanel { fps, sps, bodies, iterations } =
         , Attributes.style "font-variant-numeric" "tabular-nums"
         , Attributes.style "opacity" "0.85"
         ]
-        [ statsPair "fps" (String.fromInt (round fps))
+        [ statsPair "f" (String.fromInt frame)
         , statsPair "bodies" (String.fromInt bodies)
-        , statsPair "sps" (String.fromInt sps)
+        , statsPair "fps" (String.fromInt (round fps))
         , statsPair "iterations" (String.fromInt iterations)
+        , statsPair "sps" (String.fromInt sps)
+        , statsPair "maxV" (formatSpeed maxV)
         ]
+
+
+{-| Largest linear speed (m/s) over the dynamic bodies, for the stats panel.
+-}
+maxBodySpeed : List ( id, Body ) -> Float
+maxBodySpeed bodies =
+    maxBodySpeedHelp bodies 0
+
+
+maxBodySpeedHelp : List ( id, Body ) -> Float -> Float
+maxBodySpeedHelp bodies acc =
+    case bodies of
+        [] ->
+            acc
+
+        ( _, body ) :: rest ->
+            case Physics.mass body of
+                Just _ ->
+                    maxBodySpeedHelp rest
+                        (max acc (Speed.inMetersPerSecond (Vector3d.length (Physics.velocity body))))
+
+                Nothing ->
+                    maxBodySpeedHelp rest acc
+
+
+{-| Fixed 5-decimal speed, always x.xxxxx (keeps trailing zeros) so the
+readout doesn't jitter in width as the value settles.
+-}
+formatSpeed : Float -> String
+formatSpeed v =
+    let
+        scaled =
+            round (abs v * 100000)
+
+        intPart =
+            scaled // 100000
+
+        fracPart =
+            modBy 100000 scaled
+
+        sign =
+            if v < 0 then
+                "-"
+
+            else
+                ""
+    in
+    sign
+        ++ String.fromInt intPart
+        ++ "."
+        ++ String.padLeft 5 '0' (String.fromInt fracPart)
 
 
 statsPair : String -> String -> Html msg
@@ -432,8 +505,6 @@ controlsView lines =
         _ ->
             [ Html.div
                 [ Attributes.style "margin" "10px 0 0"
-                , Attributes.style "padding" "8px 0 0"
-                , Attributes.style "border-top" "1px solid rgba(255,255,255,0.15)"
                 , Attributes.style "opacity" "0.8"
                 ]
                 (List.map (\l -> Html.div [] [ Html.text l ]) lines)

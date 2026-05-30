@@ -1,8 +1,9 @@
 module Dominoes exposing (main)
 
-{-| This demo is used to show custom materials.
-Without the slippy material, dominoes would not slide along each other.
-Try to make the floor slippy too!
+{-| A chain of plastic dominoes at real playing-domino dimensions
+(9 × 25 × 50 mm) sitting on a wooden table, arranged diagonally.
+Material combination gives μ ≈ 0.37 on the floor and ≈ 0.35 between
+dominoes, derived from the built-in plastic and wood materials.
 -}
 
 import Angle
@@ -11,10 +12,9 @@ import Axis3d
 import Block3d
 import Common.Demo as Demo
 import Common.Meshes as Meshes exposing (Attributes)
-import Density
+import Duration
 import Frame3d
 import Length
-import Mass
 import Physics exposing (Body, BodyCoordinates)
 import Physics.Material as Material
 import Plane3d
@@ -24,49 +24,75 @@ import WebGL exposing (Mesh)
 
 main : Program () (Demo.Model Int ()) (Demo.Msg msg)
 main =
-    Demo.program
-        (Demo.defaults
-            { initialBodies = initialBodies
-            , lookupMesh = \_ id -> Array.get id initialMeshes
-            , camera =
-                { from = { x = 0, y = 30, z = 20 }
-                , to = { x = 0, y = 0, z = 0 }
+    let
+        defaults =
+            Demo.defaults
+                { initialBodies = initialBodies
+                , lookupMesh = \_ id -> Array.get id initialMeshes
+                , camera =
+                    { from = { x = 0.05, y = 0.8, z = -0.45 }
+                    , to = { x = 0, y = 0, z = -0.95 }
+                    }
+                , initialState = ()
                 }
-            , initialState = ()
-            }
-        )
+    in
+    Demo.program
+        { defaults
+            | timestep =
+                -- mm-scale bodies need a shorter step so per-step motion at
+                -- peak collision velocity stays small relative to the
+                -- 9 mm domino thickness
+                { duration = Duration.seconds (1 / 120)
+                , maxSteps = 2
+                }
+            , solverIterations = 20
+        }
 
 
-slippy =
-    Material.dense { density = Density.kilogramsPerCubicMeter 600, bounciness = 0, friction = 0.001 }
-
-
+{-| Real playing-domino dimensions: 9 mm thick × 25 mm wide × 50 mm long.
+-}
 dominoBlock3d : Block3d.Block3d Length.Meters BodyCoordinates
 dominoBlock3d =
     Block3d.centeredOn
         Frame3d.atOrigin
-        ( Length.meters 0.1
-        , Length.meters 1
-        , Length.meters 2
+        ( Length.millimeters 9
+        , Length.millimeters 25
+        , Length.millimeters 50
         )
+
+
+{-| Centre-to-centre spacing along the chain. Real domino chains use about
+30 mm between pieces — tight enough for one to reach the next when it
+topples, loose enough not to start in contact.
+-}
+spacing : Float
+spacing =
+    0.03
+
+
+{-| Z-coordinate of each domino's centre so the bottom face sits on the
+floor at `Demo.floorZ.z` (currently -1). Half-height is 25 mm.
+-}
+restingZ : Float
+restingZ =
+    Demo.floorZ.z + 0.025
 
 
 initialBodies : List ( Int, Body )
 initialBodies =
     let
         floorBody =
-            Physics.plane Plane3d.xy (Material.surface { friction = 0.3, bounciness = 0 })
+            Physics.plane Plane3d.xy Material.wood
                 |> Physics.moveTo (Point3d.fromMeters Demo.floorZ)
 
         dominoBody =
-            Physics.block dominoBlock3d slippy
-                |> Physics.scaleMassTo (Mass.kilograms 5)
+            Physics.block dominoBlock3d Material.plastic
 
         tiltedDomino =
             dominoBody
                 |> Physics.rotateAround Axis3d.y (Angle.radians (pi / 8))
                 |> Physics.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                |> Physics.moveTo (Point3d.meters -5.5 -5.5 0)
+                |> Physics.moveTo (Point3d.meters (-6 * spacing) (-6 * spacing) restingZ)
 
         regularDominos =
             List.indexedMap
@@ -74,7 +100,12 @@ initialBodies =
                     ( idx + 2
                     , dominoBody
                         |> Physics.rotateAround Axis3d.z (Angle.radians (pi / 4))
-                        |> Physics.moveTo (Point3d.meters (toFloat (5 - i)) (toFloat (5 - i)) 0)
+                        |> Physics.moveTo
+                            (Point3d.meters
+                                (toFloat (5 - i) * spacing)
+                                (toFloat (5 - i) * spacing)
+                                restingZ
+                            )
                     )
                 )
                 (List.range 0 10)

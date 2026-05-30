@@ -1,5 +1,6 @@
 module Collision.PlaneSphere exposing (addContacts)
 
+import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Shapes.Plane exposing (Plane)
 import Shapes.Sphere exposing (Sphere)
@@ -22,7 +23,7 @@ addContacts idPrefix orderContact { normal, position } sphere contacts =
                 + ((vertex.y - position.y) * normal.y)
                 + ((vertex.z - position.z) * normal.z)
     in
-    if dot <= 0 then
+    if dot - Const.contactBreakingThreshold < 0 then
         orderContact
             { id = idPrefix
             , ni = normal

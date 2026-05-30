@@ -677,27 +677,22 @@ view model =
             Html.text ""
         , Settings.view ForSettings
             model.settings
-            [ controlsHint ]
+            []
             [ shapeSelect model.shape
             , Demo.button Reset "Reset pose"
             , Demo.button DownloadFixture "Download fixture"
+            , controlsHint
             ]
         ]
 
 
 controlsHint : Html msg
 controlsHint =
-    Html.div []
-        [ dim "Move "
-        , Html.text "WASD"
-        , dim ", roll "
-        , Html.text "QE"
+    Html.div
+        [ Html.Attributes.style "margin" "10px 0 0"
+        , Html.Attributes.style "opacity" "0.8"
         ]
-
-
-dim : String -> Html msg
-dim s =
-    Html.span [ Html.Attributes.style "opacity" "0.6" ] [ Html.text s ]
+        [ Html.text "WASD move · QE roll" ]
 
 
 shapeSelect : ControlledShape -> Html Msg

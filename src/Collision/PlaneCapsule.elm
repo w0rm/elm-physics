@@ -1,5 +1,6 @@
 module Collision.PlaneCapsule exposing (addContacts)
 
+import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Capsule exposing (Capsule)
@@ -41,7 +42,7 @@ addCapContact id orderContact normal planePosition radius ep contacts =
                 + ((vertex.y - planePosition.y) * normal.y)
                 + ((vertex.z - planePosition.z) * normal.z)
     in
-    if dot <= 0 then
+    if dot - Const.contactBreakingThreshold < 0 then
         orderContact
             { id = id
             , ni = normal

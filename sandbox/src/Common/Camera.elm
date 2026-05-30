@@ -48,7 +48,7 @@ resize width height camera_ =
     { camera_
         | width = width
         , height = height
-        , perspectiveTransform = Mat4.makePerspective 24 (width / height) 5 2000
+        , perspectiveTransform = Mat4.makePerspective 24 (width / height) 0.01 500
     }
 
 

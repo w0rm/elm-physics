@@ -493,17 +493,18 @@ simulate config bodiesWithIds =
         pairGroups =
             BroadPhase.getPairs config.collide config.constrain sortedBodies
 
-        ( solverBodies, newLambdas, iters ) =
-            Solver.solve dt gravityVec config.solverIterations pairGroups maxId sortedBodies cache.lambdas
+        solverResult =
+            Solver.solve dt gravityVec config.solverIterations pairGroups maxId sortedBodies cache.lambdas cache.tangents
     in
-    ( List.reverse (outputBodiesHelp dt gravityVec solverBodies internalBodiesWithIds [])
+    ( List.reverse (outputBodiesHelp dt gravityVec solverResult.solverBodies internalBodiesWithIds [])
     , Types.Contacts
-        { lambdas = newLambdas
-        , iterations = iters
+        { lambdas = solverResult.lambdas
+        , tangents = solverResult.tangents
+        , iterations = solverResult.iterations
         , dt = dt
         , gravity = gravityVec
         , pairGroups = pairGroups
-        , solverBodies = solverBodies
+        , solverBodies = solverResult.solverBodies
         }
     )
 
@@ -584,6 +585,7 @@ emptyContacts : Contacts id
 emptyContacts =
     Types.Contacts
         { lambdas = Dict.empty
+        , tangents = Dict.empty
         , iterations = 0
         , dt = 0
         , gravity = Vec3.zero

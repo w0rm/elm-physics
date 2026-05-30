@@ -20,6 +20,7 @@ type Body
 type Contacts id
     = Contacts
         { lambdas : Dict String Float
+        , tangents : Dict String Vec3
         , iterations : Int
         , dt : Float
         , gravity : Vec3

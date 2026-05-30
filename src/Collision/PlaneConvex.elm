@@ -1,5 +1,6 @@
 module Collision.PlaneConvex exposing (addContacts)
 
+import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Convex exposing (Convex)
@@ -27,7 +28,7 @@ addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertice
                         + ((vertex.y - planePosition.y) * planeNormal.y)
                         + ((vertex.z - planePosition.z) * planeNormal.z)
             in
-            if dot <= 0 then
+            if dot - Const.contactBreakingThreshold < 0 then
                 addContactsHelp idPrefix
                     orderContact
                     planePosition

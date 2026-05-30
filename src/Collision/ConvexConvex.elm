@@ -223,7 +223,7 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
                 depth =
                     Vec3.dot face.normal vertex + facePlaneConstant
             in
-            if depth <= 0 then
+            if depth - Const.contactBreakingThreshold < 0 then
                 clipTwoFacesHelp idPrefix
                     separatingAxis
                     face
@@ -538,7 +538,7 @@ testSeparatingAxis convex1 convex2 separatingAxis =
         d2 =
             p2.max - p1.min
     in
-    if d1 < 0 || d2 < 0 then
+    if d1 + Const.contactBreakingThreshold < 0 || d2 + Const.contactBreakingThreshold < 0 then
         Nothing
 
     else if d1 - d2 > 0 then

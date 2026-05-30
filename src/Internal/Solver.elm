@@ -34,14 +34,13 @@ applyGroupWarmStart body1 body2 equations =
                                 k1 =
                                     solverLambda * body1.body.invMass
                             in
-                            { body = body1.body
-                            , extId = body1.extId
-                            , vX = body1.vX - k1 * equation.vBx
-                            , vY = body1.vY - k1 * equation.vBy
-                            , vZ = body1.vZ - k1 * equation.vBz
-                            , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * solverLambda
-                            , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * solverLambda
-                            , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * solverLambda
+                            { body1
+                                | vX = body1.vX - k1 * equation.vBx
+                                , vY = body1.vY - k1 * equation.vBy
+                                , vZ = body1.vZ - k1 * equation.vBz
+                                , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * solverLambda
+                                , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * solverLambda
+                                , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * solverLambda
                             }
 
                         else
@@ -56,14 +55,13 @@ applyGroupWarmStart body1 body2 equations =
                                 k2 =
                                     solverLambda * body2.body.invMass
                             in
-                            { body = body2.body
-                            , extId = body2.extId
-                            , vX = body2.vX + k2 * equation.vBx
-                            , vY = body2.vY + k2 * equation.vBy
-                            , vZ = body2.vZ + k2 * equation.vBz
-                            , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * solverLambda
-                            , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * solverLambda
-                            , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * solverLambda
+                            { body2
+                                | vX = body2.vX + k2 * equation.vBx
+                                , vY = body2.vY + k2 * equation.vBy
+                                , vZ = body2.vZ + k2 * equation.vBz
+                                , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * solverLambda
+                                , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * solverLambda
+                                , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * solverLambda
                             }
 
                         else
@@ -157,11 +155,23 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
             buildAndWarmStart ctx newBody1 solverBodies2 newParents (equationsGroup :: groups) rest
 
 
-solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> ( Array (SolverBody id), Dict String Float, Int )
-solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
+type alias SolveResult id =
+    { solverBodies : Array (SolverBody id)
+    , lambdas : Dict String Float
+    , tangents : Dict String Vec3
+    , iterations : Int
+    }
+
+
+solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> Dict String Vec3 -> SolveResult id
+solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
     case bodiesWithIds of
         [] ->
-            ( Array.empty, Dict.empty, 0 )
+            { solverBodies = Array.empty
+            , lambdas = Dict.empty
+            , tangents = Dict.empty
+            , iterations = 0
+            }
 
         ( firstExtId, _ ) :: _ ->
             let
@@ -170,6 +180,7 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
                     , gravity = gravity
                     , gravityLength = Vec3.length gravity
                     , lambdas = lambdas
+                    , tangents = tangents
                     }
 
                 fillingBody =
@@ -209,41 +220,141 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas =
                 iterationsUsed =
                     max 1 (iterations - minRemainingIterations)
 
-                finalLambdas =
+                ( finalLambdas, finalTangents ) =
                     List.foldl
-                        (\{ equations } acc ->
-                            List.foldl
-                                (\{ equation, solverLambda } lambdaAcc ->
-                                    if equation.id == "" then
-                                        lambdaAcc
-
-                                    else
-                                        Dict.insert equation.id solverLambda lambdaAcc
-                                )
-                                acc
-                                equations
-                        )
-                        Dict.empty
+                        (\{ equations } accs -> collectCaches equations "" False accs)
+                        ( Dict.empty, Dict.empty )
                         finalEquationsGroups
             in
-            ( finalSolverBodies, finalLambdas, iterationsUsed )
+            { solverBodies = finalSolverBodies
+            , lambdas = finalLambdas
+            , tangents = finalTangents
+            , iterations = iterationsUsed
+            }
 
 
-step : Int -> Float -> List (EquationsGroup id) -> List (EquationsGroup id) -> SolverBody id -> Array (SolverBody id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups prevBody1 solverBodies =
-    case currentEquationsGroups of
+{-| Walk a pair group's equations once to populate both warm-start caches:
+the lambda dict (keyed by contact-normal id) and the tangent dict (keyed by
+the same contact-normal id, storing the first friction equation's t1).
+Equation order within `addContactEquations` is [normal, t1, t2], so the
+first friction following a normal is t1.
+-}
+collectCaches : List SolverEquation -> String -> Bool -> ( Dict String Float, Dict String Vec3 ) -> ( Dict String Float, Dict String Vec3 )
+collectCaches equations lastNormalId t1Recorded ( lambdaAcc, tangentAcc ) =
+    case equations of
         [] ->
-            if remainingIterations == 0 then
-                -- the max number of iterations elapsed
-                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, 0 )
+            ( lambdaAcc, tangentAcc )
 
-            else if deltalambdaTot - Const.precision < 0 then
-                -- tolerance reached
-                ( Array.set prevBody1.body.id prevBody1 solverBodies, equationsGroups, remainingIterations - 1 )
+        { equation, solverLambda } :: rest ->
+            let
+                newLambdaAcc =
+                    if equation.id == "" then
+                        lambdaAcc
+
+                    else
+                        Dict.insert equation.id solverLambda lambdaAcc
+            in
+            if equation.isContactNormal then
+                collectCaches rest equation.id False ( newLambdaAcc, tangentAcc )
+
+            else if equation.frictionCoefficient > 0 && not t1Recorded && lastNormalId /= "" then
+                collectCaches rest
+                    lastNormalId
+                    True
+                    ( newLambdaAcc
+                    , Dict.insert lastNormalId { x = equation.vBx, y = equation.vBy, z = equation.vBz } tangentAcc
+                    )
 
             else
-                -- requeue equationsGroups for the next step
-                step (remainingIterations - 1) 0 [] (List.reverse equationsGroups) prevBody1 solverBodies
+                collectCaches rest lastNormalId t1Recorded ( newLambdaAcc, tangentAcc )
+
+
+{-| Solve a multi-body island via split-impulse:
+
+  - Position loop: drives pseudo-velocity to resolve penetration. Output
+    advances each body's transform at end-of-step but is discarded as
+    velocity. Penetration recovery doesn't inject kinetic energy.
+  - Velocity loop: two sweeps per iter — non-friction across the island
+    first, then friction sized off the just-finalized normal lambdas.
+    Matches Bullet's default split-pass order.
+
+-}
+step : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+step iterations prevBody1 solverBodies currentEquationsGroups =
+    let
+        positionResult =
+            positionLoop iterations prevBody1 solverBodies currentEquationsGroups
+    in
+    velocityLoop iterations positionResult.prevBody1 positionResult.solverBodies positionResult.groups
+
+
+{-| Velocity iteration loop: two sweeps per iteration — non-friction first,
+then friction. Friction in sweep 2 sees the just-finalized normal lambdas
+across the island, so the Coulomb cone is sized after island-wide GS
+propagation. Matches Bullet's default (`SOLVER_INTERLEAVE_CONTACT_AND_FRICTION_CONSTRAINTS`
+off).
+-}
+velocityLoop : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+velocityLoop remainingIterations prevBody1 solverBodies currentEquationsGroups =
+    let
+        pass1 =
+            sweep NonFrictionPhase prevBody1 solverBodies [] currentEquationsGroups 0
+
+        pass2 =
+            sweep FrictionPhase pass1.prevBody1 pass1.solverBodies [] (List.reverse pass1.groups) 0
+
+        forwardResult =
+            List.reverse pass2.groups
+
+        deltaTot =
+            pass1.deltalambdaTot + pass2.deltalambdaTot
+    in
+    if remainingIterations == 1 then
+        ( Array.set pass2.prevBody1.body.id pass2.prevBody1 pass2.solverBodies, forwardResult, 0 )
+
+    else if deltaTot - Const.precision < 0 then
+        ( Array.set pass2.prevBody1.body.id pass2.prevBody1 pass2.solverBodies, forwardResult, remainingIterations - 1 )
+
+    else
+        velocityLoop (remainingIterations - 1) pass2.prevBody1 pass2.solverBodies forwardResult
+
+
+{-| Position-correction loop: drives the pseudo-velocity field via one
+position sweep per iteration. Pseudo accumulates within a step then is
+discarded at end-of-step (consumed only by the position integration in
+`SolverBody.toBody`).
+-}
+positionLoop : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> SweepResult id
+positionLoop remainingIterations prevBody1 solverBodies currentEquationsGroups =
+    let
+        result =
+            positionSweep prevBody1 solverBodies [] currentEquationsGroups 0
+
+        forwardResult =
+            List.reverse result.groups
+    in
+    if remainingIterations == 1 then
+        { result | groups = forwardResult }
+
+    else if result.deltalambdaTot - Const.precision < 0 then
+        { result | groups = forwardResult }
+
+    else
+        positionLoop (remainingIterations - 1) result.prevBody1 result.solverBodies forwardResult
+
+
+{-| Walk pair groups once, running `solvePositionPass` per pair group.
+Same body-threading pattern as `sweep`.
+-}
+positionSweep : SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> List (EquationsGroup id) -> Float -> SweepResult id
+positionSweep prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
+    case currentEquationsGroups of
+        [] ->
+            { prevBody1 = prevBody1
+            , groups = acc
+            , solverBodies = solverBodies
+            , deltalambdaTot = deltalambdaTot
+            }
 
         currentGroup :: remainingEquationsGroups ->
             let
@@ -255,8 +366,6 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
 
                 body1 =
                     if prevBody1.body.id - bodyId1 == 0 then
-                        -- if the next equations group has the same body
-                        -- then no need to get it from the array
                         prevBody1
 
                     else
@@ -265,15 +374,10 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                                 nextBody
 
                             Nothing ->
-                                -- this shouldn’t happen, we just
-                                -- don’t want to allocate a Just
                                 prevBody1
 
                 newSolverBodies =
                     if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kindInt /= 2 then
-                        -- if the next equations group has the same body,
-                        -- then no need to set it to the array
-                        -- also no need to update non-dynamic bodies (static, kinematic)
                         solverBodies
 
                     else
@@ -285,34 +389,97 @@ step remainingIterations deltalambdaTot equationsGroups currentEquationsGroups p
                             nextBody
 
                         Nothing ->
-                            -- this shouldn’t happen, we just
-                            -- don’t want to allocate a Just
                             prevBody1
 
-                groupContext =
-                    solveEquationsGroup
-                        body1
-                        body2
-                        []
-                        deltalambdaTot
-                        currentGroup.equations
+                groupResult =
+                    solvePositionPass body1 body2 [] deltalambdaTot currentGroup.equations
             in
-            step remainingIterations
-                groupContext.deltalambdaTot
-                (groupContext :: equationsGroups)
-                remainingEquationsGroups
-                -- we don’t put body1 in the array, because we might need it
-                -- in the next iteration, because this is the order in
-                -- which we generated the contact equation groups (b1, b2), (b1, b3)
-                -- this lets us reduce Array.set operations
-                groupContext.body1
-                (if groupContext.body2.body.kindInt == 2 then
-                    Array.set bodyId2 groupContext.body2 newSolverBodies
+            positionSweep
+                groupResult.body1
+                (if groupResult.body2.body.kindInt == 2 then
+                    Array.set bodyId2 groupResult.body2 newSolverBodies
 
                  else
-                    -- static and kinematic bodies don’t change
                     newSolverBodies
                 )
+                (groupResult :: acc)
+                remainingEquationsGroups
+                groupResult.deltalambdaTot
+
+
+type alias SweepResult id =
+    { prevBody1 : SolverBody id
+    , groups : List (EquationsGroup id)
+    , solverBodies : Array (SolverBody id)
+    , deltalambdaTot : Float
+    }
+
+
+{-| Walk every pair group in the island once, running `solvePass` per pair
+group in the given phase. The body-threading optimisation from the original
+solver is preserved: when consecutive pair groups share body1, we avoid the
+Array.get/set round-trip. Groups are accumulated in reverse order.
+-}
+sweep : Phase -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> List (EquationsGroup id) -> Float -> SweepResult id
+sweep phase prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
+    case currentEquationsGroups of
+        [] ->
+            { prevBody1 = prevBody1
+            , groups = acc
+            , solverBodies = solverBodies
+            , deltalambdaTot = deltalambdaTot
+            }
+
+        currentGroup :: remainingEquationsGroups ->
+            let
+                bodyId1 =
+                    currentGroup.body1.body.id
+
+                bodyId2 =
+                    currentGroup.body2.body.id
+
+                body1 =
+                    if prevBody1.body.id - bodyId1 == 0 then
+                        prevBody1
+
+                    else
+                        case Array.get bodyId1 solverBodies of
+                            Just nextBody ->
+                                nextBody
+
+                            Nothing ->
+                                prevBody1
+
+                newSolverBodies =
+                    if prevBody1.body.id - bodyId1 == 0 || prevBody1.body.kindInt /= 2 then
+                        solverBodies
+
+                    else
+                        Array.set prevBody1.body.id prevBody1 solverBodies
+
+                body2 =
+                    case Array.get bodyId2 newSolverBodies of
+                        Just nextBody ->
+                            nextBody
+
+                        Nothing ->
+                            prevBody1
+
+                groupResult =
+                    solvePass phase body1 body2 [] deltalambdaTot 0 currentGroup.equations
+            in
+            sweep
+                phase
+                groupResult.body1
+                (if groupResult.body2.body.kindInt == 2 then
+                    Array.set bodyId2 groupResult.body2 newSolverBodies
+
+                 else
+                    newSolverBodies
+                )
+                (groupResult :: acc)
+                remainingEquationsGroups
+                groupResult.deltalambdaTot
 
 
 
@@ -449,20 +616,46 @@ solveOneIsland iterations fillingBody island arr accGroups =
         _ ->
             let
                 ( newArr, newGroups, remIters ) =
-                    step iterations 0 [] island fillingBody arr
+                    step iterations fillingBody arr island
             in
             ( newArr, newGroups ++ accGroups, remIters )
 
 
-{-| Specialized PGS for a 2-body island (single equation group). The two
-bodies stay in locals across iterations; only at the end (max iters or
-convergence) do we write back to the array.
+{-| Specialized PGS for a 2-body island (single equation group). Position
+iterations come first (driving pseudo-velocity), then velocity iterations.
+The two bodies stay in locals across iterations; only at the end do we
+write back to the array.
 -}
 solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solve2Body remainingIterations group arr accGroups =
+solve2Body iterations group arr accGroups =
+    let
+        afterPosition =
+            solve2BodyPosition iterations group
+    in
+    solve2BodyVelocity iterations afterPosition arr accGroups
+
+
+solve2BodyPosition : Int -> EquationsGroup id -> EquationsGroup id
+solve2BodyPosition remainingIterations group =
     let
         result =
-            solveEquationsGroup group.body1 group.body2 [] 0 group.equations
+            solvePositionPass group.body1 group.body2 [] 0 group.equations
+    in
+    if remainingIterations == 1 then
+        result
+
+    else if result.deltalambdaTot - Const.precision < 0 then
+        result
+
+    else
+        solve2BodyPosition (remainingIterations - 1) result
+
+
+solve2BodyVelocity : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
+solve2BodyVelocity remainingIterations group arr accGroups =
+    let
+        result =
+            solveEquationsGroup group.body1 group.body2 0 group.equations
     in
     if remainingIterations == 1 then
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, 0 )
@@ -471,7 +664,7 @@ solve2Body remainingIterations group arr accGroups =
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, remainingIterations - 1 )
 
     else
-        solve2Body (remainingIterations - 1) result arr accGroups
+        solve2BodyVelocity (remainingIterations - 1) result arr accGroups
 
 
 flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
@@ -483,91 +676,255 @@ flushBody body arr =
         arr
 
 
-solveEquationsGroup : SolverBody id -> SolverBody id -> List SolverEquation -> Float -> List SolverEquation -> EquationsGroup id
-solveEquationsGroup body1 body2 equations deltalambdaTot currentEquations =
+{-| Two-pass PGS over a single pair group: pass 1 solves non-friction
+equations (contact normals, joints), pass 2 solves friction equations sized
+off the just-updated normal lambdas via the Coulomb-cone clamp `±μ · λ_n`.
+Used for 2-body islands.
+-}
+solveEquationsGroup : SolverBody id -> SolverBody id -> Float -> List SolverEquation -> EquationsGroup id
+solveEquationsGroup body1 body2 deltalambdaTot currentEquations =
+    let
+        normalsDone =
+            solvePass NonFrictionPhase body1 body2 [] deltalambdaTot 0 currentEquations
+
+        frictionDone =
+            solvePass FrictionPhase normalsDone.body1 normalsDone.body2 [] normalsDone.deltalambdaTot 0 normalsDone.equations
+    in
+    frictionDone
+
+
+{-| PGS over a single pair group for the split-impulse position phase.
+Walks every non-friction equation (contacts, joints), driving the pseudo-
+velocity field using `solverBPosition` as the RHS. Friction equations have
+no positional component and are passed through unchanged.
+-}
+solvePositionPass : SolverBody id -> SolverBody id -> List SolverEquation -> Float -> List SolverEquation -> EquationsGroup id
+solvePositionPass body1 body2 acc deltalambdaTot currentEquations =
     case currentEquations of
         [] ->
             { body1 = body1
             , body2 = body2
-            , equations = List.reverse equations
+            , equations = List.reverse acc
             , deltalambdaTot = deltalambdaTot
             }
 
-        { solverLambda, equation } :: remainingEquations ->
+        ({ positionLambda, equation } as solverEq) :: remainingEquations ->
+            if equation.frictionCoefficient > 0 then
+                solvePositionPass body1 body2 (solverEq :: acc) deltalambdaTot remainingEquations
+
+            else
+                let
+                    gWlambda =
+                        -(equation.vBx * body1.pvX + equation.vBy * body1.pvY + equation.vBz * body1.pvZ)
+                            + (equation.wAx * body1.pwX + equation.wAy * body1.pwY + equation.wAz * body1.pwZ)
+                            + (equation.vBx * body2.pvX + equation.vBy * body2.pvY + equation.vBz * body2.pvZ)
+                            + (equation.wBx * body2.pwX + equation.wBy * body2.pwY + equation.wBz * body2.pwZ)
+
+                    deltalambdaPrev =
+                        equation.solverInvC * (equation.solverBPosition - gWlambda - equation.spookEps * positionLambda)
+
+                    deltalambda =
+                        if positionLambda + deltalambdaPrev - equation.minForce < 0 then
+                            equation.minForce - positionLambda
+
+                        else if positionLambda + deltalambdaPrev - equation.maxForce > 0 then
+                            equation.maxForce - positionLambda
+
+                        else
+                            deltalambdaPrev
+
+                    newPositionLambda =
+                        positionLambda + deltalambda
+
+                    newBody1 =
+                        if body1.body.kindInt == 2 then
+                            let
+                                invI1 =
+                                    body1.body.invInertiaWorld
+
+                                k1 =
+                                    deltalambda * body1.body.invMass
+                            in
+                            { body1
+                                | pvX = body1.pvX - k1 * equation.vBx
+                                , pvY = body1.pvY - k1 * equation.vBy
+                                , pvZ = body1.pvZ - k1 * equation.vBz
+                                , pwX = body1.pwX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
+                                , pwY = body1.pwY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
+                                , pwZ = body1.pwZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
+                            }
+
+                        else
+                            body1
+
+                    newBody2 =
+                        if body2.body.kindInt == 2 then
+                            let
+                                invI2 =
+                                    body2.body.invInertiaWorld
+
+                                k2 =
+                                    deltalambda * body2.body.invMass
+                            in
+                            { body2
+                                | pvX = body2.pvX + k2 * equation.vBx
+                                , pvY = body2.pvY + k2 * equation.vBy
+                                , pvZ = body2.pvZ + k2 * equation.vBz
+                                , pwX = body2.pwX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
+                                , pwY = body2.pwY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
+                                , pwZ = body2.pwZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
+                            }
+
+                        else
+                            body2
+                in
+                solvePositionPass
+                    newBody1
+                    newBody2
+                    ({ solverEq | positionLambda = newPositionLambda } :: acc)
+                    (deltalambdaTot + abs deltalambda)
+                    remainingEquations
+
+
+type Phase
+    = NonFrictionPhase
+    | FrictionPhase
+
+
+solvePass : Phase -> SolverBody id -> SolverBody id -> List SolverEquation -> Float -> Float -> List SolverEquation -> EquationsGroup id
+solvePass phase body1 body2 acc deltalambdaTot lastNormalLambda currentEquations =
+    case currentEquations of
+        [] ->
+            { body1 = body1
+            , body2 = body2
+            , equations = List.reverse acc
+            , deltalambdaTot = deltalambdaTot
+            }
+
+        ({ solverLambda, equation } as solverEq) :: remainingEquations ->
             let
-                -- G x Wlambda, where W are the body velocities
-                gWlambda =
-                    -(equation.vBx * body1.vX + equation.vBy * body1.vY + equation.vBz * body1.vZ)
-                        + (equation.wAx * body1.wX + equation.wAy * body1.wY + equation.wAz * body1.wZ)
-                        + (equation.vBx * body2.vX + equation.vBy * body2.vY + equation.vBz * body2.vZ)
-                        + (equation.wBx * body2.wX + equation.wBy * body2.wY + equation.wBz * body2.wZ)
+                isFriction =
+                    equation.frictionCoefficient > 0
 
-                deltalambdaPrev =
-                    equation.solverInvC * (equation.solverB - gWlambda - equation.spookEps * solverLambda)
+                shouldSolve =
+                    case phase of
+                        NonFrictionPhase ->
+                            not isFriction
 
-                deltalambda =
-                    if solverLambda + deltalambdaPrev - equation.minForce < 0 then
-                        equation.minForce - solverLambda
-
-                    else if solverLambda + deltalambdaPrev - equation.maxForce > 0 then
-                        equation.maxForce - solverLambda
-
-                    else
-                        deltalambdaPrev
-
-                newBody1 =
-                    if body1.body.kindInt == 2 then
-                        let
-                            invI1 =
-                                body1.body.invInertiaWorld
-
-                            k1 =
-                                deltalambda * body1.body.invMass
-                        in
-                        { body = body1.body
-                        , extId = body1.extId
-                        , vX = body1.vX - k1 * equation.vBx
-                        , vY = body1.vY - k1 * equation.vBy
-                        , vZ = body1.vZ - k1 * equation.vBz
-                        , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
-                        , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
-                        , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
-                        }
-
-                    else
-                        -- static and kinematic bodies don’t respond to impulses
-                        body1
-
-                newBody2 =
-                    if body2.body.kindInt == 2 then
-                        let
-                            invI2 =
-                                body2.body.invInertiaWorld
-
-                            k2 =
-                                deltalambda * body2.body.invMass
-                        in
-                        { body = body2.body
-                        , extId = body2.extId
-                        , vX = body2.vX + k2 * equation.vBx
-                        , vY = body2.vY + k2 * equation.vBy
-                        , vZ = body2.vZ + k2 * equation.vBz
-                        , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
-                        , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
-                        , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
-                        }
-
-                    else
-                        -- static and kinematic bodies don’t respond to impulses
-                        body2
+                        FrictionPhase ->
+                            isFriction
             in
-            solveEquationsGroup
-                newBody1
-                newBody2
-                ({ solverLambda = solverLambda + deltalambda
-                 , equation = equation
-                 }
-                    :: equations
-                )
-                (deltalambdaTot + abs deltalambda)
-                remainingEquations
+            if shouldSolve then
+                let
+                    -- G x Wlambda, where W are the body velocities
+                    gWlambda =
+                        -(equation.vBx * body1.vX + equation.vBy * body1.vY + equation.vBz * body1.vZ)
+                            + (equation.wAx * body1.wX + equation.wAy * body1.wY + equation.wAz * body1.wZ)
+                            + (equation.vBx * body2.vX + equation.vBy * body2.vY + equation.vBz * body2.vZ)
+                            + (equation.wBx * body2.wX + equation.wBy * body2.wY + equation.wBz * body2.wZ)
+
+                    deltalambdaPrev =
+                        equation.solverInvC * (equation.solverB - gWlambda - equation.spookEps * solverLambda)
+
+                    ( minForce, maxForce ) =
+                        if isFriction then
+                            let
+                                cap =
+                                    equation.frictionCoefficient * lastNormalLambda
+                            in
+                            ( -cap, cap )
+
+                        else
+                            ( equation.minForce, equation.maxForce )
+
+                    deltalambda =
+                        if solverLambda + deltalambdaPrev - minForce < 0 then
+                            minForce - solverLambda
+
+                        else if solverLambda + deltalambdaPrev - maxForce > 0 then
+                            maxForce - solverLambda
+
+                        else
+                            deltalambdaPrev
+
+                    newSolverLambda =
+                        solverLambda + deltalambda
+
+                    newBody1 =
+                        if body1.body.kindInt == 2 then
+                            let
+                                invI1 =
+                                    body1.body.invInertiaWorld
+
+                                k1 =
+                                    deltalambda * body1.body.invMass
+                            in
+                            { body1
+                                | vX = body1.vX - k1 * equation.vBx
+                                , vY = body1.vY - k1 * equation.vBy
+                                , vZ = body1.vZ - k1 * equation.vBz
+                                , wX = body1.wX + (invI1.m11 * equation.wAx + invI1.m12 * equation.wAy + invI1.m13 * equation.wAz) * deltalambda
+                                , wY = body1.wY + (invI1.m21 * equation.wAx + invI1.m22 * equation.wAy + invI1.m23 * equation.wAz) * deltalambda
+                                , wZ = body1.wZ + (invI1.m31 * equation.wAx + invI1.m32 * equation.wAy + invI1.m33 * equation.wAz) * deltalambda
+                            }
+
+                        else
+                            body1
+
+                    newBody2 =
+                        if body2.body.kindInt == 2 then
+                            let
+                                invI2 =
+                                    body2.body.invInertiaWorld
+
+                                k2 =
+                                    deltalambda * body2.body.invMass
+                            in
+                            { body2
+                                | vX = body2.vX + k2 * equation.vBx
+                                , vY = body2.vY + k2 * equation.vBy
+                                , vZ = body2.vZ + k2 * equation.vBz
+                                , wX = body2.wX + (invI2.m11 * equation.wBx + invI2.m12 * equation.wBy + invI2.m13 * equation.wBz) * deltalambda
+                                , wY = body2.wY + (invI2.m21 * equation.wBx + invI2.m22 * equation.wBy + invI2.m23 * equation.wBz) * deltalambda
+                                , wZ = body2.wZ + (invI2.m31 * equation.wBx + invI2.m32 * equation.wBy + invI2.m33 * equation.wBz) * deltalambda
+                            }
+
+                        else
+                            body2
+
+                    newLastNormalLambda =
+                        if equation.isContactNormal then
+                            newSolverLambda
+
+                        else
+                            lastNormalLambda
+                in
+                solvePass
+                    phase
+                    newBody1
+                    newBody2
+                    ({ solverEq | solverLambda = newSolverLambda } :: acc)
+                    (deltalambdaTot + abs deltalambda)
+                    newLastNormalLambda
+                    remainingEquations
+
+            else
+                -- Skip this equation in the current phase. Still need to
+                -- read its solverLambda so friction equations in pass 2 see
+                -- the latest normal lambda.
+                let
+                    newLastNormalLambda =
+                        if equation.isContactNormal then
+                            solverLambda
+
+                        else
+                            lastNormalLambda
+                in
+                solvePass
+                    phase
+                    body1
+                    body2
+                    (solverEq :: acc)
+                    deltalambdaTot
+                    newLastNormalLambda
+                    remainingEquations

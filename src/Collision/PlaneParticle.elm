@@ -1,5 +1,6 @@
 module Collision.PlaneParticle exposing (addContacts)
 
+import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Plane exposing (Plane)
@@ -13,7 +14,7 @@ addContacts idPrefix orderContact { position, normal } particlePosition contacts
                 + ((particlePosition.y - position.y) * normal.y)
                 + ((particlePosition.z - position.z) * normal.z)
     in
-    if dot <= 0 then
+    if dot - Const.contactBreakingThreshold < 0 then
         orderContact
             { id = idPrefix
             , ni = normal

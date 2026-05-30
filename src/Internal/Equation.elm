@@ -21,10 +21,20 @@ type alias Equation =
     , minForce : Float
     , maxForce : Float
     , solverB : Float
+    , solverBPosition : Float
     , solverInvC : Float
     , spookA : Float
     , spookB : Float
     , spookEps : Float
+
+    -- Coulomb cone clamping for contact friction. `isContactNormal = True`
+    -- marks a contact normal whose post-solve lambda is the normal force
+    -- used to size the friction cone for the two friction equations that
+    -- immediately follow it in the equation list. `frictionCoefficient > 0`
+    -- marks a friction equation; its clamp is computed dynamically as
+    -- ±μ · λ_n each iteration. Both fields are 0/False elsewhere.
+    , isContactNormal : Bool
+    , frictionCoefficient : Float
 
     -- wA, vB, wB are conceptually Vec3, flattened to Floats so the JS
     -- runtime does one property lookup per access instead of two. The
@@ -46,6 +56,7 @@ type alias Ctx =
     , gravity : Vec3
     , gravityLength : Float
     , lambdas : Dict String Float
+    , tangents : Dict String Vec3
     }
 
 
@@ -107,15 +118,6 @@ addDistanceConstraintEquations ctx body1 body2 distance =
 
         rj =
             Vec3.scale -halfDistance ni
-
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
     (::)
         (initSolverParams
@@ -133,10 +135,13 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
+            , solverBPosition = 0
             , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
+            , spookA = erp / ctx.dt
+            , spookB = 1
+            , spookEps = cfm
+            , isContactNormal = False
+            , frictionCoefficient = 0
 
             -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
             , wAx = ni.y * ri.z - ni.z * ri.y
@@ -155,15 +160,6 @@ addDistanceConstraintEquations ctx body1 body2 distance =
 addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
     let
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
-
         worldAxis2 =
             Transform3d.directionPlaceIn body2.transform3d axis2
 
@@ -171,22 +167,13 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
             Vec3.tangents (Transform3d.directionPlaceIn body1.transform3d axis1)
     in
     equations
-        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 ni1 worldAxis2
-        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 ni2 worldAxis2
+        |> addRotationalEquation ctx body1 body2 ni1 worldAxis2
+        |> addRotationalEquation ctx body1 body2 ni2 worldAxis2
 
 
 addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations =
     let
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
-
         worldX1 =
             Transform3d.directionPlaceIn body1.transform3d x1
 
@@ -206,13 +193,13 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
             Transform3d.directionPlaceIn body2.transform3d z2
     in
     equations
-        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldX1 worldY2
-        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldY1 worldZ2
-        |> addRotationalEquation spookA spookB spookEps ctx body1 body2 worldZ1 worldX2
+        |> addRotationalEquation ctx body1 body2 worldX1 worldY2
+        |> addRotationalEquation ctx body1 body2 worldY1 worldZ2
+        |> addRotationalEquation ctx body1 body2 worldZ1 worldX2
 
 
-addRotationalEquation : Float -> Float -> Float -> Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
-addRotationalEquation spookA spookB spookEps ctx body1 body2 ni nj equations =
+addRotationalEquation : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addRotationalEquation ctx body1 body2 ni nj equations =
     initSolverParams
         (computeRotationalB
             { ni = ni
@@ -227,10 +214,13 @@ addRotationalEquation spookA spookB spookEps ctx body1 body2 ni nj equations =
         , minForce = -1000000
         , maxForce = 1000000
         , solverB = 0
+        , solverBPosition = 0
         , solverInvC = 0
-        , spookA = spookA
-        , spookB = spookB
-        , spookEps = spookEps
+        , spookA = erp / ctx.dt
+        , spookB = 1
+        , spookEps = cfm
+        , isContactNormal = False
+        , frictionCoefficient = 0
 
         -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
         , wAx = nj.y * ni.z - nj.z * ni.y
@@ -254,15 +244,6 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
 
         rj =
             Transform3d.directionPlaceIn body2.transform3d pivot2
-
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
     in
     List.foldl
         (\ni ->
@@ -282,10 +263,13 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , minForce = -1000000
                     , maxForce = 1000000
                     , solverB = 0
+                    , solverBPosition = 0
                     , solverInvC = 0
-                    , spookA = spookA
-                    , spookB = spookB
-                    , spookEps = spookEps
+                    , spookA = erp / ctx.dt
+                    , spookB = 1
+                    , spookEps = cfm
+                    , isContactNormal = False
+                    , frictionCoefficient = 0
 
                     -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
                     , wAx = ni.y * ri.z - ni.z * ri.y
@@ -307,13 +291,6 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
 addContactEquations : Ctx -> Body -> Body -> SolverContact -> List SolverEquation -> List SolverEquation
 addContactEquations ctx body1 body2 { friction, bounciness, contact } equations =
     let
-        maxFrictionForce =
-            if body1.invMass + body2.invMass > 0 then
-                friction * ctx.gravityLength / (body1.invMass + body2.invMass)
-
-            else
-                0
-
         ri =
             Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
 
@@ -321,16 +298,12 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             Vec3.sub contact.pj (Transform3d.originPoint body2.transform3d)
 
         ( t1, t2 ) =
-            Vec3.tangents contact.ni
+            case Dict.get contact.id ctx.tangents of
+                Just cachedT1 ->
+                    stableTangents cachedT1 contact.ni
 
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+                Nothing ->
+                    Vec3.tangents contact.ni
     in
     initSolverParams
         (computeContactB bounciness contact)
@@ -341,10 +314,13 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
         , minForce = 0
         , maxForce = 1000000
         , solverB = 0
+        , solverBPosition = 0
         , solverInvC = 0
-        , spookA = spookA
-        , spookB = spookB
-        , spookEps = spookEps
+        , spookA = erp / ctx.dt
+        , spookB = 1
+        , spookEps = cfm
+        , isContactNormal = True
+        , frictionCoefficient = 0
 
         -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
         , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
@@ -363,13 +339,19 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             body1
             body2
             { id = ""
-            , minForce = -maxFrictionForce
-            , maxForce = maxFrictionForce
+
+            -- minForce / maxForce overridden by the solver each iteration
+            -- as ±μ · λ_n (Coulomb cone).
+            , minForce = 0
+            , maxForce = 0
             , solverB = 0
+            , solverBPosition = 0
             , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
+            , spookA = erp / ctx.dt
+            , spookB = 1
+            , spookEps = cfm
+            , isContactNormal = False
+            , frictionCoefficient = friction
 
             -- wA = Vec3.cross t1 ri, vB = t1, wB = Vec3.cross rj t1
             , wAx = t1.y * ri.z - t1.z * ri.y
@@ -388,13 +370,16 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
             body1
             body2
             { id = ""
-            , minForce = -maxFrictionForce
-            , maxForce = maxFrictionForce
+            , minForce = 0
+            , maxForce = 0
             , solverB = 0
+            , solverBPosition = 0
             , solverInvC = 0
-            , spookA = spookA
-            , spookB = spookB
-            , spookEps = spookEps
+            , spookA = erp / ctx.dt
+            , spookB = 1
+            , spookEps = cfm
+            , isContactNormal = False
+            , frictionCoefficient = friction
 
             -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
             , wAx = t2.y * ri.z - t2.z * ri.y
@@ -410,24 +395,85 @@ addContactEquations ctx body1 body2 { friction, bounciness, contact } equations 
         :: equations
 
 
-defaultRelaxation : Float
-defaultRelaxation =
-    3
+{-| Reuse the previous step's t1 direction by projecting it onto the current
+contact plane (perpendicular to ni) and renormalising; t2 = ni × t1. Keeps
+the friction basis continuous as the contact normal rotates between steps,
+avoiding the basis discontinuity in `Vec3.tangents` at |n.x| = 0.9.
+
+Falls back to `Vec3.tangents` if the cached direction is nearly parallel to
+the new normal (degenerate projection).
+
+-}
+stableTangents : Vec3 -> Vec3 -> ( Vec3, Vec3 )
+stableTangents cachedT1 ni =
+    let
+        d =
+            Vec3.dot cachedT1 ni
+
+        projected =
+            Vec3.sub cachedT1 (Vec3.scale d ni)
+
+        lenSq =
+            Vec3.lengthSquared projected
+    in
+    if lenSq < 1.0e-6 then
+        Vec3.tangents ni
+
+    else
+        let
+            t1 =
+                Vec3.scale (1 / sqrt lenSq) projected
+        in
+        ( t1, Vec3.cross ni t1 )
 
 
-defaultStiffness : Float
-defaultStiffness =
-    10000000
+{-| Scale cached lambdas at warm-start to absorb the risk of stale impulses
+when contact configuration drifts between steps.
+-}
+warmStartFactor : Float
+warmStartFactor =
+    0.85
+
+
+{-| Bullet's default Error Reduction Parameter — fraction of penetration
+resolved per step via the position-correction pseudo-velocity.
+-}
+erp : Float
+erp =
+    0.2
+
+
+{-| Constraint Force Mixing — softness in the PGS denominator. 0 matches
+Bullet's `m_globalCfm` default. We can run hard now (zero cfm) because the
+contact-breaking threshold + canonical pair id + tangent cache keep the
+warm-start lookup stable across steps; previously a one-frame contact
+flicker would flush the cache, the solver would converge from cold each
+step, and the rank-deficient stack PGS oscillated. With contacts persisting
+the solver stays on the fixed point and no rank-deficiency damping is
+needed for the stack stability test (10 iter, 100 k frames, post-warmup).
+-}
+cfm : Float
+cfm =
+    0
 
 
 type alias SolverEquation =
     { equation : Equation
     , solverLambda : Float
+
+    -- Split-impulse position-correction lambda. Starts at 0 each step
+    -- (never warm-started); the pseudo-velocity it drives is discarded
+    -- at end-of-step.
+    , positionLambda : Float
     }
 
 
 initSolverParams : ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
 initSolverParams computeB ctx bi bj solverEquation =
+    let
+        ( velocityB, positionB ) =
+            computeB bi bj solverEquation
+    in
     { solverLambda =
         if solverEquation.id == "" then
             0
@@ -435,22 +481,25 @@ initSolverParams computeB ctx bi bj solverEquation =
         else
             case Dict.get solverEquation.id ctx.lambdas of
                 Just lambda ->
-                    lambda
+                    lambda * warmStartFactor
 
                 Nothing ->
                     0
+    , positionLambda = 0
     , equation =
         { id = solverEquation.id
         , minForce = solverEquation.minForce
         , maxForce = solverEquation.maxForce
         , solverB =
-            -- the RHS of the SPOOK equation
-            computeB bi bj solverEquation
+            velocityB
                 - (ctx.dt * computeGiMf ctx.gravity bi bj solverEquation)
+        , solverBPosition = positionB
         , solverInvC = 1 / (computeGimgt bi bj solverEquation + solverEquation.spookEps)
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
+        , isContactNormal = solverEquation.isContactNormal
+        , frictionCoefficient = solverEquation.frictionCoefficient
         , wAx = solverEquation.wAx
         , wAy = solverEquation.wAy
         , wAz = solverEquation.wAz
@@ -465,7 +514,7 @@ initSolverParams computeB ctx bi bj solverEquation =
 
 
 type alias ComputeB =
-    Body -> Body -> Equation -> Float
+    Body -> Body -> Equation -> ( Float, Float )
 
 
 computeContactB : Float -> Contact -> ComputeB
@@ -482,7 +531,7 @@ computeContactB bounciness { pi, pj, ni } bi bj equation =
                 + (bj.angularVelocity.x * equation.wBx + bj.angularVelocity.y * equation.wBy + bj.angularVelocity.z * equation.wBz)
                 + (bi.angularVelocity.x * equation.wAx + bi.angularVelocity.y * equation.wAy + bi.angularVelocity.z * equation.wAz)
     in
-    -g * equation.spookA - gW * equation.spookB
+    ( -g * equation.spookA - gW * equation.spookB, 0 )
 
 
 type alias RotationalEquation =
@@ -501,7 +550,7 @@ computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEq
         gW =
             computeGW bi bj solverEquation
     in
-    -g * spookA - gW * spookB
+    ( -g * spookA - gW * spookB, 0 )
 
 
 computeFrictionB : ComputeB
@@ -510,7 +559,7 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
         gW =
             computeGW bi bj solverEquation
     in
-    -gW * spookB
+    ( -gW * spookB, 0 )
 
 
 {-| Computes G x inv(M) x f, where
