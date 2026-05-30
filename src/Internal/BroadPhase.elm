@@ -73,7 +73,7 @@ getPairsHelp collide constrain anyConstraints id1 body1 constrainFn1 currentBodi
                             -- cache keys stay stable across frames even when the
                             -- gravity sort reorders which body is body1/body2.
                             ( low, high ) =
-                                if body1.id <= body2.id then
+                                if body1.id - body2.id <= 0 then
                                     ( body1.id, body2.id )
 
                                 else

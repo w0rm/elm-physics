@@ -283,10 +283,10 @@ closestPointsBetweenSegments p1 q1 p2 q2 =
             dot d2 r
 
         ( s, t ) =
-            if a <= Const.precision && e <= Const.precision then
+            if a - Const.precision <= 0 && e - Const.precision <= 0 then
                 ( 0, 0 )
 
-            else if a <= Const.precision then
+            else if a - Const.precision <= 0 then
                 ( 0, clamp 0 1 (f / e) )
 
             else
@@ -294,7 +294,7 @@ closestPointsBetweenSegments p1 q1 p2 q2 =
                     c =
                         dot d1 r
                 in
-                if e <= Const.precision then
+                if e - Const.precision <= 0 then
                     ( clamp 0 1 (-c / a), 0 )
 
                 else
@@ -318,7 +318,7 @@ closestPointsBetweenSegments p1 q1 p2 q2 =
                     if tNom < 0.0 then
                         ( clamp 0 1 (-c / a), 0 )
 
-                    else if tNom > e then
+                    else if tNom - e > 0 then
                         ( clamp 0 1 ((b - c) / a), 1 )
 
                     else

@@ -488,7 +488,23 @@ simulate config bodiesWithIds =
                     in
                     -(p.x * gravityVec.x + p.y * gravityVec.y + p.z * gravityVec.z)
             in
-            List.sortBy projection internalBodiesWithIds
+            -- Decorate once (List.sortBy recomputes the key per comparison and
+            -- compares via _Utils_cmp); sort the precomputed projections with a
+            -- subtraction comparator, which compiles to a direct JS comparison.
+            internalBodiesWithIds
+                |> List.map (\item -> ( projection item, item ))
+                |> List.sortWith
+                    (\( a, _ ) ( b, _ ) ->
+                        if a - b < 0 then
+                            LT
+
+                        else if a - b > 0 then
+                            GT
+
+                        else
+                            EQ
+                    )
+                |> List.map Tuple.second
 
         pairGroups =
             BroadPhase.getPairs config.collide config.constrain sortedBodies
