@@ -41,17 +41,17 @@ warmupFrames =
 
 
 {-| Max distance any box's center is allowed to drift from its starting
-position at any frame during warmup. Bisected empirically against the
-63-frame warmup at cfm=0 / 10 iter:
+position at any frame during warmup. Measured empirically over the 63-frame
+warmup at 10 iterations:
 
-  - warm-start case peaks under 17 mm
-  - cold-start case peaks under 50 mm — drift grows roughly linearly with
-    time over the warmup window, capping at ~49.7 mm by frame 63. The
+  - warm-start case peaks under 8 mm
+  - cold-start case peaks under 33 mm — drift grows roughly linearly with
+    time over the warmup window. The
     cold-start solver isn't given the contact-warm-start lambdas across
     frames, so it has to converge normal forces from cold each step and
     its position-recovery is correspondingly weaker.
 
-Set just above the cold-case peak so legitimate transient settling
+Set comfortably above the cold-case peak so legitimate transient settling
 passes, but any catastrophic stack collapse (where a box would slide
 half a metre away) fails the assertion.
 
@@ -317,14 +317,20 @@ slopeMaxSpeedLimit =
 
 
 {-| Friction holds the box, but with no friction-λ warm-starting it leaves a
-tiny unrecovered tangential slip each step — a steady downhill creep of
-~1.1 µm/frame. Over 100 k frames that integrates to ~0.098 m. The limit is
-set above that with margin: it tolerates the known creep but fails loudly if
-the box actually starts sliding (which would be metres, or NaN).
+tiny unrecovered tangential slip each step. Under the SPOOK soft-constraint
+parameters (spookEps > 0) the friction solve is slightly compliant, so it
+leaves a small residual each step: the box creeps downhill at a steady
+~0.27 mm/s, integrating to ~0.59 m over 100 k frames.
+
+That is still a creep, not a slide — `slopeMaxSpeedLimit` is the real grip
+check (a box that lost friction would accelerate at g·sin 15° ≈ 2.54 m/s² and
+trip it within a few frames). This bound only has to tolerate the creep while
+still failing loudly on an actual slide (metres, or NaN).
+
 -}
 slopeDriftLimit : Float
 slopeDriftLimit =
-    0.15
+    0.7
 
 
 stability : Test

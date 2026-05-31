@@ -1,9 +1,9 @@
 module Internal.Equation exposing
-    ( ContactEquations
+    ( ConstraintEquation
+    , ContactEquations
     , Ctx
-    , Equation
     , EquationsGroup
-    , SolverEquation
+    , Jacobian
     , equationsForPair
     )
 
@@ -18,29 +18,11 @@ import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-type alias Equation =
-    { shapeKey : Int
-    , featureKey : Int
-    , minForce : Float
-    , maxForce : Float
-    , solverB : Float
-    , solverInvC : Float
-    , spookA : Float
-    , spookB : Float
-    , spookEps : Float
-
-    -- Friction coefficient μ for a contact's two friction equations: the
-    -- solver clamps their force to ±μ · λ_n each iteration (λ_n = the
-    -- just-solved normal lambda). Which equations are frictions is decided
-    -- structurally — they are the friction1/friction2 fields of a
-    -- ContactEquations, solved in their own pass — not by this value, which is
-    -- an unread 0 on normals and constraints.
-    , frictionCoefficient : Float
-
-    -- wA, vB, wB are conceptually Vec3, flattened to Floats so the JS
-    -- runtime does one property lookup per access instead of two. The
-    -- solver reads these millions of times per step. vA = -vB.
-    , wAx : Float
+{-| A constraint's G-matrix row: wA, vB, wB flattened to Floats (one property
+lookup, not two — the solver reads these millions of times per step). vA = -vB.
+-}
+type alias Jacobian =
+    { wAx : Float
     , wAy : Float
     , wAz : Float
     , vBx : Float
@@ -61,16 +43,38 @@ type alias Ctx =
     }
 
 
-{-| One contact point's equations. The normal's post-solve lambda sizes the
-Coulomb cone (±μ·λ\_n) for friction1/friction2. Bundling them lets the velocity
-solver run all normals island-wide (pass 1) then all frictions (pass 2) without
-walking past — and skipping — the other phase's equations. friction1 carries
-the t1 direction recorded in the tangent warm-start cache.
+{-| One contact's three solved lambdas over a static `ContactData` shared by
+reference, so each solver sweep re-allocates only this small record.
 -}
 type alias ContactEquations =
-    { normal : SolverEquation
-    , friction1 : SolverEquation
-    , friction2 : SolverEquation
+    { normalLambda : Float
+    , friction1Lambda : Float
+    , friction2Lambda : Float
+    , data : ContactData
+    }
+
+
+{-| Build-once data for a contact's normal + two friction equations: three
+jacobians and their precomputed solver scalars. spookEps/frictionCoefficient are
+shared across the three; minForce/maxForce/keys are the normal's (frictions
+clamp to the Coulomb cone, see Solver).
+-}
+type alias ContactData =
+    { normal : Jacobian
+    , friction1 : Jacobian
+    , friction2 : Jacobian
+    , normalSolverB : Float
+    , normalSolverInvC : Float
+    , normalMinForce : Float
+    , normalMaxForce : Float
+    , friction1SolverB : Float
+    , friction1SolverInvC : Float
+    , friction2SolverB : Float
+    , friction2SolverInvC : Float
+    , spookEps : Float
+    , frictionCoefficient : Float
+    , shapeKey : Int
+    , featureKey : Int
     }
 
 
@@ -89,12 +93,12 @@ type alias EquationsGroup id =
     { body1 : SolverBody id
     , body2 : SolverBody id
     , contacts : List ContactEquations
-    , constraints : List SolverEquation
+    , constraints : List ConstraintEquation
     , deltalambdaTot : Float
     }
 
 
-equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List SolverEquation }
+equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List ConstraintEquation }
 equationsForPair ctx { body1, body2, contacts, constraints } =
     -- Multistep warm-start: fetch this body pair's cached lambda/tangent lists
     -- once (the cache is keyed by body pair), then scan them per contact —
@@ -143,7 +147,7 @@ buildContactEquations ctx body1 body2 lambdaList tangentList contacts acc =
                 (contactEquations seedLambda cachedT1 ctx body1 body2 solverContact :: acc)
 
 
-addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
+addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List ConstraintEquation -> List ConstraintEquation
 addConstraintEquations ctx body1 body2 constraint =
     case constraint of
         PointToPoint pivot1 pivot2 ->
@@ -161,9 +165,18 @@ addConstraintEquations ctx body1 body2 constraint =
             addDistanceConstraintEquations ctx body1 body2 distance
 
 
-addDistanceConstraintEquations : Ctx -> Body -> Body -> Float -> List SolverEquation -> List SolverEquation
+addDistanceConstraintEquations : Ctx -> Body -> Body -> Float -> List ConstraintEquation -> List ConstraintEquation
 addDistanceConstraintEquations ctx body1 body2 distance =
     let
+        spookA =
+            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+
         halfDistance =
             distance / 2
 
@@ -175,33 +188,18 @@ addDistanceConstraintEquations ctx body1 body2 distance =
 
         rj =
             Vec3.scale -halfDistance ni
-    in
-    (::)
-        (initSolverParams 0
-            (computeContactB 0
-                { shapeKey = 0
-                , featureKey = 0
-                , pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
-                , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
-                , ni = ni
-                }
-            )
-            ctx
-            body1
-            body2
+
+        contact =
             { shapeKey = 0
             , featureKey = 0
-            , minForce = -1000000
-            , maxForce = 1000000
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = erp / ctx.dt
-            , spookB = 1
-            , spookEps = cfm
-            , frictionCoefficient = 0
+            , pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
+            , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
+            , ni = ni
+            }
 
-            -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
-            , wAx = ni.y * ri.z - ni.z * ri.y
+        -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
+        jacobian =
+            { wAx = ni.y * ri.z - ni.z * ri.y
             , wAy = ni.z * ri.x - ni.x * ri.z
             , wAz = ni.x * ri.y - ni.y * ri.x
             , vBx = ni.x
@@ -211,10 +209,19 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , wBy = rj.z * ni.x - rj.x * ni.z
             , wBz = rj.x * ni.y - rj.y * ni.x
             }
-        )
+    in
+    (::)
+        { jacobian = jacobian
+        , solverB = computeSolverB ctx body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
+        , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
+        , spookEps = spookEps
+        , minForce = -1000000
+        , maxForce = 1000000
+        , solverLambda = 0
+        }
 
 
-addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
 addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
     let
         worldAxis2 =
@@ -228,7 +235,7 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
         |> addRotationalEquation ctx body1 body2 ni2 worldAxis2
 
 
-addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
 addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations =
     let
         worldX1 =
@@ -255,46 +262,54 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
         |> addRotationalEquation ctx body1 body2 worldZ1 worldX2
 
 
-addRotationalEquation : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addRotationalEquation : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
 addRotationalEquation ctx body1 body2 ni nj equations =
-    initSolverParams 0
-        (computeRotationalB
-            { ni = ni
-            , nj = nj
-            , maxAngleCos = 0 -- cos (pi / 2)
-            }
-        )
-        ctx
-        body1
-        body2
-        { shapeKey = 0
-        , featureKey = 0
-        , minForce = -1000000
-        , maxForce = 1000000
-        , solverB = 0
-        , solverInvC = 0
-        , spookA = erp / ctx.dt
-        , spookB = 1
-        , spookEps = cfm
-        , frictionCoefficient = 0
+    let
+        spookA =
+            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
 
         -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
-        , wAx = nj.y * ni.z - nj.z * ni.y
-        , wAy = nj.z * ni.x - nj.x * ni.z
-        , wAz = nj.x * ni.y - nj.y * ni.x
-        , vBx = 0
-        , vBy = 0
-        , vBz = 0
-        , wBx = ni.y * nj.z - ni.z * nj.y
-        , wBy = ni.z * nj.x - ni.x * nj.z
-        , wBz = ni.x * nj.y - ni.y * nj.x
-        }
+        jacobian =
+            { wAx = nj.y * ni.z - nj.z * ni.y
+            , wAy = nj.z * ni.x - nj.x * ni.z
+            , wAz = nj.x * ni.y - nj.y * ni.x
+            , vBx = 0
+            , vBy = 0
+            , vBz = 0
+            , wBx = ni.y * nj.z - ni.z * nj.y
+            , wBy = ni.z * nj.x - ni.x * nj.z
+            , wBz = ni.x * nj.y - ni.y * nj.x
+            }
+    in
+    { jacobian = jacobian
+    , solverB = computeSolverB ctx body1 body2 jacobian (computeRotationalB spookA spookB { ni = ni, nj = nj, maxAngleCos = 0 } body1 body2 jacobian)
+    , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
+    , spookEps = spookEps
+    , minForce = -1000000
+    , maxForce = 1000000
+    , solverLambda = 0
+    }
         :: equations
 
 
-addPointToPointConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
+addPointToPointConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
 addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
     let
+        spookA =
+            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+
         ri =
             Transform3d.directionPlaceIn body1.transform3d pivot1
 
@@ -303,32 +318,18 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
     in
     List.foldl
         (\ni ->
-            (::)
-                (initSolverParams 0
-                    (computeContactB 0
-                        { shapeKey = 0
-                        , featureKey = 0
-                        , pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
-                        , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
-                        , ni = ni
-                        }
-                    )
-                    ctx
-                    body1
-                    body2
+            let
+                contact =
                     { shapeKey = 0
                     , featureKey = 0
-                    , minForce = -1000000
-                    , maxForce = 1000000
-                    , solverB = 0
-                    , solverInvC = 0
-                    , spookA = erp / ctx.dt
-                    , spookB = 1
-                    , spookEps = cfm
-                    , frictionCoefficient = 0
+                    , pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
+                    , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
+                    , ni = ni
+                    }
 
-                    -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
-                    , wAx = ni.y * ri.z - ni.z * ri.y
+                -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
+                jacobian =
+                    { wAx = ni.y * ri.z - ni.z * ri.y
                     , wAy = ni.z * ri.x - ni.x * ri.z
                     , wAz = ni.x * ri.y - ni.y * ri.x
                     , vBx = ni.x
@@ -338,7 +339,16 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , wBy = rj.z * ni.x - rj.x * ni.z
                     , wBz = rj.x * ni.y - rj.y * ni.x
                     }
-                )
+            in
+            (::)
+                { jacobian = jacobian
+                , solverB = computeSolverB ctx body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
+                , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
+                , spookEps = spookEps
+                , minForce = -1000000
+                , maxForce = 1000000
+                , solverLambda = 0
+                }
         )
         equations
         Vec3.basis
@@ -347,37 +357,31 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
 contactEquations : Float -> Vec3 -> Ctx -> Body -> Body -> SolverContact -> ContactEquations
 contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, contact } =
     let
+        -- SPOOK parameters for this contact (module defaults for now; the seam
+        -- where per-contact material stiffness/relaxation would feed in).
+        spookA =
+            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+
+        spookB =
+            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
+
+        spookEps =
+            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+
         ri =
             Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
 
         rj =
             Vec3.sub contact.pj (Transform3d.originPoint body2.transform3d)
 
-        -- cachedT1 is Vec3.zero when the pair had no cached tangent for this
-        -- contact; stableTangents falls back to Vec3.tangents on a zero-length
-        -- direction, so that is exactly the cached/uncached split.
+        -- cachedT1 is Vec3.zero when uncached; stableTangents then falls back to
+        -- Vec3.tangents, so that is exactly the cached/uncached split.
         ( t1, t2 ) =
-            stableTangents cachedT1 contact.ni
-    in
-    { normal =
-        initSolverParams seedLambda
-            (computeContactB bounciness contact)
-            ctx
-            body1
-            body2
-            { shapeKey = contact.shapeKey
-            , featureKey = contact.featureKey
-            , minForce = 0
-            , maxForce = 1000000
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = erp / ctx.dt
-            , spookB = 1
-            , spookEps = cfm
-            , frictionCoefficient = 0
+            Vec3.stableTangents cachedT1 contact.ni
 
-            -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
-            , wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
+        -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
+        normalJacobian =
+            { wAx = contact.ni.y * ri.z - contact.ni.z * ri.y
             , wAy = contact.ni.z * ri.x - contact.ni.x * ri.z
             , wAz = contact.ni.x * ri.y - contact.ni.y * ri.x
             , vBx = contact.ni.x
@@ -387,28 +391,10 @@ contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, con
             , wBy = rj.z * contact.ni.x - rj.x * contact.ni.z
             , wBz = rj.x * contact.ni.y - rj.y * contact.ni.x
             }
-    , friction1 =
-        initSolverParams 0
-            computeFrictionB
-            ctx
-            body1
-            body2
-            { shapeKey = 0
-            , featureKey = 0
 
-            -- minForce / maxForce overridden by the solver each iteration
-            -- as ±μ · λ_n (Coulomb cone).
-            , minForce = 0
-            , maxForce = 0
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = erp / ctx.dt
-            , spookB = 1
-            , spookEps = cfm
-            , frictionCoefficient = friction
-
-            -- wA = Vec3.cross t1 ri, vB = t1, wB = Vec3.cross rj t1
-            , wAx = t1.y * ri.z - t1.z * ri.y
+        -- wA = Vec3.cross t1 ri, vB = t1, wB = Vec3.cross rj t1
+        friction1Jacobian =
+            { wAx = t1.y * ri.z - t1.z * ri.y
             , wAy = t1.z * ri.x - t1.x * ri.z
             , wAz = t1.x * ri.y - t1.y * ri.x
             , vBx = t1.x
@@ -418,25 +404,10 @@ contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, con
             , wBy = rj.z * t1.x - rj.x * t1.z
             , wBz = rj.x * t1.y - rj.y * t1.x
             }
-    , friction2 =
-        initSolverParams 0
-            computeFrictionB
-            ctx
-            body1
-            body2
-            { shapeKey = 0
-            , featureKey = 0
-            , minForce = 0
-            , maxForce = 0
-            , solverB = 0
-            , solverInvC = 0
-            , spookA = erp / ctx.dt
-            , spookB = 1
-            , spookEps = cfm
-            , frictionCoefficient = friction
 
-            -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
-            , wAx = t2.y * ri.z - t2.z * ri.y
+        -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
+        friction2Jacobian =
+            { wAx = t2.y * ri.z - t2.z * ri.y
             , wAy = t2.z * ri.x - t2.x * ri.z
             , wAz = t2.x * ri.y - t2.y * ri.x
             , vBx = t2.x
@@ -446,39 +417,30 @@ contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, con
             , wBy = rj.z * t2.x - rj.x * t2.z
             , wBz = rj.x * t2.y - rj.y * t2.x
             }
-    }
-
-
-{-| Reuse the previous step's t1 direction by projecting it onto the current
-contact plane (perpendicular to ni) and renormalising; t2 = ni × t1. Keeps
-the friction basis continuous as the contact normal rotates between steps,
-avoiding the basis discontinuity in `Vec3.tangents` at |n.x| = 0.9.
-
-Falls back to `Vec3.tangents` if the cached direction is nearly parallel to
-the new normal (degenerate projection).
-
--}
-stableTangents : Vec3 -> Vec3 -> ( Vec3, Vec3 )
-stableTangents cachedT1 ni =
-    let
-        d =
-            Vec3.dot cachedT1 ni
-
-        projected =
-            Vec3.sub cachedT1 (Vec3.scale d ni)
-
-        lenSq =
-            Vec3.lengthSquared projected
     in
-    if lenSq < 1.0e-6 then
-        Vec3.tangents ni
-
-    else
-        let
-            t1 =
-                Vec3.scale (1 / sqrt lenSq) projected
-        in
-        ( t1, Vec3.cross ni t1 )
+    -- Lambdas at the top are mutated each iteration; ContactData is static, so
+    -- each sweep re-allocates only this small outer record.
+    { normalLambda = seedLambda
+    , friction1Lambda = 0
+    , friction2Lambda = 0
+    , data =
+        { normal = normalJacobian
+        , friction1 = friction1Jacobian
+        , friction2 = friction2Jacobian
+        , normalSolverB = computeSolverB ctx body1 body2 normalJacobian (computeContactB spookA spookB bounciness contact body1 body2 normalJacobian)
+        , normalSolverInvC = computeSolverInvC spookEps body1 body2 normalJacobian
+        , normalMinForce = 0
+        , normalMaxForce = 1000000
+        , friction1SolverB = computeSolverB ctx body1 body2 friction1Jacobian (computeFrictionB spookB body1 body2 friction1Jacobian)
+        , friction1SolverInvC = computeSolverInvC spookEps body1 body2 friction1Jacobian
+        , friction2SolverB = computeSolverB ctx body1 body2 friction2Jacobian (computeFrictionB spookB body1 body2 friction2Jacobian)
+        , friction2SolverInvC = computeSolverInvC spookEps body1 body2 friction2Jacobian
+        , spookEps = spookEps
+        , frictionCoefficient = friction
+        , shapeKey = contact.shapeKey
+        , featureKey = contact.featureKey
+        }
+    }
 
 
 {-| Scale cached lambdas at warm-start to absorb the risk of stale impulses
@@ -489,77 +451,68 @@ warmStartFactor =
     0.85
 
 
-{-| Bullet's default Error Reduction Parameter — fraction of penetration
-resolved per step via the contact-normal velocity bias (`-g * erp/dt` folded
-into the velocity solve's RHS).
+{-| The SPOOK soft-constraint parameters, derived from a stiffness and a
+relaxation (the number of timesteps over which a constraint violation is
+relaxed), exactly as cannon.js does:
+
+    spookA   = 4 / (dt · (1 + 4·relaxation))                 -- position feedback
+    spookB   = 4·relaxation / (1 + 4·relaxation)             -- velocity coefficient
+    spookEps = 4 / (dt² · stiffness · (1 + 4·relaxation))    -- regularization
+
+`spookB` < 1 leaves a little of the relative velocity uncanceled each step
+(velocity-level damping), and `spookEps` gives the constraint a small
+compliance that dissipates the position-feedback energy — together they keep
+resting stacks calm instead of buzzing.
+
+Each builder computes the three values as plain locals (no wrapper record) from
+`dt` and the relaxation/stiffness it has on hand, passes `spookA`/`spookB` into
+`computeB`, and stores `spookEps` on the equation for the solver's
+per-iteration regularizer. Contacts source relaxation/stiffness here from the
+module defaults, but this is the seam to combine them per contact from the two
+shapes' materials (the way `friction`/`bounciness` already are) — which is why
+the values are not cached globally on `Ctx`.
+
 -}
-erp : Float
-erp =
-    0.2
+defaultRelaxation : Float
+defaultRelaxation =
+    3
 
 
-{-| Constraint Force Mixing — softness in the PGS denominator. 0 matches
-Bullet's `m_globalCfm` default. We can run hard now (zero cfm) because the
-contact-breaking threshold + canonical pair id + tangent cache keep the
-warm-start lookup stable across steps; previously a one-frame contact
-flicker would flush the cache, the solver would converge from cold each
-step, and the rank-deficient stack PGS oscillated. With contacts persisting
-the solver stays on the fixed point and no rank-deficiency damping is
-needed for the stack stability test (10 iter, 100 k frames, post-warmup).
+defaultStiffness : Float
+defaultStiffness =
+    10000000
+
+
+{-| A joint equation: a static jacobian + solver scalars plus its accumulated
+`solverLambda` (re-allocated each iteration to update the lambda).
 -}
-cfm : Float
-cfm =
-    0
-
-
-type alias SolverEquation =
-    { equation : Equation
+type alias ConstraintEquation =
+    { jacobian : Jacobian
+    , solverB : Float
+    , solverInvC : Float
+    , spookEps : Float
+    , minForce : Float
+    , maxForce : Float
     , solverLambda : Float
     }
 
 
-initSolverParams : Float -> ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
-initSolverParams seedLambda computeB ctx bi bj solverEquation =
-    let
-        velocityB =
-            computeB bi bj solverEquation
-    in
-    -- seedLambda is the warm-start impulse (already scaled by warmStartFactor),
-    -- looked up once per body pair in equationsForPair; 0 for frictions and
-    -- constraints, which are not warm-started.
-    { solverLambda = seedLambda
-    , equation =
-        { shapeKey = solverEquation.shapeKey
-        , featureKey = solverEquation.featureKey
-        , minForce = solverEquation.minForce
-        , maxForce = solverEquation.maxForce
-        , solverB =
-            velocityB
-                - (ctx.dt * computeGiMf ctx.gravity bi bj solverEquation)
-        , solverInvC = 1 / (computeGimgt bi bj solverEquation + solverEquation.spookEps)
-        , spookA = solverEquation.spookA
-        , spookB = solverEquation.spookB
-        , spookEps = solverEquation.spookEps
-        , frictionCoefficient = solverEquation.frictionCoefficient
-        , wAx = solverEquation.wAx
-        , wAy = solverEquation.wAy
-        , wAz = solverEquation.wAz
-        , vBx = solverEquation.vBx
-        , vBy = solverEquation.vBy
-        , vBz = solverEquation.vBz
-        , wBx = solverEquation.wBx
-        , wBy = solverEquation.wBy
-        , wBz = solverEquation.wBz
-        }
-    }
+{-| Fold a velocity-bias RHS (`velocityB`) with the -dt·GiMf force term.
+-}
+computeSolverB : Ctx -> Body -> Body -> Jacobian -> Float -> Float
+computeSolverB ctx bi bj jacobian velocityB =
+    velocityB - (ctx.dt * computeGiMf ctx.gravity bi bj jacobian)
 
 
-type alias ComputeB =
-    Body -> Body -> Equation -> Float
+{-| Constant 1 / (G·M⁻¹·Gᵀ + ε) scaling each iteration's correction.
+-}
+computeSolverInvC : Float -> Body -> Body -> Jacobian -> Float
+computeSolverInvC spookEps bi bj jacobian =
+    1 / (computeGimgt bi bj jacobian + spookEps)
 
 
-computeContactB : Float -> Contact -> ComputeB
-computeContactB bounciness { pi, pj, ni } bi bj equation =
+computeContactB : Float -> Float -> Float -> Contact -> Body -> Body -> Jacobian -> Float
+computeContactB spookA spookB bounciness { pi, pj, ni } bi bj jacobian =
     let
         g =
             ((pj.x - pi.x) * ni.x)
@@ -569,10 +522,10 @@ computeContactB bounciness { pi, pj, ni } bi bj equation =
         gW =
             (bounciness + 1)
                 * (Vec3.dot bj.velocity ni - Vec3.dot bi.velocity ni)
-                + (bj.angularVelocity.x * equation.wBx + bj.angularVelocity.y * equation.wBy + bj.angularVelocity.z * equation.wBz)
-                + (bi.angularVelocity.x * equation.wAx + bi.angularVelocity.y * equation.wAy + bi.angularVelocity.z * equation.wAz)
+                + (bj.angularVelocity.x * jacobian.wBx + bj.angularVelocity.y * jacobian.wBy + bj.angularVelocity.z * jacobian.wBz)
+                + (bi.angularVelocity.x * jacobian.wAx + bi.angularVelocity.y * jacobian.wAy + bi.angularVelocity.z * jacobian.wAz)
     in
-    -g * equation.spookA - gW * equation.spookB
+    -g * spookA - gW * spookB
 
 
 type alias RotationalEquation =
@@ -582,23 +535,23 @@ type alias RotationalEquation =
     }
 
 
-computeRotationalB : RotationalEquation -> ComputeB
-computeRotationalB { ni, nj, maxAngleCos } bi bj ({ spookA, spookB } as solverEquation) =
+computeRotationalB : Float -> Float -> RotationalEquation -> Body -> Body -> Jacobian -> Float
+computeRotationalB spookA spookB { ni, nj, maxAngleCos } bi bj jacobian =
     let
         g =
             maxAngleCos - Vec3.dot ni nj
 
         gW =
-            computeGW bi bj solverEquation
+            computeGW bi bj jacobian
     in
     -g * spookA - gW * spookB
 
 
-computeFrictionB : ComputeB
-computeFrictionB bi bj ({ spookB } as solverEquation) =
+computeFrictionB : Float -> Body -> Body -> Jacobian -> Float
+computeFrictionB spookB bi bj jacobian =
     let
         gW =
-            computeGW bi bj solverEquation
+            computeGW bi bj jacobian
     in
     -gW * spookB
 
@@ -609,8 +562,8 @@ computeFrictionB bi bj ({ spookB } as solverEquation) =
   - f are the forces on the bodies
 
 -}
-computeGiMf : Vec3 -> Body -> Body -> Equation -> Float
-computeGiMf gravity bi bj equation =
+computeGiMf : Vec3 -> Body -> Body -> Jacobian -> Float
+computeGiMf gravity bi bj jacobian =
     let
         gravityi =
             if bi.kindInt == 2 then
@@ -626,35 +579,35 @@ computeGiMf gravity bi bj equation =
             else
                 Vec3.zero
     in
-    -(equation.vBx * (bi.invMass * bi.force.x + gravityi.x) + equation.vBy * (bi.invMass * bi.force.y + gravityi.y) + equation.vBz * (bi.invMass * bi.force.z + gravityi.z))
-        + (equation.vBx * (bj.invMass * bj.force.x + gravityj.x) + equation.vBy * (bj.invMass * bj.force.y + gravityj.y) + equation.vBz * (bj.invMass * bj.force.z + gravityj.z))
-        + (equation.wAx * (bi.invInertiaWorld.m11 * bi.torque.x + bi.invInertiaWorld.m12 * bi.torque.y + bi.invInertiaWorld.m13 * bi.torque.z))
-        + (equation.wAy * (bi.invInertiaWorld.m21 * bi.torque.x + bi.invInertiaWorld.m22 * bi.torque.y + bi.invInertiaWorld.m23 * bi.torque.z))
-        + (equation.wAz * (bi.invInertiaWorld.m31 * bi.torque.x + bi.invInertiaWorld.m32 * bi.torque.y + bi.invInertiaWorld.m33 * bi.torque.z))
-        + (equation.wBx * (bj.invInertiaWorld.m11 * bj.torque.x + bj.invInertiaWorld.m12 * bj.torque.y + bj.invInertiaWorld.m13 * bj.torque.z))
-        + (equation.wBy * (bj.invInertiaWorld.m21 * bj.torque.x + bj.invInertiaWorld.m22 * bj.torque.y + bj.invInertiaWorld.m23 * bj.torque.z))
-        + (equation.wBz * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
+    -(jacobian.vBx * (bi.invMass * bi.force.x + gravityi.x) + jacobian.vBy * (bi.invMass * bi.force.y + gravityi.y) + jacobian.vBz * (bi.invMass * bi.force.z + gravityi.z))
+        + (jacobian.vBx * (bj.invMass * bj.force.x + gravityj.x) + jacobian.vBy * (bj.invMass * bj.force.y + gravityj.y) + jacobian.vBz * (bj.invMass * bj.force.z + gravityj.z))
+        + (jacobian.wAx * (bi.invInertiaWorld.m11 * bi.torque.x + bi.invInertiaWorld.m12 * bi.torque.y + bi.invInertiaWorld.m13 * bi.torque.z))
+        + (jacobian.wAy * (bi.invInertiaWorld.m21 * bi.torque.x + bi.invInertiaWorld.m22 * bi.torque.y + bi.invInertiaWorld.m23 * bi.torque.z))
+        + (jacobian.wAz * (bi.invInertiaWorld.m31 * bi.torque.x + bi.invInertiaWorld.m32 * bi.torque.y + bi.invInertiaWorld.m33 * bi.torque.z))
+        + (jacobian.wBx * (bj.invInertiaWorld.m11 * bj.torque.x + bj.invInertiaWorld.m12 * bj.torque.y + bj.invInertiaWorld.m13 * bj.torque.z))
+        + (jacobian.wBy * (bj.invInertiaWorld.m21 * bj.torque.x + bj.invInertiaWorld.m22 * bj.torque.y + bj.invInertiaWorld.m23 * bj.torque.z))
+        + (jacobian.wBz * (bj.invInertiaWorld.m31 * bj.torque.x + bj.invInertiaWorld.m32 * bj.torque.y + bj.invInertiaWorld.m33 * bj.torque.z))
 
 
 {-| Compute G x inv(M) x G', the effective inverse mass for this constraint.
 -}
-computeGimgt : Body -> Body -> Equation -> Float
-computeGimgt bi bj equation =
+computeGimgt : Body -> Body -> Jacobian -> Float
+computeGimgt bi bj jacobian =
     bi.invMass
         + bj.invMass
-        + (equation.wAx * (bi.invInertiaWorld.m11 * equation.wAx + bi.invInertiaWorld.m12 * equation.wAy + bi.invInertiaWorld.m13 * equation.wAz))
-        + (equation.wAy * (bi.invInertiaWorld.m21 * equation.wAx + bi.invInertiaWorld.m22 * equation.wAy + bi.invInertiaWorld.m23 * equation.wAz))
-        + (equation.wAz * (bi.invInertiaWorld.m31 * equation.wAx + bi.invInertiaWorld.m32 * equation.wAy + bi.invInertiaWorld.m33 * equation.wAz))
-        + (equation.wBx * (bj.invInertiaWorld.m11 * equation.wBx + bj.invInertiaWorld.m12 * equation.wBy + bj.invInertiaWorld.m13 * equation.wBz))
-        + (equation.wBy * (bj.invInertiaWorld.m21 * equation.wBx + bj.invInertiaWorld.m22 * equation.wBy + bj.invInertiaWorld.m23 * equation.wBz))
-        + (equation.wBz * (bj.invInertiaWorld.m31 * equation.wBx + bj.invInertiaWorld.m32 * equation.wBy + bj.invInertiaWorld.m33 * equation.wBz))
+        + (jacobian.wAx * (bi.invInertiaWorld.m11 * jacobian.wAx + bi.invInertiaWorld.m12 * jacobian.wAy + bi.invInertiaWorld.m13 * jacobian.wAz))
+        + (jacobian.wAy * (bi.invInertiaWorld.m21 * jacobian.wAx + bi.invInertiaWorld.m22 * jacobian.wAy + bi.invInertiaWorld.m23 * jacobian.wAz))
+        + (jacobian.wAz * (bi.invInertiaWorld.m31 * jacobian.wAx + bi.invInertiaWorld.m32 * jacobian.wAy + bi.invInertiaWorld.m33 * jacobian.wAz))
+        + (jacobian.wBx * (bj.invInertiaWorld.m11 * jacobian.wBx + bj.invInertiaWorld.m12 * jacobian.wBy + bj.invInertiaWorld.m13 * jacobian.wBz))
+        + (jacobian.wBy * (bj.invInertiaWorld.m21 * jacobian.wBx + bj.invInertiaWorld.m22 * jacobian.wBy + bj.invInertiaWorld.m23 * jacobian.wBz))
+        + (jacobian.wBz * (bj.invInertiaWorld.m31 * jacobian.wBx + bj.invInertiaWorld.m32 * jacobian.wBy + bj.invInertiaWorld.m33 * jacobian.wBz))
 
 
 {-| Computes G x W, where W are the body velocities
 -}
-computeGW : Body -> Body -> Equation -> Float
-computeGW bi bj equation =
-    -(equation.vBx * bi.velocity.x + equation.vBy * bi.velocity.y + equation.vBz * bi.velocity.z)
-        + (equation.wAx * bi.angularVelocity.x + equation.wAy * bi.angularVelocity.y + equation.wAz * bi.angularVelocity.z)
-        + (equation.vBx * bj.velocity.x + equation.vBy * bj.velocity.y + equation.vBz * bj.velocity.z)
-        + (equation.wBx * bj.angularVelocity.x + equation.wBy * bj.angularVelocity.y + equation.wBz * bj.angularVelocity.z)
+computeGW : Body -> Body -> Jacobian -> Float
+computeGW bi bj jacobian =
+    -(jacobian.vBx * bi.velocity.x + jacobian.vBy * bi.velocity.y + jacobian.vBz * bi.velocity.z)
+        + (jacobian.wAx * bi.angularVelocity.x + jacobian.wAy * bi.angularVelocity.y + jacobian.wAz * bi.angularVelocity.z)
+        + (jacobian.vBx * bj.velocity.x + jacobian.vBy * bj.velocity.y + jacobian.vBz * bj.velocity.z)
+        + (jacobian.wBx * bj.angularVelocity.x + jacobian.wBy * bj.angularVelocity.y + jacobian.wBz * bj.angularVelocity.z)
