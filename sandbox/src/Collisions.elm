@@ -40,6 +40,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Transform3d as Transform3d
 import Json.Decode as Decode exposing (Decoder)
 import Length exposing (Meters)
@@ -432,7 +433,7 @@ targetConvex =
         |> ShapesConvex.placeIn Transform3d.atOrigin
 
 
-computeContacts : String -> ControlledShape -> Pose -> List Contact
+computeContacts : Int -> ControlledShape -> Pose -> List Contact
 computeContacts idPrefix shape pose =
     let
         transform =
@@ -639,7 +640,7 @@ view : Model -> Html Msg
 view model =
     let
         contactList =
-            computeContacts "test" model.shape model.pose
+            computeContacts 0 model.shape model.pose
 
         contactPoints =
             List.concatMap
@@ -669,7 +670,7 @@ view model =
         , if model.settings.debugContacts && model.settings.debugContactIds then
             ContactLabels.view model.camera
                 (List.map
-                    (\c -> { id = c.id, point = Point3d.fromMeters c.pi })
+                    (\c -> { id = ContactId.toString c.shapeKey c.featureKey, point = Point3d.fromMeters c.pi })
                     contactList
                 )
 
@@ -930,7 +931,7 @@ fixtureSnippet : ControlledShape -> Pose -> String
 fixtureSnippet shape pose =
     let
         contacts =
-            computeContacts "" shape pose
+            computeContacts 0 shape pose
     in
     fixtureHeader shape (List.length contacts)
         ++ fixtureImports shape
@@ -1123,9 +1124,15 @@ formatContactList contacts =
 
 formatContact : Contact -> String
 formatContact c =
-    "{ id = \""
-        ++ c.id
-        ++ "\"\n                      , ni = "
+    -- Emit the packed id fields (see Internal.ContactId); the trailing comment
+    -- keeps the human-readable feature suffix next to them.
+    "{ shapeKey = "
+        ++ String.fromInt c.shapeKey
+        ++ ", featureKey = "
+        ++ String.fromInt c.featureKey
+        ++ " -- "
+        ++ ContactId.featureString c.featureKey
+        ++ "\n                      , ni = "
         ++ formatVec3 c.ni
         ++ "\n                      , pi = "
         ++ formatVec3 c.pi

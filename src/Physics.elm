@@ -73,7 +73,6 @@ import Array exposing (Array)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
-import Dict
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration, Seconds)
 import Force exposing (Newtons)
@@ -83,6 +82,7 @@ import Internal.Body as InternalBody
 import Internal.BroadPhase as BroadPhase
 import Internal.Const as Const
 import Internal.Contact as InternalContact
+import Internal.ContactCache as ContactCache
 import Internal.Coordinates
 import Internal.Shape as InternalShape
 import Internal.Solver as Solver
@@ -600,8 +600,8 @@ contactPoints predicate (Types.Contacts c) =
 emptyContacts : Contacts id
 emptyContacts =
     Types.Contacts
-        { lambdas = Dict.empty
-        , tangents = Dict.empty
+        { lambdas = ContactCache.empty
+        , tangents = ContactCache.empty
         , iterations = 0
         , dt = 0
         , gravity = Vec3.zero

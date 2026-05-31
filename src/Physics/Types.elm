@@ -1,10 +1,10 @@
 module Physics.Types exposing (Body(..), Constraint, Contacts(..), Lock, Material(..), Shape(..))
 
 import Array exposing (Array)
-import Dict exposing (Dict)
 import Internal.Body as InternalBody
 import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
+import Internal.ContactCache exposing (ContactCache)
 import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Lock as InternalLock
 import Internal.Material as InternalMaterial
@@ -19,8 +19,8 @@ type Body
 
 type Contacts id
     = Contacts
-        { lambdas : Dict String Float
-        , tangents : Dict String Vec3
+        { lambdas : ContactCache Float
+        , tangents : ContactCache Vec3
         , iterations : Int
         , dt : Float
         , gravity : Vec3

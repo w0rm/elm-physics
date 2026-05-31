@@ -3,6 +3,7 @@ module Collision.CapsuleConvex exposing (addContacts, supportFeature)
 import Collision.ConvexConvex as ConvexConvex
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Capsule exposing (Capsule)
 import Shapes.Convex exposing (Convex, Face)
@@ -45,8 +46,8 @@ keys clear cleanly across face/edge/vertex transitions:
 ep1/ep2 sides when both contribute; bare suffixes are single contacts.
 
 -}
-addContacts : String -> (Contact -> Contact) -> Capsule -> Convex -> List Contact -> List Contact
-addContacts idPrefix orderContact capsule convex contacts =
+addContacts : Int -> (Contact -> Contact) -> Capsule -> Convex -> List Contact -> List Contact
+addContacts shapeKey orderContact capsule convex contacts =
     let
         ep1 =
             { x = capsule.position.x - capsule.halfLength * capsule.axis.x
@@ -100,35 +101,35 @@ addContacts idPrefix orderContact capsule convex contacts =
                                 Nothing ->
                                     supportFeature separatingAxis convex
 
-                        featureTag =
+                        convexFeature =
                             case faceContext of
                                 Just ( fid, _ ) ->
-                                    "-f" ++ String.fromInt fid
+                                    ContactId.onConvexFace fid
 
                                 Nothing ->
                                     case supportVerts of
                                         _ :: _ :: _ ->
-                                            "-e"
+                                            ContactId.onConvexEdge
 
                                         _ :: [] ->
-                                            "-v"
+                                            ContactId.onConvexVertex
 
                                         [] ->
-                                            ""
+                                            ContactId.onConvexNone
                     in
                     if t > perpendicularThreshold then
                         -- Cap-on-feature: ep1 is the deepest cap. Also pick
                         -- up any cylinder-body contacts on the SAT-aligned
                         -- face — no multi-frame manifold accumulation.
                         contacts
-                            |> addDirectContact (idPrefix ++ "-e1" ++ featureTag) orderContact ep1 separatingAxis penetration capsule
-                            |> addBodyContacts idPrefix featureTag orderContact faceContext capsule ep1 ep2 separatingAxis ep1
+                            |> addDirectContact shapeKey (ContactId.capsuleCapEnd1 convexFeature) orderContact ep1 separatingAxis penetration capsule
+                            |> addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis ep1
 
                     else if t < -perpendicularThreshold then
                         -- Cap-on-feature: ep2 is the deepest cap.
                         contacts
-                            |> addDirectContact (idPrefix ++ "-e2" ++ featureTag) orderContact ep2 separatingAxis penetration capsule
-                            |> addBodyContacts idPrefix featureTag orderContact faceContext capsule ep1 ep2 separatingAxis ep2
+                            |> addDirectContact shapeKey (ContactId.capsuleCapEnd2 convexFeature) orderContact ep2 separatingAxis penetration capsule
+                            |> addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis ep2
 
                     else
                         -- Cylinder body touches the convex.
@@ -140,8 +141,8 @@ addContacts idPrefix orderContact capsule convex contacts =
                                 case clipSegmentAgainstFace face ep1 ep2 of
                                     ClipAlive p1 p2 ->
                                         contacts
-                                            |> addDirectContact (idPrefix ++ "-c1" ++ featureTag) orderContact p1 separatingAxis penetration capsule
-                                            |> addDirectContact (idPrefix ++ "-c2" ++ featureTag) orderContact p2 separatingAxis penetration capsule
+                                            |> addDirectContact shapeKey (ContactId.capsuleCylinder1 convexFeature) orderContact p1 separatingAxis penetration capsule
+                                            |> addDirectContact shapeKey (ContactId.capsuleCylinder2 convexFeature) orderContact p2 separatingAxis penetration capsule
 
                                     ClipDead ->
                                         -- Segment outside the polygon → the
@@ -149,7 +150,7 @@ addContacts idPrefix orderContact capsule convex contacts =
                                         -- normal and depth from closest-points
                                         -- geometry (SAT's penetration is too
                                         -- generous here).
-                                        addClosestEdgeContact (idPrefix ++ "-c" ++ featureTag) orderContact face ep1 ep2 capsule contacts
+                                        addClosestEdgeContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact face ep1 ep2 capsule contacts
 
                             Nothing ->
                                 -- Edge/Vertex support: emit at the closest
@@ -159,7 +160,7 @@ addContacts idPrefix orderContact capsule convex contacts =
                                         if Vec3.almostZero (Vec3.cross capsule.axis (Vec3.sub v2 v1)) then
                                             -- Parallel: contact is a segment,
                                             -- emit one at each end of the overlap.
-                                            addParallelEdgeContacts (idPrefix ++ "-c") featureTag orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts
+                                            addParallelEdgeContacts shapeKey convexFeature orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts
 
                                         else
                                             -- Skew: single closest-pair contact.
@@ -167,14 +168,14 @@ addContacts idPrefix orderContact capsule convex contacts =
                                                 ( pCapsule, _ ) =
                                                     Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
                                             in
-                                            addDirectContact (idPrefix ++ "-c" ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
+                                            addDirectContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact pCapsule separatingAxis penetration capsule contacts
 
                                     v :: [] ->
                                         let
                                             ( pCapsule, _ ) =
                                                 Vec3.closestPointsBetweenSegments ep1 ep2 v v
                                         in
-                                        addDirectContact (idPrefix ++ "-c" ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
+                                        addDirectContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact pCapsule separatingAxis penetration capsule contacts
 
                                     [] ->
                                         contacts
@@ -184,8 +185,8 @@ addContacts idPrefix orderContact capsule convex contacts =
 of the overlap interval. Falls back to a single closest-pair contact if
 the overlap collapses to a point.
 -}
-addParallelEdgeContacts : String -> String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Float -> Capsule -> List Contact -> List Contact
-addParallelEdgeContacts idPrefix featureTag orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts =
+addParallelEdgeContacts : Int -> Int -> (Contact -> Contact) -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Float -> Capsule -> List Contact -> List Contact
+addParallelEdgeContacts shapeKey convexFeature orderContact ep1 ep2 v1 v2 separatingAxis penetration capsule contacts =
     let
         sEp1 =
             Vec3.dot ep1 capsule.axis
@@ -213,19 +214,19 @@ addParallelEdgeContacts idPrefix featureTag orderContact ep1 ep2 v1 v2 separatin
     in
     if sHi - sLo > Const.precision then
         contacts
-            |> addDirectContact (idPrefix ++ "1" ++ featureTag) orderContact (pointAt sLo) separatingAxis penetration capsule
-            |> addDirectContact (idPrefix ++ "2" ++ featureTag) orderContact (pointAt sHi) separatingAxis penetration capsule
+            |> addDirectContact shapeKey (ContactId.capsuleCylinder1 convexFeature) orderContact (pointAt sLo) separatingAxis penetration capsule
+            |> addDirectContact shapeKey (ContactId.capsuleCylinder2 convexFeature) orderContact (pointAt sHi) separatingAxis penetration capsule
 
     else
         let
             ( pCapsule, _ ) =
                 Vec3.closestPointsBetweenSegments ep1 ep2 v1 v2
         in
-        addDirectContact (idPrefix ++ featureTag) orderContact pCapsule separatingAxis penetration capsule contacts
+        addDirectContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact pCapsule separatingAxis penetration capsule contacts
 
 
-addDirectContact : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Capsule -> List Contact -> List Contact
-addDirectContact idPrefix orderContact segmentPoint separatingAxis penetration capsule contacts =
+addDirectContact : Int -> Int -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Capsule -> List Contact -> List Contact
+addDirectContact shapeKey featureKey orderContact segmentPoint separatingAxis penetration capsule contacts =
     let
         normal =
             Vec3.negate separatingAxis
@@ -243,7 +244,8 @@ addDirectContact idPrefix orderContact segmentPoint separatingAxis penetration c
             }
     in
     orderContact
-        { id = idPrefix
+        { shapeKey = shapeKey
+        , featureKey = featureKey
         , ni = normal
         , pi = pi
         , pj = pj
@@ -255,8 +257,8 @@ addDirectContact idPrefix orderContact segmentPoint separatingAxis penetration c
 where the body crosses the SAT-aligned face. The cap endpoint is skipped
 to avoid two contacts at the same world point with different depths.
 -}
-addBodyContacts : String -> String -> (Contact -> Contact) -> Maybe ( Int, Face ) -> Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
-addBodyContacts idPrefix faceTag orderContact faceContext capsule ep1 ep2 separatingAxis capPoint contacts =
+addBodyContacts : Int -> Int -> (Contact -> Contact) -> Maybe ( Int, Face ) -> Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
+addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis capPoint contacts =
     case faceContext of
         Nothing ->
             contacts
@@ -277,12 +279,12 @@ addBodyContacts idPrefix faceTag orderContact faceContext capsule ep1 ep2 separa
                                     0
                     in
                     contacts
-                        |> tryAddBodyPoint (idPrefix ++ "-c1" ++ faceTag) orderContact face facePlaneConstant separatingAxis capsule capPoint q1
-                        |> tryAddBodyPoint (idPrefix ++ "-c2" ++ faceTag) orderContact face facePlaneConstant separatingAxis capsule capPoint q2
+                        |> tryAddBodyPoint shapeKey (ContactId.capsuleCylinder1 convexFeature) orderContact face facePlaneConstant separatingAxis capsule capPoint q1
+                        |> tryAddBodyPoint shapeKey (ContactId.capsuleCylinder2 convexFeature) orderContact face facePlaneConstant separatingAxis capsule capPoint q2
 
 
-tryAddBodyPoint : String -> (Contact -> Contact) -> Face -> Float -> Vec3 -> Capsule -> Vec3 -> Vec3 -> List Contact -> List Contact
-tryAddBodyPoint idPrefix orderContact face facePlaneConstant separatingAxis capsule capPoint point contacts =
+tryAddBodyPoint : Int -> Int -> (Contact -> Contact) -> Face -> Float -> Vec3 -> Capsule -> Vec3 -> Vec3 -> List Contact -> List Contact
+tryAddBodyPoint shapeKey featureKey orderContact face facePlaneConstant separatingAxis capsule capPoint point contacts =
     if Vec3.distance point capPoint < Const.precision then
         contacts
 
@@ -298,7 +300,7 @@ tryAddBodyPoint idPrefix orderContact face facePlaneConstant separatingAxis caps
             contacts
 
         else
-            addDirectContact idPrefix orderContact point separatingAxis bodyPen capsule contacts
+            addDirectContact shapeKey featureKey orderContact point separatingAxis bodyPen capsule contacts
 
 
 type ClipResult
@@ -368,8 +370,8 @@ walkClipEdge faceNormal firstVertex vertices p1 p2 =
 contact at the closest face edge. Skipped silently if no edge is within
 `capsule.radius` of the capsule axis.
 -}
-addClosestEdgeContact : String -> (Contact -> Contact) -> Face -> Vec3 -> Vec3 -> Capsule -> List Contact -> List Contact
-addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
+addClosestEdgeContact : Int -> Int -> (Contact -> Contact) -> Face -> Vec3 -> Vec3 -> Capsule -> List Contact -> List Contact
+addClosestEdgeContact shapeKey featureKey orderContact face ep1 ep2 capsule contacts =
     let
         radiusSq =
             capsule.radius * capsule.radius
@@ -402,7 +404,8 @@ addClosestEdgeContact idPrefix orderContact face ep1 ep2 capsule contacts =
                     , z = (result.pCapsule.z - result.pEdge.z) * inv
                     }
             in
-            addDirectContact idPrefix
+            addDirectContact shapeKey
+                featureKey
                 orderContact
                 result.pCapsule
                 edgeSeparatingAxis

@@ -36,7 +36,7 @@ addContacts =
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
-                            Collision.SphereConvex.addContacts ""
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (Convex.placeIn (Transform3d.atPoint position) (Convex.fromBlock boxSize boxSize boxSize))
@@ -50,7 +50,7 @@ addContacts =
                 Fixtures.NarrowPhase.sphereContactBoxPositions center (sphereRadius * 2) boxSize
                     |> List.concatMap
                         (\( position, _ ) ->
-                            Collision.SphereConvex.addContacts ""
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Convex.fromBlock boxSize boxSize boxSize))
@@ -62,7 +62,7 @@ addContacts =
                 |> List.map
                     (\( position, expectedContacts ) ->
                         \_ ->
-                            Collision.SphereConvex.addContacts ""
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))
@@ -76,7 +76,7 @@ addContacts =
                 Fixtures.NarrowPhase.sphereContactOctohedronPositions center (sphereRadius * 2) octoHalfExtent
                     |> List.concatMap
                         (\( position, _ ) ->
-                            Collision.SphereConvex.addContacts ""
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin sphereRadius))
                                 (placeInWithCorrectWinding position (Fixtures.Convex.octoHull octoHalfExtent))
@@ -103,10 +103,10 @@ addContacts =
                         { c | ni = Vec3.negate c.ni, pi = c.pj, pj = c.pi }
 
                     direct =
-                        Collision.SphereConvex.addContacts "" identity sphere box []
+                        Collision.SphereConvex.addContacts 0 identity sphere box []
 
                     flipped =
-                        Collision.SphereConvex.addContacts "" flipper sphere box []
+                        Collision.SphereConvex.addContacts 0 flipper sphere box []
                 in
                 Expect.contacts (List.map flipper direct) flipped
         ]

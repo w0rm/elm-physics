@@ -8,6 +8,7 @@ module Collision.ConvexConvex exposing
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex as Convex exposing (Convex, Face)
 
@@ -34,8 +35,8 @@ type alias FaceWinner =
     }
 
 
-addContacts : String -> Convex -> Convex -> List Contact -> List Contact
-addContacts idPrefix convex1 convex2 contacts =
+addContacts : Int -> Convex -> Convex -> List Contact -> List Contact
+addContacts shapeKey convex1 convex2 contacts =
     case findFaceSAT convex1 convex2 of
         Nothing ->
             contacts
@@ -46,7 +47,7 @@ addContacts idPrefix convex1 convex2 contacts =
                     contacts
 
                 EdgeBeats edgeAxis dir1Idx edges1 dir2Idx edges2 ->
-                    addEdgeContact idPrefix
+                    addEdgeContact shapeKey
                         (orientAxis convex1 convex2 edgeAxis)
                         dir1Idx
                         edges1
@@ -55,14 +56,14 @@ addContacts idPrefix convex1 convex2 contacts =
                         contacts
 
                 NoEdgeBeats ->
-                    dispatchBestFaces idPrefix convex1 convex2 winner contacts
+                    dispatchBestFaces shapeKey convex1 convex2 winner contacts
 
 
 {-| Pick the contact face on the SAT-winning body directly; only run
 `bestFace` against the other body.
 -}
-dispatchBestFaces : String -> Convex -> Convex -> FaceWinner -> List Contact -> List Contact
-dispatchBestFaces idPrefix convex1 convex2 winner contacts =
+dispatchBestFaces : Int -> Convex -> Convex -> FaceWinner -> List Contact -> List Contact
+dispatchBestFaces shapeKey convex1 convex2 winner contacts =
     let
         separatingAxis =
             orientAxis convex1 convex2 winner.axis
@@ -96,7 +97,9 @@ dispatchBestFaces idPrefix convex1 convex2 winner contacts =
         contacts
 
     else
-        clipTwoFaces (idPrefix ++ "-f" ++ String.fromInt picked.id1 ++ "-f" ++ String.fromInt picked.id2)
+        clipTwoFaces shapeKey
+            picked.id1
+            picked.id2
             picked.face1
             picked.face2
             reversedSeparatingAxis
@@ -134,8 +137,8 @@ orientAxis convex1 convex2 axis =
 `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
 warm-start cache keys survive multi-edge contacts in the same body pair.
 -}
-addEdgeContact : String -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
-addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
+addEdgeContact : Int -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+addEdgeContact shapeKey separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
     let
         reversedSeparatingAxis =
             Vec3.negate separatingAxis
@@ -149,16 +152,8 @@ addEdgeContact idPrefix separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
         ( pi, pj ) =
             Vec3.closestPointsBetweenSegments e1p e1q e2p e2q
     in
-    { id =
-        idPrefix
-            ++ "-e"
-            ++ String.fromInt dir1Idx
-            ++ "."
-            ++ String.fromInt edge1Idx
-            ++ "-e"
-            ++ String.fromInt dir2Idx
-            ++ "."
-            ++ String.fromInt edge2Idx
+    { shapeKey = shapeKey
+    , featureKey = ContactId.convexConvexEdge dir1Idx edge1Idx dir2Idx edge2Idx
     , ni = reversedSeparatingAxis
     , pi = pi
     , pj = pj
@@ -192,8 +187,8 @@ pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
             ( bestIdx, bestEdge )
 
 
-clipTwoFaces : String -> Face -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces idPrefix face { vertices } separatingAxis contacts =
+clipTwoFaces : Int -> Int -> Int -> Face -> Face -> Vec3 -> List Contact -> List Contact
+clipTwoFaces shapeKey faceId1 faceId2 face { vertices } separatingAxis contacts =
     let
         point =
             case face.vertices of
@@ -206,7 +201,9 @@ clipTwoFaces idPrefix face { vertices } separatingAxis contacts =
         facePlaneConstant =
             -(Vec3.dot face.normal point)
     in
-    clipTwoFacesHelp idPrefix
+    clipTwoFacesHelp shapeKey
+        faceId1
+        faceId2
         separatingAxis
         face
         facePlaneConstant
@@ -215,8 +212,8 @@ clipTwoFaces idPrefix face { vertices } separatingAxis contacts =
         contacts
 
 
-clipTwoFacesHelp : String -> Vec3 -> Face -> Float -> Int -> List Vec3 -> List Contact -> List Contact
-clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices result =
+clipTwoFacesHelp : Int -> Int -> Int -> Vec3 -> Face -> Float -> Int -> List Vec3 -> List Contact -> List Contact
+clipTwoFacesHelp shapeKey faceId1 faceId2 separatingAxis face facePlaneConstant n vertices result =
     case vertices of
         vertex :: remainingVertices ->
             let
@@ -224,13 +221,16 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
                     Vec3.dot face.normal vertex + facePlaneConstant
             in
             if depth - Const.contactBreakingThreshold < 0 then
-                clipTwoFacesHelp idPrefix
+                clipTwoFacesHelp shapeKey
+                    faceId1
+                    faceId2
                     separatingAxis
                     face
                     facePlaneConstant
                     (n + 1)
                     remainingVertices
-                    ({ id = idPrefix ++ "-v" ++ String.fromInt (n + 1)
+                    ({ shapeKey = shapeKey
+                     , featureKey = ContactId.convexConvexFace faceId1 faceId2 (n + 1)
                      , ni = separatingAxis
                      , pi =
                         { x = vertex.x - depth * face.normal.x
@@ -243,7 +243,9 @@ clipTwoFacesHelp idPrefix separatingAxis face facePlaneConstant n vertices resul
                     )
 
             else
-                clipTwoFacesHelp idPrefix
+                clipTwoFacesHelp shapeKey
+                    faceId1
+                    faceId2
                     separatingAxis
                     face
                     facePlaneConstant

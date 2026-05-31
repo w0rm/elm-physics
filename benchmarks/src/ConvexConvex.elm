@@ -38,11 +38,11 @@ colliding =
         "baseline"
         (\_ ->
             {- Collision.ConvexConvex.oldAddContacts -}
-            Collision.ConvexConvex.addContacts firstConvex secondConvex []
+            Collision.ConvexConvex.addContacts 0 firstConvex secondConvex []
         )
         "latest code"
         (\_ ->
-            Collision.ConvexConvex.addContacts firstConvex secondConvex []
+            Collision.ConvexConvex.addContacts 0 firstConvex secondConvex []
         )
 
 
@@ -66,11 +66,11 @@ separated =
         "baseline"
         (\_ ->
             {- Collision.ConvexConvex.oldAddContacts -}
-            Collision.ConvexConvex.addContacts firstConvex secondConvex []
+            Collision.ConvexConvex.addContacts 0 firstConvex secondConvex []
         )
         "latest code"
         (\_ ->
-            Collision.ConvexConvex.addContacts firstConvex secondConvex []
+            Collision.ConvexConvex.addContacts 0 firstConvex secondConvex []
         )
 
 

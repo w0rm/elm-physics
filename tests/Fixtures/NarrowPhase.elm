@@ -168,7 +168,8 @@ sphereContactOctohedronPositions center radius octoHalfExtent =
 
 completeSphereContactEquation : Float -> { ni : Vec3, rj : Vec3, ci : Vec3, cj : Vec3 } -> List Contact
 completeSphereContactEquation radius { ni, rj, ci, cj } =
-    [ { id = ""
+    [ { shapeKey = 0
+      , featureKey = 0
       , ni = ni
       , pi = Vec3.add ci (Vec3.scale radius ni)
       , pj = Vec3.add cj rj

@@ -2,13 +2,14 @@ module Collision.PlaneCapsule exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Capsule exposing (Capsule)
 import Shapes.Plane exposing (Plane)
 
 
-addContacts : String -> (Contact -> Contact) -> Plane -> Capsule -> List Contact -> List Contact
-addContacts idPrefix orderContact { normal, position } capsule contacts =
+addContacts : Int -> (Contact -> Contact) -> Plane -> Capsule -> List Contact -> List Contact
+addContacts shapeKey orderContact { normal, position } capsule contacts =
     let
         ep1 =
             { x = capsule.position.x - capsule.halfLength * capsule.axis.x
@@ -23,13 +24,13 @@ addContacts idPrefix orderContact { normal, position } capsule contacts =
             }
 
         contacts1 =
-            addCapContact (idPrefix ++ "-e1") orderContact normal position capsule.radius ep1 contacts
+            addCapContact shapeKey (ContactId.planeCapEnd 1) orderContact normal position capsule.radius ep1 contacts
     in
-    addCapContact (idPrefix ++ "-e2") orderContact normal position capsule.radius ep2 contacts1
+    addCapContact shapeKey (ContactId.planeCapEnd 2) orderContact normal position capsule.radius ep2 contacts1
 
 
-addCapContact : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Vec3 -> List Contact -> List Contact
-addCapContact id orderContact normal planePosition radius ep contacts =
+addCapContact : Int -> Int -> (Contact -> Contact) -> Vec3 -> Vec3 -> Float -> Vec3 -> List Contact -> List Contact
+addCapContact shapeKey featureKey orderContact normal planePosition radius ep contacts =
     let
         vertex =
             { x = ep.x - radius * normal.x
@@ -44,7 +45,8 @@ addCapContact id orderContact normal planePosition radius ep contacts =
     in
     if dot - Const.contactBreakingThreshold < 0 then
         orderContact
-            { id = id
+            { shapeKey = shapeKey
+            , featureKey = featureKey
             , ni = normal
             , pi =
                 { x = vertex.x - dot * normal.x

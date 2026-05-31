@@ -22,7 +22,8 @@ type alias SolverContact =
 
 
 type alias Contact =
-    { id : String
+    { shapeKey : Int
+    , featureKey : Int
     , ni : Vec3 -- contact normal, pointing out of body1
     , pi : Vec3 -- contact point on body1
     , pj : Vec3 -- contact point on body2
@@ -34,7 +35,8 @@ handle both sphere-convex and convex-sphere into the same group.
 -}
 flip : Contact -> Contact
 flip contact =
-    { id = contact.id
+    { shapeKey = contact.shapeKey
+    , featureKey = contact.featureKey
     , ni = Vec3.negate contact.ni
     , pi = contact.pj
     , pj = contact.pi

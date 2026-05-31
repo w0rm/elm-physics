@@ -2,12 +2,13 @@ module Collision.PlaneParticle exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Plane exposing (Plane)
 
 
-addContacts : String -> (Contact -> Contact) -> Plane -> Vec3 -> List Contact -> List Contact
-addContacts idPrefix orderContact { position, normal } particlePosition contacts =
+addContacts : Int -> (Contact -> Contact) -> Plane -> Vec3 -> List Contact -> List Contact
+addContacts shapeKey orderContact { position, normal } particlePosition contacts =
     let
         dot =
             ((particlePosition.x - position.x) * normal.x)
@@ -16,7 +17,8 @@ addContacts idPrefix orderContact { position, normal } particlePosition contacts
     in
     if dot - Const.contactBreakingThreshold < 0 then
         orderContact
-            { id = idPrefix
+            { shapeKey = shapeKey
+            , featureKey = ContactId.simple
             , ni = normal
             , pi =
                 { x = particlePosition.x - dot * normal.x

@@ -7,10 +7,11 @@ module Internal.Equation exposing
     , equationsForPair
     )
 
-import Dict exposing (Dict)
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
 import Internal.Contact exposing (Contact, PairGroup, SolverContact)
+import Internal.ContactCache as Cache exposing (ContactCache)
+import Internal.ContactId as ContactId
 import Internal.Shape exposing (CenterOfMassCoordinates)
 import Internal.SolverBody exposing (SolverBody)
 import Internal.Transform3d as Transform3d
@@ -18,7 +19,8 @@ import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
 type alias Equation =
-    { id : String
+    { shapeKey : Int
+    , featureKey : Int
     , minForce : Float
     , maxForce : Float
     , solverB : Float
@@ -27,13 +29,12 @@ type alias Equation =
     , spookB : Float
     , spookEps : Float
 
-    -- Coulomb cone clamping for contact friction. `isContactNormal = True`
-    -- marks a contact normal whose post-solve lambda is the normal force
-    -- used to size the friction cone for the two friction equations that
-    -- immediately follow it in the equation list. `frictionCoefficient > 0`
-    -- marks a friction equation; its clamp is computed dynamically as
-    -- ±μ · λ_n each iteration. Both fields are 0/False elsewhere.
-    , isContactNormal : Bool
+    -- Friction coefficient μ for a contact's two friction equations: the
+    -- solver clamps their force to ±μ · λ_n each iteration (λ_n = the
+    -- just-solved normal lambda). Which equations are frictions is decided
+    -- structurally — they are the friction1/friction2 fields of a
+    -- ContactEquations, solved in their own pass — not by this value, which is
+    -- an unread 0 on normals and constraints.
     , frictionCoefficient : Float
 
     -- wA, vB, wB are conceptually Vec3, flattened to Floats so the JS
@@ -55,13 +56,13 @@ type alias Ctx =
     { dt : Float
     , gravity : Vec3
     , gravityLength : Float
-    , lambdas : Dict String Float
-    , tangents : Dict String Vec3
+    , lambdas : ContactCache Float
+    , tangents : ContactCache Vec3
     }
 
 
 {-| One contact point's equations. The normal's post-solve lambda sizes the
-Coulomb cone (±μ·λ_n) for friction1/friction2. Bundling them lets the velocity
+Coulomb cone (±μ·λ\_n) for friction1/friction2. Bundling them lets the velocity
 solver run all normals island-wide (pass 1) then all frictions (pass 2) without
 walking past — and skipping — the other phase's equations. friction1 carries
 the t1 direction recorded in the tangent warm-start cache.
@@ -82,6 +83,7 @@ refs become stale after the first iteration and the solver falls back to
 Equations are split: `contacts` (each a normal + its two frictions) and
 `constraints` (joints, non-friction). `deltalambdaTot` is a per-pass scratch
 field, reset to 0 at the start of every iteration.
+
 -}
 type alias EquationsGroup id =
     { body1 : SolverBody id
@@ -94,9 +96,51 @@ type alias EquationsGroup id =
 
 equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List SolverEquation }
 equationsForPair ctx { body1, body2, contacts, constraints } =
-    { contacts = List.foldl (\contact acc -> contactEquations ctx body1 body2 contact :: acc) [] contacts
+    -- Multistep warm-start: fetch this body pair's cached lambda/tangent lists
+    -- once (the cache is keyed by body pair), then scan them per contact —
+    -- instead of walking the cache tree for every contact point.
+    let
+        ( lambdaList, tangentList ) =
+            case contacts of
+                [] ->
+                    ( [], [] )
+
+                _ ->
+                    let
+                        bodyKey =
+                            ContactId.bodyKey body1.id body2.id
+                    in
+                    ( Cache.getList bodyKey ctx.lambdas, Cache.getList bodyKey ctx.tangents )
+    in
+    { contacts = buildContactEquations ctx body1 body2 lambdaList tangentList contacts []
     , constraints = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
     }
+
+
+buildContactEquations : Ctx -> Body -> Body -> List ( Int, Int, Float ) -> List ( Int, Int, Vec3 ) -> List SolverContact -> List ContactEquations -> List ContactEquations
+buildContactEquations ctx body1 body2 lambdaList tangentList contacts acc =
+    case contacts of
+        [] ->
+            acc
+
+        solverContact :: rest ->
+            let
+                contact =
+                    solverContact.contact
+
+                seedLambda =
+                    Cache.lookup contact.shapeKey contact.featureKey 0 lambdaList * warmStartFactor
+
+                cachedT1 =
+                    Cache.lookup contact.shapeKey contact.featureKey Vec3.zero tangentList
+            in
+            buildContactEquations ctx
+                body1
+                body2
+                lambdaList
+                tangentList
+                rest
+                (contactEquations seedLambda cachedT1 ctx body1 body2 solverContact :: acc)
 
 
 addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List SolverEquation -> List SolverEquation
@@ -133,9 +177,10 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             Vec3.scale -halfDistance ni
     in
     (::)
-        (initSolverParams
+        (initSolverParams 0
             (computeContactB 0
-                { id = ""
+                { shapeKey = 0
+                , featureKey = 0
                 , pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
                 , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
                 , ni = ni
@@ -144,7 +189,8 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             ctx
             body1
             body2
-            { id = ""
+            { shapeKey = 0
+            , featureKey = 0
             , minForce = -1000000
             , maxForce = 1000000
             , solverB = 0
@@ -152,7 +198,6 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , spookA = erp / ctx.dt
             , spookB = 1
             , spookEps = cfm
-            , isContactNormal = False
             , frictionCoefficient = 0
 
             -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
@@ -212,7 +257,7 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
 
 addRotationalEquation : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List SolverEquation -> List SolverEquation
 addRotationalEquation ctx body1 body2 ni nj equations =
-    initSolverParams
+    initSolverParams 0
         (computeRotationalB
             { ni = ni
             , nj = nj
@@ -222,7 +267,8 @@ addRotationalEquation ctx body1 body2 ni nj equations =
         ctx
         body1
         body2
-        { id = ""
+        { shapeKey = 0
+        , featureKey = 0
         , minForce = -1000000
         , maxForce = 1000000
         , solverB = 0
@@ -230,7 +276,6 @@ addRotationalEquation ctx body1 body2 ni nj equations =
         , spookA = erp / ctx.dt
         , spookB = 1
         , spookEps = cfm
-        , isContactNormal = False
         , frictionCoefficient = 0
 
         -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
@@ -259,9 +304,10 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
     List.foldl
         (\ni ->
             (::)
-                (initSolverParams
+                (initSolverParams 0
                     (computeContactB 0
-                        { id = ""
+                        { shapeKey = 0
+                        , featureKey = 0
                         , pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
                         , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
                         , ni = ni
@@ -270,7 +316,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     ctx
                     body1
                     body2
-                    { id = ""
+                    { shapeKey = 0
+                    , featureKey = 0
                     , minForce = -1000000
                     , maxForce = 1000000
                     , solverB = 0
@@ -278,7 +325,6 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , spookA = erp / ctx.dt
                     , spookB = 1
                     , spookEps = cfm
-                    , isContactNormal = False
                     , frictionCoefficient = 0
 
                     -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
@@ -298,8 +344,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
         Vec3.basis
 
 
-contactEquations : Ctx -> Body -> Body -> SolverContact -> ContactEquations
-contactEquations ctx body1 body2 { friction, bounciness, contact } =
+contactEquations : Float -> Vec3 -> Ctx -> Body -> Body -> SolverContact -> ContactEquations
+contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, contact } =
     let
         ri =
             Vec3.sub contact.pi (Transform3d.originPoint body1.transform3d)
@@ -307,21 +353,20 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
         rj =
             Vec3.sub contact.pj (Transform3d.originPoint body2.transform3d)
 
+        -- cachedT1 is Vec3.zero when the pair had no cached tangent for this
+        -- contact; stableTangents falls back to Vec3.tangents on a zero-length
+        -- direction, so that is exactly the cached/uncached split.
         ( t1, t2 ) =
-            case Dict.get contact.id ctx.tangents of
-                Just cachedT1 ->
-                    stableTangents cachedT1 contact.ni
-
-                Nothing ->
-                    Vec3.tangents contact.ni
+            stableTangents cachedT1 contact.ni
     in
     { normal =
-        initSolverParams
+        initSolverParams seedLambda
             (computeContactB bounciness contact)
             ctx
             body1
             body2
-            { id = contact.id
+            { shapeKey = contact.shapeKey
+            , featureKey = contact.featureKey
             , minForce = 0
             , maxForce = 1000000
             , solverB = 0
@@ -329,7 +374,6 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
             , spookA = erp / ctx.dt
             , spookB = 1
             , spookEps = cfm
-            , isContactNormal = True
             , frictionCoefficient = 0
 
             -- wA = Vec3.cross contact.ni ri, vB = contact.ni, wB = Vec3.cross rj contact.ni
@@ -344,12 +388,13 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
             , wBz = rj.x * contact.ni.y - rj.y * contact.ni.x
             }
     , friction1 =
-        initSolverParams
+        initSolverParams 0
             computeFrictionB
             ctx
             body1
             body2
-            { id = ""
+            { shapeKey = 0
+            , featureKey = 0
 
             -- minForce / maxForce overridden by the solver each iteration
             -- as ±μ · λ_n (Coulomb cone).
@@ -360,7 +405,6 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
             , spookA = erp / ctx.dt
             , spookB = 1
             , spookEps = cfm
-            , isContactNormal = False
             , frictionCoefficient = friction
 
             -- wA = Vec3.cross t1 ri, vB = t1, wB = Vec3.cross rj t1
@@ -375,12 +419,13 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
             , wBz = rj.x * t1.y - rj.y * t1.x
             }
     , friction2 =
-        initSolverParams
+        initSolverParams 0
             computeFrictionB
             ctx
             body1
             body2
-            { id = ""
+            { shapeKey = 0
+            , featureKey = 0
             , minForce = 0
             , maxForce = 0
             , solverB = 0
@@ -388,7 +433,6 @@ contactEquations ctx body1 body2 { friction, bounciness, contact } =
             , spookA = erp / ctx.dt
             , spookB = 1
             , spookEps = cfm
-            , isContactNormal = False
             , frictionCoefficient = friction
 
             -- wA = Vec3.cross t2 ri, vB = t2, wB = Vec3.cross rj t2
@@ -474,25 +518,19 @@ type alias SolverEquation =
     }
 
 
-initSolverParams : ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
-initSolverParams computeB ctx bi bj solverEquation =
+initSolverParams : Float -> ComputeB -> Ctx -> Body -> Body -> Equation -> SolverEquation
+initSolverParams seedLambda computeB ctx bi bj solverEquation =
     let
         velocityB =
             computeB bi bj solverEquation
     in
-    { solverLambda =
-        if solverEquation.id == "" then
-            0
-
-        else
-            case Dict.get solverEquation.id ctx.lambdas of
-                Just lambda ->
-                    lambda * warmStartFactor
-
-                Nothing ->
-                    0
+    -- seedLambda is the warm-start impulse (already scaled by warmStartFactor),
+    -- looked up once per body pair in equationsForPair; 0 for frictions and
+    -- constraints, which are not warm-started.
+    { solverLambda = seedLambda
     , equation =
-        { id = solverEquation.id
+        { shapeKey = solverEquation.shapeKey
+        , featureKey = solverEquation.featureKey
         , minForce = solverEquation.minForce
         , maxForce = solverEquation.maxForce
         , solverB =
@@ -502,7 +540,6 @@ initSolverParams computeB ctx bi bj solverEquation =
         , spookA = solverEquation.spookA
         , spookB = solverEquation.spookB
         , spookEps = solverEquation.spookEps
-        , isContactNormal = solverEquation.isContactNormal
         , frictionCoefficient = solverEquation.frictionCoefficient
         , wAx = solverEquation.wAx
         , wAy = solverEquation.wAy

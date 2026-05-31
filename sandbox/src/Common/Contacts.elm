@@ -12,6 +12,7 @@ re-projection so points line up with the rendered body positions.
 
 import Array
 import Internal.Contact as InternalContact
+import Internal.ContactId as ContactId
 import Internal.SolverBody as SolverBody
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
@@ -63,7 +64,7 @@ helper dt gravity pairGroups solverBodies acc =
                                 entries =
                                     List.map
                                         (\{ contact } ->
-                                            { id = contact.id
+                                            { id = ContactId.toString contact.shapeKey contact.featureKey
                                             , point =
                                                 Point3d.fromMeters
                                                     (Transform3d.pointPlaceIn transform contact.pi)

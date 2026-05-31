@@ -63,7 +63,7 @@ suite =
                     |> List.map
                         (\position ->
                             {- Collision.SphereConvex.oldAddContacts -}
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.atOrigin radius)
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
@@ -75,7 +75,7 @@ suite =
                 boxPositions
                     |> List.map
                         (\position ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
@@ -89,7 +89,7 @@ suite =
                     |> List.map
                         (\position ->
                             {- Collision.SphereConvex.oldAddContacts -}
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
@@ -101,7 +101,7 @@ suite =
                 boxFarPositions
                     |> List.map
                         (\position ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) boxHull)
@@ -115,7 +115,7 @@ suite =
                     |> List.map
                         (\position ->
                             {- Collision.SphereConvex.oldAddContacts -}
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)
@@ -127,7 +127,7 @@ suite =
                 octoPositions
                     |> List.map
                         (\position ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)
@@ -141,7 +141,7 @@ suite =
                     |> List.map
                         (\position ->
                             {- Collision.SphereConvex.oldAddContacts -}
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)
@@ -153,7 +153,7 @@ suite =
                 octoFarPositions
                     |> List.map
                         (\position ->
-                            Collision.SphereConvex.addContacts
+                            Collision.SphereConvex.addContacts 0
                                 identity
                                 (Sphere.placeIn (Transform3d.atPoint center) (Sphere.atOrigin radius))
                                 (Convex.placeIn (Transform3d.atPoint position) octoHull)

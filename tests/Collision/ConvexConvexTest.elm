@@ -8,6 +8,7 @@ module Collision.ConvexConvexTest exposing
 import Collision.ConvexConvex
 import Expect
 import Internal.Const as Const
+import Internal.ContactId as ContactId
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Shapes.Convex as Convex
@@ -50,7 +51,7 @@ addContacts =
                         Transform3d.atPoint { x = 0, y = 0, z = 4 }
                             |> Transform3d.rotateAroundOwn Vec3.yAxis (pi / 2)
                 in
-                Collision.ConvexConvex.addContacts "" (Convex.placeIn t1 convex) (Convex.placeIn t2 convex) []
+                Collision.ConvexConvex.addContacts 0 (Convex.placeIn t1 convex) (Convex.placeIn t2 convex) []
                     |> List.length
                     |> Expect.equal 4
         , test "should return 2 results" <|
@@ -70,7 +71,7 @@ addContacts =
                         Transform3d.atPoint { x = 0.5, y = 0, z = 0 }
                             |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                 in
-                Collision.ConvexConvex.addContacts ""
+                Collision.ConvexConvex.addContacts 0
                     (Convex.placeIn transform3d1 convex1)
                     (Convex.placeIn transform3d2 convex2)
                     []
@@ -93,7 +94,7 @@ addContacts =
                                     |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 6)
                                 )
                 in
-                Collision.ConvexConvex.addContacts "" box1 box2 []
+                Collision.ConvexConvex.addContacts 0 box1 box2 []
                     |> List.length
                     |> Expect.equal 1
         , test "axis-aligned corner-on-corner stays on the face-clip path" <|
@@ -107,24 +108,24 @@ addContacts =
                         Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.7, y = 0.7, z = 0.7 })
                 in
-                Collision.ConvexConvex.addContacts "" box1 box2 []
-                    |> List.all (\c -> not (String.startsWith "-e" c.id))
+                Collision.ConvexConvex.addContacts 0 box1 box2 []
+                    |> List.all (\c -> not (String.startsWith "-e" (ContactId.featureString c.featureKey)))
                     |> Expect.equal True
         , test "tilted box with edge crossing target top face emits two face-face contacts" <|
             \_ ->
-                Collision.ConvexConvex.addContacts ""
+                Collision.ConvexConvex.addContacts 0
                     (tiltedBox { x = -0.11608751888227789, y = 0.5683352706207844, z = 1.9053833288923054 })
                     targetBox
                     []
-                    |> List.map .id
+                    |> List.map (\c -> ContactId.featureString c.featureKey)
                     |> Expect.equal [ "-f3-f5-v2", "-f3-f5-v1" ]
         , test "same tilt at shifted y-offset emits two face-face contacts" <|
             \_ ->
-                Collision.ConvexConvex.addContacts ""
+                Collision.ConvexConvex.addContacts 0
                     (tiltedBox { x = -0.06790182997043828, y = -0.6276944695546394, z = 1.9053833288923054 })
                     targetBox
                     []
-                    |> List.map .id
+                    |> List.map (\c -> ContactId.featureString c.featureKey)
                     |> Expect.equal [ "-f3-f5-v3", "-f3-f5-v2" ]
         ]
 

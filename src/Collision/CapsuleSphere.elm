@@ -1,13 +1,14 @@
 module Collision.CapsuleSphere exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3
 import Shapes.Capsule exposing (Capsule)
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : String -> (Contact -> Contact) -> Capsule -> Sphere -> List Contact -> List Contact
-addContacts idPrefix orderContact capsule sphere contacts =
+addContacts : Int -> (Contact -> Contact) -> Capsule -> Sphere -> List Contact -> List Contact
+addContacts shapeKey orderContact capsule sphere contacts =
     let
         t =
             max -capsule.halfLength
@@ -29,7 +30,8 @@ addContacts idPrefix orderContact capsule sphere contacts =
 
     else
         orderContact
-            { id = idPrefix
+            { shapeKey = shapeKey
+            , featureKey = ContactId.simple
             , ni = normal
             , pi = Vec3.add closestPoint (Vec3.scale capsule.radius normal)
             , pj = Vec3.sub sphere.position (Vec3.scale sphere.radius normal)

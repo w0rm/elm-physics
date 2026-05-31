@@ -10,6 +10,7 @@ import Direction3d
 import Expect exposing (Expectation, FloatingPointTolerance(..))
 import Frame3d exposing (Frame3d)
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Matrix3 exposing (Mat3)
 import Internal.Vector3 exposing (Vec3)
 import Point3d
@@ -24,12 +25,12 @@ contactsWithIds : List Contact -> List Contact -> Expectation
 contactsWithIds expected actual =
     Expect.all
         [ \_ ->
-            Expect.equal (List.map .id actual) (List.map .id expected)
+            Expect.equal (List.map (\c -> ContactId.toString c.shapeKey c.featureKey) actual) (List.map (\c -> ContactId.toString c.shapeKey c.featureKey) expected)
                 |> Expect.onFail
                     ("Contact ids don't match. Expected "
-                        ++ Debug.toString (List.map .id expected)
+                        ++ Debug.toString (List.map (\c -> ContactId.toString c.shapeKey c.featureKey) expected)
                         ++ ", got "
-                        ++ Debug.toString (List.map .id actual)
+                        ++ Debug.toString (List.map (\c -> ContactId.toString c.shapeKey c.featureKey) actual)
                     )
         , \_ -> contacts expected actual
         ]

@@ -2,14 +2,15 @@ module Collision.PlaneConvex exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 exposing (Vec3)
 import Shapes.Convex exposing (Convex)
 import Shapes.Plane exposing (Plane)
 
 
-addContacts : String -> (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact
-addContacts idPrefix orderContact plane { vertices } contacts =
-    addContactsHelp idPrefix
+addContacts : Int -> (Contact -> Contact) -> Plane -> Convex -> List Contact -> List Contact
+addContacts shapeKey orderContact plane { vertices } contacts =
+    addContactsHelp shapeKey
         orderContact
         plane.position
         plane.normal
@@ -18,8 +19,8 @@ addContacts idPrefix orderContact plane { vertices } contacts =
         contacts
 
 
-addContactsHelp : String -> (Contact -> Contact) -> Vec3 -> Vec3 -> Int -> List Vec3 -> List Contact -> List Contact
-addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertices contacts =
+addContactsHelp : Int -> (Contact -> Contact) -> Vec3 -> Vec3 -> Int -> List Vec3 -> List Contact -> List Contact
+addContactsHelp shapeKey orderContact planePosition planeNormal vertexId vertices contacts =
     case vertices of
         vertex :: remainingVertices ->
             let
@@ -29,14 +30,15 @@ addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertice
                         + ((vertex.z - planePosition.z) * planeNormal.z)
             in
             if dot - Const.contactBreakingThreshold < 0 then
-                addContactsHelp idPrefix
+                addContactsHelp shapeKey
                     orderContact
                     planePosition
                     planeNormal
                     (vertexId + 1)
                     remainingVertices
                     (orderContact
-                        { id = idPrefix ++ "-v" ++ String.fromInt (vertexId + 1)
+                        { shapeKey = shapeKey
+                        , featureKey = ContactId.planeVertex (vertexId + 1)
                         , ni = planeNormal
                         , pi =
                             { x = vertex.x - dot * planeNormal.x
@@ -49,7 +51,7 @@ addContactsHelp idPrefix orderContact planePosition planeNormal vertexId vertice
                     )
 
             else
-                addContactsHelp idPrefix
+                addContactsHelp shapeKey
                     orderContact
                     planePosition
                     planeNormal

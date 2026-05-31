@@ -68,19 +68,10 @@ getPairsHelp collide constrain anyConstraints id1 body1 constrainFn1 currentBodi
             let
                 contacts =
                     if bodiesMayContact collide id1 body1 id2 body2 then
-                        let
-                            -- Canonical pair-id (smaller body id first) so warm-start
-                            -- cache keys stay stable across frames even when the
-                            -- gravity sort reorders which body is body1/body2.
-                            ( low, high ) =
-                                if body1.id - body2.id <= 0 then
-                                    ( body1.id, body2.id )
-
-                                else
-                                    ( body2.id, body1.id )
-                        in
+                        -- The contact id carries only the shape pair; the body
+                        -- pair is the warm-start cache key, derived from body ids
+                        -- in the solver, so nothing is threaded here.
                         NarrowPhase.getContacts
-                            (String.fromInt low ++ "-" ++ String.fromInt high)
                             body1.worldShapesWithMaterials
                             body2.worldShapesWithMaterials
 

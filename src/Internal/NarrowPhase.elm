@@ -14,38 +14,39 @@ import Collision.SphereConvex
 import Collision.SphereParticle
 import Collision.SphereSphere
 import Internal.Contact as Contact exposing (Contact, SolverContact)
+import Internal.ContactId as ContactId
 import Internal.Coordinates exposing (WorldCoordinates)
 import Internal.Material as Material exposing (Material)
 import Internal.Shape exposing (Shape(..))
 
 
-getContacts : String -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact
-getContacts idPrefix pairs1 pairs2 =
+getContacts : List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact
+getContacts pairs1 pairs2 =
     case pairs1 of
         pair1 :: remainingPairs1 ->
-            getContactsHelp idPrefix 1 pair1 remainingPairs1 1 pairs2 pairs2 []
+            getContactsHelp 1 pair1 remainingPairs1 1 pairs2 pairs2 []
 
         [] ->
             []
 
 
-getContactsHelp : String -> Int -> ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> Int -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
-getContactsHelp idPrefix shapeId1 pair1 currentPairs1 shapeId2 currentPairs2 pairs2 result =
+getContactsHelp : Int -> ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> Int -> List ( Shape WorldCoordinates, Material ) -> List ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
+getContactsHelp shapeId1 pair1 currentPairs1 shapeId2 currentPairs2 pairs2 result =
     case currentPairs2 of
         pair2 :: remainingPairs2 ->
-            getContactsHelp idPrefix
+            getContactsHelp
                 shapeId1
                 pair1
                 currentPairs1
                 (shapeId2 + 1)
                 remainingPairs2
                 pairs2
-                (addShapeContacts (idPrefix ++ "-" ++ String.fromInt shapeId1 ++ "-" ++ String.fromInt shapeId2) pair1 pair2 result)
+                (addShapeContacts (ContactId.shapeKey shapeId1 shapeId2) pair1 pair2 result)
 
         [] ->
             case currentPairs1 of
                 newPair1 :: remainingPairs1 ->
-                    getContactsHelp idPrefix
+                    getContactsHelp
                         (shapeId1 + 1)
                         newPair1
                         remainingPairs1
@@ -58,8 +59,8 @@ getContactsHelp idPrefix shapeId1 pair1 currentPairs1 shapeId2 currentPairs2 pai
                     result
 
 
-addShapeContacts : String -> ( Shape WorldCoordinates, Material ) -> ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
-addShapeContacts idPrefix ( shape1, mat1 ) ( shape2, mat2 ) contacts =
+addShapeContacts : Int -> ( Shape WorldCoordinates, Material ) -> ( Shape WorldCoordinates, Material ) -> List SolverContact -> List SolverContact
+addShapeContacts shapeKey ( shape1, mat1 ) ( shape2, mat2 ) contacts =
     let
         bounciness =
             Material.combineBounciness mat1.bounciness mat2.bounciness
@@ -68,7 +69,7 @@ addShapeContacts idPrefix ( shape1, mat1 ) ( shape2, mat2 ) contacts =
             Material.combineFriction mat1.friction mat2.friction
 
         rawContacts =
-            addRawShapeContacts idPrefix shape1 shape2 []
+            addRawShapeContacts shapeKey shape1 shape2 []
     in
     List.foldl
         (\contact acc ->
@@ -82,21 +83,21 @@ addShapeContacts idPrefix ( shape1, mat1 ) ( shape2, mat2 ) contacts =
         rawContacts
 
 
-addRawShapeContacts : String -> Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
-addRawShapeContacts idPrefix shape1 shape2 contacts =
+addRawShapeContacts : Int -> Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
+addRawShapeContacts shapeKey shape1 shape2 contacts =
     case shape1 of
         Convex convex1 ->
             case shape2 of
                 Convex convex2 ->
                     Collision.ConvexConvex.addContacts
-                        idPrefix
+                        shapeKey
                         convex1
                         convex2
                         contacts
 
                 Plane plane2 ->
                     Collision.PlaneConvex.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         plane2
                         convex1
@@ -104,7 +105,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Sphere sphere2 ->
                     Collision.SphereConvex.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         sphere2
                         convex1
@@ -112,7 +113,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Particle particle2 ->
                     Collision.ParticleConvex.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         particle2
                         convex1
@@ -120,7 +121,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Capsule capsule2 ->
                     Collision.CapsuleConvex.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         capsule2
                         convex1
@@ -134,7 +135,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Convex convex2 ->
                     Collision.PlaneConvex.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         plane1
                         convex2
@@ -142,7 +143,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Sphere sphere2 ->
                     Collision.PlaneSphere.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         plane1
                         sphere2
@@ -150,7 +151,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Particle particle2 ->
                     Collision.PlaneParticle.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         plane1
                         particle2
@@ -158,7 +159,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Capsule capsule2 ->
                     Collision.PlaneCapsule.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         plane1
                         capsule2
@@ -168,7 +169,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
             case shape2 of
                 Plane plane2 ->
                     Collision.PlaneSphere.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         plane2
                         sphere1
@@ -176,7 +177,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Convex convex2 ->
                     Collision.SphereConvex.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         sphere1
                         convex2
@@ -184,14 +185,14 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Sphere sphere2 ->
                     Collision.SphereSphere.addContacts
-                        idPrefix
+                        shapeKey
                         sphere1
                         sphere2
                         contacts
 
                 Particle particle2 ->
                     Collision.SphereParticle.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         sphere1
                         particle2
@@ -199,7 +200,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Capsule capsule2 ->
                     Collision.CapsuleSphere.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         capsule2
                         sphere1
@@ -209,7 +210,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
             case shape2 of
                 Plane plane2 ->
                     Collision.PlaneParticle.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         plane2
                         particle1
@@ -217,7 +218,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Convex convex2 ->
                     Collision.ParticleConvex.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         particle1
                         convex2
@@ -225,7 +226,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Sphere sphere2 ->
                     Collision.SphereParticle.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         sphere2
                         particle1
@@ -237,7 +238,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Capsule capsule2 ->
                     Collision.CapsuleParticle.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         capsule2
                         particle1
@@ -247,7 +248,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
             case shape2 of
                 Plane plane2 ->
                     Collision.PlaneCapsule.addContacts
-                        idPrefix
+                        shapeKey
                         Contact.flip
                         plane2
                         capsule1
@@ -255,7 +256,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Convex convex2 ->
                     Collision.CapsuleConvex.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         capsule1
                         convex2
@@ -263,7 +264,7 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Sphere sphere2 ->
                     Collision.CapsuleSphere.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         capsule1
                         sphere2
@@ -271,14 +272,14 @@ addRawShapeContacts idPrefix shape1 shape2 contacts =
 
                 Capsule capsule2 ->
                     Collision.CapsuleCapsule.addContacts
-                        idPrefix
+                        shapeKey
                         capsule1
                         capsule2
                         contacts
 
                 Particle particle2 ->
                     Collision.CapsuleParticle.addContacts
-                        idPrefix
+                        shapeKey
                         identity
                         capsule1
                         particle2

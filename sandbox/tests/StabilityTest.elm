@@ -184,6 +184,7 @@ We bound horizontal drift rather than maxSpeed because the settled-but-offset
 stack legitimately produces occasional one-frame velocity spikes (~0.12 m/s)
 when a contact reconfigures, which immediately re-settle. Those blips don't
 mean the stack is failing — only sustained sideways travel does.
+
 -}
 dropToppleLimit : Float
 dropToppleLimit =

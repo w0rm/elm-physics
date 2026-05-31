@@ -1,10 +1,11 @@
 module Internal.Solver exposing (annotateGroupsByRoot, solve)
 
 import Array exposing (Array)
-import Dict exposing (Dict)
 import Internal.Body exposing (Body)
 import Internal.Const as Const
 import Internal.Contact exposing (PairGroup)
+import Internal.ContactCache as Cache exposing (ContactCache)
+import Internal.ContactId as ContactId
 import Internal.Equation as Equation exposing (ContactEquations, Equation, EquationsGroup, SolverEquation)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
@@ -209,19 +210,19 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
 
 type alias SolveResult id =
     { solverBodies : Array (SolverBody id)
-    , lambdas : Dict String Float
-    , tangents : Dict String Vec3
+    , lambdas : ContactCache Float
+    , tangents : ContactCache Vec3
     , iterations : Int
     }
 
 
-solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> Dict String Float -> Dict String Vec3 -> SolveResult id
+solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> ContactCache Float -> ContactCache Vec3 -> SolveResult id
 solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
     case bodiesWithIds of
         [] ->
             { solverBodies = Array.empty
-            , lambdas = Dict.empty
-            , tangents = Dict.empty
+            , lambdas = Cache.empty
+            , tangents = Cache.empty
             , iterations = 0
             }
 
@@ -283,10 +284,7 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
                     maxInt 1 (iterations - minRemainingIterations)
 
                 ( finalLambdas, finalTangents ) =
-                    List.foldl
-                        (\group accs -> collectCaches group.contacts group.constraints accs)
-                        ( Dict.empty, Dict.empty )
-                        finalEquationsGroups
+                    collectGroupCaches finalEquationsGroups Cache.empty Cache.empty
             in
             { solverBodies = finalSolverBodies
             , lambdas = finalLambdas
@@ -295,49 +293,66 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
             }
 
 
-{-| Walk a pair group's equations once to populate both warm-start caches:
-the lambda dict (keyed by contact-normal id) and the tangent dict (keyed by
-the same contact-normal id, storing the first friction equation's t1).
-Equation order within `addContactEquations` is [normal, t1, t2], so the
-first friction following a normal is t1.
+{-| Populate next frame's warm-start caches: for each body pair (group) with
+contacts, build the pair's lambda and tangent entry lists and do a single insert
+per cache keyed by the body-pair key. Constraints are never warm-started (their
+ids are the 0/0 sentinel), so only contacts are collected.
+
+Recurses over the groups threading the two caches as separate arguments (rather
+than folding a `( lambdas, tangents )` tuple, which would allocate one per
+group) — only the final result is a tuple.
+
 -}
-collectCaches : List ContactEquations -> List SolverEquation -> ( Dict String Float, Dict String Vec3 ) -> ( Dict String Float, Dict String Vec3 )
-collectCaches contacts constraints accs =
-    collectConstraintCaches constraints (collectContactCaches contacts accs)
+collectGroupCaches : List (EquationsGroup id) -> ContactCache Float -> ContactCache Vec3 -> ( ContactCache Float, ContactCache Vec3 )
+collectGroupCaches groups lambdaAcc tangentAcc =
+    case groups of
+        [] ->
+            ( lambdaAcc, tangentAcc )
+
+        group :: rest ->
+            case group.contacts of
+                [] ->
+                    collectGroupCaches rest lambdaAcc tangentAcc
+
+                _ :: _ ->
+                    let
+                        bodyKey =
+                            ContactId.bodyKey group.body1.body.id group.body2.body.id
+                    in
+                    collectGroupCaches rest
+                        (Cache.insertGroup bodyKey (lambdaEntries group.contacts []) lambdaAcc)
+                        (Cache.insertGroup bodyKey (tangentEntries group.contacts []) tangentAcc)
 
 
-{-| Each contact caches its normal's lambda and its friction1 (t1) direction,
-both keyed by the contact-normal id.
+{-| A pair's lambda entries: each contact normal's solved lambda, keyed by the
+contact id `(shapeKey, featureKey)`.
 -}
-collectContactCaches : List ContactEquations -> ( Dict String Float, Dict String Vec3 ) -> ( Dict String Float, Dict String Vec3 )
-collectContactCaches contacts ( lambdaAcc, tangentAcc ) =
+lambdaEntries : List ContactEquations -> List ( Int, Int, Float ) -> List ( Int, Int, Float )
+lambdaEntries contacts acc =
     case contacts of
         [] ->
-            ( lambdaAcc, tangentAcc )
+            acc
+
+        { normal } :: rest ->
+            lambdaEntries rest (( normal.equation.shapeKey, normal.equation.featureKey, normal.solverLambda ) :: acc)
+
+
+{-| A pair's tangent entries: each contact's friction1 (t1) direction, keyed by
+the contact id `(shapeKey, featureKey)` (taken from the normal, which carries the id).
+-}
+tangentEntries : List ContactEquations -> List ( Int, Int, Vec3 ) -> List ( Int, Int, Vec3 )
+tangentEntries contacts acc =
+    case contacts of
+        [] ->
+            acc
 
         { normal, friction1 } :: rest ->
-            collectContactCaches rest
-                ( Dict.insert normal.equation.id normal.solverLambda lambdaAcc
-                , Dict.insert normal.equation.id
-                    { x = friction1.equation.vBx, y = friction1.equation.vBy, z = friction1.equation.vBz }
-                    tangentAcc
-                )
-
-
-collectConstraintCaches : List SolverEquation -> ( Dict String Float, Dict String Vec3 ) -> ( Dict String Float, Dict String Vec3 )
-collectConstraintCaches equations ( lambdaAcc, tangentAcc ) =
-    case equations of
-        [] ->
-            ( lambdaAcc, tangentAcc )
-
-        { equation, solverLambda } :: rest ->
-            collectConstraintCaches rest
-                ( if equation.id == "" then
-                    lambdaAcc
-
-                  else
-                    Dict.insert equation.id solverLambda lambdaAcc
-                , tangentAcc
+            tangentEntries rest
+                (( normal.equation.shapeKey
+                 , normal.equation.featureKey
+                 , { x = friction1.equation.vBx, y = friction1.equation.vBy, z = friction1.equation.vBz }
+                 )
+                    :: acc
                 )
 
 

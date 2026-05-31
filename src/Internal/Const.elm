@@ -21,6 +21,7 @@ Bullet's analogous global (`gContactBreakingThreshold`) defaults to 0.02 m
 which is far too generous for mm-scale bodies; 1 mm is enough to absorb
 typical PGS residual position drift while being well under typical body
 dimensions, so it doesn't conjure phantom contacts.
+
 -}
 contactBreakingThreshold : Float
 contactBreakingThreshold =

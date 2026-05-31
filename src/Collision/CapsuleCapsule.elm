@@ -2,12 +2,13 @@ module Collision.CapsuleCapsule exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Capsule exposing (Capsule)
 
 
-addContacts : String -> Capsule -> Capsule -> List Contact -> List Contact
-addContacts idPrefix capsule1 capsule2 contacts =
+addContacts : Int -> Capsule -> Capsule -> List Contact -> List Contact
+addContacts shapeKey capsule1 capsule2 contacts =
     let
         ( pt1, pt2 ) =
             closestSegmentPoints capsule1 capsule2
@@ -22,7 +23,8 @@ addContacts idPrefix capsule1 capsule2 contacts =
         contacts
 
     else
-        { id = idPrefix
+        { shapeKey = shapeKey
+        , featureKey = ContactId.simple
         , ni = normal
         , pi = Vec3.add pt1 (Vec3.scale capsule1.radius normal)
         , pj = Vec3.sub pt2 (Vec3.scale capsule2.radius normal)

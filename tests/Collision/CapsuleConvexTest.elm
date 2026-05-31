@@ -3,6 +3,7 @@ module Collision.CapsuleConvexTest exposing (addContacts, supportFeature)
 import Collision.CapsuleConvex
 import Expect
 import Extra.Expect as Expect
+import Internal.ContactId as ContactId
 import Internal.Matrix3 as Mat3
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
@@ -134,9 +135,10 @@ addContacts =
     describe "Collision.CapsuleConvex.addContacts"
         [ test "Cap on face F: cap pressing into +z face of a box" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleAxisZ box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleAxisZ box []
                     |> Expect.contactsWithIds
-                        [ { id = "-e1-f5"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCapEnd1 (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = -1 }
                           , pi = { x = 0, y = 0, z = 0.9 }
                           , pj = { x = 0, y = 0, z = 1.0 }
@@ -144,14 +146,16 @@ addContacts =
                         ]
         , test "Cylinder on face F (segment clip): horizontal capsule on +z face" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleAxisY box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleAxisY box []
                     |> Expect.contactsWithIds
-                        [ { id = "-c2-f5"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder2 (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = -1 }
                           , pi = { x = 0, y = -1, z = 0.9 }
                           , pj = { x = 0, y = -1, z = 1.0 }
                           }
-                        , { id = "-c1-f5"
+                        , { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder1 (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = -1 }
                           , pi = { x = 0, y = 1, z = 0.9 }
                           , pj = { x = 0, y = 1, z = 1.0 }
@@ -159,13 +163,14 @@ addContacts =
                         ]
         , test "no contact when capsule is too far away" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleAxisZFar box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleAxisZFar box []
                     |> Expect.equal []
         , test "Cap on face F: contact is flipped correctly when convex is body1" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" (\c -> { c | ni = Vec3.negate c.ni, pi = c.pj, pj = c.pi }) capsuleAxisZ box []
+                Collision.CapsuleConvex.addContacts 0 (\c -> { c | ni = Vec3.negate c.ni, pi = c.pj, pj = c.pi }) capsuleAxisZ box []
                     |> Expect.contactsWithIds
-                        [ { id = "-e1-f5"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCapEnd1 (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = 1 }
                           , pi = { x = 0, y = 0, z = 1.0 }
                           , pj = { x = 0, y = 0, z = 0.9 }
@@ -177,9 +182,10 @@ addContacts =
                     half =
                         sqrt 2 / 2
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleTilted box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleTilted box []
                     |> Expect.contactsWithIds
-                        [ { id = "-e1-f5"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCapEnd1 (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = -1 }
                           , pi = { x = -half, y = 0, z = 2 - half - 0.5 }
                           , pj = { x = -half, y = 0, z = 1 }
@@ -187,14 +193,16 @@ addContacts =
                         ]
         , test "Cylinder on face F (segment clip): vertical capsule overhanging +x edge" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleOverhang box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleOverhang box []
                     |> Expect.contactsWithIds
-                        [ { id = "-c2-f1"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder2 (ContactId.onConvexFace 1)
                           , ni = { x = -1, y = 0, z = 0 }
                           , pi = { x = 0.9, y = 0, z = 1 }
                           , pj = { x = 1, y = 0, z = 1 }
                           }
-                        , { id = "-c1-f1"
+                        , { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder1 (ContactId.onConvexFace 1)
                           , ni = { x = -1, y = 0, z = 0 }
                           , pi = { x = 0.9, y = 0, z = 0.9 }
                           , pj = { x = 1, y = 0, z = 0.9 }
@@ -202,7 +210,7 @@ addContacts =
                         ]
         , test "no contact when capsule is just outside a box corner" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleNearCorner box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleNearCorner box []
                     |> Expect.equal []
         , test "Cylinder on convex edge, parallel: capsule axis ∥ +y +z box edge" <|
             \_ ->
@@ -216,7 +224,8 @@ addContacts =
                         { x = 0, y = -0.3 * invLen, z = -0.3 * invLen }
 
                     contactAt id_ x =
-                        { id = id_
+                        { shapeKey = 0
+                        , featureKey = id_
                         , ni = ni
                         , pi =
                             { x = x
@@ -226,10 +235,10 @@ addContacts =
                         , pj = { x = x, y = 1, z = 1 }
                         }
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleParallelToEdge box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleParallelToEdge box []
                     |> Expect.contactsWithIds
-                        [ contactAt "-c2-e" 1
-                        , contactAt "-c1-e" -1
+                        [ contactAt (ContactId.capsuleCylinder2 ContactId.onConvexEdge) 1
+                        , contactAt (ContactId.capsuleCylinder1 ContactId.onConvexEdge) -1
                         ]
         , test "Cap on convex edge: lower cap pokes +x +z box edge" <|
             \_ ->
@@ -241,9 +250,10 @@ addContacts =
                     pic =
                         1.8 - 1.5 * invSqrt2
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleCapOnEdge box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleCapOnEdge box []
                     |> Expect.contactsWithIds
-                        [ { id = "-e1-e"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCapEnd1 ContactId.onConvexEdge
                           , ni = { x = -invSqrt2, y = 0, z = -invSqrt2 }
                           , pi = { x = pic, y = 0, z = pic }
                           , pj = { x = 1, y = 0, z = 1 }
@@ -260,9 +270,10 @@ addContacts =
                     pic =
                         1.4 - invSqrt3
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleCapOnVertex box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleCapOnVertex box []
                     |> Expect.contactsWithIds
-                        [ { id = "-e1-v"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCapEnd1 ContactId.onConvexVertex
                           , ni = { x = -invSqrt3, y = -invSqrt3, z = -invSqrt3 }
                           , pi = { x = pic, y = pic, z = pic }
                           , pj = { x = 1, y = 1, z = 1 }
@@ -270,9 +281,10 @@ addContacts =
                         ]
         , test "Cylinder on face F (closest-edge fallback): clip drops, edge contact emitted" <|
             \_ ->
-                Collision.CapsuleConvex.addContacts "" identity capsuleClipFallback box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleClipFallback box []
                     |> Expect.contactsWithIds
-                        [ { id = "-c-f5"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder (ContactId.onConvexFace 5)
                           , ni = { x = 0, y = 0, z = -1 }
                           , pi = { x = 1, y = 0.95, z = 0.9 }
                           , pj = { x = 1, y = 0.95, z = 1.0 }
@@ -287,9 +299,10 @@ addContacts =
                     pic =
                         1.3 - 0.5 * invSqrt2
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleCylinderSkew box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleCylinderSkew box []
                     |> Expect.contactsWithIds
-                        [ { id = "-c-e"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder ContactId.onConvexEdge
                           , ni = { x = -invSqrt2, y = 0, z = -invSqrt2 }
                           , pi = { x = pic, y = 0, z = pic }
                           , pj = { x = 1, y = 0, z = 1 }
@@ -307,9 +320,10 @@ addContacts =
                     pic =
                         1.2 - 0.5 * invSqrt3
                 in
-                Collision.CapsuleConvex.addContacts "" identity capsuleCylinderVertex box []
+                Collision.CapsuleConvex.addContacts 0 identity capsuleCylinderVertex box []
                     |> Expect.contactsWithIds
-                        [ { id = "-c-v"
+                        [ { shapeKey = 0
+                          , featureKey = ContactId.capsuleCylinder ContactId.onConvexVertex
                           , ni = { x = -invSqrt3, y = -invSqrt3, z = -invSqrt3 }
                           , pi = { x = pic, y = pic, z = pic }
                           , pj = { x = 1, y = 1, z = 1 }

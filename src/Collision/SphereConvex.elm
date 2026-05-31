@@ -1,6 +1,7 @@
 module Collision.SphereConvex exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex exposing (Convex, Face)
 import Shapes.Sphere exposing (Sphere)
@@ -10,11 +11,11 @@ import Shapes.Sphere exposing (Sphere)
 Contact id suffix: `-fF` (face F, matching `ConvexConvex.bestFace`),
 `-e` (edge interior), `-v` (vertex).
 -}
-addContacts : String -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
-addContacts idPrefix orderContact { radius, position } { faces } contacts =
+addContacts : Int -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
+addContacts shapeKey orderContact { radius, position } { faces } contacts =
     case faces of
         ( primary, partner ) :: rest ->
-            walkFaces idPrefix orderContact position radius primary 1 partner rest [] contacts
+            walkFaces shapeKey orderContact position radius primary 1 partner rest [] contacts
 
         [] ->
             -- Degenerate convex with no faces: nothing for the
@@ -22,8 +23,8 @@ addContacts idPrefix orderContact { radius, position } { faces } contacts =
             contacts
 
 
-walkFaces : String -> (Contact -> Contact) -> Vec3 -> Float -> Face -> Int -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
-walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace queuedGroups candidateEdges contacts =
+walkFaces : Int -> (Contact -> Contact) -> Vec3 -> Float -> Face -> Int -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+walkFaces shapeKey orderContact center radius currentFace currentFaceId nextFace queuedGroups candidateEdges contacts =
     let
         faceDistance =
             case currentFace.vertices of
@@ -41,21 +42,21 @@ walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace
         if anyOutside then
             case nextFace of
                 Just face ->
-                    walkFaces idPrefix orderContact center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
+                    walkFaces shapeKey orderContact center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
 
                 Nothing ->
                     case queuedGroups of
                         ( primary, partner ) :: restGroups ->
-                            walkFaces idPrefix orderContact center radius primary (currentFaceId + 1) partner restGroups newCandidateEdges contacts
+                            walkFaces shapeKey orderContact center radius primary (currentFaceId + 1) partner restGroups newCandidateEdges contacts
 
                         [] ->
-                            walkBoundaries idPrefix orderContact center radius newCandidateEdges Vec3.zero (radius * radius) contacts
+                            walkBoundaries shapeKey orderContact center radius newCandidateEdges Vec3.zero (radius * radius) contacts
 
         else
             -- Sphere centre projects inside the face polygon → face contact.
-            emitContact idPrefix
+            emitContact shapeKey
                 orderContact
-                ("-f" ++ String.fromInt currentFaceId)
+                (ContactId.sphereOnConvex (ContactId.onConvexFace currentFaceId))
                 center
                 { x = center.x - faceDistance * currentFace.normal.x
                 , y = center.y - faceDistance * currentFace.normal.y
@@ -67,15 +68,15 @@ walkFaces idPrefix orderContact center radius currentFace currentFaceId nextFace
     else
         case nextFace of
             Just face ->
-                walkFaces idPrefix orderContact center radius face (currentFaceId + 1) Nothing queuedGroups candidateEdges contacts
+                walkFaces shapeKey orderContact center radius face (currentFaceId + 1) Nothing queuedGroups candidateEdges contacts
 
             Nothing ->
                 case queuedGroups of
                     ( primary, partner ) :: restGroups ->
-                        walkFaces idPrefix orderContact center radius primary (currentFaceId + 1) partner restGroups candidateEdges contacts
+                        walkFaces shapeKey orderContact center radius primary (currentFaceId + 1) partner restGroups candidateEdges contacts
 
                     [] ->
-                        walkBoundaries idPrefix orderContact center radius candidateEdges Vec3.zero (radius * radius) contacts
+                        walkBoundaries shapeKey orderContact center radius candidateEdges Vec3.zero (radius * radius) contacts
 
 
 {-| Returns the edges that separate the sphere centre from the face polygon
@@ -144,12 +145,12 @@ classifyAndCollectEdgesHelp center normal firstVertex vertices candidateEdges an
 centre. Short-circuits on the first edge-interior contact closer than
 the current best; at the end, emits a vertex contact if `bestDistSq < radius²`.
 -}
-walkBoundaries : String -> (Contact -> Contact) -> Vec3 -> Float -> List ( Vec3, Vec3 ) -> Vec3 -> Float -> List Contact -> List Contact
-walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq contacts =
+walkBoundaries : Int -> (Contact -> Contact) -> Vec3 -> Float -> List ( Vec3, Vec3 ) -> Vec3 -> Float -> List Contact -> List Contact
+walkBoundaries shapeKey orderContact center radius edges bestPoint bestDistSq contacts =
     case edges of
         [] ->
             if bestDistSq - radius * radius < 0 then
-                emitContact idPrefix orderContact "-v" center bestPoint (radius - sqrt bestDistSq) contacts
+                emitContact shapeKey orderContact (ContactId.sphereOnConvex ContactId.onConvexVertex) center bestPoint (radius - sqrt bestDistSq) contacts
 
             else
                 contacts
@@ -178,10 +179,10 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
                         Vec3.distanceSquared prevVertex center
                 in
                 if distSq - bestDistSq < 0 then
-                    walkBoundaries idPrefix orderContact center radius rest prevVertex distSq contacts
+                    walkBoundaries shapeKey orderContact center radius rest prevVertex distSq contacts
 
                 else
-                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+                    walkBoundaries shapeKey orderContact center radius rest bestPoint bestDistSq contacts
 
             else if offsetTimesLen - edgeLenSq > 0 then
                 let
@@ -189,10 +190,10 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
                         Vec3.distanceSquared vertex center
                 in
                 if distSq - bestDistSq < 0 then
-                    walkBoundaries idPrefix orderContact center radius rest vertex distSq contacts
+                    walkBoundaries shapeKey orderContact center radius rest vertex distSq contacts
 
                 else
-                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+                    walkBoundaries shapeKey orderContact center radius rest bestPoint bestDistSq contacts
 
             else
                 let
@@ -210,20 +211,21 @@ walkBoundaries idPrefix orderContact center radius edges bestPoint bestDistSq co
                 in
                 if distSq - bestDistSq < 0 then
                     -- Edge-interior contact closer than current best — short-circuit.
-                    emitContact idPrefix orderContact "-e" center contactPoint (radius - sqrt distSq) contacts
+                    emitContact shapeKey orderContact (ContactId.sphereOnConvex ContactId.onConvexEdge) center contactPoint (radius - sqrt distSq) contacts
 
                 else
-                    walkBoundaries idPrefix orderContact center radius rest bestPoint bestDistSq contacts
+                    walkBoundaries shapeKey orderContact center radius rest bestPoint bestDistSq contacts
 
 
-emitContact : String -> (Contact -> Contact) -> String -> Vec3 -> Vec3 -> Float -> List Contact -> List Contact
-emitContact idPrefix orderContact featureTag center contactPoint penetration contacts =
+emitContact : Int -> (Contact -> Contact) -> Int -> Vec3 -> Vec3 -> Float -> List Contact -> List Contact
+emitContact shapeKey orderContact featureKey center contactPoint penetration contacts =
     let
         normal =
             Vec3.direction contactPoint center
     in
     orderContact
-        { id = idPrefix ++ featureTag
+        { shapeKey = shapeKey
+        , featureKey = featureKey
         , ni = normal
         , pi =
             { x = contactPoint.x + penetration * normal.x

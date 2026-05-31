@@ -14,6 +14,7 @@ the vertices and triangle indices.
 import Array
 import Collision.ConvexConvex
 import Extra.Expect as Expect
+import Internal.ContactId as ContactId
 import Internal.Transform3d as Transform3d
 import Shapes.Convex as Convex
 import Test exposing (Test, test)
@@ -170,9 +171,10 @@ fixture =
     in
     test "icosphere edge contacts box edge near sphere center's x" <|
         \_ ->
-            Collision.ConvexConvex.addContacts "" controlledConvex box []
+            Collision.ConvexConvex.addContacts 0 controlledConvex box []
                 |> Expect.contactsWithIds
-                    [ { id = "-e20.3-e3.3"
+                    [ { shapeKey = 0
+                      , featureKey = ContactId.convexConvexEdge 20 3 3 3
                       , ni = { x = 0, y = 0.7246131188598045, z = -0.6891558807528719 }
                       , pi = { x = 0.01797561156268518, y = -0.9521386364340609, z = 0.9544806196522924 }
                       , pj = { x = 0.017975611562685012, y = -1, z = 1 }

@@ -1,12 +1,13 @@
 module Collision.SphereParticle exposing (addContacts)
 
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Sphere exposing (Sphere)
 
 
-addContacts : String -> (Contact -> Contact) -> Sphere -> Vec3 -> List Contact -> List Contact
-addContacts idPrefix orderContact { radius, position } particlePosition contacts =
+addContacts : Int -> (Contact -> Contact) -> Sphere -> Vec3 -> List Contact -> List Contact
+addContacts shapeKey orderContact { radius, position } particlePosition contacts =
     let
         distance =
             Vec3.distance particlePosition position - radius
@@ -19,7 +20,8 @@ addContacts idPrefix orderContact { radius, position } particlePosition contacts
 
     else
         orderContact
-            { id = idPrefix
+            { shapeKey = shapeKey
+            , featureKey = ContactId.simple
             , ni = normal
             , pi = Vec3.add position (Vec3.scale (radius - distance) normal)
             , pj = particlePosition

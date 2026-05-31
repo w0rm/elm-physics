@@ -2,15 +2,16 @@ module Collision.ParticleConvex exposing (addContacts)
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
+import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Shapes.Convex exposing (Convex, Face)
 
 
-addContacts : String -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
-addContacts idPrefix orderContact particlePosition { faces } contacts =
+addContacts : Int -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
+addContacts shapeKey orderContact particlePosition { faces } contacts =
     case faces of
         ( primary, partner ) :: rest ->
-            convexContact idPrefix orderContact particlePosition primary partner rest Const.maxNumber Vec3.zero contacts
+            convexContact shapeKey orderContact particlePosition primary partner rest Const.maxNumber Vec3.zero contacts
 
         [] ->
             contacts
@@ -20,8 +21,8 @@ addContacts idPrefix orderContact particlePosition { faces } contacts =
 are exhausted (sentinel `bestDepth = Const.maxNumber`). Bails on the first
 face whose half-space excludes the particle.
 -}
-convexContact : String -> (Contact -> Contact) -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Float -> Vec3 -> List Contact -> List Contact
-convexContact idPrefix orderContact particlePosition currentFace nextFace queuedGroups bestDepth bestNormal contacts =
+convexContact : Int -> (Contact -> Contact) -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Float -> Vec3 -> List Contact -> List Contact
+convexContact shapeKey orderContact particlePosition currentFace nextFace queuedGroups bestDepth bestNormal contacts =
     let
         point =
             case currentFace.vertices of
@@ -47,17 +48,18 @@ convexContact idPrefix orderContact particlePosition currentFace nextFace queued
         in
         case nextFace of
             Just face ->
-                convexContact idPrefix orderContact particlePosition face Nothing queuedGroups newDepth newNormal contacts
+                convexContact shapeKey orderContact particlePosition face Nothing queuedGroups newDepth newNormal contacts
 
             Nothing ->
                 case queuedGroups of
                     ( primary, partner ) :: restGroups ->
-                        convexContact idPrefix orderContact particlePosition primary partner restGroups newDepth newNormal contacts
+                        convexContact shapeKey orderContact particlePosition primary partner restGroups newDepth newNormal contacts
 
                     [] ->
                         if newDepth - Const.maxNumber < 0 then
                             orderContact
-                                { id = idPrefix
+                                { shapeKey = shapeKey
+                                , featureKey = ContactId.simple
                                 , ni = Vec3.negate newNormal
                                 , pi = particlePosition
                                 , pj = Vec3.add particlePosition (Vec3.scale newDepth newNormal)
