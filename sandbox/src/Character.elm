@@ -19,30 +19,41 @@ import Density
 import Dict exposing (Dict)
 import Direction3d
 import Duration exposing (Duration)
-import Force
+import Force exposing (Force)
 import Frame3d
 import Json.Decode
-import Length exposing (Meters)
-import Mass
+import Length exposing (Length, Meters)
+import Mass exposing (Mass)
 import Physics exposing (Body, BodyCoordinates)
 import Physics.Lock as Lock
 import Physics.Material as Material exposing (Material)
 import Physics.Shape as Shape
 import Plane3d
 import Point3d
-import Quantity
+import Quantity exposing (Quantity, Rate)
+import Speed exposing (Speed)
 import Vector3d
 import WebGL exposing (Mesh)
 
 
-moveAcceleration : Float
-moveAcceleration =
-    35
+walkSpeed : Speed
+walkSpeed =
+    Speed.metersPerSecond 4
 
 
-jumpSpeed : Float
+maxDriveForce : Force
+maxDriveForce =
+    Force.newtons 250
+
+
+driveGain : Quantity Float (Rate Force.Newtons Speed.MetersPerSecond)
+driveGain =
+    Quantity.rate (Force.newtons 50) (Speed.metersPerSecond 1)
+
+
+jumpSpeed : Speed
 jumpSpeed =
-    4
+    Speed.metersPerSecond 4
 
 
 playerMaterial : Material Material.Dense
@@ -259,34 +270,49 @@ postSimulate _ bodies contacts state =
 
 drivePlayer : Float -> Float -> Float -> Body -> Body
 drivePlayer dtMs right forward body =
-    if right == 0 && forward == 0 then
-        body
+    let
+        vel =
+            Physics.velocity body
 
-    else
-        let
-            duration =
-                Duration.milliseconds dtMs
+        rawForceX =
+            Quantity.at driveGain (Quantity.minus (Vector3d.xComponent vel) (Quantity.multiplyBy right walkSpeed))
 
-            xImpulse =
-                Quantity.times duration (Force.newtons (right * moveAcceleration * playerMass))
+        rawForceY =
+            Quantity.at driveGain (Quantity.minus (Vector3d.yComponent vel) (Quantity.multiplyBy forward walkSpeed))
 
-            yImpulse =
-                Quantity.times duration (Force.newtons (forward * moveAcceleration * playerMass))
+        magnitude =
+            Quantity.sqrt (Quantity.plus (Quantity.squared rawForceX) (Quantity.squared rawForceY))
 
-            impulse =
-                Vector3d.xyz xImpulse yImpulse Quantity.zero
-        in
-        Physics.applyImpulse impulse (Physics.originPoint body) body
+        scale =
+            if Quantity.greaterThan maxDriveForce magnitude then
+                Quantity.ratio maxDriveForce magnitude
+
+            else
+                1
+
+        duration =
+            Duration.milliseconds dtMs
+
+        impulse =
+            Vector3d.xyz
+                (Quantity.times duration (Quantity.multiplyBy scale rawForceX))
+                (Quantity.times duration (Quantity.multiplyBy scale rawForceY))
+                Quantity.zero
+    in
+    Physics.applyImpulse impulse (Physics.originPoint body) body
 
 
 jumpPlayer : Body -> Body
 jumpPlayer body =
     let
+        duration =
+            Duration.seconds 1
+
+        jumpForce =
+            Quantity.times (Quantity.per duration jumpSpeed) playerMass
+
         impulse =
-            Vector3d.xyz
-                Quantity.zero
-                Quantity.zero
-                (Quantity.times (Duration.seconds 1) (Force.newtons (playerMass * jumpSpeed)))
+            Vector3d.withLength (Quantity.times duration jumpForce) Direction3d.z
     in
     Physics.applyImpulse impulse (Physics.originPoint body) body
 
@@ -299,19 +325,16 @@ playerGrounded bodies contacts =
 
         ( _, player ) :: _ ->
             let
-                playerZ =
-                    Length.inMeters
-                        (Point3d.zCoordinate (Physics.originPoint player))
-
                 threshold =
-                    playerZ - playerCylinderHalfLength - 0.1
+                    Point3d.zCoordinate (Physics.originPoint player)
+                        |> Quantity.minus playerCylinderHalfLength
+                        |> Quantity.minus (Length.meters 0.1)
             in
-            Physics.contactPoints
-                (\a b -> a == "player" || b == "player")
+            Physics.contactPoints (\a _ -> a == "player")
                 contacts
                 |> List.concatMap (\( _, _, pts ) -> pts)
                 |> List.any
-                    (\pt -> Length.inMeters (Point3d.zCoordinate pt) < threshold)
+                    (\pt -> Point3d.zCoordinate pt |> Quantity.lessThan threshold)
 
 
 subscriptions : Sub Msg
@@ -348,34 +371,33 @@ keyDecoder toMsg =
             )
 
 
-playerMass : Float
+playerMass : Mass
 playerMass =
-    5
+    Mass.kilograms 5
 
 
-playerRadius : Float
+playerRadius : Length
 playerRadius =
-    0.3
+    Length.meters 0.3
 
 
-playerCylinderHalfLength : Float
+playerCylinderHalfLength : Length
 playerCylinderHalfLength =
-    0.4
+    Length.meters 0.4
 
 
 playerCapsule : Cylinder3d Meters BodyCoordinates
 playerCapsule =
     Cylinder3d.centeredOn Point3d.origin
         Direction3d.z
-        { radius = Length.meters playerRadius
-        , length = Length.meters (2 * playerCylinderHalfLength)
+        { radius = playerRadius
+        , length = Quantity.twice playerCylinderHalfLength
         }
 
 
 boxBlock : Block3d Meters BodyCoordinates
 boxBlock =
-    Block3d.centeredOn
-        Frame3d.atOrigin
+    Block3d.centeredOn Frame3d.atOrigin
         ( Length.meters 0.5, Length.meters 0.5, Length.meters 0.8 )
 
 
@@ -383,41 +405,44 @@ stairBlocks : List (Block3d Meters BodyCoordinates)
 stairBlocks =
     let
         stepHeight =
-            0.2
+            Length.meters 0.2
 
         stepDepth =
-            0.5
+            Length.meters 0.5
 
         width =
-            1.5
+            Length.meters 1.5
 
         topPlatformDepth =
-            1.2
+            Length.meters 1.2
 
         numSteps =
             4
+
+        halfWidth =
+            Quantity.half width
     in
     List.map
         (\level ->
             let
                 yMin =
-                    toFloat level * stepDepth
+                    Quantity.multiplyBy (toFloat level) stepDepth
 
                 yMax =
-                    yMin
-                        + (if level == numSteps then
+                    Quantity.plus yMin
+                        (if level == numSteps then
                             topPlatformDepth
 
-                           else
+                         else
                             stepDepth
-                          )
+                        )
 
                 zMax =
-                    toFloat (level + 1) * stepHeight
+                    Quantity.multiplyBy (toFloat (level + 1)) stepHeight
             in
             Block3d.from
-                (Point3d.meters (-width / 2) yMin 0)
-                (Point3d.meters (width / 2) yMax zMax)
+                (Point3d.xyz (Quantity.negate halfWidth) yMin Quantity.zero)
+                (Point3d.xyz halfWidth yMax zMax)
         )
         (List.range 0 4)
 
@@ -431,8 +456,8 @@ initialBodies =
 
         player =
             Physics.capsule playerCapsule playerMaterial
-                |> Physics.scaleMassTo (Mass.kilograms playerMass)
-                |> Physics.moveTo (Point3d.meters 0 -4 (playerCylinderHalfLength + playerRadius))
+                |> Physics.scaleMassTo playerMass
+                |> Physics.moveTo (Point3d.xyz Quantity.zero (Length.meters -4) (Quantity.plus playerCylinderHalfLength playerRadius))
                 |> Physics.lock Lock.allRotation
 
         boxAt x y =

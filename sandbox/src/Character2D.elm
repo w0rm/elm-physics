@@ -21,30 +21,41 @@ import Density
 import Dict exposing (Dict)
 import Direction3d
 import Duration exposing (Duration)
-import Force
+import Force exposing (Force)
 import Frame3d
 import Json.Decode
-import Length exposing (Meters)
-import Mass
+import Length exposing (Length, Meters)
+import Mass exposing (Mass)
 import Physics exposing (Body, BodyCoordinates)
 import Physics.Lock as Lock
 import Physics.Material as Material exposing (Material)
 import Physics.Shape as Shape
 import Plane3d
 import Point3d
-import Quantity
+import Quantity exposing (Quantity, Rate)
+import Speed exposing (Speed)
 import Vector3d
 import WebGL exposing (Mesh)
 
 
-moveAcceleration : Float
-moveAcceleration =
-    35
+walkSpeed : Speed
+walkSpeed =
+    Speed.metersPerSecond 4
 
 
-jumpSpeed : Float
+maxDriveForce : Force
+maxDriveForce =
+    Force.newtons 250
+
+
+driveGain : Quantity Float (Rate Force.Newtons Speed.MetersPerSecond)
+driveGain =
+    Quantity.rate (Force.newtons 50) (Speed.metersPerSecond 1)
+
+
+jumpSpeed : Speed
 jumpSpeed =
-    4
+    Speed.metersPerSecond 4
 
 
 playerMaterial : Material Material.Dense
@@ -249,31 +260,34 @@ cameraTarget _ bodies =
 
 drivePlayer : Float -> Float -> Body -> Body
 drivePlayer dtMs right body =
-    if right == 0 then
-        body
+    let
+        currentVx =
+            Vector3d.xComponent (Physics.velocity body)
 
-    else
-        let
-            duration =
-                Duration.milliseconds dtMs
+        force =
+            Quantity.at driveGain (Quantity.minus currentVx (Quantity.multiplyBy right walkSpeed))
+                |> Quantity.clamp (Quantity.negate maxDriveForce) maxDriveForce
 
-            xImpulse =
-                Quantity.times duration (Force.newtons (right * moveAcceleration * playerMass))
-
-            impulse =
-                Vector3d.xyz xImpulse Quantity.zero Quantity.zero
-        in
-        Physics.applyImpulse impulse (Physics.originPoint body) body
+        impulse =
+            Vector3d.xyz
+                (Quantity.times (Duration.milliseconds dtMs) force)
+                Quantity.zero
+                Quantity.zero
+    in
+    Physics.applyImpulse impulse (Physics.originPoint body) body
 
 
 jumpPlayer : Body -> Body
 jumpPlayer body =
     let
+        duration =
+            Duration.seconds 1
+
+        jumpForce =
+            Quantity.times (Quantity.per duration jumpSpeed) playerMass
+
         impulse =
-            Vector3d.xyz
-                Quantity.zero
-                Quantity.zero
-                (Quantity.times (Duration.seconds 1) (Force.newtons (playerMass * jumpSpeed)))
+            Vector3d.withLength (Quantity.times duration jumpForce) Direction3d.z
     in
     Physics.applyImpulse impulse (Physics.originPoint body) body
 
@@ -286,19 +300,16 @@ playerGrounded bodies contacts =
 
         ( _, player ) :: _ ->
             let
-                playerZ =
-                    Length.inMeters
-                        (Point3d.zCoordinate (Physics.originPoint player))
-
                 threshold =
-                    playerZ - playerCylinderHalfLength - 0.1
+                    Point3d.zCoordinate (Physics.originPoint player)
+                        |> Quantity.minus playerCylinderHalfLength
+                        |> Quantity.minus (Length.meters 0.1)
             in
-            Physics.contactPoints
-                (\a b -> a == "player" || b == "player")
+            Physics.contactPoints (\a _ -> a == "player")
                 contacts
                 |> List.concatMap (\( _, _, pts ) -> pts)
                 |> List.any
-                    (\pt -> Length.inMeters (Point3d.zCoordinate pt) < threshold)
+                    (\pt -> Point3d.zCoordinate pt |> Quantity.lessThan threshold)
 
 
 subscriptions : Sub Msg
@@ -329,27 +340,27 @@ keyDecoder toMsg =
             )
 
 
-playerMass : Float
+playerMass : Mass
 playerMass =
-    5
+    Mass.kilograms 5
 
 
-playerRadius : Float
+playerRadius : Length
 playerRadius =
-    0.3
+    Length.meters 0.3
 
 
-playerCylinderHalfLength : Float
+playerCylinderHalfLength : Length
 playerCylinderHalfLength =
-    0.4
+    Length.meters 0.4
 
 
 playerCapsule : Cylinder3d Meters BodyCoordinates
 playerCapsule =
     Cylinder3d.centeredOn Point3d.origin
         Direction3d.z
-        { radius = Length.meters playerRadius
-        , length = Length.meters (2 * playerCylinderHalfLength)
+        { radius = playerRadius
+        , length = Quantity.twice playerCylinderHalfLength
         }
 
 
@@ -376,41 +387,44 @@ stairBlocks : List (Block3d Meters BodyCoordinates)
 stairBlocks =
     let
         stepHeight =
-            0.2
+            Length.meters 0.2
 
         stepDepth =
-            0.5
+            Length.meters 0.5
 
         width =
-            1.5
+            Length.meters 1.5
 
         topPlatformDepth =
-            1.2
+            Length.meters 1.2
 
         numSteps =
             4
+
+        halfWidth =
+            Quantity.half width
     in
     List.map
         (\level ->
             let
                 xMin =
-                    toFloat level * stepDepth
+                    Quantity.multiplyBy (toFloat level) stepDepth
 
                 xMax =
-                    xMin
-                        + (if level == numSteps then
+                    Quantity.plus xMin
+                        (if level == numSteps then
                             topPlatformDepth
 
-                           else
+                         else
                             stepDepth
-                          )
+                        )
 
                 zMax =
-                    toFloat (level + 1) * stepHeight
+                    Quantity.multiplyBy (toFloat (level + 1)) stepHeight
             in
             Block3d.from
-                (Point3d.meters xMin (-width / 2) 0)
-                (Point3d.meters xMax (width / 2) zMax)
+                (Point3d.xyz xMin (Quantity.negate halfWidth) Quantity.zero)
+                (Point3d.xyz xMax halfWidth zMax)
         )
         (List.range 0 4)
 
@@ -424,8 +438,8 @@ initialBodies =
 
         player =
             Physics.capsule playerCapsule playerMaterial
-                |> Physics.scaleMassTo (Mass.kilograms playerMass)
-                |> Physics.moveTo (Point3d.meters -4 0 (playerCylinderHalfLength + playerRadius))
+                |> Physics.scaleMassTo playerMass
+                |> Physics.moveTo (Point3d.xyz (Length.meters -4) Quantity.zero (Quantity.plus playerCylinderHalfLength playerRadius))
                 |> Physics.lock planarLock
 
         boxAt x z =
