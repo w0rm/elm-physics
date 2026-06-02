@@ -246,7 +246,7 @@ addEigenvectorAxes sceneParams (Physics.Types.Body internalBody) tail =
                 max invI.x (max invI.y invI.z)
 
             scaleFor v =
-                internalBody.boundingSphereRadius * sqrt (v / maxInvI)
+                internalBody.geometry.boundingSphereRadius * sqrt (v / maxInvI)
 
             transform =
                 Mat4.scale3

@@ -86,7 +86,6 @@ import Internal.ContactCache as ContactCache
 import Internal.Coordinates
 import Internal.Shape as InternalShape
 import Internal.Solver as Solver
-import Internal.SolverBody as SolverBody
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
 import Length exposing (Meters)
@@ -294,9 +293,24 @@ moveTo point3d (Types.Body body) =
                 body.centerOfMassTransform3d
     in
     Types.Body
-        { body
-            | transform3d = newTransform3d
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = newTransform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
         }
 
 
@@ -325,9 +339,24 @@ translateBy vector3d (Types.Body body) =
                 body.centerOfMassTransform3d
     in
     Types.Body
-        { body
-            | transform3d = newTransform3d
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = newTransform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
         }
 
 
@@ -369,15 +398,29 @@ rotateAround axis angle (Types.Body body) =
                 body.centerOfMassTransform3d
     in
     Types.Body
-        { body
-            | transform3d = newTransform3d
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , invInertiaWorld =
-                if body.kindInt == 2 then
-                    Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = newTransform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld =
+            if body.kindInt == 2 then
+                Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
-                else
-                    body.invInertiaWorld
+            else
+                body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
         }
 
 
@@ -419,15 +462,29 @@ place frame3d (Types.Body body) =
                 body.centerOfMassTransform3d
     in
     Types.Body
-        { body
-            | transform3d = newTransform3d
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , invInertiaWorld =
-                if body.kindInt == 2 then
-                    Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = newTransform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = List.map (\( s, m ) -> ( InternalShape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld =
+            if body.kindInt == 2 then
+                Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
 
-                else
-                    body.invInertiaWorld
+            else
+                body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
         }
 
 
@@ -510,18 +567,10 @@ simulate config bodiesWithIds =
             BroadPhase.getPairs config.collide config.constrain sortedBodies
 
         solverResult =
-            Solver.solve dt gravityVec config.solverIterations pairGroups maxId sortedBodies cache.lambdas cache.tangents
+            Solver.solve dt gravityVec config.solverIterations pairGroups maxId sortedBodies cache.warmStart
     in
-    ( List.reverse (outputBodiesHelp dt gravityVec solverResult.solverBodies internalBodiesWithIds [])
-    , Types.Contacts
-        { lambdas = solverResult.lambdas
-        , tangents = solverResult.tangents
-        , iterations = solverResult.iterations
-        , dt = dt
-        , gravity = gravityVec
-        , pairGroups = pairGroups
-        , solverBodies = solverResult.solverBodies
-        }
+    ( List.reverse (outputBodiesHelp solverResult.bodies internalBodiesWithIds [])
+    , Types.Contacts solverResult
     )
 
 
@@ -592,7 +641,7 @@ Each entry is a pair of body ids and a list of contact points between them.
 -}
 contactPoints : (id -> id -> Bool) -> Contacts id -> List ( id, id, List (Point3d Meters WorldCoordinates) )
 contactPoints predicate (Types.Contacts c) =
-    contactPointsHelp predicate c.dt c.gravity c.pairGroups c.solverBodies []
+    contactPointsHelp predicate c.pairGroups c.bodies []
 
 
 {-| Empty contacts for the first simulation frame (no warm starting).
@@ -600,13 +649,10 @@ contactPoints predicate (Types.Contacts c) =
 emptyContacts : Contacts id
 emptyContacts =
     Types.Contacts
-        { lambdas = ContactCache.empty
-        , tangents = ContactCache.empty
+        { warmStart = ContactCache.empty
         , iterations = 0
-        , dt = 0
-        , gravity = Vec3.zero
         , pairGroups = []
-        , solverBodies = Array.empty
+        , bodies = Array.empty
         }
 
 
@@ -909,7 +955,26 @@ setVelocityTo newVelocity ((Types.Body body) as original) =
         original
 
     else
-        Types.Body { body | velocity = Vector3d.unwrap newVelocity }
+        Types.Body
+            { id = body.id
+            , kindInt = body.kindInt
+            , transform3d = body.transform3d
+            , centerOfMassTransform3d = body.centerOfMassTransform3d
+            , velocity = Vector3d.unwrap newVelocity
+            , angularVelocity = body.angularVelocity
+            , mass = body.mass
+            , geometry = body.geometry
+            , worldShapesWithMaterials = body.worldShapesWithMaterials
+            , force = body.force
+            , torque = body.torque
+            , linearDamping = body.linearDamping
+            , angularDamping = body.angularDamping
+            , invMass = body.invMass
+            , invInertia = body.invInertia
+            , invInertiaWorld = body.invInertiaWorld
+            , linearLock = body.linearLock
+            , angularLock = body.angularLock
+            }
 
 
 {-| Replace the angular velocity of a body. See [setVelocityTo](#setVelocityTo)
@@ -921,7 +986,26 @@ setAngularVelocityTo newAngularVelocity ((Types.Body body) as original) =
         original
 
     else
-        Types.Body { body | angularVelocity = Vector3d.unwrap newAngularVelocity }
+        Types.Body
+            { id = body.id
+            , kindInt = body.kindInt
+            , transform3d = body.transform3d
+            , centerOfMassTransform3d = body.centerOfMassTransform3d
+            , velocity = body.velocity
+            , angularVelocity = Vector3d.unwrap newAngularVelocity
+            , mass = body.mass
+            , geometry = body.geometry
+            , worldShapesWithMaterials = body.worldShapesWithMaterials
+            , force = body.force
+            , torque = body.torque
+            , linearDamping = body.linearDamping
+            , angularDamping = body.angularDamping
+            , invMass = body.invMass
+            , invInertia = body.invInertia
+            , invInertiaWorld = body.invInertiaWorld
+            , linearLock = body.linearLock
+            , angularLock = body.angularLock
+            }
 
 
 {-| Scale a body to the given mass. The volume and center of mass
@@ -945,11 +1029,24 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
                 }
         in
         Types.Body
-            { body
-                | mass = newMass
-                , invMass = 1 / newMass
-                , invInertia = newInvInertia
-                , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
+            { id = body.id
+            , kindInt = body.kindInt
+            , transform3d = body.transform3d
+            , centerOfMassTransform3d = body.centerOfMassTransform3d
+            , velocity = body.velocity
+            , angularVelocity = body.angularVelocity
+            , mass = newMass
+            , geometry = body.geometry
+            , worldShapesWithMaterials = body.worldShapesWithMaterials
+            , force = body.force
+            , torque = body.torque
+            , linearDamping = body.linearDamping
+            , angularDamping = body.angularDamping
+            , invMass = 1 / newMass
+            , invInertia = newInvInertia
+            , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
+            , linearLock = body.linearLock
+            , angularLock = body.angularLock
             }
 
     else
@@ -963,9 +1060,24 @@ Values are clamped to [0, 1]. Default: 0.01 for both.
 damp : { linear : Float, angular : Float } -> Body -> Body
 damp { linear, angular } (Types.Body body) =
     Types.Body
-        { body
-            | linearDamping = clamp 0 1 linear
-            , angularDamping = clamp 0 1 angular
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = body.transform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = body.worldShapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = clamp 0 1 linear
+        , angularDamping = clamp 0 1 angular
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
         }
 
 
@@ -1036,13 +1148,11 @@ angularVelocityDeltaFromAngularImpulse body angularImpulse =
 
 contactPointsHelp :
     (id -> id -> Bool)
-    -> Float
-    -> Vec3.Vec3
     -> List InternalContact.PairGroup
-    -> Array (SolverBody.SolverBody id)
+    -> Array ( id, InternalBody.Body )
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
     -> List ( id, id, List (Point3d Meters WorldCoordinates) )
-contactPointsHelp predicate dt gravity pairGroups solverBodies acc =
+contactPointsHelp predicate pairGroups bodies acc =
     case pairGroups of
         [] ->
             acc
@@ -1050,23 +1160,21 @@ contactPointsHelp predicate dt gravity pairGroups solverBodies acc =
         pairGroup :: remainingPairGroups ->
             case pairGroup.contacts of
                 [] ->
-                    contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
+                    contactPointsHelp predicate remainingPairGroups bodies acc
 
                 _ ->
-                    case Array.get pairGroup.body1.id solverBodies of
-                        Just solverBody1 ->
-                            case Array.get pairGroup.body2.id solverBodies of
-                                Just solverBody2 ->
-                                    if predicate solverBody1.extId solverBody2.extId || predicate solverBody2.extId solverBody1.extId then
+                    case Array.get pairGroup.body1.id bodies of
+                        Just ( extId1, body1 ) ->
+                            case Array.get pairGroup.body2.id bodies of
+                                Just ( extId2, _ ) ->
+                                    if predicate extId1 extId2 || predicate extId2 extId1 then
                                         let
-                                            newBody1 =
-                                                SolverBody.toBody dt gravity solverBody1
-
-                                            -- Transform contact points from pre-sim body1 frame to post-sim body1 frame
+                                            -- Transform contact points from pre-sim body1 frame to post-sim
+                                            -- body1 frame; body1 is already integrated by the solver.
                                             transform =
                                                 Transform3d.atOrigin
                                                     |> Transform3d.relativeTo pairGroup.body1.transform3d
-                                                    |> Transform3d.placeIn newBody1.transform3d
+                                                    |> Transform3d.placeIn body1.transform3d
 
                                             points =
                                                 List.map
@@ -1076,46 +1184,40 @@ contactPointsHelp predicate dt gravity pairGroups solverBodies acc =
                                                     pairGroup.contacts
                                         in
                                         contactPointsHelp predicate
-                                            dt
-                                            gravity
                                             remainingPairGroups
-                                            solverBodies
-                                            (( solverBody1.extId, solverBody2.extId, points ) :: acc)
+                                            bodies
+                                            (( extId1, extId2, points ) :: acc)
 
                                     else
-                                        contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
+                                        contactPointsHelp predicate remainingPairGroups bodies acc
 
                                 Nothing ->
-                                    contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
+                                    contactPointsHelp predicate remainingPairGroups bodies acc
 
                         Nothing ->
-                            contactPointsHelp predicate dt gravity remainingPairGroups solverBodies acc
+                            contactPointsHelp predicate remainingPairGroups bodies acc
 
 
 outputBodiesHelp :
-    Float
-    -> Vec3.Vec3
-    -> Array (SolverBody.SolverBody id)
+    Array ( id, InternalBody.Body )
     -> List ( id, InternalBody.Body )
     -> List ( id, Body )
     -> List ( id, Body )
-outputBodiesHelp dt gravity solverBodies bodies acc =
+outputBodiesHelp integratedBodies bodies acc =
     case bodies of
         [] ->
             acc
 
         ( extId, body ) :: rest ->
-            case Array.get body.id solverBodies of
-                Just solverBody ->
-                    outputBodiesHelp dt
-                        gravity
-                        solverBodies
+            case Array.get body.id integratedBodies of
+                Just ( _, integratedBody ) ->
+                    outputBodiesHelp
+                        integratedBodies
                         rest
-                        (( extId, Types.Body (SolverBody.toBody dt gravity solverBody) ) :: acc)
+                        (( extId, Types.Body integratedBody ) :: acc)
 
                 Nothing ->
-                    outputBodiesHelp dt
-                        gravity
-                        solverBodies
+                    outputBodiesHelp
+                        integratedBodies
                         rest
                         (( extId, Types.Body body ) :: acc)

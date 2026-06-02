@@ -6,11 +6,10 @@ import Internal.Constraint as InternalConstraint
 import Internal.Contact as InternalContact
 import Internal.ContactCache exposing (ContactCache)
 import Internal.Coordinates exposing (BodyCoordinates)
+import Internal.Equation as Equation
 import Internal.Lock as InternalLock
 import Internal.Material as InternalMaterial
 import Internal.Shape as InternalShape
-import Internal.SolverBody as SolverBody
-import Internal.Vector3 exposing (Vec3)
 
 
 type Body
@@ -19,13 +18,10 @@ type Body
 
 type Contacts id
     = Contacts
-        { lambdas : ContactCache Float
-        , tangents : ContactCache Vec3
+        { warmStart : ContactCache Equation.WarmStart
         , iterations : Int
-        , dt : Float
-        , gravity : Vec3
         , pairGroups : List InternalContact.PairGroup
-        , solverBodies : Array (SolverBody.SolverBody id)
+        , bodies : Array ( id, InternalBody.Body )
         }
 
 

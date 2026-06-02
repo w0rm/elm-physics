@@ -2,7 +2,7 @@ module Internal.SolverBody exposing
     ( SolverBody
     , fromBodies
     , sentinel
-    , toBody
+    , solved
     )
 
 import Array exposing (Array)
@@ -67,12 +67,10 @@ sentinel extId =
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
         , mass = 0
-        , volume = 0
-        , shapesWithMaterials = []
+        , geometry = { volume = 0, shapesWithMaterials = [], boundingSphereRadius = 0 }
         , worldShapesWithMaterials = []
         , force = Vec3.zero
         , torque = Vec3.zero
-        , boundingSphereRadius = 0
         , linearDamping = 0
         , angularDamping = 0
         , invMass = 0
@@ -91,12 +89,17 @@ sentinel extId =
     }
 
 
-toBody : Float -> Vec3 -> SolverBody id -> Body
-toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
+{-| Integrate a solved body to its next-frame state, returning the `extId`
+paired with the new `Body` — the shape both the output list and `contactPoints`
+consume, so no `SolverBody` wrapper is rebuilt. Run once after solving. Static
+bodies don't move, so their existing body is reused (only the pair is allocated).
+-}
+solved : Float -> Vec3 -> SolverBody id -> ( id, Body )
+solved dt gravity ({ body } as solverBody) =
     case body.kindInt of
         1 ->
-            -- Static
-            body
+            -- Static: nothing to integrate, reuse the body as-is.
+            ( solverBody.extId, body )
 
         3 ->
             -- Kinematic
@@ -115,29 +118,29 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                             )
                         )
             in
-            { id = body.id
-            , kindInt = body.kindInt
-            , velocity = body.velocity
-            , angularVelocity = body.angularVelocity
-            , transform3d = newTransform3d
-            , centerOfMassTransform3d = body.centerOfMassTransform3d
-            , mass = body.mass
-            , volume = body.volume
-            , shapesWithMaterials = body.shapesWithMaterials
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , boundingSphereRadius = body.boundingSphereRadius
-            , linearDamping = body.linearDamping
-            , angularDamping = body.angularDamping
-            , invMass = body.invMass
-            , invInertia = body.invInertia
-            , invInertiaWorld = body.invInertiaWorld
-            , linearLock = body.linearLock
-            , angularLock = body.angularLock
+            ( solverBody.extId
+            , { id = body.id
+              , kindInt = body.kindInt
+              , velocity = body.velocity
+              , angularVelocity = body.angularVelocity
+              , transform3d = newTransform3d
+              , centerOfMassTransform3d = body.centerOfMassTransform3d
+              , mass = body.mass
+              , geometry = body.geometry
+              , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+              , linearDamping = body.linearDamping
+              , angularDamping = body.angularDamping
+              , invMass = body.invMass
+              , invInertia = body.invInertia
+              , invInertiaWorld = body.invInertiaWorld
+              , linearLock = body.linearLock
+              , angularLock = body.angularLock
 
-            -- clear forces
-            , force = Vec3.zero
-            , torque = Vec3.zero
-            }
+              -- clear forces
+              , force = Vec3.zero
+              , torque = Vec3.zero
+              }
+            )
 
         _ ->
             -- Dynamic (or any other; only Dynamic is the live case)
@@ -150,9 +153,9 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                     (1.0 - body.angularDamping) ^ dt
 
                 newVelocity =
-                    { x = ((gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + vX) * body.linearLock.x
-                    , y = ((gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + vY) * body.linearLock.y
-                    , z = ((gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + vZ) * body.linearLock.z
+                    { x = ((gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + solverBody.vX) * body.linearLock.x
+                    , y = ((gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + solverBody.vY) * body.linearLock.y
+                    , z = ((gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + solverBody.vZ) * body.linearLock.z
                     }
 
                 velocityLength =
@@ -161,21 +164,24 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                 -- This hack is needed to minimize tunnelling
                 -- we don't let the body to move more
                 -- than half of its bounding radius in a frame
+                boundingSphereRadius =
+                    body.geometry.boundingSphereRadius
+
                 cappedVelocity =
                     if
                         (velocityLength == 0)
-                            || (body.boundingSphereRadius == 0)
-                            || (velocityLength * dt - body.boundingSphereRadius < 0)
+                            || (boundingSphereRadius == 0)
+                            || (velocityLength * dt - boundingSphereRadius < 0)
                     then
                         newVelocity
 
                     else
-                        Vec3.scale (body.boundingSphereRadius / (velocityLength * dt)) newVelocity
+                        Vec3.scale (boundingSphereRadius / (velocityLength * dt)) newVelocity
 
                 newAngularVelocity =
-                    { x = ((body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + wX) * body.angularLock.x
-                    , y = ((body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + wY) * body.angularLock.y
-                    , z = ((body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + wZ) * body.angularLock.z
+                    { x = ((body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + solverBody.wX) * body.angularLock.x
+                    , y = ((body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + solverBody.wY) * body.angularLock.y
+                    , z = ((body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + solverBody.wZ) * body.angularLock.z
                     }
 
                 newTransform3d =
@@ -194,26 +200,26 @@ toBody dt gravity { body, vX, vY, vZ, wX, wY, wZ } =
                             )
                         )
             in
-            { id = body.id
-            , kindInt = body.kindInt
-            , velocity = newVelocity
-            , angularVelocity = newAngularVelocity
-            , transform3d = newTransform3d
-            , centerOfMassTransform3d = body.centerOfMassTransform3d
-            , mass = body.mass
-            , volume = body.volume
-            , shapesWithMaterials = body.shapesWithMaterials
-            , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.shapesWithMaterials
-            , boundingSphereRadius = body.boundingSphereRadius
-            , linearDamping = body.linearDamping
-            , angularDamping = body.angularDamping
-            , invMass = body.invMass
-            , invInertia = body.invInertia
-            , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
-            , linearLock = body.linearLock
-            , angularLock = body.angularLock
+            ( solverBody.extId
+            , { id = body.id
+              , kindInt = body.kindInt
+              , velocity = newVelocity
+              , angularVelocity = newAngularVelocity
+              , transform3d = newTransform3d
+              , centerOfMassTransform3d = body.centerOfMassTransform3d
+              , mass = body.mass
+              , geometry = body.geometry
+              , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+              , linearDamping = body.linearDamping
+              , angularDamping = body.angularDamping
+              , invMass = body.invMass
+              , invInertia = body.invInertia
+              , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+              , linearLock = body.linearLock
+              , angularLock = body.angularLock
 
-            -- clear forces
-            , force = Vec3.zero
-            , torque = Vec3.zero
-            }
+              -- clear forces
+              , force = Vec3.zero
+              , torque = Vec3.zero
+              }
+            )

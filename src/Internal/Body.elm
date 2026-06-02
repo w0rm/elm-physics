@@ -41,12 +41,10 @@ type alias Body =
     , velocity : Vec3
     , angularVelocity : Vec3
     , mass : Float
-    , volume : Float -- net volume: solid shapes minus void shapes (m³)
-    , shapesWithMaterials : List ( Shape CenterOfMassCoordinates, Material )
+    , geometry : Geometry
     , worldShapesWithMaterials : List ( Shape WorldCoordinates, Material )
     , force : Vec3
     , torque : Vec3
-    , boundingSphereRadius : Float
 
     -- damping
     , linearDamping : Float
@@ -60,6 +58,17 @@ type alias Body =
     -- world-axis DOF masks: 0 = locked, 1 = free
     , linearLock : Vec3
     , angularLock : Vec3
+    }
+
+
+{-| Static, construction-time properties grouped out of `Body` so the per-frame
+mutators (`{ body | … }`) update a record under V8's 20-field fast-property
+limit and stay out of slow dictionary mode. Never mutated after construction.
+-}
+type alias Geometry =
+    { volume : Float -- net volume: solid shapes minus void shapes (m³)
+    , shapesWithMaterials : List ( Shape CenterOfMassCoordinates, Material )
+    , boundingSphereRadius : Float
     }
 
 
@@ -236,10 +245,12 @@ compound kindInt rawShapesWithMaterials =
     , transform3d = transform3d
     , centerOfMassTransform3d = centerOfMassTransform3d
     , mass = totalMass
-    , volume = totalVolume
-    , shapesWithMaterials = placed.solidShapes
+    , geometry =
+        { volume = totalVolume
+        , shapesWithMaterials = placed.solidShapes
+        , boundingSphereRadius = placed.boundingSphereRadius
+        }
     , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn transform3d s, m )) placed.solidShapes
-    , boundingSphereRadius = placed.boundingSphereRadius
     , linearDamping = 0.01
     , angularDamping = 0.01
     , invMass =
@@ -273,10 +284,12 @@ pointMass position mass { friction, bounciness } =
     , transform3d = Transform3d.atPoint position
     , centerOfMassTransform3d = Transform3d.atOrigin
     , mass = mass
-    , volume = 0
-    , shapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
+    , geometry =
+        { volume = 0
+        , shapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
+        , boundingSphereRadius = 0
+        }
     , worldShapesWithMaterials = [ ( Particle position, contactMaterial ) ]
-    , boundingSphereRadius = 0
     , linearDamping = 0.01
     , angularDamping = 0.01
     , invMass = 1 / mass
@@ -301,17 +314,32 @@ applyImpulse impulse point body =
         { angularVelocity, invInertiaWorld, velocity, invMass } =
             body
     in
-    { body
-        | velocity =
-            { x = velocity.x + invMass * impulse.x
-            , y = velocity.y + invMass * impulse.y
-            , z = velocity.z + invMass * impulse.z
-            }
-        , angularVelocity =
-            { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
-            , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
-            , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
-            }
+    { id = body.id
+    , kindInt = body.kindInt
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity =
+        { x = velocity.x + invMass * impulse.x
+        , y = velocity.y + invMass * impulse.y
+        , z = velocity.z + invMass * impulse.z
+        }
+    , angularVelocity =
+        { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+        , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+        , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+        }
+    , mass = body.mass
+    , geometry = body.geometry
+    , worldShapesWithMaterials = body.worldShapesWithMaterials
+    , force = body.force
+    , torque = body.torque
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    , linearLock = body.linearLock
+    , angularLock = body.angularLock
     }
 
 
@@ -324,15 +352,48 @@ applyForce force point body =
         torque =
             Vec3.cross relativePoint force
     in
-    { body
-        | force = Vec3.add body.force force
-        , torque = Vec3.add body.torque torque
+    { id = body.id
+    , kindInt = body.kindInt
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity = body.velocity
+    , angularVelocity = body.angularVelocity
+    , mass = body.mass
+    , geometry = body.geometry
+    , worldShapesWithMaterials = body.worldShapesWithMaterials
+    , force = Vec3.add body.force force
+    , torque = Vec3.add body.torque torque
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    , linearLock = body.linearLock
+    , angularLock = body.angularLock
     }
 
 
 applyTorque : Vec3 -> Body -> Body
 applyTorque torque body =
-    { body | torque = Vec3.add body.torque torque }
+    { id = body.id
+    , kindInt = body.kindInt
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity = body.velocity
+    , angularVelocity = body.angularVelocity
+    , mass = body.mass
+    , geometry = body.geometry
+    , worldShapesWithMaterials = body.worldShapesWithMaterials
+    , force = body.force
+    , torque = Vec3.add body.torque torque
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    , linearLock = body.linearLock
+    , angularLock = body.angularLock
+    }
 
 
 applyAngularImpulse : Vec3 -> Body -> Body
@@ -344,12 +405,28 @@ applyAngularImpulse angularImpulse body =
         { angularVelocity, invInertiaWorld } =
             body
     in
-    { body
-        | angularVelocity =
-            { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
-            , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
-            , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
-            }
+    { id = body.id
+    , kindInt = body.kindInt
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity = body.velocity
+    , angularVelocity =
+        { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+        , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+        , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+        }
+    , mass = body.mass
+    , geometry = body.geometry
+    , worldShapesWithMaterials = body.worldShapesWithMaterials
+    , force = body.force
+    , torque = body.torque
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    , linearLock = body.linearLock
+    , angularLock = body.angularLock
     }
 
 
@@ -364,9 +441,24 @@ lock locks body =
         ( linearLock, angularLock ) =
             Lock.masks locks
     in
-    { body
-        | linearLock = linearLock
-        , angularLock = angularLock
+    { id = body.id
+    , kindInt = body.kindInt
+    , transform3d = body.transform3d
+    , centerOfMassTransform3d = body.centerOfMassTransform3d
+    , velocity = body.velocity
+    , angularVelocity = body.angularVelocity
+    , mass = body.mass
+    , geometry = body.geometry
+    , worldShapesWithMaterials = body.worldShapesWithMaterials
+    , force = body.force
+    , torque = body.torque
+    , linearDamping = body.linearDamping
+    , angularDamping = body.angularDamping
+    , invMass = body.invMass
+    , invInertia = body.invInertia
+    , invInertiaWorld = body.invInertiaWorld
+    , linearLock = linearLock
+    , angularLock = angularLock
     }
 
 

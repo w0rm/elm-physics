@@ -4,6 +4,7 @@ module Internal.Equation exposing
     , Ctx
     , EquationsGroup
     , Jacobian
+    , WarmStart
     , equationsForPair
     )
 
@@ -38,9 +39,23 @@ type alias Ctx =
     { dt : Float
     , gravity : Vec3
     , gravityLength : Float
-    , lambdas : ContactCache Float
-    , tangents : ContactCache Vec3
+    , warmStart : ContactCache WarmStart
     }
+
+
+{-| One contact's warm-start payload: the normal's solved lambda and the
+friction1 (t1) direction. Stored together — both are keyed by the same contact
+id within the same body-pair node, so one cache and one lookup serve both.
+-}
+type alias WarmStart =
+    { lambda : Float
+    , t1 : Vec3
+    }
+
+
+defaultWarmStart : WarmStart
+defaultWarmStart =
+    { lambda = 0, t1 = Vec3.zero }
 
 
 {-| One contact's three solved lambdas over a static `ContactData` shared by
@@ -100,29 +115,25 @@ type alias EquationsGroup id =
 
 equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List ConstraintEquation }
 equationsForPair ctx { body1, body2, contacts, constraints } =
-    -- Multistep warm-start: fetch this body pair's cached lambda/tangent lists
-    -- once (the cache is keyed by body pair), then scan them per contact —
-    -- instead of walking the cache tree for every contact point.
+    -- Multistep warm-start: fetch this body pair's cached warm-start list once
+    -- (the cache is keyed by body pair), then scan it per contact — instead of
+    -- walking the cache tree for every contact point.
     let
-        ( lambdaList, tangentList ) =
+        warmStartList =
             case contacts of
                 [] ->
-                    ( [], [] )
+                    []
 
                 _ ->
-                    let
-                        bodyKey =
-                            ContactId.bodyKey body1.id body2.id
-                    in
-                    ( Cache.getList bodyKey ctx.lambdas, Cache.getList bodyKey ctx.tangents )
+                    Cache.getGroup (ContactId.bodyKey body1.id body2.id) ctx.warmStart
     in
-    { contacts = buildContactEquations ctx body1 body2 lambdaList tangentList contacts []
+    { contacts = buildContactEquations ctx body1 body2 warmStartList contacts []
     , constraints = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
     }
 
 
-buildContactEquations : Ctx -> Body -> Body -> List ( Int, Int, Float ) -> List ( Int, Int, Vec3 ) -> List SolverContact -> List ContactEquations -> List ContactEquations
-buildContactEquations ctx body1 body2 lambdaList tangentList contacts acc =
+buildContactEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> List SolverContact -> List ContactEquations -> List ContactEquations
+buildContactEquations ctx body1 body2 warmStartList contacts acc =
     case contacts of
         [] ->
             acc
@@ -132,19 +143,15 @@ buildContactEquations ctx body1 body2 lambdaList tangentList contacts acc =
                 contact =
                     solverContact.contact
 
-                seedLambda =
-                    Cache.lookup contact.shapeKey contact.featureKey 0 lambdaList * warmStartFactor
-
-                cachedT1 =
-                    Cache.lookup contact.shapeKey contact.featureKey Vec3.zero tangentList
+                cached =
+                    Cache.lookup contact.shapeKey contact.featureKey defaultWarmStart warmStartList
             in
             buildContactEquations ctx
                 body1
                 body2
-                lambdaList
-                tangentList
+                warmStartList
                 rest
-                (contactEquations seedLambda cachedT1 ctx body1 body2 solverContact :: acc)
+                (contactEquations (cached.lambda * warmStartFactor) cached.t1 ctx body1 body2 solverContact :: acc)
 
 
 addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List ConstraintEquation -> List ConstraintEquation

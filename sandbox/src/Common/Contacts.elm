@@ -11,9 +11,9 @@ re-projection so points line up with the rendered body positions.
 -}
 
 import Array
+import Internal.Body as InternalBody
 import Internal.Contact as InternalContact
 import Internal.ContactId as ContactId
-import Internal.SolverBody as SolverBody
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
 import Physics exposing (WorldCoordinates)
@@ -29,17 +29,15 @@ type alias Labeled =
 
 worldPoints : Physics.Contacts id -> List Labeled
 worldPoints (Types.Contacts c) =
-    helper c.dt c.gravity c.pairGroups c.solverBodies []
+    helper c.pairGroups c.bodies []
 
 
 helper :
-    Float
-    -> { x : Float, y : Float, z : Float }
-    -> List InternalContact.PairGroup
-    -> Array.Array (SolverBody.SolverBody id)
+    List InternalContact.PairGroup
+    -> Array.Array ( id, InternalBody.Body )
     -> List Labeled
     -> List Labeled
-helper dt gravity pairGroups solverBodies acc =
+helper pairGroups bodies acc =
     case pairGroups of
         [] ->
             acc
@@ -47,19 +45,17 @@ helper dt gravity pairGroups solverBodies acc =
         pairGroup :: rest ->
             case pairGroup.contacts of
                 [] ->
-                    helper dt gravity rest solverBodies acc
+                    helper rest bodies acc
 
                 _ ->
-                    case Array.get pairGroup.body1.id solverBodies of
-                        Just solverBody1 ->
+                    case Array.get pairGroup.body1.id bodies of
+                        Just ( _, body1 ) ->
                             let
-                                newBody1 =
-                                    SolverBody.toBody dt gravity solverBody1
-
+                                -- body1 is already integrated by the solver
                                 transform =
                                     Transform3d.atOrigin
                                         |> Transform3d.relativeTo pairGroup.body1.transform3d
-                                        |> Transform3d.placeIn newBody1.transform3d
+                                        |> Transform3d.placeIn body1.transform3d
 
                                 entries =
                                     List.map
@@ -72,7 +68,7 @@ helper dt gravity pairGroups solverBodies acc =
                                         )
                                         pairGroup.contacts
                             in
-                            helper dt gravity rest solverBodies (entries ++ acc)
+                            helper rest bodies (entries ++ acc)
 
                         Nothing ->
-                            helper dt gravity rest solverBodies acc
+                            helper rest bodies acc

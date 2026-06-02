@@ -190,7 +190,7 @@ bodiesMayContact : (id -> id -> Bool) -> id -> Body -> id -> Body -> Bool
 bodiesMayContact collide id1 body1 id2 body2 =
     let
         boundingRadiuses =
-            body1.boundingSphereRadius + body2.boundingSphereRadius
+            body1.geometry.boundingSphereRadius + body2.geometry.boundingSphereRadius
 
         p1 =
             Transform3d.originPoint body1.transform3d

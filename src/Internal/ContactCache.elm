@@ -1,7 +1,7 @@
 module Internal.ContactCache exposing
     ( ContactCache
     , empty
-    , getList
+    , getGroup
     , insertGroup
     , lookup
     )
@@ -44,41 +44,28 @@ empty =
     Empty () () () () ()
 
 
-order : Int -> Int -> Order
-order a b =
-    let
-        d =
-            a - b
-    in
-    if d < 0 then
-        LT
-
-    else if d > 0 then
-        GT
-
-    else
-        EQ
-
-
-{-| Fetch a body pair's contact list (empty if the pair is absent), to be
+{-| Fetch a body pair's contact group (empty if the pair is absent), to be
 linear-scanned with `lookup`.
 -}
-getList : Int -> ContactCache v -> List ( Int, Int, v )
-getList target dict =
+getGroup : Int -> ContactCache v -> List ( Int, Int, v )
+getGroup target dict =
     case dict of
         Empty _ _ _ _ _ ->
             []
 
         Node _ key list left right ->
-            case order target key of
-                LT ->
-                    getList target left
+            let
+                d =
+                    target - key
+            in
+            if d < 0 then
+                getGroup target left
 
-                EQ ->
-                    list
+            else if d > 0 then
+                getGroup target right
 
-                GT ->
-                    getList target right
+            else
+                list
 
 
 {-| Linear-scan a pair's list for `( shapeKey, featureKey )`, returning
@@ -121,15 +108,18 @@ insertHelp key list dict =
             Node Red key list empty empty
 
         Node nColor nKey nList nLeft nRight ->
-            case order key nKey of
-                LT ->
-                    balance nColor nKey nList (insertHelp key list nLeft) nRight
+            let
+                d =
+                    key - nKey
+            in
+            if d < 0 then
+                balance nColor nKey nList (insertHelp key list nLeft) nRight
 
-                EQ ->
-                    Node nColor nKey list nLeft nRight
+            else if d > 0 then
+                balance nColor nKey nList nLeft (insertHelp key list nRight)
 
-                GT ->
-                    balance nColor nKey nList nLeft (insertHelp key list nRight)
+            else
+                Node nColor nKey list nLeft nRight
 
 
 balance : NColor -> Int -> List ( Int, Int, v ) -> ContactCache v -> ContactCache v -> ContactCache v

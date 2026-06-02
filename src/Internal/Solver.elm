@@ -208,22 +208,27 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
             buildAndWarmStart ctx newBody1 solverBodies2 newParents (equationsGroup :: groups) rest
 
 
+{-| The post-solve state, shaped to be wrapped directly as `Types.Contacts`:
+each body integrated to its next-frame transform and paired with its `extId`
+(integration run once here, so the returned body list and `contactPoints` both
+reuse it), the next-frame warm-start cache, and the frame's `pairGroups`.
+-}
 type alias SolveResult id =
-    { solverBodies : Array (SolverBody id)
-    , lambdas : ContactCache Float
-    , tangents : ContactCache Vec3
+    { bodies : Array ( id, Body )
+    , warmStart : ContactCache Equation.WarmStart
     , iterations : Int
+    , pairGroups : List PairGroup
     }
 
 
-solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> ContactCache Float -> ContactCache Vec3 -> SolveResult id
-solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
+solve : Float -> Vec3 -> Int -> List PairGroup -> Int -> List ( id, Body ) -> ContactCache Equation.WarmStart -> SolveResult id
+solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
     case bodiesWithIds of
         [] ->
-            { solverBodies = Array.empty
-            , lambdas = Cache.empty
-            , tangents = Cache.empty
+            { bodies = Array.empty
+            , warmStart = Cache.empty
             , iterations = 0
+            , pairGroups = pairGroups
             }
 
         ( firstExtId, _ ) :: _ ->
@@ -232,8 +237,7 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
                     { dt = dt
                     , gravity = gravity
                     , gravityLength = Vec3.length gravity
-                    , lambdas = lambdas
-                    , tangents = tangents
+                    , warmStart = warmStart
                     }
 
                 fillingBody =
@@ -283,36 +287,37 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds lambdas tangents =
                 iterationsUsed =
                     maxInt 1 (iterations - minRemainingIterations)
 
-                ( finalLambdas, finalTangents ) =
-                    collectGroupCaches finalEquationsGroups Cache.empty Cache.empty
+                finalWarmStart =
+                    collectGroupCaches finalEquationsGroups Cache.empty
+
+                -- Integrate every body to its next-frame transform once, so the
+                -- output list and contactPoints both reuse it (no second toBody).
+                integratedBodies =
+                    Array.map (SolverBody.solved dt gravity) finalSolverBodies
             in
-            { solverBodies = finalSolverBodies
-            , lambdas = finalLambdas
-            , tangents = finalTangents
+            { bodies = integratedBodies
+            , warmStart = finalWarmStart
             , iterations = iterationsUsed
+            , pairGroups = pairGroups
             }
 
 
-{-| Populate next frame's warm-start caches: for each body pair (group) with
-contacts, build the pair's lambda and tangent entry lists and do a single insert
-per cache keyed by the body-pair key. Constraints are never warm-started (their
-ids are the 0/0 sentinel), so only contacts are collected.
-
-Recurses over the groups threading the two caches as separate arguments (rather
-than folding a `( lambdas, tangents )` tuple, which would allocate one per
-group) — only the final result is a tuple.
-
+{-| Populate next frame's warm-start cache: for each body pair (group) with
+contacts, build the pair's warm-start entry list (each entry carries both the
+normal's lambda and the friction1 direction) and do a single insert keyed by the
+body-pair key. Constraints are never warm-started (their ids are the 0/0
+sentinel), so only contacts are collected.
 -}
-collectGroupCaches : List (EquationsGroup id) -> ContactCache Float -> ContactCache Vec3 -> ( ContactCache Float, ContactCache Vec3 )
-collectGroupCaches groups lambdaAcc tangentAcc =
+collectGroupCaches : List (EquationsGroup id) -> ContactCache Equation.WarmStart -> ContactCache Equation.WarmStart
+collectGroupCaches groups acc =
     case groups of
         [] ->
-            ( lambdaAcc, tangentAcc )
+            acc
 
         group :: rest ->
             case group.contacts of
                 [] ->
-                    collectGroupCaches rest lambdaAcc tangentAcc
+                    collectGroupCaches rest acc
 
                 _ :: _ ->
                     let
@@ -320,37 +325,25 @@ collectGroupCaches groups lambdaAcc tangentAcc =
                             ContactId.bodyKey group.body1.body.id group.body2.body.id
                     in
                     collectGroupCaches rest
-                        (Cache.insertGroup bodyKey (lambdaEntries group.contacts []) lambdaAcc)
-                        (Cache.insertGroup bodyKey (tangentEntries group.contacts []) tangentAcc)
+                        (Cache.insertGroup bodyKey (warmStartEntries group.contacts []) acc)
 
 
-{-| A pair's lambda entries: each contact normal's solved lambda, keyed by the
-contact id `(shapeKey, featureKey)`.
+{-| A pair's warm-start entries: each contact's solved normal lambda and
+friction1 (t1) direction, keyed by the contact id `(shapeKey, featureKey)`.
 -}
-lambdaEntries : List ContactEquations -> List ( Int, Int, Float ) -> List ( Int, Int, Float )
-lambdaEntries contacts acc =
+warmStartEntries : List ContactEquations -> List ( Int, Int, Equation.WarmStart ) -> List ( Int, Int, Equation.WarmStart )
+warmStartEntries contacts acc =
     case contacts of
         [] ->
             acc
 
         { data, normalLambda } :: rest ->
-            lambdaEntries rest (( data.shapeKey, data.featureKey, normalLambda ) :: acc)
-
-
-{-| A pair's tangent entries: each contact's friction1 (t1) direction, keyed by
-the contact id `(shapeKey, featureKey)` (taken from the normal, which carries the id).
--}
-tangentEntries : List ContactEquations -> List ( Int, Int, Vec3 ) -> List ( Int, Int, Vec3 )
-tangentEntries contacts acc =
-    case contacts of
-        [] ->
-            acc
-
-        { data } :: rest ->
-            tangentEntries rest
+            warmStartEntries rest
                 (( data.shapeKey
                  , data.featureKey
-                 , { x = data.friction1.vBx, y = data.friction1.vBy, z = data.friction1.vBz }
+                 , { lambda = normalLambda
+                   , t1 = { x = data.friction1.vBx, y = data.friction1.vBy, z = data.friction1.vBz }
+                   }
                  )
                     :: acc
                 )
