@@ -494,15 +494,15 @@ the vertex-vs-cap and edge-vs-cap axes that standard convex SAT misses,
 preventing false-overlap reports near convex corners. Falls back to the
 cross product when closest points coincide.
 -}
-testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List (List Vec3) -> Vec3 -> Float -> Maybe Vec3
 testUniqueEdges capsule convex ep1 ep2 groups target dmin =
     walkUniqueEdges capsule convex ep1 ep2 [] groups target dmin
 
 
-walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List ( Vec3, Vec3 ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Vec3 -> Float -> Maybe Vec3
+walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List Vec3 -> List (List Vec3) -> Vec3 -> Float -> Maybe Vec3
 walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
     case edges of
-        ( v1, v2 ) :: rest ->
+        v1 :: v2 :: rest ->
             case edgeAxis capsule ep1 ep2 v1 v2 of
                 Nothing ->
                     walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
@@ -519,10 +519,10 @@ walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
                             else
                                 walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
 
-        [] ->
+        _ ->
             case queuedGroups of
-                ( firstEdge, otherEdges ) :: restGroups ->
-                    walkUniqueEdges capsule convex ep1 ep2 (firstEdge :: otherEdges) restGroups target dmin
+                group :: restGroups ->
+                    walkUniqueEdges capsule convex ep1 ep2 group restGroups target dmin
 
                 [] ->
                     -- Orient the axis from convex toward capsule.
@@ -634,11 +634,11 @@ collectFirstTwoTied axis maxProj verts count v1 =
 first whose both endpoints are within tolerance of `maxProj`. Short-
 circuits on first match.
 -}
-findTiedUniqueEdge : Vec3 -> Float -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Maybe ( Vec3, Vec3 )
+findTiedUniqueEdge : Vec3 -> Float -> List (List Vec3) -> Maybe ( Vec3, Vec3 )
 findTiedUniqueEdge axis maxProj groups =
     case groups of
-        ( firstEdge, otherEdges ) :: restGroups ->
-            case findTiedEdgeInGroup axis maxProj (firstEdge :: otherEdges) of
+        group :: restGroups ->
+            case findTiedEdgeInGroup axis maxProj group of
                 (Just _) as found ->
                     found
 
@@ -649,17 +649,17 @@ findTiedUniqueEdge axis maxProj groups =
             Nothing
 
 
-findTiedEdgeInGroup : Vec3 -> Float -> List ( Vec3, Vec3 ) -> Maybe ( Vec3, Vec3 )
+findTiedEdgeInGroup : Vec3 -> Float -> List Vec3 -> Maybe ( Vec3, Vec3 )
 findTiedEdgeInGroup axis maxProj edges =
     case edges of
-        ( v1, v2 ) :: rest ->
+        v1 :: v2 :: rest ->
             if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot v2 axis < 1.0e-4) then
                 Just ( v1, v2 )
 
             else
                 findTiedEdgeInGroup axis maxProj rest
 
-        [] ->
+        _ ->
             Nothing
 
 

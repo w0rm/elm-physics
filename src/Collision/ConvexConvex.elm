@@ -137,7 +137,7 @@ orientAxis convex1 convex2 axis =
 `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
 warm-start cache keys survive multi-edge contacts in the same body pair.
 -}
-addEdgeContact : Int -> Vec3 -> Int -> List ( Vec3, Vec3 ) -> Int -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+addEdgeContact : Int -> Vec3 -> Int -> List Vec3 -> Int -> List Vec3 -> List Contact -> List Contact
 addEdgeContact shapeKey separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
     let
         reversedSeparatingAxis =
@@ -164,26 +164,26 @@ addEdgeContact shapeKey separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
 {-| Pick the edge in a direction group whose midpoint is furthest along
 `supportDir`. The 1-based index is part of the warm-start cache key.
 -}
-pickSupportEdge : Vec3 -> List ( Vec3, Vec3 ) -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdge : Vec3 -> List Vec3 -> ( Int, ( Vec3, Vec3 ) )
 pickSupportEdge supportDir edges =
     pickSupportEdgeHelp supportDir edges 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
 
 
-pickSupportEdgeHelp : Vec3 -> List ( Vec3, Vec3 ) -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdgeHelp : Vec3 -> List Vec3 -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
 pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
     case edges of
-        (( v1, v2 ) as edge) :: rest ->
+        v1 :: v2 :: rest ->
             let
                 midDot =
                     supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
             in
             if midDot - bestDot > 0 then
-                pickSupportEdgeHelp supportDir rest (idx + 1) idx edge midDot
+                pickSupportEdgeHelp supportDir rest (idx + 1) idx ( v1, v2 ) midDot
 
             else
                 pickSupportEdgeHelp supportDir rest (idx + 1) bestIdx bestEdge bestDot
 
-        [] ->
+        _ ->
             ( bestIdx, bestEdge )
 
 
@@ -443,7 +443,7 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
 
 type EdgeResult
     = EdgeSeparates
-    | EdgeBeats Vec3 Int (List ( Vec3, Vec3 )) Int (List ( Vec3, Vec3 ))
+    | EdgeBeats Vec3 Int (List Vec3) Int (List Vec3)
     | NoEdgeBeats
 
 
@@ -479,19 +479,19 @@ findEdgeSAT convex1 convex2 faceDmin =
         (faceDmin / edgeBiasFactor)
 
 
-findEdgeSATHelp : Convex -> Convex -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
+findEdgeSATHelp : Convex -> Convex -> List (List Vec3) -> List (List Vec3) -> List (List Vec3) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
 findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best dmin =
     case groups1 of
         [] ->
             best
 
-        ( ( v1a, v1b ) as firstEdge1, otherEdges1 ) :: remainingGroups1 ->
+        ((v1a :: v1b :: _) as group1) :: remainingGroups1 ->
             case groups2 of
                 [] ->
                     -- requeue groups2 and advance outer
                     findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 initGroups2 (dir1Idx + 1) 1 best dmin
 
-                ( ( v2a, v2b ) as firstEdge2, otherEdges2 ) :: remainingGroups2 ->
+                ((v2a :: v2b :: _) as group2) :: remainingGroups2 ->
                     let
                         dir1 =
                             Vec3.direction v1a v1b
@@ -517,10 +517,18 @@ findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best
 
                             Just dist ->
                                 if dist - dmin < 0 then
-                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx (firstEdge1 :: otherEdges1) dir2Idx (firstEdge2 :: otherEdges2)) dist
+                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx group1 dir2Idx group2) dist
 
                                 else
                                     findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
+
+                _ :: remainingGroups2 ->
+                    -- malformed group2 (< 2 points): skip
+                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
+
+        _ :: remainingGroups1 ->
+            -- malformed group (< 2 points): skip
+            findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 groups2 (dir1Idx + 1) dir2Idx best dmin
 
 
 {-| If projections of two convexes don’t overlap, then they don’t collide.

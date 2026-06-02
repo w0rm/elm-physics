@@ -30,11 +30,14 @@ type alias Convex =
     -- Faces grouped by parallel/antiparallel normal direction: each group is a
     -- primary face and `Just` its antipodal partner, or `Nothing` for a 1-face
     -- group. uniqueEdges groups edges similarly; each physical edge appears
-    -- exactly once. (dirIdx, edgeIdx) is stable under `placeIn` so collision
-    -- code can encode indices into contact ids for warm-start cache stability.
+    -- exactly once. Each group is a flat list of endpoints read two-at-a-time
+    -- (the first pair is the direction representative); placing is one
+    -- `pointsPlaceIn` per group, no per-edge tuples. (dirIdx, edgeIdx) is stable
+    -- under `placeIn` so collision code can encode indices into contact ids for
+    -- warm-start cache stability.
     { faces : List ( Face, Maybe Face )
     , vertices : List Vec3 -- cached for performance
-    , uniqueEdges : List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
+    , uniqueEdges : List (List Vec3)
     , position : Vec3
     , inertia : Mat3
     , volume : Float
@@ -45,49 +48,24 @@ placeIn : Transform3d coordinates defines -> Convex -> Convex
 placeIn transform3d { faces, vertices, uniqueEdges, position, volume, inertia } =
     { faces = faceGroupsPlaceInHelp transform3d faces []
     , vertices = Transform3d.pointsPlaceIn transform3d vertices
-    , uniqueEdges = uniqueEdgesPlaceIn transform3d uniqueEdges []
+    , uniqueEdges = edgesPlaceIn transform3d uniqueEdges []
     , volume = volume
     , position = Transform3d.pointPlaceIn transform3d position
     , inertia = Transform3d.inertiaRotateIn transform3d inertia
     }
 
 
-{-| Reverses outer-group and inner-edge order, but collision code reads
-both symmetrically and `(dirIdx, edgeIdx)` stays stable per source
-convex + transform — warm-start cache keys remain valid across frames.
+{-| Place each direction group's flat endpoint list with one `pointsPlaceIn`.
+`pointsPlaceIn` reverses, and the source stores each group pre-flipped (built by
+prepending swapped endpoints in `addEdgeToGroups`), so that single reversal lands
+the edges in the canonical walk order with endpoints intact — no extra
+`List.reverse` per frame. `(dirIdx, edgeIdx)` stays stable per source + transform.
 -}
-uniqueEdgesPlaceIn : Transform3d coordinates defines -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
-uniqueEdgesPlaceIn transform3d groups result =
+edgesPlaceIn : Transform3d coordinates defines -> List (List Vec3) -> List (List Vec3) -> List (List Vec3)
+edgesPlaceIn transform3d groups result =
     case groups of
-        ( firstEdge, otherEdges ) :: rest ->
-            uniqueEdgesPlaceIn
-                transform3d
-                rest
-                (( placeEdge transform3d firstEdge
-                 , uniqueEdgeEndpointsPlaceIn transform3d otherEdges []
-                 )
-                    :: result
-                )
-
-        [] ->
-            result
-
-
-placeEdge : Transform3d coordinates defines -> ( Vec3, Vec3 ) -> ( Vec3, Vec3 )
-placeEdge transform3d ( v1, v2 ) =
-    ( Transform3d.pointPlaceIn transform3d v1
-    , Transform3d.pointPlaceIn transform3d v2
-    )
-
-
-uniqueEdgeEndpointsPlaceIn : Transform3d coordinates defines -> List ( Vec3, Vec3 ) -> List ( Vec3, Vec3 ) -> List ( Vec3, Vec3 )
-uniqueEdgeEndpointsPlaceIn transform3d edges result =
-    case edges of
-        edge :: rest ->
-            uniqueEdgeEndpointsPlaceIn
-                transform3d
-                rest
-                (placeEdge transform3d edge :: result)
+        group :: rest ->
+            edgesPlaceIn transform3d rest (Transform3d.pointsPlaceIn transform3d group :: result)
 
         [] ->
             result
@@ -151,10 +129,10 @@ fromTriangularMesh faceIndices vertices =
 
 {-| Bucket every face's edges into parallel/antiparallel direction groups.
 `addEdgeToGroups` dedupes the duplicate edge each face contributes. Each
-group is `( firstEdge, otherParallelEdges )`; the first edge doubles as
-the direction representative (derived via `Vec3.direction`).
+group is a flat endpoint list (`[ a1, b1, a2, b2, … ]`) read two-at-a-time;
+the first pair doubles as the direction representative (via `Vec3.direction`).
 -}
-groupEdgesByDirection : List Face -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
+groupEdgesByDirection : List Face -> List (List Vec3)
 groupEdgesByDirection faces =
     List.foldl
         (\face groups ->
@@ -164,7 +142,7 @@ groupEdgesByDirection faces =
         faces
 
 
-addEdgeToGroups : Vec3 -> Vec3 -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
+addEdgeToGroups : Vec3 -> Vec3 -> List (List Vec3) -> List (List Vec3)
 addEdgeToGroups v1 v2 groups =
     let
         direction =
@@ -173,16 +151,18 @@ addEdgeToGroups v1 v2 groups =
     addEdgeToGroupsHelp v1 v2 direction groups []
 
 
-addEdgeToGroupsHelp : Vec3 -> Vec3 -> Vec3 -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) ) -> List ( ( Vec3, Vec3 ), List ( Vec3, Vec3 ) )
+addEdgeToGroupsHelp : Vec3 -> Vec3 -> Vec3 -> List (List Vec3) -> List (List Vec3) -> List (List Vec3)
 addEdgeToGroupsHelp v1 v2 direction groups acc =
     case groups of
         [] ->
             -- New direction: prepend a fresh group to the original list.
             -- `acc` holds groups already inspected (in reverse) so we
             -- splice them back in front to preserve insertion order.
-            prependReversed acc [ ( ( v1, v2 ), [] ) ]
+            -- Endpoints stored flipped so the single `pointsPlaceIn` reversal
+            -- at place time lands them forward (no per-frame `List.reverse`).
+            prependReversed acc [ [ v2, v1 ] ]
 
-        (( ( gv1, gv2 ) as firstEdge, otherEdges ) as group) :: rest ->
+        ((gv1 :: gv2 :: _) as group) :: rest ->
             let
                 groupDirection =
                     Vec3.direction gv1 gv2
@@ -197,15 +177,23 @@ addEdgeToGroupsHelp v1 v2 direction groups acc =
             -- points. sin²(0.057°) ≈ 1e-6 is well above the worst case
             -- here and well below any genuine non-parallel direction.
             if Vec3.lengthSquared (Vec3.cross direction groupDirection) - parallelTolerance < 0 then
-                if (v1 == gv1 && v2 == gv2) || (v1 == gv2 && v2 == gv1) || hasEdge v1 v2 otherEdges then
+                if hasEdge v1 v2 group then
                     -- Already added (face-shared): skip.
                     prependReversed acc groups
 
                 else
-                    prependReversed acc (( firstEdge, ( v1, v2 ) :: otherEdges ) :: rest)
+                    -- Prepend with swapped endpoints: after the place-time
+                    -- reversal this yields the same add-order, endpoints-intact
+                    -- walk the old (firstEdge, reversed others) layout produced —
+                    -- keeps `edgeIdx` and contact ids stable, and stays O(1).
+                    prependReversed acc ((v2 :: v1 :: group) :: rest)
 
             else
                 addEdgeToGroupsHelp v1 v2 direction rest (group :: acc)
+
+        group :: rest ->
+            -- malformed group (< 2 points): skip past it
+            addEdgeToGroupsHelp v1 v2 direction rest (group :: acc)
 
 
 parallelTolerance : Float
@@ -213,17 +201,17 @@ parallelTolerance =
     1.0e-6
 
 
-hasEdge : Vec3 -> Vec3 -> List ( Vec3, Vec3 ) -> Bool
-hasEdge v1 v2 edges =
-    case edges of
-        ( e1, e2 ) :: rest ->
+hasEdge : Vec3 -> Vec3 -> List Vec3 -> Bool
+hasEdge v1 v2 points =
+    case points of
+        e1 :: e2 :: rest ->
             if (v1 == e1 && v2 == e2) || (v1 == e2 && v2 == e1) then
                 True
 
             else
                 hasEdge v1 v2 rest
 
-        [] ->
+        _ ->
             False
 
 
@@ -643,9 +631,9 @@ fromBlock sizeX sizeY sizeZ =
         -- direction (so the implicit direction is +xAxis / +yAxis /
         -- +zAxis respectively), keeping the data canonical for
         -- testing.
-        [ ( ( v0, v1 ), [ ( v3, v2 ), ( v4, v5 ), ( v7, v6 ) ] )
-        , ( ( v0, v3 ), [ ( v1, v2 ), ( v4, v7 ), ( v5, v6 ) ] )
-        , ( ( v0, v4 ), [ ( v1, v5 ), ( v2, v6 ), ( v3, v7 ) ] )
+        [ [ v2, v3, v5, v4, v6, v7, v1, v0 ]
+        , [ v2, v1, v7, v4, v6, v5, v3, v0 ]
+        , [ v5, v1, v6, v2, v7, v3, v4, v0 ]
         ]
     , volume = volume
     , position = Vec3.zero

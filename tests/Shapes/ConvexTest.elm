@@ -234,19 +234,19 @@ uniqueEdges =
                 in
                 (Convex.fromBlock 2 2 2).uniqueEdges
                     |> Expect.equal
-                        [ ( ( v0, v1 ), [ ( v3, v2 ), ( v4, v5 ), ( v7, v6 ) ] )
-                        , ( ( v0, v3 ), [ ( v1, v2 ), ( v4, v7 ), ( v5, v6 ) ] )
-                        , ( ( v0, v4 ), [ ( v1, v5 ), ( v2, v6 ), ( v3, v7 ) ] )
+                        [ [ v2, v3, v5, v4, v6, v7, v1, v0 ]
+                        , [ v2, v1, v7, v4, v6, v5, v3, v0 ]
+                        , [ v5, v1, v6, v2, v7, v3, v4, v0 ]
                         ]
         , test "block uniqueEdges has 12 edges across 3 directions" <|
             \_ ->
                 (Convex.fromBlock 2 3 5).uniqueEdges
-                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> List.map (\group -> List.length group // 2)
                     |> Expect.equal [ 4, 4, 4 ]
         , test "block from triangular mesh has 12 edges across 3 directions" <|
             \_ ->
                 (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).uniqueEdges
-                    |> List.map (\( _, others ) -> 1 + List.length others)
+                    |> List.map (\group -> List.length group // 2)
                     |> List.sort
                     |> Expect.equal [ 4, 4, 4 ]
         , test "works for a square pyramid" <|

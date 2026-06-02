@@ -384,8 +384,8 @@ supportFeature =
             , vertices = [ vDiag1, vDiag2, vAdj1, vAdj2, vApex ]
             , uniqueEdges =
                 -- Apex edges omitted: not tied at maxProj along -z.
-                [ ( ( vDiag1, vAdj2 ), [ ( vDiag2, vAdj1 ) ] )
-                , ( ( vAdj2, vDiag2 ), [ ( vAdj1, vDiag1 ) ] )
+                [ [ vDiag1, vAdj2, vDiag2, vAdj1 ]
+                , [ vAdj2, vDiag2, vAdj1, vDiag1 ]
                 ]
             , position = Vec3.zero
             , inertia = Mat3.zero
