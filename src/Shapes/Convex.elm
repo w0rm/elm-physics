@@ -1,13 +1,16 @@
 module Shapes.Convex exposing
     ( Convex
     , Face
+    , FaceVertices
     , computeNormal
     , expandBoundingSphereRadius
     , extendContour
+    , faceVertices
     , foldFaceEdges
     , fromBlock
     , fromCylinder
     , fromTriangularMesh
+    , init
     , placeIn
     , raycast
     )
@@ -17,10 +20,24 @@ import Dict exposing (Dict)
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Set exposing (Set)
 
 
 type alias Face =
+    -- A face's vertices are indices into the owning convex's `vertexBuffer`, so
+    -- the per-frame placement places each unique vertex once and faces/edges
+    -- merely reference it. Materialise with `faceVertices`, passing the buffer
+    -- from the `Convex` the caller already holds.
+    { vertices : List Int
+    , normal : Vec3
+    }
+
+
+{-| Construction-time face: explicit `Vec3` vertices, before `init` packs them
+into the shared `VertexBuffer` and replaces them with indices.
+-}
+type alias FaceVertices =
     { vertices : List Vec3
     , normal : Vec3
     }
@@ -30,59 +47,92 @@ type alias Convex =
     -- Faces grouped by parallel/antiparallel normal direction: each group is a
     -- primary face and `Just` its antipodal partner, or `Nothing` for a 1-face
     -- group. uniqueEdges groups edges similarly; each physical edge appears
-    -- exactly once. Each group is a flat list of endpoints read two-at-a-time
-    -- (the first pair is the direction representative); placing is one
-    -- `pointsPlaceIn` per group, no per-edge tuples. (dirIdx, edgeIdx) is stable
-    -- under `placeIn` so collision code can encode indices into contact ids for
-    -- warm-start cache stability.
+    -- exactly once. Each group is a flat list of endpoint indices read
+    -- two-at-a-time (the first pair is the direction representative). (dirIdx,
+    -- edgeIdx) is stable under `placeIn` so collision code can encode indices
+    -- into contact ids for warm-start cache stability.
+    --
+    -- `faces` and `uniqueEdges` hold `Int` indices into `vertexBuffer`, fixed at
+    -- `init`. `placeIn` places the buffer once and rebuilds only `faces` (to
+    -- place the normals); each face's vertex-index list is shared unchanged and
+    -- `uniqueEdges` is shared whole, so no per-vertex `Vec3` list is rebuilt —
+    -- collision dereferences indices via `VertexBuffer.get`. `vertices`
+    -- is a materialised placed `List Vec3` (small, one entry per unique vertex)
+    -- so the hot SAT projection and `PlaneConvex` keep a flat walk; it's folded
+    -- out of the placed `vertexBuffer` each frame (the buffer's keys 0..n-1 are
+    -- the indices, so no separate index list is needed).
     { faces : List ( Face, Maybe Face )
-    , vertices : List Vec3 -- cached for performance
-    , uniqueEdges : List (List Vec3)
+    , vertices : List Vec3
+    , uniqueEdges : List (List Int)
+    , vertexBuffer : VertexBuffer
     , position : Vec3
     , inertia : Mat3
     , volume : Float
     }
 
 
+{-| Materialise a face's vertices from the convex's buffer, in walk order.
+On-demand helper for collision code that still consumes a `List Vec3` (sphere/
+capsule/particle/raycast); the convex-convex hot path reads indices directly.
+-}
+faceVertices : VertexBuffer -> Face -> List Vec3
+faceVertices buffer face =
+    materialize buffer face.vertices
+
+
+materialize : VertexBuffer -> List Int -> List Vec3
+materialize buffer indices =
+    case indices of
+        i :: rest ->
+            VertexBuffer.get i buffer :: materialize buffer rest
+
+        [] ->
+            []
+
+
 placeIn : Transform3d coordinates defines -> Convex -> Convex
-placeIn transform3d { faces, vertices, uniqueEdges, position, volume, inertia } =
-    { faces = faceGroupsPlaceInHelp transform3d faces []
-    , vertices = Transform3d.pointsPlaceIn transform3d vertices
-    , uniqueEdges = edgesPlaceIn transform3d uniqueEdges []
-    , volume = volume
-    , position = Transform3d.pointPlaceIn transform3d position
-    , inertia = Transform3d.inertiaRotateIn transform3d inertia
+placeIn transform3d convex =
+    let
+        placedBuffer =
+            VertexBuffer.map (Transform3d.pointPlaceIn transform3d) convex.vertexBuffer
+    in
+    { faces = placeFaces transform3d convex.faces []
+
+    -- `foldl` visits the buffer in ascending key order and prepends, so
+    -- `vertices` comes out in descending key order — the order the old
+    -- per-frame placement produced, which `PlaneConvex` keys contacts by.
+    , vertices = VertexBuffer.foldl (::) [] placedBuffer
+    , uniqueEdges = convex.uniqueEdges
+    , vertexBuffer = placedBuffer
+    , position = Transform3d.pointPlaceIn transform3d convex.position
+    , inertia = Transform3d.inertiaRotateIn transform3d convex.inertia
+    , volume = convex.volume
     }
 
 
-{-| Place each direction group's flat endpoint list with one `pointsPlaceIn`.
-`pointsPlaceIn` reverses, and the source stores each group pre-flipped (built by
-prepending swapped endpoints in `addEdgeToGroups`), so that single reversal lands
-the edges in the canonical walk order with endpoints intact — no extra
-`List.reverse` per frame. `(dirIdx, edgeIdx)` stays stable per source + transform.
+{-| Rebuild the face list, placing each normal; the vertex-index lists are
+shared unchanged. Tail-recursive, so it reverses the group order — `init` stores
+faces in source order so this single reversal lands the canonical placed order
+collision encodes into contact ids (the old per-frame placement reversed too).
 -}
-edgesPlaceIn : Transform3d coordinates defines -> List (List Vec3) -> List (List Vec3) -> List (List Vec3)
-edgesPlaceIn transform3d groups result =
-    case groups of
-        group :: rest ->
-            edgesPlaceIn transform3d rest (Transform3d.pointsPlaceIn transform3d group :: result)
-
-        [] ->
-            result
-
-
-{-| Reverses group and partner order; collision code treats each pair as
-antiparallel via `primary.normal · axis`, which is invariant under reversal.
--}
-faceGroupsPlaceInHelp : Transform3d coordinates defines -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
-faceGroupsPlaceInHelp transform3d groups result =
-    case groups of
-        ( primary, partner ) :: rest ->
-            faceGroupsPlaceInHelp
-                transform3d
+placeFaces : Transform3d coordinates defines -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+placeFaces transform3d faces result =
+    case faces of
+        ( primary, maybePartner ) :: rest ->
+            placeFaces transform3d
                 rest
-                (( placeFace transform3d primary
-                 , Maybe.map (placeFace transform3d) partner
+                (( { vertices = primary.vertices
+                   , normal = Transform3d.directionPlaceIn transform3d primary.normal
+                   }
+                 , case maybePartner of
+                    Just partner ->
+                        Just
+                            { vertices = partner.vertices
+                            , normal = Transform3d.directionPlaceIn transform3d partner.normal
+                            }
+
+                    Nothing ->
+                        Nothing
                  )
                     :: result
                 )
@@ -91,11 +141,102 @@ faceGroupsPlaceInHelp transform3d groups result =
             result
 
 
-placeFace : Transform3d coordinates defines -> Face -> Face
-placeFace transform3d { vertices, normal } =
-    { vertices = List.reverse (Transform3d.pointsPlaceIn transform3d vertices)
-    , normal = Transform3d.directionPlaceIn transform3d normal
+{-| Assemble a `Convex` from explicit geometry, packing the vertices into a
+shared `VertexBuffer` and replacing every face/edge endpoint with its index
+(found by structural equality against `vertices`). Edge index lists are stored
+in the canonical placed order (outer reversed, each group inner reversed); faces
+are stored in source order and reversed each frame by the tail-recursive
+`placeFaces`. Either way contact ids built from these positions are unchanged.
+-}
+init :
+    { faces : List ( FaceVertices, Maybe FaceVertices )
+    , vertices : List Vec3
+    , uniqueEdges : List (List Vec3)
+    , position : Vec3
+    , inertia : Mat3
+    , volume : Float
     }
+    -> Convex
+init geometry =
+    let
+        buffer =
+            VertexBuffer.fromList geometry.vertices
+    in
+    { faces = indexFaces geometry.vertices geometry.faces
+    , vertices = geometry.vertices
+    , uniqueEdges = indexEdges geometry.vertices (List.reverse geometry.uniqueEdges)
+    , vertexBuffer = buffer
+    , position = geometry.position
+    , inertia = geometry.inertia
+    , volume = geometry.volume
+    }
+
+
+indexFaces : List Vec3 -> List ( FaceVertices, Maybe FaceVertices ) -> List ( Face, Maybe Face )
+indexFaces vertices faces =
+    List.map
+        (\( primary, partner ) ->
+            ( indexFace vertices primary
+            , case partner of
+                Just p ->
+                    Just (indexFace vertices p)
+
+                Nothing ->
+                    Nothing
+            )
+        )
+        faces
+
+
+indexFace : List Vec3 -> FaceVertices -> Face
+indexFace vertices face =
+    { vertices = List.map (\v -> indexOf v vertices) face.vertices
+    , normal = face.normal
+    }
+
+
+{-| Each group's endpoints, reversed so collision walks them in the order the
+old per-frame `pointsPlaceIn` produced.
+-}
+indexEdges : List Vec3 -> List (List Vec3) -> List (List Int)
+indexEdges vertices groups =
+    List.map (\group -> List.reverse (List.map (\v -> indexOf v vertices) group)) groups
+
+
+{-| Distinct vertices by structural equality, preserving none-in-particular
+order (only feeds the index match + min/max projection). Setup-only.
+-}
+dedupVertices : List Vec3 -> List Vec3 -> List Vec3
+dedupVertices remaining acc =
+    case remaining of
+        v :: rest ->
+            if indexOf v acc < 0 then
+                dedupVertices rest (v :: acc)
+
+            else
+                dedupVertices rest acc
+
+        [] ->
+            acc
+
+
+indexOf : Vec3 -> List Vec3 -> Int
+indexOf target vertices =
+    indexOfHelp target vertices 0
+
+
+indexOfHelp : Vec3 -> List Vec3 -> Int -> Int
+indexOfHelp target vertices i =
+    case vertices of
+        v :: rest ->
+            if v == target then
+                i
+
+            else
+                indexOfHelp target rest (i + 1)
+
+        [] ->
+            -1
 
 
 fromTriangularMesh : List ( Int, Int, Int ) -> Array Vec3 -> Convex
@@ -118,13 +259,14 @@ fromTriangularMesh faceIndices vertices =
         ( volume, position, inertia ) =
             convexMassProperties averageCenter faceIndices vertices 0 0 0 0 Mat3.zero
     in
-    { faces = groupFacesByNormal faces
-    , vertices = allVertices
-    , uniqueEdges = groupEdgesByDirection faces
-    , position = position
-    , volume = volume
-    , inertia = inertia
-    }
+    init
+        { faces = groupFacesByNormal faces
+        , vertices = allVertices
+        , uniqueEdges = groupEdgesByDirection faces
+        , position = position
+        , volume = volume
+        , inertia = inertia
+        }
 
 
 {-| Bucket every face's edges into parallel/antiparallel direction groups.
@@ -132,7 +274,7 @@ fromTriangularMesh faceIndices vertices =
 group is a flat endpoint list (`[ a1, b1, a2, b2, … ]`) read two-at-a-time;
 the first pair doubles as the direction representative (via `Vec3.direction`).
 -}
-groupEdgesByDirection : List Face -> List (List Vec3)
+groupEdgesByDirection : List FaceVertices -> List (List Vec3)
 groupEdgesByDirection faces =
     List.foldl
         (\face groups ->
@@ -230,12 +372,12 @@ becomes the primary; a later match becomes the partner. For a convex
 polytope at most two faces match (coplanar merge in `initFacesHelp`
 collapses parallel neighbours).
 -}
-groupFacesByNormal : List Face -> List ( Face, Maybe Face )
+groupFacesByNormal : List FaceVertices -> List ( FaceVertices, Maybe FaceVertices )
 groupFacesByNormal allFaces =
     groupFacesByNormalHelp allFaces []
 
 
-groupFacesByNormalHelp : List Face -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+groupFacesByNormalHelp : List FaceVertices -> List ( FaceVertices, Maybe FaceVertices ) -> List ( FaceVertices, Maybe FaceVertices )
 groupFacesByNormalHelp faces acc =
     case faces of
         [] ->
@@ -245,12 +387,12 @@ groupFacesByNormalHelp faces acc =
             groupFacesByNormalHelp rest (insertFaceByNormal face acc)
 
 
-insertFaceByNormal : Face -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+insertFaceByNormal : FaceVertices -> List ( FaceVertices, Maybe FaceVertices ) -> List ( FaceVertices, Maybe FaceVertices )
 insertFaceByNormal face groups =
     insertFaceByNormalHelp face groups []
 
 
-insertFaceByNormalHelp : Face -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+insertFaceByNormalHelp : FaceVertices -> List ( FaceVertices, Maybe FaceVertices ) -> List ( FaceVertices, Maybe FaceVertices ) -> List ( FaceVertices, Maybe FaceVertices )
 insertFaceByNormalHelp face groups acc =
     case groups of
         [] ->
@@ -338,7 +480,7 @@ averageCenterHelp vertices n cX cY cZ =
             { x = cX / n, y = cY / n, z = cZ / n }
 
 
-initFaces : List ( Int, Int, Int ) -> Array Vec3 -> List Face
+initFaces : List ( Int, Int, Int ) -> Array Vec3 -> List FaceVertices
 initFaces vertexIndices convexVertices =
     let
         faceByEdgeIndex =
@@ -412,8 +554,8 @@ initFacesHelp :
     -> List ( Int, Int )
     -> Vec3
     -> List Int
-    -> List Face
-    -> List Face
+    -> List FaceVertices
+    -> List FaceVertices
 initFacesHelp visited vertices faceByEdgeIndex facesToCheck edgesToCheck currentNormal currentContour result =
     let
         adjacentFaces =
@@ -601,44 +743,52 @@ fromBlock sizeX sizeY sizeZ =
             , m23 = 0
             , m33 = volume / 12 * (sizeY * sizeY + sizeX * sizeX)
             }
+
+        vertices =
+            [ v0, v1, v2, v3, v4, v5, v6, v7 ]
+
+        faces =
+            -- Each entry is `( primaryFace, Just antipodalPartner )`. Pair
+            -- order and choice of which face is primary are arbitrary for
+            -- collision — `bestFace` reads `primary.normal · axis` directly
+            -- and negates for the partner.
+            --
+            -- The layout below is chosen so that AFTER a single `placeIn` (how
+            -- collision tests set up bodies, which reverses the outer list), the
+            -- flat traversal order is `[+x, -x, +y, -y, +z, -z]` — the IDs that
+            -- the `-fN` assertions in `CapsuleConvexTest` reference.
+            [ ( { vertices = [ v4, v5, v6, v7 ], normal = Vec3.zAxis }
+              , Just { vertices = [ v3, v2, v1, v0 ], normal = Vec3.zNegative }
+              )
+            , ( { vertices = [ v2, v3, v7, v6 ], normal = Vec3.yAxis }
+              , Just { vertices = [ v5, v4, v0, v1 ], normal = Vec3.yNegative }
+              )
+            , ( { vertices = [ v1, v2, v6, v5 ], normal = Vec3.xAxis }
+              , Just { vertices = [ v0, v4, v7, v3 ], normal = Vec3.xNegative }
+              )
+            ]
+
+        uniqueEdges =
+            -- Three direction groups, each with four parallel edges of the
+            -- cube — first edge in each group acts as the direction
+            -- representative. Endpoints are picked so the edge "starts" at
+            -- the vertex with the smaller axis-component along the
+            -- direction (so the implicit direction is +xAxis / +yAxis /
+            -- +zAxis respectively), keeping the data canonical for
+            -- testing.
+            [ [ v2, v3, v5, v4, v6, v7, v1, v0 ]
+            , [ v2, v1, v7, v4, v6, v5, v3, v0 ]
+            , [ v5, v1, v6, v2, v7, v3, v4, v0 ]
+            ]
     in
-    { faces =
-        -- Each entry is `( primaryFace, Just antipodalPartner )`. Pair
-        -- order and choice of which face is primary are arbitrary for
-        -- collision — `bestFace` reads `primary.normal · axis` directly
-        -- and negates for the partner.
-        --
-        -- The layout below is chosen so that AFTER a single `placeIn` (how
-        -- collision tests set up bodies, which reverses the outer list), the
-        -- flat traversal order is `[+x, -x, +y, -y, +z, -z]` — the IDs that
-        -- the `-fN` assertions in `CapsuleConvexTest` reference.
-        [ ( { vertices = [ v4, v5, v6, v7 ], normal = Vec3.zAxis }
-          , Just { vertices = [ v3, v2, v1, v0 ], normal = Vec3.zNegative }
-          )
-        , ( { vertices = [ v2, v3, v7, v6 ], normal = Vec3.yAxis }
-          , Just { vertices = [ v5, v4, v0, v1 ], normal = Vec3.yNegative }
-          )
-        , ( { vertices = [ v1, v2, v6, v5 ], normal = Vec3.xAxis }
-          , Just { vertices = [ v0, v4, v7, v3 ], normal = Vec3.xNegative }
-          )
-        ]
-    , vertices = [ v0, v1, v2, v3, v4, v5, v6, v7 ]
-    , uniqueEdges =
-        -- Three direction groups, each with four parallel edges of the
-        -- cube — first edge in each group acts as the direction
-        -- representative. Endpoints are picked so the edge "starts" at
-        -- the vertex with the smaller axis-component along the
-        -- direction (so the implicit direction is +xAxis / +yAxis /
-        -- +zAxis respectively), keeping the data canonical for
-        -- testing.
-        [ [ v2, v3, v5, v4, v6, v7, v1, v0 ]
-        , [ v2, v1, v7, v4, v6, v5, v3, v0 ]
-        , [ v5, v1, v6, v2, v7, v3, v4, v0 ]
-        ]
-    , volume = volume
-    , position = Vec3.zero
-    , inertia = inertia
-    }
+    init
+        { faces = faces
+        , vertices = vertices
+        , uniqueEdges = uniqueEdges
+        , volume = volume
+        , position = Vec3.zero
+        , inertia = inertia
+        }
 
 
 fromCylinder : Int -> Float -> Float -> Convex
@@ -701,59 +851,72 @@ fromCylinder subdivisions radius length =
 
         allFaces =
             topCap :: bottomCap :: sideFaces
+
+        -- All distinct vertices any face references — side faces recompute
+        -- their ring points, which can differ from the caps' in the last bits
+        -- at the wrap-around, so collecting from the faces (rather than reusing
+        -- the caps) guarantees every face/edge endpoint is found by `==`.
+        vertices =
+            dedupVertices (List.concatMap .vertices allFaces) []
     in
-    { faces = groupFacesByNormal allFaces
-    , vertices = topCap.vertices ++ bottomCap.vertices
-    , uniqueEdges = groupEdgesByDirection allFaces
-    , position = Vec3.zero
-    , inertia = Mat3.cylinderInertia volume radius length
-    , volume = volume
-    }
+    init
+        { faces = groupFacesByNormal allFaces
+        , vertices = vertices
+        , uniqueEdges = groupEdgesByDirection allFaces
+        , position = Vec3.zero
+        , inertia = Mat3.cylinderInertia volume radius length
+        , volume = volume
+        }
 
 
 expandBoundingSphereRadius : Convex -> Float -> Float
-expandBoundingSphereRadius { vertices } boundingSphereRadius =
-    vertices
-        |> List.foldl
-            (\vertex ->
-                max (Vec3.lengthSquared vertex)
-            )
+expandBoundingSphereRadius { vertexBuffer } boundingSphereRadius =
+    sqrt
+        (VertexBuffer.foldl
+            (\vertex -> max (Vec3.lengthSquared vertex))
             (boundingSphereRadius * boundingSphereRadius)
-        |> sqrt
+            vertexBuffer
+        )
 
 
 raycast : { from : Vec3, direction : Vec3 } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } convex =
     case convex.faces of
         ( primary, partner ) :: rest ->
-            raycastWalk direction from primary partner rest Nothing
+            raycastWalk convex.vertexBuffer direction from primary partner rest Nothing
 
         [] ->
             Nothing
 
 
-raycastWalk : Vec3 -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycastWalk direction from currentFace nextFace queuedGroups maybeHit =
+raycastWalk : VertexBuffer -> Vec3 -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastWalk buffer direction from currentFace nextFace queuedGroups maybeHit =
     let
         newHit =
-            raycastFace direction from currentFace maybeHit
+            raycastFace buffer direction from currentFace maybeHit
     in
     case nextFace of
         Just face ->
-            raycastWalk direction from face Nothing queuedGroups newHit
+            raycastWalk buffer direction from face Nothing queuedGroups newHit
 
         Nothing ->
             case queuedGroups of
                 ( primary, partner ) :: restGroups ->
-                    raycastWalk direction from primary partner restGroups newHit
+                    raycastWalk buffer direction from primary partner restGroups newHit
 
                 [] ->
                     newHit
 
 
-raycastFace : Vec3 -> Vec3 -> Face -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycastFace direction from { normal, vertices } maybeHit =
+raycastFace : VertexBuffer -> Vec3 -> Vec3 -> Face -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastFace buffer direction from face maybeHit =
     let
+        normal =
+            face.normal
+
+        vertices =
+            faceVertices buffer face
+
         dot =
             Vec3.dot direction normal
 

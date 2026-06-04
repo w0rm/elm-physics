@@ -10,6 +10,7 @@ import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Shapes.Convex as Convex exposing (Convex, Face)
 
 
@@ -43,7 +44,7 @@ addContacts shapeKey convex1 convex2 contacts =
 
         Just winner ->
             case findEdgeSAT convex1 convex2 winner.dmin of
-                EdgeSeparates ->
+                EdgeSeparates _ _ _ _ _ ->
                     contacts
 
                 EdgeBeats edgeAxis dir1Idx edges1 dir2Idx edges2 ->
@@ -51,11 +52,13 @@ addContacts shapeKey convex1 convex2 contacts =
                         (orientAxis convex1 convex2 edgeAxis)
                         dir1Idx
                         edges1
+                        convex1.vertexBuffer
                         dir2Idx
                         edges2
+                        convex2.vertexBuffer
                         contacts
 
-                NoEdgeBeats ->
+                NoEdgeBeats _ _ _ _ _ ->
                     dispatchBestFaces shapeKey convex1 convex2 winner contacts
 
 
@@ -97,11 +100,15 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
         contacts
 
     else
+        -- face1 is always convex1's, face2 always convex2's (see the case
+        -- above), so each materialises against its own convex's buffer.
         clipTwoFaces shapeKey
             picked.id1
             picked.id2
             picked.face1
+            convex1.vertexBuffer
             picked.face2
+            convex2.vertexBuffer
             reversedSeparatingAxis
             contacts
 
@@ -137,17 +144,17 @@ orientAxis convex1 convex2 axis =
 `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
 warm-start cache keys survive multi-edge contacts in the same body pair.
 -}
-addEdgeContact : Int -> Vec3 -> Int -> List Vec3 -> Int -> List Vec3 -> List Contact -> List Contact
-addEdgeContact shapeKey separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
+addEdgeContact : Int -> Vec3 -> Int -> List Int -> VertexBuffer -> Int -> List Int -> VertexBuffer -> List Contact -> List Contact
+addEdgeContact shapeKey separatingAxis dir1Idx edges1 buffer1 dir2Idx edges2 buffer2 contacts =
     let
         reversedSeparatingAxis =
             Vec3.negate separatingAxis
 
         ( edge1Idx, ( e1p, e1q ) ) =
-            pickSupportEdge reversedSeparatingAxis edges1
+            pickSupportEdge reversedSeparatingAxis edges1 buffer1
 
         ( edge2Idx, ( e2p, e2q ) ) =
-            pickSupportEdge separatingAxis edges2
+            pickSupportEdge separatingAxis edges2 buffer2
 
         ( pi, pj ) =
             Vec3.closestPointsBetweenSegments e1p e1q e2p e2q
@@ -164,34 +171,48 @@ addEdgeContact shapeKey separatingAxis dir1Idx edges1 dir2Idx edges2 contacts =
 {-| Pick the edge in a direction group whose midpoint is furthest along
 `supportDir`. The 1-based index is part of the warm-start cache key.
 -}
-pickSupportEdge : Vec3 -> List Vec3 -> ( Int, ( Vec3, Vec3 ) )
-pickSupportEdge supportDir edges =
-    pickSupportEdgeHelp supportDir edges 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
+pickSupportEdge : Vec3 -> List Int -> VertexBuffer -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdge supportDir edges buffer =
+    pickSupportEdgeHelp supportDir edges buffer 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
 
 
-pickSupportEdgeHelp : Vec3 -> List Vec3 -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
-pickSupportEdgeHelp supportDir edges idx bestIdx bestEdge bestDot =
+pickSupportEdgeHelp : Vec3 -> List Int -> VertexBuffer -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
+pickSupportEdgeHelp supportDir edges buffer idx bestIdx bestEdge bestDot =
     case edges of
-        v1 :: v2 :: rest ->
+        i1 :: i2 :: rest ->
             let
+                v1 =
+                    VertexBuffer.get i1 buffer
+
+                v2 =
+                    VertexBuffer.get i2 buffer
+
                 midDot =
                     supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
             in
             if midDot - bestDot > 0 then
-                pickSupportEdgeHelp supportDir rest (idx + 1) idx ( v1, v2 ) midDot
+                pickSupportEdgeHelp supportDir rest buffer (idx + 1) idx ( v1, v2 ) midDot
 
             else
-                pickSupportEdgeHelp supportDir rest (idx + 1) bestIdx bestEdge bestDot
+                pickSupportEdgeHelp supportDir rest buffer (idx + 1) bestIdx bestEdge bestDot
 
         _ ->
             ( bestIdx, bestEdge )
 
 
-clipTwoFaces : Int -> Int -> Int -> Face -> Face -> Vec3 -> List Contact -> List Contact
-clipTwoFaces shapeKey faceId1 faceId2 face { vertices } separatingAxis contacts =
+clipTwoFaces : Int -> Int -> Int -> Face -> VertexBuffer -> Face -> VertexBuffer -> Vec3 -> List Contact -> List Contact
+clipTwoFaces shapeKey faceId1 faceId2 face faceBuffer incidentFace incidentBuffer separatingAxis contacts =
     let
+        -- Only the two faces in contact are materialised, on demand — the other
+        -- faces' vertices are never turned into a `List Vec3`.
+        referenceVertices =
+            Convex.faceVertices faceBuffer face
+
+        incidentVertices =
+            Convex.faceVertices incidentBuffer incidentFace
+
         point =
-            case face.vertices of
+            case referenceVertices of
                 first :: _ ->
                     first
 
@@ -208,7 +229,7 @@ clipTwoFaces shapeKey faceId1 faceId2 face { vertices } separatingAxis contacts 
         face
         facePlaneConstant
         0
-        (clipAgainstAdjacentFaces face vertices)
+        (clipAgainstAdjacentFaces face.normal referenceVertices incidentVertices)
         contacts
 
 
@@ -312,8 +333,8 @@ bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace curr
                 bestFaceWalk separatingAxis restGroups (faceId + 1) currentBestFaceId currentBestFace currentBestDistance
 
 
-clipAgainstAdjacentFaces : Face -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces { vertices, normal } faceVertices =
+clipAgainstAdjacentFaces : Vec3 -> List Vec3 -> List Vec3 -> List Vec3
+clipAgainstAdjacentFaces normal referenceVertices incidentVertices =
     Convex.foldFaceEdges
         (\v1 v2 ->
             let
@@ -330,8 +351,8 @@ clipAgainstAdjacentFaces { vertices, normal } faceVertices =
                 (clipFaceAgainstPlaneAdd planeNormal planeConstant)
                 []
         )
-        faceVertices
-        vertices
+        incidentVertices
+        referenceVertices
 
 
 clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
@@ -368,13 +389,13 @@ findSeparatingAxis convex1 convex2 =
 
         Just winner ->
             case findEdgeSAT convex1 convex2 winner.dmin of
-                EdgeSeparates ->
+                EdgeSeparates _ _ _ _ _ ->
                     Nothing
 
                 EdgeBeats edgeAxis _ _ _ _ ->
                     Just (orientAxis convex1 convex2 edgeAxis)
 
-                NoEdgeBeats ->
+                NoEdgeBeats _ _ _ _ _ ->
                     Just (orientAxis convex1 convex2 winner.axis)
 
 
@@ -441,10 +462,26 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
                         findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) winnerIdx winnerSide winnerPrimary winnerPartner dmin
 
 
+{-| The two nullary cases carry five `()` fields so all three variants share
+`EdgeBeats`'s object shape — a monomorphic `.$` for the consuming `case` and for
+the `best` accumulator threaded through `findEdgeSATHelp`. They're built once as
+`edgeSeparates`/`noEdgeBeats` constants and reused, so the padding costs no
+per-call allocation (unlike re-applying the constructor each time).
+-}
 type EdgeResult
-    = EdgeSeparates
-    | EdgeBeats Vec3 Int (List Vec3) Int (List Vec3)
-    | NoEdgeBeats
+    = EdgeSeparates () () () () ()
+    | EdgeBeats Vec3 Int (List Int) Int (List Int)
+    | NoEdgeBeats () () () () ()
+
+
+edgeSeparates : EdgeResult
+edgeSeparates =
+    EdgeSeparates () () () () ()
+
+
+noEdgeBeats : EdgeResult
+noEdgeBeats =
+    NoEdgeBeats () () () () ()
 
 
 {-| Multiplier on edge SAT depth when ranked against face SAT depth —
@@ -475,11 +512,11 @@ findEdgeSAT convex1 convex2 faceDmin =
         convex2.uniqueEdges
         1
         1
-        NoEdgeBeats
+        noEdgeBeats
         (faceDmin / edgeBiasFactor)
 
 
-findEdgeSATHelp : Convex -> Convex -> List (List Vec3) -> List (List Vec3) -> List (List Vec3) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
+findEdgeSATHelp : Convex -> Convex -> List (List Int) -> List (List Int) -> List (List Int) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
 findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best dmin =
     case groups1 of
         [] ->
@@ -494,10 +531,10 @@ findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best
                 ((v2a :: v2b :: _) as group2) :: remainingGroups2 ->
                     let
                         dir1 =
-                            Vec3.direction v1a v1b
+                            Vec3.direction (VertexBuffer.get v1a convex1.vertexBuffer) (VertexBuffer.get v1b convex1.vertexBuffer)
 
                         dir2 =
-                            Vec3.direction v2a v2b
+                            Vec3.direction (VertexBuffer.get v2a convex2.vertexBuffer) (VertexBuffer.get v2b convex2.vertexBuffer)
 
                         cross =
                             Vec3.cross dir1 dir2
@@ -513,7 +550,7 @@ findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best
                         in
                         case testSeparatingAxis convex1 convex2 normalizedCross of
                             Nothing ->
-                                EdgeSeparates
+                                edgeSeparates
 
                             Just dist ->
                                 if dist - dmin < 0 then

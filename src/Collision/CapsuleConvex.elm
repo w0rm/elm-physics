@@ -5,8 +5,9 @@ import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Shapes.Capsule exposing (Capsule)
-import Shapes.Convex exposing (Convex, Face)
+import Shapes.Convex as Convex exposing (Convex, Face)
 
 
 {-| `|dot(capsule.axis, separatingAxis)|` below this snaps to the cylinder
@@ -123,13 +124,13 @@ addContacts shapeKey orderContact capsule convex contacts =
                         -- face — no multi-frame manifold accumulation.
                         contacts
                             |> addDirectContact shapeKey (ContactId.capsuleCapEnd1 convexFeature) orderContact ep1 separatingAxis penetration capsule
-                            |> addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis ep1
+                            |> addBodyContacts shapeKey convexFeature orderContact convex.vertexBuffer faceContext capsule ep1 ep2 separatingAxis ep1
 
                     else if t < -perpendicularThreshold then
                         -- Cap-on-feature: ep2 is the deepest cap.
                         contacts
                             |> addDirectContact shapeKey (ContactId.capsuleCapEnd2 convexFeature) orderContact ep2 separatingAxis penetration capsule
-                            |> addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis ep2
+                            |> addBodyContacts shapeKey convexFeature orderContact convex.vertexBuffer faceContext capsule ep1 ep2 separatingAxis ep2
 
                     else
                         -- Cylinder body touches the convex.
@@ -138,19 +139,19 @@ addContacts shapeKey orderContact capsule convex contacts =
                                 -- Face Support: clip the capsule segment
                                 -- against the face's adjacent edge planes;
                                 -- emit one contact per surviving endpoint.
-                                case clipSegmentAgainstFace face ep1 ep2 of
+                                case clipSegmentAgainstFace convex.vertexBuffer face ep1 ep2 of
                                     ClipAlive p1 p2 ->
                                         contacts
                                             |> addDirectContact shapeKey (ContactId.capsuleCylinder1 convexFeature) orderContact p1 separatingAxis penetration capsule
                                             |> addDirectContact shapeKey (ContactId.capsuleCylinder2 convexFeature) orderContact p2 separatingAxis penetration capsule
 
-                                    ClipDead ->
+                                    ClipDead _ _ ->
                                         -- Segment outside the polygon → the
                                         -- contact is on a face edge; re-derive
                                         -- normal and depth from closest-points
                                         -- geometry (SAT's penetration is too
                                         -- generous here).
-                                        addClosestEdgeContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact face ep1 ep2 capsule contacts
+                                        addClosestEdgeContact shapeKey (ContactId.capsuleCylinder convexFeature) orderContact convex.vertexBuffer face ep1 ep2 capsule contacts
 
                             Nothing ->
                                 -- Edge/Vertex support: emit at the closest
@@ -257,21 +258,21 @@ addDirectContact shapeKey featureKey orderContact segmentPoint separatingAxis pe
 where the body crosses the SAT-aligned face. The cap endpoint is skipped
 to avoid two contacts at the same world point with different depths.
 -}
-addBodyContacts : Int -> Int -> (Contact -> Contact) -> Maybe ( Int, Face ) -> Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
-addBodyContacts shapeKey convexFeature orderContact faceContext capsule ep1 ep2 separatingAxis capPoint contacts =
+addBodyContacts : Int -> Int -> (Contact -> Contact) -> VertexBuffer -> Maybe ( Int, Face ) -> Capsule -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Contact -> List Contact
+addBodyContacts shapeKey convexFeature orderContact buffer faceContext capsule ep1 ep2 separatingAxis capPoint contacts =
     case faceContext of
         Nothing ->
             contacts
 
         Just ( _, face ) ->
-            case clipSegmentAgainstFace face ep1 ep2 of
-                ClipDead ->
+            case clipSegmentAgainstFace buffer face ep1 ep2 of
+                ClipDead _ _ ->
                     contacts
 
                 ClipAlive q1 q2 ->
                     let
                         facePlaneConstant =
-                            case face.vertices of
+                            case Convex.faceVertices buffer face of
                                 v :: _ ->
                                     -(Vec3.dot face.normal v)
 
@@ -303,20 +304,33 @@ tryAddBodyPoint shapeKey featureKey orderContact face facePlaneConstant separati
             addDirectContact shapeKey featureKey orderContact point separatingAxis bodyPen capsule contacts
 
 
+{-| `ClipDead` carries two `()` fields so both variants share `ClipAlive`'s
+object shape (monomorphic `.$`); built once as `clipDead` and reused, so the
+padding costs no per-call allocation.
+-}
 type ClipResult
     = ClipAlive Vec3 Vec3
-    | ClipDead
+    | ClipDead () ()
+
+
+clipDead : ClipResult
+clipDead =
+    ClipDead () ()
 
 
 {-| Sutherland-Hodgman clip of a segment against a face's adjacent edge
 planes. Returns `ClipAlive p1 p2` for the surviving segment, or `ClipDead`
 if the segment lies entirely outside the polygon.
 -}
-clipSegmentAgainstFace : Face -> Vec3 -> Vec3 -> ClipResult
-clipSegmentAgainstFace face ep1 ep2 =
-    case face.vertices of
+clipSegmentAgainstFace : VertexBuffer -> Face -> Vec3 -> Vec3 -> ClipResult
+clipSegmentAgainstFace buffer face ep1 ep2 =
+    let
+        vertices =
+            Convex.faceVertices buffer face
+    in
+    case vertices of
         first :: _ :: _ ->
-            walkClipEdge face.normal first face.vertices ep1 ep2
+            walkClipEdge face.normal first vertices ep1 ep2
 
         _ ->
             ClipAlive ep1 ep2
@@ -354,7 +368,7 @@ walkClipEdge faceNormal firstVertex vertices p1 p2 =
                 walkClipEdge faceNormal firstVertex rest1 p1 p2
 
             else if d1 >= 0 && d2 >= 0 then
-                ClipDead
+                clipDead
 
             else if d1 < 0 then
                 walkClipEdge faceNormal firstVertex rest1 p1 (Vec3.lerp (d1 / (d1 - d2)) p1 p2)
@@ -370,14 +384,14 @@ walkClipEdge faceNormal firstVertex vertices p1 p2 =
 contact at the closest face edge. Skipped silently if no edge is within
 `capsule.radius` of the capsule axis.
 -}
-addClosestEdgeContact : Int -> Int -> (Contact -> Contact) -> Face -> Vec3 -> Vec3 -> Capsule -> List Contact -> List Contact
-addClosestEdgeContact shapeKey featureKey orderContact face ep1 ep2 capsule contacts =
+addClosestEdgeContact : Int -> Int -> (Contact -> Contact) -> VertexBuffer -> Face -> Vec3 -> Vec3 -> Capsule -> List Contact -> List Contact
+addClosestEdgeContact shapeKey featureKey orderContact buffer face ep1 ep2 capsule contacts =
     let
         radiusSq =
             capsule.radius * capsule.radius
 
         result =
-            closestEdgeToSegment face ep1 ep2 radiusSq
+            closestEdgeToSegment buffer face ep1 ep2 radiusSq
     in
     -- Sentinel: distSq == radiusSq means no edge was within radius.
     if result.distSq - radiusSq >= 0 then
@@ -417,11 +431,15 @@ addClosestEdgeContact shapeKey featureKey orderContact face ep1 ep2 capsule cont
 {-| Closest face edge to the capsule axis segment. `maxDistSq` is the
 starting upper bound and the "no edge found" sentinel.
 -}
-closestEdgeToSegment : Face -> Vec3 -> Vec3 -> Float -> { pCapsule : Vec3, pEdge : Vec3, distSq : Float }
-closestEdgeToSegment face ep1 ep2 maxDistSq =
-    case face.vertices of
+closestEdgeToSegment : VertexBuffer -> Face -> Vec3 -> Vec3 -> Float -> { pCapsule : Vec3, pEdge : Vec3, distSq : Float }
+closestEdgeToSegment buffer face ep1 ep2 maxDistSq =
+    let
+        vertices =
+            Convex.faceVertices buffer face
+    in
+    case vertices of
         first :: _ :: _ ->
-            walkClosestEdge ep1 ep2 first face.vertices Vec3.zero Vec3.zero maxDistSq
+            walkClosestEdge ep1 ep2 first vertices Vec3.zero Vec3.zero maxDistSq
 
         _ ->
             { pCapsule = Vec3.zero, pEdge = Vec3.zero, distSq = maxDistSq }
@@ -494,15 +512,22 @@ the vertex-vs-cap and edge-vs-cap axes that standard convex SAT misses,
 preventing false-overlap reports near convex corners. Falls back to the
 cross product when closest points coincide.
 -}
-testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List (List Vec3) -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List (List Int) -> Vec3 -> Float -> Maybe Vec3
 testUniqueEdges capsule convex ep1 ep2 groups target dmin =
     walkUniqueEdges capsule convex ep1 ep2 [] groups target dmin
 
 
-walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List Vec3 -> List (List Vec3) -> Vec3 -> Float -> Maybe Vec3
+walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List Int -> List (List Int) -> Vec3 -> Float -> Maybe Vec3
 walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
     case edges of
-        v1 :: v2 :: rest ->
+        i1 :: i2 :: rest ->
+            let
+                v1 =
+                    VertexBuffer.get i1 convex.vertexBuffer
+
+                v2 =
+                    VertexBuffer.get i2 convex.vertexBuffer
+            in
             case edgeAxis capsule ep1 ep2 v1 v2 of
                 Nothing ->
                     walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
@@ -579,7 +604,7 @@ supportFeature axis convex =
             [ v ]
 
         firstTied :: _ ->
-            case findTiedUniqueEdge axis maxProj convex.uniqueEdges of
+            case findTiedUniqueEdge axis maxProj convex.vertexBuffer convex.uniqueEdges of
                 Just ( e1, e2 ) ->
                     [ e1, e2 ]
 
@@ -634,30 +659,37 @@ collectFirstTwoTied axis maxProj verts count v1 =
 first whose both endpoints are within tolerance of `maxProj`. Short-
 circuits on first match.
 -}
-findTiedUniqueEdge : Vec3 -> Float -> List (List Vec3) -> Maybe ( Vec3, Vec3 )
-findTiedUniqueEdge axis maxProj groups =
+findTiedUniqueEdge : Vec3 -> Float -> VertexBuffer -> List (List Int) -> Maybe ( Vec3, Vec3 )
+findTiedUniqueEdge axis maxProj buffer groups =
     case groups of
         group :: restGroups ->
-            case findTiedEdgeInGroup axis maxProj group of
+            case findTiedEdgeInGroup axis maxProj buffer group of
                 (Just _) as found ->
                     found
 
                 Nothing ->
-                    findTiedUniqueEdge axis maxProj restGroups
+                    findTiedUniqueEdge axis maxProj buffer restGroups
 
         [] ->
             Nothing
 
 
-findTiedEdgeInGroup : Vec3 -> Float -> List Vec3 -> Maybe ( Vec3, Vec3 )
-findTiedEdgeInGroup axis maxProj edges =
+findTiedEdgeInGroup : Vec3 -> Float -> VertexBuffer -> List Int -> Maybe ( Vec3, Vec3 )
+findTiedEdgeInGroup axis maxProj buffer edges =
     case edges of
-        v1 :: v2 :: rest ->
+        i1 :: i2 :: rest ->
+            let
+                v1 =
+                    VertexBuffer.get i1 buffer
+
+                v2 =
+                    VertexBuffer.get i2 buffer
+            in
             if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot v2 axis < 1.0e-4) then
                 Just ( v1, v2 )
 
             else
-                findTiedEdgeInGroup axis maxProj rest
+                findTiedEdgeInGroup axis maxProj buffer rest
 
         _ ->
             Nothing

@@ -111,18 +111,18 @@ faces =
         normalsPointOutside convex =
             Expect.all
                 (List.map
-                    (\{ normal, vertices } ->
+                    (\face ->
                         \_ ->
                             Expect.equal True
                                 (List.all
                                     (\v ->
                                         let
                                             pointsOutside =
-                                                Vec3.dot (Vec3.sub v convex.position) normal > 0
+                                                Vec3.dot (Vec3.sub v convex.position) face.normal > 0
                                         in
                                         pointsOutside
                                     )
-                                    vertices
+                                    (Convex.faceVertices convex.vertexBuffer face)
                                 )
                     )
                     (flatFaces convex)
@@ -132,10 +132,10 @@ faces =
         hasCorrectWindingOrder convex =
             Expect.all
                 (List.map
-                    (\{ vertices, normal } ->
-                        case vertices of
+                    (\face ->
+                        case Convex.faceVertices convex.vertexBuffer face of
                             p1 :: p2 :: p3 :: rest ->
-                                \_ -> faceWindingOrderHelp normal p1 (p2 :: p3 :: rest) []
+                                \_ -> faceWindingOrderHelp face.normal p1 (p2 :: p3 :: rest) []
 
                             _ ->
                                 \_ -> Expect.fail "face with wrong number of vertices"
@@ -207,36 +207,14 @@ uniqueEdges =
     describe ".uniqueEdges"
         [ test "works for a block" <|
             \_ ->
-                let
-                    v0 =
-                        { x = -1, y = -1, z = -1 }
-
-                    v1 =
-                        { x = 1, y = -1, z = -1 }
-
-                    v2 =
-                        { x = 1, y = 1, z = -1 }
-
-                    v3 =
-                        { x = -1, y = 1, z = -1 }
-
-                    v4 =
-                        { x = -1, y = -1, z = 1 }
-
-                    v5 =
-                        { x = 1, y = -1, z = 1 }
-
-                    v6 =
-                        { x = 1, y = 1, z = 1 }
-
-                    v7 =
-                        { x = -1, y = 1, z = 1 }
-                in
+                -- uniqueEdges now holds vertex-buffer indices in the canonical
+                -- placed traversal order (outer groups reversed, each group's
+                -- endpoints reversed) — read two-at-a-time per edge.
                 (Convex.fromBlock 2 2 2).uniqueEdges
                     |> Expect.equal
-                        [ [ v2, v3, v5, v4, v6, v7, v1, v0 ]
-                        , [ v2, v1, v7, v4, v6, v5, v3, v0 ]
-                        , [ v5, v1, v6, v2, v7, v3, v4, v0 ]
+                        [ [ 0, 4, 3, 7, 2, 6, 1, 5 ]
+                        , [ 0, 3, 5, 6, 4, 7, 1, 2 ]
+                        , [ 0, 1, 7, 6, 4, 5, 3, 2 ]
                         ]
         , test "block uniqueEdges has 12 edges across 3 directions" <|
             \_ ->

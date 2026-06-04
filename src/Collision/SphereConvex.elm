@@ -3,7 +3,8 @@ module Collision.SphereConvex exposing (addContacts)
 import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
-import Shapes.Convex exposing (Convex, Face)
+import Internal.VertexBuffer exposing (VertexBuffer)
+import Shapes.Convex as Convex exposing (Convex, Face)
 import Shapes.Sphere exposing (Sphere)
 
 
@@ -12,10 +13,10 @@ Contact id suffix: `-fF` (face F, matching `ConvexConvex.bestFace`),
 `-e` (edge interior), `-v` (vertex).
 -}
 addContacts : Int -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
-addContacts shapeKey orderContact { radius, position } { faces } contacts =
+addContacts shapeKey orderContact { radius, position } { faces, vertexBuffer } contacts =
     case faces of
         ( primary, partner ) :: rest ->
-            walkFaces shapeKey orderContact position radius primary 1 partner rest [] contacts
+            walkFaces shapeKey orderContact vertexBuffer position radius primary 1 partner rest [] contacts
 
         [] ->
             -- Degenerate convex with no faces: nothing for the
@@ -23,11 +24,14 @@ addContacts shapeKey orderContact { radius, position } { faces } contacts =
             contacts
 
 
-walkFaces : Int -> (Contact -> Contact) -> Vec3 -> Float -> Face -> Int -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
-walkFaces shapeKey orderContact center radius currentFace currentFaceId nextFace queuedGroups candidateEdges contacts =
+walkFaces : Int -> (Contact -> Contact) -> VertexBuffer -> Vec3 -> Float -> Face -> Int -> Maybe Face -> List ( Face, Maybe Face ) -> List ( Vec3, Vec3 ) -> List Contact -> List Contact
+walkFaces shapeKey orderContact buffer center radius currentFace currentFaceId nextFace queuedGroups candidateEdges contacts =
     let
+        faceVerts =
+            Convex.faceVertices buffer currentFace
+
         faceDistance =
-            case currentFace.vertices of
+            case faceVerts of
                 first :: _ ->
                     currentFace.normal.x * (center.x - first.x) + currentFace.normal.y * (center.y - first.y) + currentFace.normal.z * (center.z - first.z)
 
@@ -37,17 +41,17 @@ walkFaces shapeKey orderContact center radius currentFace currentFaceId nextFace
     if faceDistance > 0 && faceDistance - radius < 0 then
         let
             ( anyOutside, newCandidateEdges ) =
-                classifyAndCollectEdges center currentFace.normal currentFace.vertices candidateEdges
+                classifyAndCollectEdges center currentFace.normal faceVerts candidateEdges
         in
         if anyOutside then
             case nextFace of
                 Just face ->
-                    walkFaces shapeKey orderContact center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
+                    walkFaces shapeKey orderContact buffer center radius face (currentFaceId + 1) Nothing queuedGroups newCandidateEdges contacts
 
                 Nothing ->
                     case queuedGroups of
                         ( primary, partner ) :: restGroups ->
-                            walkFaces shapeKey orderContact center radius primary (currentFaceId + 1) partner restGroups newCandidateEdges contacts
+                            walkFaces shapeKey orderContact buffer center radius primary (currentFaceId + 1) partner restGroups newCandidateEdges contacts
 
                         [] ->
                             walkBoundaries shapeKey orderContact center radius newCandidateEdges Vec3.zero (radius * radius) contacts
@@ -68,12 +72,12 @@ walkFaces shapeKey orderContact center radius currentFace currentFaceId nextFace
     else
         case nextFace of
             Just face ->
-                walkFaces shapeKey orderContact center radius face (currentFaceId + 1) Nothing queuedGroups candidateEdges contacts
+                walkFaces shapeKey orderContact buffer center radius face (currentFaceId + 1) Nothing queuedGroups candidateEdges contacts
 
             Nothing ->
                 case queuedGroups of
                     ( primary, partner ) :: restGroups ->
-                        walkFaces shapeKey orderContact center radius primary (currentFaceId + 1) partner restGroups candidateEdges contacts
+                        walkFaces shapeKey orderContact buffer center radius primary (currentFaceId + 1) partner restGroups candidateEdges contacts
 
                     [] ->
                         walkBoundaries shapeKey orderContact center radius candidateEdges Vec3.zero (radius * radius) contacts

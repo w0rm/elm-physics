@@ -17,7 +17,6 @@ module Internal.Transform3d exposing
     , placeIn
     , pointPlaceIn
     , pointRelativeTo
-    , pointsPlaceIn
     , relativeTo
     , rotateAroundOwn
     , rotateBy
@@ -130,26 +129,6 @@ atOrigin =
 atPoint : Vec3 -> Transform3d coordinates defines
 atPoint point =
     Transform3d point identity
-
-
-{-| Transforms list of points, reverses the order
--}
-pointsPlaceIn : Transform3d coordinates defines -> List Vec3 -> List Vec3
-pointsPlaceIn transform points =
-    pointsPlaceInHelp transform points []
-
-
-pointsPlaceInHelp : Transform3d coordinates defines -> List Vec3 -> List Vec3 -> List Vec3
-pointsPlaceInHelp transform points result =
-    case points of
-        point :: remainingPoints ->
-            pointsPlaceInHelp
-                transform
-                remainingPoints
-                (pointPlaceIn transform point :: result)
-
-        [] ->
-            result
 
 
 pointPlaceIn : Transform3d coordinates defines -> Vec3 -> Vec3

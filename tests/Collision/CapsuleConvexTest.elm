@@ -374,27 +374,28 @@ supportFeature =
             { vertices = [ vAdj1, vApex, vDiag1 ], normal = Vec3.normalize { x = 0, y = 1, z = 1 } }
 
         pyramid =
-            { faces =
-                [ ( baseFace, Nothing )
-                , ( sideFace1, Nothing )
-                , ( sideFace2, Nothing )
-                , ( sideFace3, Nothing )
-                , ( sideFace4, Nothing )
-                ]
-            , vertices = [ vDiag1, vDiag2, vAdj1, vAdj2, vApex ]
-            , uniqueEdges =
-                -- Apex edges omitted: not tied at maxProj along -z.
-                [ [ vDiag1, vAdj2, vDiag2, vAdj1 ]
-                , [ vAdj2, vDiag2, vAdj1, vDiag1 ]
-                ]
-            , position = Vec3.zero
-            , inertia = Mat3.zero
-            , volume = 0
-            }
+            Convex.init
+                { faces =
+                    [ ( baseFace, Nothing )
+                    , ( sideFace1, Nothing )
+                    , ( sideFace2, Nothing )
+                    , ( sideFace3, Nothing )
+                    , ( sideFace4, Nothing )
+                    ]
+                , vertices = [ vDiag1, vDiag2, vAdj1, vAdj2, vApex ]
+                , uniqueEdges =
+                    -- Apex edges omitted: not tied at maxProj along -z.
+                    [ [ vDiag1, vAdj2, vDiag2, vAdj1 ]
+                    , [ vAdj2, vDiag2, vAdj1, vDiag1 ]
+                    ]
+                , position = Vec3.zero
+                , inertia = Mat3.zero
+                , volume = 0
+                }
     in
     describe "Collision.CapsuleConvex.supportFeature"
         [ test "returns an edge-adjacent pair when 3+ vertices are tied at max projection" <|
             \_ ->
                 Collision.CapsuleConvex.supportFeature { x = 0, y = 0, z = -1 } pyramid
-                    |> Expect.equal [ vDiag1, vAdj2 ]
+                    |> Expect.equal [ vDiag1, vAdj1 ]
         ]
