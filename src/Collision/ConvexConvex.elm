@@ -11,7 +11,7 @@ import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
-import Shapes.Convex as Convex exposing (Convex, Face)
+import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..))
 
 
 {-| Which body contributed the winning face axis to SAT.
@@ -31,8 +31,7 @@ type alias FaceWinner =
     , dmin : Float
     , fromSide : Side
     , groupIdx : Int
-    , primary : Face
-    , partner : Maybe Face
+    , group : FaceGroup
     }
 
 
@@ -79,7 +78,7 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
                 Convex1 ->
                     let
                         ( wid, wface ) =
-                            pickWinningFace winner.groupIdx winner.primary winner.partner separatingAxis
+                            pickWinningFace winner.groupIdx winner.group separatingAxis
 
                         ( oid, oface ) =
                             bestFace convex2.faces reversedSeparatingAxis
@@ -92,7 +91,7 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
                             bestFace convex1.faces separatingAxis
 
                         ( wid, wface ) =
-                            pickWinningFace winner.groupIdx winner.primary winner.partner reversedSeparatingAxis
+                            pickWinningFace winner.groupIdx winner.group reversedSeparatingAxis
                     in
                     { id1 = oid, face1 = oface, id2 = wid, face2 = wface }
     in
@@ -117,18 +116,18 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
 `axisToward`. The partner's dot is the negation of the primary's, so a
 single dot product decides by sign.
 -}
-pickWinningFace : Int -> Face -> Maybe Face -> Vec3 -> ( Int, Face )
-pickWinningFace groupIdx primary partner axisToward =
-    case partner of
-        Just p ->
-            if Vec3.dot primary.normal axisToward <= 0 then
-                ( groupIdx, primary )
+pickWinningFace : Int -> FaceGroup -> Vec3 -> ( Int, Face )
+pickWinningFace groupIdx group axisToward =
+    case group of
+        TwoSidedFace n1 i1 n2 i2 ->
+            if Vec3.dot n1 axisToward <= 0 then
+                ( groupIdx, { normal = n1, vertices = i1 } )
 
             else
-                ( groupIdx + 1, p )
+                ( groupIdx + 1, { normal = n2, vertices = i2 } )
 
-        Nothing ->
-            ( groupIdx, primary )
+        OneSidedFace n1 i1 _ _ ->
+            ( groupIdx, { normal = n1, vertices = i1 } )
 
 
 orientAxis : Convex -> Convex -> Vec3 -> Vec3
@@ -282,7 +281,7 @@ clipTwoFacesHelp shapeKey faceId1 faceId2 separatingAxis face facePlaneConstant 
 The partner is the antiparallel of the primary, so one dot per group
 covers both. Returns `( -1, emptyFace )` for empty groups.
 -}
-bestFace : List ( Face, Maybe Face ) -> Vec3 -> ( Int, Face )
+bestFace : List FaceGroup -> Vec3 -> ( Int, Face )
 bestFace groups separatingAxis =
     bestFaceWalk separatingAxis groups 1 -1 emptyFace Const.maxNumber
 
@@ -292,16 +291,16 @@ emptyFace =
     { vertices = [], normal = Vec3.zero }
 
 
-bestFaceWalk : Vec3 -> List ( Face, Maybe Face ) -> Int -> Int -> Face -> Float -> ( Int, Face )
+bestFaceWalk : Vec3 -> List FaceGroup -> Int -> Int -> Face -> Float -> ( Int, Face )
 bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace currentBestDistance =
     case groups of
         [] ->
             ( currentBestFaceId, currentBestFace )
 
-        ( primary, Just partner ) :: restGroups ->
+        (TwoSidedFace n1 i1 n2 i2) :: restGroups ->
             let
                 primaryDot =
-                    Vec3.dot primary.normal separatingAxis
+                    Vec3.dot n1 separatingAxis
 
                 partnerDot =
                     -primaryDot
@@ -309,25 +308,25 @@ bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace curr
                 -- Compete primary against running best.
                 ( id1, f1, d1 ) =
                     if currentBestDistance - primaryDot > 0 then
-                        ( faceId, primary, primaryDot )
+                        ( faceId, { normal = n1, vertices = i1 }, primaryDot )
 
                     else
                         ( currentBestFaceId, currentBestFace, currentBestDistance )
             in
             -- Compete partner against the result.
             if d1 - partnerDot > 0 then
-                bestFaceWalk separatingAxis restGroups (faceId + 2) (faceId + 1) partner partnerDot
+                bestFaceWalk separatingAxis restGroups (faceId + 2) (faceId + 1) { normal = n2, vertices = i2 } partnerDot
 
             else
                 bestFaceWalk separatingAxis restGroups (faceId + 2) id1 f1 d1
 
-        ( primary, Nothing ) :: restGroups ->
+        (OneSidedFace n1 i1 _ _) :: restGroups ->
             let
                 d =
-                    Vec3.dot primary.normal separatingAxis
+                    Vec3.dot n1 separatingAxis
             in
             if currentBestDistance - d > 0 then
-                bestFaceWalk separatingAxis restGroups (faceId + 1) faceId primary d
+                bestFaceWalk separatingAxis restGroups (faceId + 1) faceId { normal = n1, vertices = i1 } d
 
             else
                 bestFaceWalk separatingAxis restGroups (faceId + 1) currentBestFaceId currentBestFace currentBestDistance
@@ -413,13 +412,17 @@ findFaceSAT convex1 convex2 =
         1
         -1
         Convex1
-        emptyFace
-        Nothing
+        emptyGroup
         Const.maxNumber
 
 
-findFaceSATHelp : Convex -> Convex -> Side -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> Int -> Int -> Side -> Face -> Maybe Face -> Float -> Maybe FaceWinner
-findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx winnerIdx winnerSide winnerPrimary winnerPartner dmin =
+emptyGroup : FaceGroup
+emptyGroup =
+    OneSidedFace Vec3.zero [] () ()
+
+
+findFaceSATHelp : Convex -> Convex -> Side -> List FaceGroup -> List FaceGroup -> Int -> Int -> Side -> FaceGroup -> Float -> Maybe FaceWinner
+findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx winnerIdx winnerSide winnerGroup dmin =
     case normals of
         [] ->
             case nextNormals of
@@ -429,37 +432,36 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
 
                     else
                         Just
-                            { axis = winnerPrimary.normal
+                            { axis = Convex.faceGroupNormal winnerGroup
                             , dmin = dmin
                             , fromSide = winnerSide
                             , groupIdx = winnerIdx
-                            , primary = winnerPrimary
-                            , partner = winnerPartner
+                            , group = winnerGroup
                             }
 
                 _ ->
-                    findFaceSATHelp convex1 convex2 Convex2 nextNormals [] 1 winnerIdx winnerSide winnerPrimary winnerPartner dmin
+                    findFaceSATHelp convex1 convex2 Convex2 nextNormals [] 1 winnerIdx winnerSide winnerGroup dmin
 
-        ( primary, partner ) :: restNormals ->
-            case testSeparatingAxis convex1 convex2 primary.normal of
+        group :: restNormals ->
+            case testSeparatingAxis convex1 convex2 (Convex.faceGroupNormal group) of
                 Nothing ->
                     Nothing
 
                 Just dist ->
                     let
                         groupSize =
-                            case partner of
-                                Just _ ->
+                            case group of
+                                TwoSidedFace _ _ _ _ ->
                                     2
 
-                                Nothing ->
+                                OneSidedFace _ _ _ _ ->
                                     1
                     in
                     if dist - dmin < 0 then
-                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) nextGroupIdx currentSide primary partner dist
+                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) nextGroupIdx currentSide group dist
 
                     else
-                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) winnerIdx winnerSide winnerPrimary winnerPartner dmin
+                        findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) winnerIdx winnerSide winnerGroup dmin
 
 
 {-| The two nullary cases carry five `()` fields so all three variants share

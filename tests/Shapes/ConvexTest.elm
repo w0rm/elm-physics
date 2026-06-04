@@ -98,13 +98,13 @@ faces =
     let
         flatFaces convex =
             List.concatMap
-                (\( primary, partner ) ->
-                    case partner of
-                        Just p ->
-                            [ primary, p ]
+                (\group ->
+                    case group of
+                        Convex.OneSidedFace n i _ _ ->
+                            [ { normal = n, vertices = i } ]
 
-                        Nothing ->
-                            [ primary ]
+                        Convex.TwoSidedFace n1 i1 n2 i2 ->
+                            [ { normal = n1, vertices = i1 }, { normal = n2, vertices = i2 } ]
                 )
                 convex.faces
 
@@ -193,7 +193,7 @@ uniqeNormals =
     describe ".uniqeNormals"
         [ test "works for a block" <|
             \_ ->
-                List.map (\( primary, _ ) -> primary.normal) (Convex.fromBlock 2 2 2).faces
+                List.map Convex.faceGroupNormal (Convex.fromBlock 2 2 2).faces
                     |> Expect.equal [ Vec3.zAxis, Vec3.yAxis, Vec3.xAxis ]
         , test "works for a square pyramid" <|
             \_ ->

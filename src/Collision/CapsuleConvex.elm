@@ -488,13 +488,19 @@ findSeparatingAxis capsule convex ep1 ep2 =
     testConvexNormals capsule convex ep1 ep2 convex.faces Vec3.zero Const.maxNumber
 
 
-testConvexNormals : Capsule -> Convex -> Vec3 -> Vec3 -> List ( Face, Maybe Face ) -> Vec3 -> Float -> Maybe Vec3
+testConvexNormals : Capsule -> Convex -> Vec3 -> Vec3 -> List Convex.FaceGroup -> Vec3 -> Float -> Maybe Vec3
 testConvexNormals capsule convex ep1 ep2 groups target dmin =
     case groups of
         [] ->
             testUniqueEdges capsule convex ep1 ep2 convex.uniqueEdges target dmin
 
-        ( { normal }, _ ) :: restGroups ->
+        group :: restGroups ->
+            let
+                -- Only the primary normal is needed; the partner's is its
+                -- negation and `testCapsuleConvexAxis` is sign-independent.
+                normal =
+                    Convex.faceGroupNormal group
+            in
             case testCapsuleConvexAxis capsule convex normal of
                 Nothing ->
                     Nothing

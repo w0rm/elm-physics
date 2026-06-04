@@ -1,10 +1,12 @@
 module Shapes.Convex exposing
     ( Convex
     , Face
+    , FaceGroup(..)
     , FaceVertices
     , computeNormal
     , expandBoundingSphereRadius
     , extendContour
+    , faceGroupNormal
     , faceVertices
     , foldFaceEdges
     , fromBlock
@@ -25,13 +27,23 @@ import Set exposing (Set)
 
 
 type alias Face =
-    -- A face's vertices are indices into the owning convex's `vertexBuffer`, so
-    -- the per-frame placement places each unique vertex once and faces/edges
-    -- merely reference it. Materialise with `faceVertices`, passing the buffer
-    -- from the `Convex` the caller already holds.
+    -- A single face: vertices are indices into the owning convex's
+    -- `vertexBuffer`. Materialise with `faceVertices`, passing the buffer from
+    -- the `Convex` the caller already holds. Used as the SAT-winner / clip face.
     { vertices : List Int
     , normal : Vec3
     }
+
+
+{-| A direction group: a primary face and, for a closed polytope, its antipodal
+partner — flattened so a group is one object instead of `( Face, Maybe Face )`
+(no tuple, no `Maybe`, no nested `Face` records to rebuild each frame). The two
+nullary `()` fields on `OneSidedFace` give both variants the same object shape.
+Fields are `normal, vertexIndices[, partnerNormal, partnerVertexIndices]`.
+-}
+type FaceGroup
+    = OneSidedFace Vec3 (List Int) () ()
+    | TwoSidedFace Vec3 (List Int) Vec3 (List Int)
 
 
 {-| Construction-time face: explicit `Vec3` vertices, before `init` packs them
@@ -61,7 +73,7 @@ type alias Convex =
     -- so the hot SAT projection and `PlaneConvex` keep a flat walk; it's folded
     -- out of the placed `vertexBuffer` each frame (the buffer's keys 0..n-1 are
     -- the indices, so no separate index list is needed).
-    { faces : List ( Face, Maybe Face )
+    { faces : List FaceGroup
     , vertices : List Vec3
     , uniqueEdges : List (List Int)
     , vertexBuffer : VertexBuffer
@@ -90,6 +102,19 @@ materialize buffer indices =
             []
 
 
+{-| The primary face normal of a group (the partner's is its negation). Lets
+collision code that only needs the direction read a group without unpacking it.
+-}
+faceGroupNormal : FaceGroup -> Vec3
+faceGroupNormal group =
+    case group of
+        OneSidedFace normal _ _ _ ->
+            normal
+
+        TwoSidedFace normal _ _ _ ->
+            normal
+
+
 placeIn : Transform3d coordinates defines -> Convex -> Convex
 placeIn transform3d convex =
     let
@@ -115,25 +140,22 @@ shared unchanged. Tail-recursive, so it reverses the group order — `init` stor
 faces in source order so this single reversal lands the canonical placed order
 collision encodes into contact ids (the old per-frame placement reversed too).
 -}
-placeFaces : Transform3d coordinates defines -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face ) -> List ( Face, Maybe Face )
+placeFaces : Transform3d coordinates defines -> List FaceGroup -> List FaceGroup -> List FaceGroup
 placeFaces transform3d faces result =
     case faces of
-        ( primary, maybePartner ) :: rest ->
+        (OneSidedFace normal indices a b) :: rest ->
             placeFaces transform3d
                 rest
-                (( { vertices = primary.vertices
-                   , normal = Transform3d.directionPlaceIn transform3d primary.normal
-                   }
-                 , case maybePartner of
-                    Just partner ->
-                        Just
-                            { vertices = partner.vertices
-                            , normal = Transform3d.directionPlaceIn transform3d partner.normal
-                            }
+                (OneSidedFace (Transform3d.directionPlaceIn transform3d normal) indices a b :: result)
 
-                    Nothing ->
-                        Nothing
-                 )
+        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+            placeFaces transform3d
+                rest
+                (TwoSidedFace
+                    (Transform3d.directionPlaceIn transform3d n1)
+                    i1
+                    (Transform3d.directionPlaceIn transform3d n2)
+                    i2
                     :: result
                 )
 
@@ -172,27 +194,23 @@ init geometry =
     }
 
 
-indexFaces : List Vec3 -> List ( FaceVertices, Maybe FaceVertices ) -> List ( Face, Maybe Face )
+indexFaces : List Vec3 -> List ( FaceVertices, Maybe FaceVertices ) -> List FaceGroup
 indexFaces vertices faces =
     List.map
         (\( primary, partner ) ->
-            ( indexFace vertices primary
-            , case partner of
+            case partner of
                 Just p ->
-                    Just (indexFace vertices p)
+                    TwoSidedFace primary.normal (indexFaceVertices vertices primary) p.normal (indexFaceVertices vertices p)
 
                 Nothing ->
-                    Nothing
-            )
+                    OneSidedFace primary.normal (indexFaceVertices vertices primary) () ()
         )
         faces
 
 
-indexFace : List Vec3 -> FaceVertices -> Face
-indexFace vertices face =
-    { vertices = List.map (\v -> indexOf v vertices) face.vertices
-    , normal = face.normal
-    }
+indexFaceVertices : List Vec3 -> FaceVertices -> List Int
+indexFaceVertices vertices face =
+    List.map (\v -> indexOf v vertices) face.vertices
 
 
 {-| Each group's endpoints, reversed so collision walks them in the order the
@@ -881,41 +899,31 @@ expandBoundingSphereRadius { vertexBuffer } boundingSphereRadius =
 
 raycast : { from : Vec3, direction : Vec3 } -> Convex -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycast { direction, from } convex =
-    case convex.faces of
-        ( primary, partner ) :: rest ->
-            raycastWalk convex.vertexBuffer direction from primary partner rest Nothing
+    raycastWalk convex.vertexBuffer direction from convex.faces Nothing
+
+
+raycastWalk : VertexBuffer -> Vec3 -> Vec3 -> List FaceGroup -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastWalk buffer direction from groups maybeHit =
+    case groups of
+        (OneSidedFace normal indices _ _) :: rest ->
+            raycastWalk buffer direction from rest (raycastFace buffer direction from normal indices maybeHit)
+
+        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+            raycastWalk buffer
+                direction
+                from
+                rest
+                (raycastFace buffer direction from n2 i2 (raycastFace buffer direction from n1 i1 maybeHit))
 
         [] ->
-            Nothing
+            maybeHit
 
 
-raycastWalk : VertexBuffer -> Vec3 -> Vec3 -> Face -> Maybe Face -> List ( Face, Maybe Face ) -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycastWalk buffer direction from currentFace nextFace queuedGroups maybeHit =
+raycastFace : VertexBuffer -> Vec3 -> Vec3 -> Vec3 -> List Int -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
+raycastFace buffer direction from normal indices maybeHit =
     let
-        newHit =
-            raycastFace buffer direction from currentFace maybeHit
-    in
-    case nextFace of
-        Just face ->
-            raycastWalk buffer direction from face Nothing queuedGroups newHit
-
-        Nothing ->
-            case queuedGroups of
-                ( primary, partner ) :: restGroups ->
-                    raycastWalk buffer direction from primary partner restGroups newHit
-
-                [] ->
-                    newHit
-
-
-raycastFace : VertexBuffer -> Vec3 -> Vec3 -> Face -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
-raycastFace buffer direction from face maybeHit =
-    let
-        normal =
-            face.normal
-
         vertices =
-            faceVertices buffer face
+            materialize buffer indices
 
         dot =
             Vec3.dot direction normal
