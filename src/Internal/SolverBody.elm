@@ -1,6 +1,8 @@
 module Internal.SolverBody exposing
     ( SolverBody
     , fromBodies
+    , keepsIslandAwake
+    , markAsleep
     , sentinel
     , solved
     )
@@ -22,6 +24,82 @@ type alias SolverBody id =
     , wX : Float
     , wY : Float
     , wZ : Float
+    }
+
+
+{-| Square of the linear+angular speed below which a frame counts toward sleep.
+~0.1 m/s — above a resting PGS stack's jitter, below genuine motion.
+-}
+sleepThresholdSq : Float
+sleepThresholdSq =
+    0.01
+
+
+{-| Consecutive near-rest frames before a body wants to sleep (≈1 s at 60 fps).
+A `sleepFrames` of exactly this means "wants to sleep"; the solver stamps
+`sleepFrameLimit + 1` to mean "island-confirmed asleep, hold the pose".
+-}
+sleepFrameLimit : Int
+sleepFrameLimit =
+    60
+
+
+{-| True if this body forces its island to keep simulating. A dynamic body does
+so until its rest timer reaches the limit. A _moving_ kinematic body does too:
+it drags the dynamics it touches or is constrained to via the solve, so they
+must not sleep while it moves (a parked kinematic and any static body need not).
+-}
+keepsIslandAwake : SolverBody id -> Bool
+keepsIslandAwake { body } =
+    case body.kindInt of
+        2 ->
+            body.sleepFrames - sleepFrameLimit < 0
+
+        3 ->
+            Vec3.lengthSquared body.velocity > 0 || Vec3.lengthSquared body.angularVelocity > 0
+
+        _ ->
+            False
+
+
+{-| Stamp the island-asleep marker (`sleepFrameLimit + 1`) so `solved` holds the
+body's pose instead of integrating it. The body is rebuilt as a literal to keep
+its hidden class identical to every other `Body` flowing into `solved`.
+-}
+markAsleep : SolverBody id -> SolverBody id
+markAsleep solverBody =
+    let
+        body =
+            solverBody.body
+    in
+    { body =
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = body.transform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity = body.velocity
+        , angularVelocity = body.angularVelocity
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = body.worldShapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
+        , sleepFrames = sleepFrameLimit + 1
+        }
+    , extId = solverBody.extId
+    , vX = solverBody.vX
+    , vY = solverBody.vY
+    , vZ = solverBody.vZ
+    , wX = solverBody.wX
+    , wY = solverBody.wY
+    , wZ = solverBody.wZ
     }
 
 
@@ -107,6 +185,7 @@ sentinel extId =
         , invInertiaWorld = Mat3.zero
         , linearLock = Vec3.one
         , angularLock = Vec3.one
+        , sleepFrames = 0
         }
     , extId = extId
     , vX = 0
@@ -169,6 +248,7 @@ solved dt ({ body } as solverBody) =
               , invInertiaWorld = body.invInertiaWorld
               , linearLock = body.linearLock
               , angularLock = body.angularLock
+              , sleepFrames = 0
 
               -- clear forces
               , force = Vec3.zero
@@ -177,76 +257,132 @@ solved dt ({ body } as solverBody) =
             )
 
         _ ->
-            -- Dynamic (or any other; only Dynamic is the live case)
-            let
-                newVelocity =
-                    { x = solverBody.vX * body.linearLock.x
-                    , y = solverBody.vY * body.linearLock.y
-                    , z = solverBody.vZ * body.linearLock.z
+            -- Dynamic (or any other; only Dynamic is the live case).
+            -- A `sleepFrames` above the limit is the solver's island-asleep
+            -- marker: the body's whole island is at rest, so skip the integrate
+            -- and re-place entirely and hold the pose. Reset the marker to the
+            -- limit so that if the island wakes (the solver won't re-mark it)
+            -- this body integrates again next frame.
+            if body.sleepFrames > sleepFrameLimit then
+                ( solverBody.extId
+                , { id = body.id
+                  , kindInt = body.kindInt
+                  , velocity = Vec3.zero
+                  , angularVelocity = Vec3.zero
+                  , transform3d = body.transform3d
+                  , centerOfMassTransform3d = body.centerOfMassTransform3d
+                  , mass = body.mass
+                  , geometry = body.geometry
+                  , worldShapesWithMaterials = body.worldShapesWithMaterials
+                  , linearDamping = body.linearDamping
+                  , angularDamping = body.angularDamping
+                  , invMass = body.invMass
+                  , invInertia = body.invInertia
+                  , invInertiaWorld = body.invInertiaWorld
+                  , linearLock = body.linearLock
+                  , angularLock = body.angularLock
+                  , sleepFrames = sleepFrameLimit
+
+                  -- clear forces
+                  , force = Vec3.zero
+                  , torque = Vec3.zero
+                  }
+                )
+
+            else
+                integrateDynamic dt solverBody body
+
+
+{-| Integrate an awake dynamic body to its next-frame state and advance its
+sleep timer (the consecutive-near-rest-frame count the solver later reads to
+decide whether the body's whole island can sleep).
+-}
+integrateDynamic : Float -> SolverBody id -> Body -> ( id, Body )
+integrateDynamic dt solverBody body =
+    let
+        newVelocity =
+            { x = solverBody.vX * body.linearLock.x
+            , y = solverBody.vY * body.linearLock.y
+            , z = solverBody.vZ * body.linearLock.z
+            }
+
+        velocityLength =
+            Vec3.length newVelocity
+
+        -- This hack is needed to minimize tunnelling
+        -- we don't let the body to move more
+        -- than half of its bounding radius in a frame
+        boundingSphereRadius =
+            body.geometry.boundingSphereRadius
+
+        cappedVelocity =
+            if
+                (velocityLength == 0)
+                    || (boundingSphereRadius == 0)
+                    || (velocityLength * dt - boundingSphereRadius < 0)
+            then
+                newVelocity
+
+            else
+                Vec3.scale (boundingSphereRadius / (velocityLength * dt)) newVelocity
+
+        newAngularVelocity =
+            { x = solverBody.wX * body.angularLock.x
+            , y = solverBody.wY * body.angularLock.y
+            , z = solverBody.wZ * body.angularLock.z
+            }
+
+        -- Sleep hysteresis: count consecutive near-rest frames; a single
+        -- frame above the threshold resets it. This per-body timer only
+        -- expresses that the body *wants* to sleep; the solver decides
+        -- per island whether it actually does.
+        restingSq =
+            velocityLength * velocityLength + Vec3.lengthSquared newAngularVelocity
+
+        nextSleepFrames =
+            if restingSq - sleepThresholdSq < 0 then
+                min sleepFrameLimit (body.sleepFrames + 1)
+
+            else
+                0
+
+        newTransform3d =
+            Transform3d.normalize
+                (Transform3d.translateBy
+                    { x = cappedVelocity.x * dt
+                    , y = cappedVelocity.y * dt
+                    , z = cappedVelocity.z * dt
                     }
+                    (Transform3d.rotateBy
+                        { x = newAngularVelocity.x * dt
+                        , y = newAngularVelocity.y * dt
+                        , z = newAngularVelocity.z * dt
+                        }
+                        body.transform3d
+                    )
+                )
+    in
+    ( solverBody.extId
+    , { id = body.id
+      , kindInt = body.kindInt
+      , velocity = newVelocity
+      , angularVelocity = newAngularVelocity
+      , transform3d = newTransform3d
+      , centerOfMassTransform3d = body.centerOfMassTransform3d
+      , mass = body.mass
+      , geometry = body.geometry
+      , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
+      , linearDamping = body.linearDamping
+      , angularDamping = body.angularDamping
+      , invMass = body.invMass
+      , invInertia = body.invInertia
+      , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
+      , linearLock = body.linearLock
+      , angularLock = body.angularLock
+      , sleepFrames = nextSleepFrames
 
-                velocityLength =
-                    Vec3.length newVelocity
-
-                -- This hack is needed to minimize tunnelling
-                -- we don't let the body to move more
-                -- than half of its bounding radius in a frame
-                boundingSphereRadius =
-                    body.geometry.boundingSphereRadius
-
-                cappedVelocity =
-                    if
-                        (velocityLength == 0)
-                            || (boundingSphereRadius == 0)
-                            || (velocityLength * dt - boundingSphereRadius < 0)
-                    then
-                        newVelocity
-
-                    else
-                        Vec3.scale (boundingSphereRadius / (velocityLength * dt)) newVelocity
-
-                newAngularVelocity =
-                    { x = solverBody.wX * body.angularLock.x
-                    , y = solverBody.wY * body.angularLock.y
-                    , z = solverBody.wZ * body.angularLock.z
-                    }
-
-                newTransform3d =
-                    Transform3d.normalize
-                        (Transform3d.translateBy
-                            { x = cappedVelocity.x * dt
-                            , y = cappedVelocity.y * dt
-                            , z = cappedVelocity.z * dt
-                            }
-                            (Transform3d.rotateBy
-                                { x = newAngularVelocity.x * dt
-                                , y = newAngularVelocity.y * dt
-                                , z = newAngularVelocity.z * dt
-                                }
-                                body.transform3d
-                            )
-                        )
-            in
-            ( solverBody.extId
-            , { id = body.id
-              , kindInt = body.kindInt
-              , velocity = newVelocity
-              , angularVelocity = newAngularVelocity
-              , transform3d = newTransform3d
-              , centerOfMassTransform3d = body.centerOfMassTransform3d
-              , mass = body.mass
-              , geometry = body.geometry
-              , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn newTransform3d s, m )) body.geometry.shapesWithMaterials
-              , linearDamping = body.linearDamping
-              , angularDamping = body.angularDamping
-              , invMass = body.invMass
-              , invInertia = body.invInertia
-              , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
-              , linearLock = body.linearLock
-              , angularLock = body.angularLock
-
-              -- clear forces
-              , force = Vec3.zero
-              , torque = Vec3.zero
-              }
-            )
+      -- clear forces
+      , force = Vec3.zero
+      , torque = Vec3.zero
+      }
+    )

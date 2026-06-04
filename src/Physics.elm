@@ -320,6 +320,7 @@ moveTo point3d (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
+        , sleepFrames = 0
         }
 
 
@@ -366,6 +367,7 @@ translateBy vector3d (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
+        , sleepFrames = 0
         }
 
 
@@ -430,6 +432,7 @@ rotateAround axis angle (Types.Body body) =
                 body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
+        , sleepFrames = 0
         }
 
 
@@ -494,6 +497,7 @@ place frame3d (Types.Body body) =
                 body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
+        , sleepFrames = 0
         }
 
 
@@ -983,6 +987,7 @@ setVelocityTo newVelocity ((Types.Body body) as original) =
             , invInertiaWorld = body.invInertiaWorld
             , linearLock = body.linearLock
             , angularLock = body.angularLock
+            , sleepFrames = 0
             }
 
 
@@ -1014,6 +1019,7 @@ setAngularVelocityTo newAngularVelocity ((Types.Body body) as original) =
             , invInertiaWorld = body.invInertiaWorld
             , linearLock = body.linearLock
             , angularLock = body.angularLock
+            , sleepFrames = 0
             }
 
 
@@ -1056,6 +1062,7 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
             , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
             , linearLock = body.linearLock
             , angularLock = body.angularLock
+            , sleepFrames = 0
             }
 
     else
@@ -1087,6 +1094,7 @@ damp { linear, angular } (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
+        , sleepFrames = 0
         }
 
 

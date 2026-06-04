@@ -157,6 +157,7 @@ withId freshId body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
+    , sleepFrames = body.sleepFrames
     }
 
 
