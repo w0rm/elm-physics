@@ -599,10 +599,13 @@ off the surface.
 supportFeature : Vec3 -> Convex -> List Vec3
 supportFeature axis convex =
     let
+        vertices =
+            Convex.convexVertices convex
+
         maxProj =
-            maxProjection axis convex.vertices -Const.maxNumber
+            maxProjection axis vertices -Const.maxNumber
     in
-    case collectFirstTwoTied axis maxProj convex.vertices 0 Vec3.zero of
+    case collectFirstTwoTied axis maxProj vertices 0 Vec3.zero of
         [] ->
             []
 
@@ -720,7 +723,7 @@ testCapsuleConvexAxis { radius, halfLength, axis, position } convex n =
             centerProj + axisContrib + radius
 
         p2 =
-            ConvexConvex.project n Const.maxNumber -Const.maxNumber convex.vertices
+            ConvexConvex.projectConvex n convex
 
         d1 =
             capsuleMax - p2.min

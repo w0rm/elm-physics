@@ -233,7 +233,7 @@ project =
                         Vec3.xAxis
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 1 1 1).vertices
+                        (Convex.convexVertices (Convex.fromBlock 1 1 1))
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the negative x axis" <|
@@ -243,7 +243,7 @@ project =
                         { x = -1, y = 0, z = 0 }
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 1 1 1).vertices
+                        (Convex.convexVertices (Convex.fromBlock 1 1 1))
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the positive y axis" <|
@@ -253,7 +253,7 @@ project =
                         Vec3.yAxis
                         Const.maxNumber
                         -Const.maxNumber
-                        (Convex.fromBlock 1 1 1).vertices
+                        (Convex.convexVertices (Convex.fromBlock 1 1 1))
                     )
                     { min = -0.5, max = 0.5 }
         , test "works for the offset" <|
@@ -265,7 +265,8 @@ project =
                         -Const.maxNumber
                         (Convex.fromBlock 1 1 1
                             |> Convex.placeIn (Transform3d.atPoint { x = 0, y = 1, z = 0 })
-                        ).vertices
+                            |> Convex.convexVertices
+                        )
                     )
                     { min = 0.5, max = 1.5 }
         , test "works for the rotation and offset" <|
@@ -279,7 +280,8 @@ project =
                             (Transform3d.atPoint { x = 0, y = 1, z = 0 }
                                 |> Transform3d.rotateAroundOwn Vec3.xAxis (pi / 2)
                             )
-                    ).vertices
+                        |> Convex.convexVertices
+                    )
                     |> Expect.all
                         [ .min >> Expect.within (Expect.Absolute 0.00001) 0.5
                         , .max >> Expect.within (Expect.Absolute 0.00001) 1.5

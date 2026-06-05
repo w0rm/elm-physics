@@ -15,10 +15,10 @@ Contact id suffix: `-fF` (face F, matching `ConvexConvex.bestFace`),
 addContacts : Int -> (Contact -> Contact) -> Sphere -> Convex -> List Contact -> List Contact
 addContacts shapeKey orderContact { radius, position } { faces, vertexBuffer } contacts =
     case faces of
-        (OneSidedFace n i _ _) :: rest ->
+        (OneSidedFace n i _ _ _ _) :: rest ->
             walkFaces shapeKey orderContact vertexBuffer position radius { normal = n, vertices = i } 1 Nothing rest [] contacts
 
-        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+        (TwoSidedFace n1 i1 _ n2 i2 _) :: rest ->
             walkFaces shapeKey orderContact vertexBuffer position radius { normal = n1, vertices = i1 } 1 (Just { normal = n2, vertices = i2 }) rest [] contacts
 
         [] ->
@@ -53,10 +53,10 @@ walkFaces shapeKey orderContact buffer center radius currentFace currentFaceId n
 
                 Nothing ->
                     case queuedGroups of
-                        (OneSidedFace n i _ _) :: restGroups ->
+                        (OneSidedFace n i _ _ _ _) :: restGroups ->
                             walkFaces shapeKey orderContact buffer center radius { normal = n, vertices = i } (currentFaceId + 1) Nothing restGroups newCandidateEdges contacts
 
-                        (TwoSidedFace n1 i1 n2 i2) :: restGroups ->
+                        (TwoSidedFace n1 i1 _ n2 i2 _) :: restGroups ->
                             walkFaces shapeKey orderContact buffer center radius { normal = n1, vertices = i1 } (currentFaceId + 1) (Just { normal = n2, vertices = i2 }) restGroups newCandidateEdges contacts
 
                         [] ->
@@ -82,10 +82,10 @@ walkFaces shapeKey orderContact buffer center radius currentFace currentFaceId n
 
             Nothing ->
                 case queuedGroups of
-                    (OneSidedFace n i _ _) :: restGroups ->
+                    (OneSidedFace n i _ _ _ _) :: restGroups ->
                         walkFaces shapeKey orderContact buffer center radius { normal = n, vertices = i } (currentFaceId + 1) Nothing restGroups candidateEdges contacts
 
-                    (TwoSidedFace n1 i1 n2 i2) :: restGroups ->
+                    (TwoSidedFace n1 i1 _ n2 i2 _) :: restGroups ->
                         walkFaces shapeKey orderContact buffer center radius { normal = n1, vertices = i1 } (currentFaceId + 1) (Just { normal = n2, vertices = i2 }) restGroups candidateEdges contacts
 
                     [] ->

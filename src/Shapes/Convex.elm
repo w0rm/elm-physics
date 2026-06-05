@@ -3,7 +3,9 @@ module Shapes.Convex exposing
     , Face
     , FaceGroup(..)
     , FaceVertices
+    , Obb(..)
     , computeNormal
+    , convexVertices
     , expandBoundingSphereRadius
     , extendContour
     , faceGroupNormal
@@ -36,14 +38,19 @@ type alias Face =
 
 
 {-| A direction group: a primary face and, for a closed polytope, its antipodal
-partner — flattened so a group is one object instead of `( Face, Maybe Face )`
-(no tuple, no `Maybe`, no nested `Face` records to rebuild each frame). The two
-nullary `()` fields on `OneSidedFace` give both variants the same object shape.
-Fields are `normal, vertexIndices[, partnerNormal, partnerVertexIndices]`.
+partner — flattened so a group is one object instead of `( Face, Maybe Face )`.
+Fields: `normal, vertexIndices, faceDist[, partnerNormal, partnerVertexIndices,
+partnerDist]`; `()` pad `OneSidedFace` to the same six-field shape.
+
+`faceDist`/`partnerDist` are the constant body-space signed distances of the
+face/partner from the centroid along the (primary) normal. They let face-SAT
+project the owning convex onto its own normal as `dist + dot(normal, position)` —
+one dot product, no vertex scan — since a rigid body's extent along a body-fixed
+direction only shifts by `dot(normal, centroid)` each frame.
 -}
 type FaceGroup
-    = OneSidedFace Vec3 (List Int) () ()
-    | TwoSidedFace Vec3 (List Int) Vec3 (List Int)
+    = OneSidedFace Vec3 (List Int) Float () () ()
+    | TwoSidedFace Vec3 (List Int) Float Vec3 (List Int) Float
 
 
 {-| Construction-time face: explicit `Vec3` vertices, before `init` packs them
@@ -68,19 +75,30 @@ type alias Convex =
     -- `init`. `placeIn` places the buffer once and rebuilds only `faces` (to
     -- place the normals); each face's vertex-index list is shared unchanged and
     -- `uniqueEdges` is shared whole, so no per-vertex `Vec3` list is rebuilt —
-    -- collision dereferences indices via `VertexBuffer.get`. `vertices`
-    -- is a materialised placed `List Vec3` (small, one entry per unique vertex)
-    -- so the hot SAT projection and `PlaneConvex` keep a flat walk; it's folded
-    -- out of the placed `vertexBuffer` each frame (the buffer's keys 0..n-1 are
-    -- the indices, so no separate index list is needed).
+    -- collision dereferences indices via `VertexBuffer.get`. `obb` carries the
+    -- placed `List Vec3` for a general hull (`NotBox`), or the box's axes +
+    -- half-extents for a box (`Box`); see `Obb` and `convexVertices`.
     { faces : List FaceGroup
-    , vertices : List Vec3
     , uniqueEdges : List (List Int)
     , vertexBuffer : VertexBuffer
+    , obb : Obb
     , position : Vec3
     , inertia : Mat3
     , volume : Float
     }
+
+
+{-| Box fast-path data, or the placed vertex list for everything else. `Box ax
+ay az he`: the placed unit axes (rotated each frame) and constant half-extents
+`he` (`he.x` pairs with `ax`, etc.); the centre is `position`. Its eight vertices
+are derived on demand (`convexVertices`/`boxCorners`), and SAT projects it in
+O(1) via `dot(axis, position) ± Σ|axis·axisᵢ|·heᵢ` — no vertex scan. `NotBox vs`
+holds the placed `Vec3` list the general SAT / `PlaneConvex` / `CapsuleConvex`
+iterate. `()` pad both to one object shape.
+-}
+type Obb
+    = Box Vec3 Vec3 Vec3 Vec3
+    | NotBox (List Vec3) () () ()
 
 
 {-| Materialise a face's vertices from the convex's buffer, in walk order.
@@ -108,10 +126,10 @@ collision code that only needs the direction read a group without unpacking it.
 faceGroupNormal : FaceGroup -> Vec3
 faceGroupNormal group =
     case group of
-        OneSidedFace normal _ _ _ ->
+        OneSidedFace normal _ _ _ _ _ ->
             normal
 
-        TwoSidedFace normal _ _ _ ->
+        TwoSidedFace normal _ _ _ _ _ ->
             normal
 
 
@@ -122,17 +140,91 @@ placeIn transform3d convex =
             VertexBuffer.map (Transform3d.pointPlaceIn transform3d) convex.vertexBuffer
     in
     { faces = placeFaces transform3d convex.faces []
-
-    -- `foldl` visits the buffer in ascending key order and prepends, so
-    -- `vertices` comes out in descending key order — the order the old
-    -- per-frame placement produced, which `PlaneConvex` keys contacts by.
-    , vertices = VertexBuffer.foldl (::) [] placedBuffer
     , uniqueEdges = convex.uniqueEdges
     , vertexBuffer = placedBuffer
+    , obb = placeObb transform3d placedBuffer convex.obb
     , position = Transform3d.pointPlaceIn transform3d convex.position
     , inertia = Transform3d.inertiaRotateIn transform3d convex.inertia
     , volume = convex.volume
     }
+
+
+{-| Place the box's axes (rotation only; half-extents are invariant), or refold
+the non-box's placed vertex list from the buffer. `foldl` visits the buffer in
+ascending key order and prepends, so the list comes out in descending key order
+— the order the old per-frame placement produced, which `PlaneConvex` keys
+contacts by.
+-}
+placeObb : Transform3d coordinates defines -> VertexBuffer -> Obb -> Obb
+placeObb transform3d placedBuffer obb =
+    case obb of
+        Box ax ay az he ->
+            Box
+                (Transform3d.directionPlaceIn transform3d ax)
+                (Transform3d.directionPlaceIn transform3d ay)
+                (Transform3d.directionPlaceIn transform3d az)
+                he
+
+        NotBox _ _ _ _ ->
+            NotBox (VertexBuffer.foldl (::) [] placedBuffer) () () ()
+
+
+{-| The convex's placed vertices: the stored list for a general hull, or the
+box's eight corners derived from its axes + half-extents.
+-}
+convexVertices : Convex -> List Vec3
+convexVertices convex =
+    case convex.obb of
+        NotBox vs _ _ _ ->
+            vs
+
+        Box ax ay az he ->
+            boxCorners convex.position ax ay az he
+
+
+{-| The eight corners of a box: `centre ± he.x·ax ± he.y·ay ± he.z·az`.
+-}
+boxCorners : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List Vec3
+boxCorners c ax ay az he =
+    let
+        corner sx sy sz =
+            { x = c.x + sx * he.x * ax.x + sy * he.y * ay.x + sz * he.z * az.x
+            , y = c.y + sx * he.x * ax.y + sy * he.y * ay.y + sz * he.z * az.y
+            , z = c.z + sx * he.x * ax.z + sy * he.y * ay.z + sz * he.z * az.z
+            }
+    in
+    [ corner 1 1 1
+    , corner 1 1 (-1)
+    , corner 1 (-1) 1
+    , corner 1 (-1) (-1)
+    , corner (-1) 1 1
+    , corner (-1) 1 (-1)
+    , corner (-1) (-1) 1
+    , corner (-1) (-1) (-1)
+    ]
+
+
+{-| Detect a box: exactly three two-sided face groups with mutually orthogonal
+normals. The group normals are the box axes; each `faceDist` is the half-extent
+along that axis. Anything else is `NotBox`, carrying its vertex list.
+-}
+detectObb : List FaceGroup -> List Vec3 -> Obb
+detectObb faces vertices =
+    case faces of
+        [ TwoSidedFace n0 _ d0 _ _ _, TwoSidedFace n1 _ d1 _ _ _, TwoSidedFace n2 _ d2 _ _ _ ] ->
+            if orthogonal n0 n1 && orthogonal n1 n2 && orthogonal n0 n2 then
+                Box n0 n1 n2 { x = d0, y = d1, z = d2 }
+
+            else
+                NotBox vertices () () ()
+
+        _ ->
+            NotBox vertices () () ()
+
+
+orthogonal : Vec3 -> Vec3 -> Bool
+orthogonal a b =
+    abs (Vec3.dot a b) < 1.0e-6
 
 
 {-| Rebuild the face list, placing each normal; the vertex-index lists are
@@ -143,19 +235,21 @@ collision encodes into contact ids (the old per-frame placement reversed too).
 placeFaces : Transform3d coordinates defines -> List FaceGroup -> List FaceGroup -> List FaceGroup
 placeFaces transform3d faces result =
     case faces of
-        (OneSidedFace normal indices a b) :: rest ->
+        (OneSidedFace normal indices faceDist a b c) :: rest ->
             placeFaces transform3d
                 rest
-                (OneSidedFace (Transform3d.directionPlaceIn transform3d normal) indices a b :: result)
+                (OneSidedFace (Transform3d.directionPlaceIn transform3d normal) indices faceDist a b c :: result)
 
-        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+        (TwoSidedFace n1 i1 d1 n2 i2 d2) :: rest ->
             placeFaces transform3d
                 rest
                 (TwoSidedFace
                     (Transform3d.directionPlaceIn transform3d n1)
                     i1
+                    d1
                     (Transform3d.directionPlaceIn transform3d n2)
                     i2
+                    d2
                     :: result
                 )
 
@@ -183,27 +277,42 @@ init geometry =
     let
         buffer =
             VertexBuffer.fromList geometry.vertices
+
+        faces =
+            indexFaces geometry.position geometry.vertices geometry.faces
     in
-    { faces = indexFaces geometry.vertices geometry.faces
-    , vertices = geometry.vertices
+    { faces = faces
     , uniqueEdges = indexEdges geometry.vertices (List.reverse geometry.uniqueEdges)
     , vertexBuffer = buffer
+    , obb = detectObb faces geometry.vertices
     , position = geometry.position
     , inertia = geometry.inertia
     , volume = geometry.volume
     }
 
 
-indexFaces : List Vec3 -> List ( FaceVertices, Maybe FaceVertices ) -> List FaceGroup
-indexFaces vertices faces =
+indexFaces : Vec3 -> List Vec3 -> List ( FaceVertices, Maybe FaceVertices ) -> List FaceGroup
+indexFaces centroid vertices faces =
     List.map
         (\( primary, partner ) ->
             case partner of
                 Just p ->
-                    TwoSidedFace primary.normal (indexFaceVertices vertices primary) p.normal (indexFaceVertices vertices p)
+                    TwoSidedFace
+                        primary.normal
+                        (indexFaceVertices vertices primary)
+                        (faceDistance primary.normal centroid primary.vertices)
+                        p.normal
+                        (indexFaceVertices vertices p)
+                        (faceDistance primary.normal centroid p.vertices)
 
                 Nothing ->
-                    OneSidedFace primary.normal (indexFaceVertices vertices primary) () ()
+                    OneSidedFace
+                        primary.normal
+                        (indexFaceVertices vertices primary)
+                        (faceDistance primary.normal centroid primary.vertices)
+                        ()
+                        ()
+                        ()
         )
         faces
 
@@ -211,6 +320,19 @@ indexFaces vertices faces =
 indexFaceVertices : List Vec3 -> FaceVertices -> List Int
 indexFaceVertices vertices face =
     List.map (\v -> indexOf v vertices) face.vertices
+
+
+{-| Signed distance of a face from the centroid along `normal` (constant in body
+space — all the face's vertices share it, so the first suffices).
+-}
+faceDistance : Vec3 -> Vec3 -> List Vec3 -> Float
+faceDistance normal centroid vertices =
+    case vertices of
+        v :: _ ->
+            Vec3.dot normal (Vec3.sub v centroid)
+
+        [] ->
+            0
 
 
 {-| Each group's endpoints, reversed so collision walks them in the order the
@@ -499,16 +621,16 @@ averageCenterHelp vertices n cX cY cZ =
 
 
 initFaces : List ( Int, Int, Int ) -> Array Vec3 -> List FaceVertices
-initFaces vertexIndices convexVertices =
+initFaces vertexIndices meshVertices =
     let
         faceByEdgeIndex =
             List.foldl
                 (\(( i1, i2, i3 ) as indices) dict ->
-                    case Array.get i1 convexVertices of
+                    case Array.get i1 meshVertices of
                         Just p1 ->
-                            case Array.get i2 convexVertices of
+                            case Array.get i2 meshVertices of
                                 Just p2 ->
-                                    case Array.get i3 convexVertices of
+                                    case Array.get i3 meshVertices of
                                         Just p3 ->
                                             let
                                                 face =
@@ -535,15 +657,15 @@ initFaces vertexIndices convexVertices =
     in
     case vertexIndices of
         (( i1, i2, i3 ) as indices) :: _ ->
-            case Array.get i1 convexVertices of
+            case Array.get i1 meshVertices of
                 Just p1 ->
-                    case Array.get i2 convexVertices of
+                    case Array.get i2 meshVertices of
                         Just p2 ->
-                            case Array.get i3 convexVertices of
+                            case Array.get i3 meshVertices of
                                 Just p3 ->
                                     initFacesHelp
                                         (Set.singleton indices)
-                                        convexVertices
+                                        meshVertices
                                         faceByEdgeIndex
                                         []
                                         [ ( i2, i1 ), ( i3, i2 ), ( i1, i3 ) ]
@@ -905,10 +1027,10 @@ raycast { direction, from } convex =
 raycastWalk : VertexBuffer -> Vec3 -> Vec3 -> List FaceGroup -> Maybe { distance : Float, point : Vec3, normal : Vec3 } -> Maybe { distance : Float, point : Vec3, normal : Vec3 }
 raycastWalk buffer direction from groups maybeHit =
     case groups of
-        (OneSidedFace normal indices _ _) :: rest ->
+        (OneSidedFace normal indices _ _ _ _) :: rest ->
             raycastWalk buffer direction from rest (raycastFace buffer direction from normal indices maybeHit)
 
-        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+        (TwoSidedFace n1 i1 _ n2 i2 _) :: rest ->
             raycastWalk buffer
                 direction
                 from

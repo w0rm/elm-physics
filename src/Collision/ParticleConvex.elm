@@ -11,10 +11,10 @@ import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..))
 addContacts : Int -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact
 addContacts shapeKey orderContact particlePosition { faces, vertexBuffer } contacts =
     case faces of
-        (OneSidedFace n i _ _) :: rest ->
+        (OneSidedFace n i _ _ _ _) :: rest ->
             convexContact shapeKey orderContact vertexBuffer particlePosition { normal = n, vertices = i } Nothing rest Const.maxNumber Vec3.zero contacts
 
-        (TwoSidedFace n1 i1 n2 i2) :: rest ->
+        (TwoSidedFace n1 i1 _ n2 i2 _) :: rest ->
             convexContact shapeKey orderContact vertexBuffer particlePosition { normal = n1, vertices = i1 } (Just { normal = n2, vertices = i2 }) rest Const.maxNumber Vec3.zero contacts
 
         [] ->
@@ -56,10 +56,10 @@ convexContact shapeKey orderContact buffer particlePosition currentFace nextFace
 
             Nothing ->
                 case queuedGroups of
-                    (OneSidedFace n i _ _) :: restGroups ->
+                    (OneSidedFace n i _ _ _ _) :: restGroups ->
                         convexContact shapeKey orderContact buffer particlePosition { normal = n, vertices = i } Nothing restGroups newDepth newNormal contacts
 
-                    (TwoSidedFace n1 i1 n2 i2) :: restGroups ->
+                    (TwoSidedFace n1 i1 _ n2 i2 _) :: restGroups ->
                         convexContact shapeKey orderContact buffer particlePosition { normal = n1, vertices = i1 } (Just { normal = n2, vertices = i2 }) restGroups newDepth newNormal contacts
 
                     [] ->

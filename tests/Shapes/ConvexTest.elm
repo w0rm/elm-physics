@@ -100,10 +100,10 @@ faces =
             List.concatMap
                 (\group ->
                     case group of
-                        Convex.OneSidedFace n i _ _ ->
+                        Convex.OneSidedFace n i _ _ _ _ ->
                             [ { normal = n, vertices = i } ]
 
-                        Convex.TwoSidedFace n1 i1 n2 i2 ->
+                        Convex.TwoSidedFace n1 i1 _ n2 i2 _ ->
                             [ { normal = n1, vertices = i1 }, { normal = n2, vertices = i2 } ]
                 )
                 convex.faces

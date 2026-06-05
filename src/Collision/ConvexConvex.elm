@@ -3,6 +3,7 @@ module Collision.ConvexConvex exposing
     , bestFace
     , findSeparatingAxis
     , project
+    , projectConvex
     , testSeparatingAxis
     )
 
@@ -11,7 +12,7 @@ import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
-import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..))
+import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..), Obb(..))
 
 
 {-| Which body contributed the winning face axis to SAT.
@@ -119,14 +120,14 @@ single dot product decides by sign.
 pickWinningFace : Int -> FaceGroup -> Vec3 -> ( Int, Face )
 pickWinningFace groupIdx group axisToward =
     case group of
-        TwoSidedFace n1 i1 n2 i2 ->
+        TwoSidedFace n1 i1 _ n2 i2 _ ->
             if Vec3.dot n1 axisToward <= 0 then
                 ( groupIdx, { normal = n1, vertices = i1 } )
 
             else
                 ( groupIdx + 1, { normal = n2, vertices = i2 } )
 
-        OneSidedFace n1 i1 _ _ ->
+        OneSidedFace n1 i1 _ _ _ _ ->
             ( groupIdx, { normal = n1, vertices = i1 } )
 
 
@@ -297,7 +298,7 @@ bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace curr
         [] ->
             ( currentBestFaceId, currentBestFace )
 
-        (TwoSidedFace n1 i1 n2 i2) :: restGroups ->
+        (TwoSidedFace n1 i1 _ n2 i2 _) :: restGroups ->
             let
                 primaryDot =
                     Vec3.dot n1 separatingAxis
@@ -320,7 +321,7 @@ bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace curr
             else
                 bestFaceWalk separatingAxis restGroups (faceId + 2) id1 f1 d1
 
-        (OneSidedFace n1 i1 _ _) :: restGroups ->
+        (OneSidedFace n1 i1 _ _ _ _) :: restGroups ->
             let
                 d =
                     Vec3.dot n1 separatingAxis
@@ -418,7 +419,7 @@ findFaceSAT convex1 convex2 =
 
 emptyGroup : FaceGroup
 emptyGroup =
-    OneSidedFace Vec3.zero [] () ()
+    OneSidedFace Vec3.zero [] 0 () () ()
 
 
 findFaceSATHelp : Convex -> Convex -> Side -> List FaceGroup -> List FaceGroup -> Int -> Int -> Side -> FaceGroup -> Float -> Maybe FaceWinner
@@ -443,7 +444,7 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
                     findFaceSATHelp convex1 convex2 Convex2 nextNormals [] 1 winnerIdx winnerSide winnerGroup dmin
 
         group :: restNormals ->
-            case testSeparatingAxis convex1 convex2 (Convex.faceGroupNormal group) of
+            case testFaceSeparatingAxis convex1 convex2 currentSide group of
                 Nothing ->
                     Nothing
 
@@ -451,10 +452,10 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
                     let
                         groupSize =
                             case group of
-                                TwoSidedFace _ _ _ _ ->
+                                TwoSidedFace _ _ _ _ _ _ ->
                                     2
 
-                                OneSidedFace _ _ _ _ ->
+                                OneSidedFace _ _ _ _ _ _ ->
                                     1
                     in
                     if dist - dmin < 0 then
@@ -574,13 +575,66 @@ findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best
 -}
 testSeparatingAxis : Convex -> Convex -> Vec3 -> Maybe Float
 testSeparatingAxis convex1 convex2 separatingAxis =
+    overlap
+        (projectConvex separatingAxis convex1)
+        (projectConvex separatingAxis convex2)
+
+
+{-| A convex's [min,max] projection onto `axis`. A box projects in O(1) from its
+axes + half-extents (`dot(axis, centre) ± Σ|axis·axisᵢ|·heᵢ`, no vertex scan); a
+general hull scans its placed vertex list.
+-}
+projectConvex : Vec3 -> Convex -> { min : Float, max : Float }
+projectConvex axis convex =
+    case convex.obb of
+        Box ax ay az he ->
+            let
+                c =
+                    Vec3.dot axis convex.position
+
+                e =
+                    abs (Vec3.dot axis ax) * he.x + abs (Vec3.dot axis ay) * he.y + abs (Vec3.dot axis az) * he.z
+            in
+            { min = c - e, max = c + e }
+
+        NotBox vs _ _ _ ->
+            project axis Const.maxNumber -Const.maxNumber vs
+
+
+{-| SAT for a face-normal axis. The axis is `owningSide`'s face normal, so that
+convex's extent along it is the constant body-space `faceDist`/`partnerDist`
+(face / antipodal partner distance from the centroid) plus one shared
+`dot(axis, position)`. The other convex projects via `projectConvex` — also O(1)
+when it's a box.
+
+Not byte-identical: `faceDist + dot(n, pos)` (and the box extent) ≠ `max` over
+the vertices in the last bit (FP), enough to flip a borderline face/edge tie.
+Behaviour stays valid (tests pass); the chaotic drop checksum shifts, a resting
+scene barely.
+-}
+testFaceSeparatingAxis : Convex -> Convex -> Side -> FaceGroup -> Maybe Float
+testFaceSeparatingAxis convex1 convex2 owningSide group =
     let
-        p1 =
-            project separatingAxis Const.maxNumber -Const.maxNumber convex1.vertices
+        axis =
+            Convex.faceGroupNormal group
+    in
+    case owningSide of
+        Convex1 ->
+            overlap
+                (faceExtent axis group convex1)
+                (projectConvex axis convex2)
 
-        p2 =
-            project separatingAxis Const.maxNumber -Const.maxNumber convex2.vertices
+        Convex2 ->
+            overlap
+                (projectConvex axis convex1)
+                (faceExtent axis group convex2)
 
+
+{-| Overlap depth of two projection ranges, or `Nothing` if they separate.
+-}
+overlap : { min : Float, max : Float } -> { min : Float, max : Float } -> Maybe Float
+overlap p1 p2 =
+    let
         d1 =
             p1.max - p2.min
 
@@ -595,6 +649,24 @@ testSeparatingAxis convex1 convex2 separatingAxis =
 
     else
         Just d1
+
+
+{-| The owning convex's [min,max] along its own face normal, from the cached
+plane distances + one `dot(axis, placedCentroid)`. `OneSidedFace` has no
+antipodal partner, so fall back to a full scan.
+-}
+faceExtent : Vec3 -> FaceGroup -> Convex -> { min : Float, max : Float }
+faceExtent axis group convex =
+    case group of
+        TwoSidedFace _ _ faceDist _ _ partnerDist ->
+            let
+                posDot =
+                    Vec3.dot axis convex.position
+            in
+            { max = faceDist + posDot, min = partnerDist + posDot }
+
+        OneSidedFace _ _ _ _ _ _ ->
+            project axis Const.maxNumber -Const.maxNumber (Convex.convexVertices convex)
 
 
 {-| Get max and min dot product of a convex hull at ShapeWorldTransform3d projected onto an axis.
