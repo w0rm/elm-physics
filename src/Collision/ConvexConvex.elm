@@ -364,15 +364,15 @@ clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
         nDotNext =
             Vec3.dot planeNormal next + planeConstant
     in
-    if nDotPrev < 0 then
-        if nDotNext < 0 then
+    if nDotPrev - Const.contactBreakingThreshold < 0 then
+        if nDotNext - Const.contactBreakingThreshold < 0 then
             next :: result
 
         else
             Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
                 :: result
 
-    else if nDotNext < 0 then
+    else if nDotNext - Const.contactBreakingThreshold < 0 then
         next
             :: Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
             :: result
@@ -611,6 +611,7 @@ Not byte-identical: `faceDist + dot(n, pos)` (and the box extent) ≠ `max` over
 the vertices in the last bit (FP), enough to flip a borderline face/edge tie.
 Behaviour stays valid (tests pass); the chaotic drop checksum shifts, a resting
 scene barely.
+
 -}
 testFaceSeparatingAxis : Convex -> Convex -> Side -> FaceGroup -> Maybe Float
 testFaceSeparatingAxis convex1 convex2 owningSide group =
