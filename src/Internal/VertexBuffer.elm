@@ -54,6 +54,7 @@ are assigned in list order (so `get i` returns the i-th vertex), starting at
 -}
 fromListHelp : Int -> Int -> List Vec3 -> ( VertexBuffer, List Vec3, Int )
 fromListHelp n startKey vertices =
+    -- IGNORE TCO — builds a balanced tree, both subtrees recurse
     if n <= 0 then
         ( empty, vertices, startKey )
 
@@ -114,6 +115,7 @@ vertices in one traversal.
 -}
 map : (Vec3 -> Vec3) -> VertexBuffer -> VertexBuffer
 map fn buffer =
+    -- IGNORE TCO — binary tree, both branches recurse
     case buffer of
         Empty _ _ _ _ ->
             -- Reuse the shared sentinel — leaves carry no data, so re-allocating
@@ -130,6 +132,7 @@ reductions like min/max projection, so collision needn't materialise a list.
 -}
 foldl : (Vec3 -> b -> b) -> b -> VertexBuffer -> b
 foldl fn acc buffer =
+    -- IGNORE TCO — binary tree, both branches recurse
     case buffer of
         Empty _ _ _ _ ->
             acc

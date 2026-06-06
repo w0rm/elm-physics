@@ -29,11 +29,12 @@ type Scene
     = StackOf5
     | StackOf5Dropped
     | Slope
+    | CylinderStack
 
 
 allScenes : List Scene
 allScenes =
-    [ StackOf5, StackOf5Dropped, Slope ]
+    [ StackOf5, StackOf5Dropped, Slope, CylinderStack ]
 
 
 sceneName : Scene -> String
@@ -48,6 +49,9 @@ sceneName scene =
         Slope ->
             "Box on a slope"
 
+        CylinderStack ->
+            "Stack of 5 cylinders"
+
 
 sceneFromName : String -> Scene
 sceneFromName name =
@@ -57,6 +61,9 @@ sceneFromName name =
 
         "Box on a slope" ->
             Slope
+
+        "Stack of 5 cylinders" ->
+            CylinderStack
 
         _ ->
             StackOf5
@@ -73,6 +80,9 @@ sceneBodies scene =
 
         Slope ->
             Scenarios.restingOnSlope.bodies
+
+        CylinderStack ->
+            Scenarios.stackOfCylinders.bodies
 
 
 
@@ -103,6 +113,9 @@ main =
                         case state.scene of
                             Slope ->
                                 Array.get id slopeMeshes
+
+                            CylinderStack ->
+                                Array.get id cylinderMeshes
 
                             _ ->
                                 Array.get id stackMeshes
@@ -142,6 +155,16 @@ stackMeshes =
     Array.fromList
         (Meshes.fromTriangles []
             :: List.repeat 10 (Meshes.fromTriangles (Meshes.block Scenarios.unitBlock))
+        )
+
+
+{-| Cylinder stack: id 0 floor, ids 1.. unit cylinders; 12-gon mesh matches the hull.
+-}
+cylinderMeshes : Array (Mesh Attributes)
+cylinderMeshes =
+    Array.fromList
+        (Meshes.fromTriangles []
+            :: List.repeat 10 (Meshes.fromTriangles (Meshes.cylinder 12 Scenarios.unitCylinder))
         )
 
 

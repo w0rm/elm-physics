@@ -23,17 +23,20 @@ boundingSphereRadius =
         , test "addShape computes the bounding sphere radius" <|
             \_ ->
                 Body.compound 2 [ ( box 2 2 2, Material.wood, 1 ) ]
-                    |> .geometry |> .boundingSphereRadius
+                    |> .geometry
+                    |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 1, y = 1, z = 1 })
         , test "addShape expands the bounding sphere radius" <|
             \_ ->
                 Body.compound 2 [ ( box 2 2 2, Material.wood, 1 ), ( box 4 4 4, Material.wood, 1 ) ]
-                    |> .geometry |> .boundingSphereRadius
+                    |> .geometry
+                    |> .boundingSphereRadius
                     |> Expect.within (Expect.Absolute 0.00001) (Vec3.length { x = 2, y = 2, z = 2 })
         , test "addShape sets the bounding sphere radius to maxNumber for a plane shape" <|
             \_ ->
                 Body.compound 2 [ ( plane, Material.wood, 1 ) ]
-                    |> .geometry |> .boundingSphereRadius
+                    |> .geometry
+                    |> .boundingSphereRadius
                     |> Expect.atLeast Const.maxNumber
         ]
 
@@ -93,7 +96,8 @@ volume =
         [ test "solid box has volume equal to its dimensions" <|
             \_ ->
                 Body.compound 2 [ ( box 2 3 4, Material.wood, 1 ) ]
-                    |> .geometry |> .volume
+                    |> .geometry
+                    |> .volume
                     |> Expect.within (Expect.Absolute 0.00001) (2 * 3 * 4)
         , test "hollow crate has correct mass (outer minus inner)" <|
             \_ ->
@@ -112,7 +116,8 @@ volume =
                     [ ( box 1 1 1, Material.wood, 1 )
                     , ( box 0.8 0.8 0.8, Material.wood, -1 )
                     ]
-                    |> .geometry |> .volume
+                    |> .geometry
+                    |> .volume
                     |> Expect.within (Expect.Absolute 0.00001) (1 - 0.8 ^ 3)
         , test "hollow crate has correct inertia (outer minus inner)" <|
             \_ ->

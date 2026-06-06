@@ -5,7 +5,7 @@ import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
-import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..))
+import Shapes.Convex exposing (Convex, Face, FaceGroup(..))
 
 
 addContacts : Int -> (Contact -> Contact) -> Vec3 -> Convex -> List Contact -> List Contact

@@ -349,26 +349,29 @@ cylinder subdivisions cylinder3d =
 
         wedge startIndex =
             let
+                -- Match Convex.fromCylinder's ring exactly (vertices at the
+                -- (k - 0.5) wedge angles, x = sin / y = cos) so the rendered
+                -- mesh sits on the collision hull rather than rotated off it.
                 startAngle =
-                    wedgeAngle * toFloat startIndex
+                    wedgeAngle * (toFloat startIndex - 0.5)
 
                 endIndex =
                     startIndex + 1 |> modBy subdivisions
 
                 endAngle =
-                    wedgeAngle * toFloat endIndex
+                    wedgeAngle * (toFloat endIndex - 0.5)
 
                 startX =
-                    radius * cos startAngle
-
-                endX =
-                    radius * cos endAngle
-
-                startY =
                     radius * sin startAngle
 
-                endY =
+                endX =
                     radius * sin endAngle
+
+                startY =
+                    radius * cos startAngle
+
+                endY =
+                    radius * cos endAngle
 
                 p0 =
                     transform startX startY bottomZ

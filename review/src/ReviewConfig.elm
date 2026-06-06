@@ -28,11 +28,16 @@ config : List Rule
 config =
     [ NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
-        -- Internal.ContactCache.Empty carries five () fields on purpose: they
-        -- give it the same object shape as Node so V8 loads the `$`
-        -- discriminator from one monomorphic hidden class. The args are meant
-        -- to be unused, so exempt this file from the "never extracted" rule.
-        |> Review.Rule.ignoreErrorsForFiles [ "src/Internal/ContactCache.elm" ]
+        -- These modules pad a constructor with () fields on purpose so it shares
+        -- an object shape with its sibling, letting V8 read the `$` discriminator
+        -- from one monomorphic hidden class. The args are meant to be unused.
+        |> Review.Rule.ignoreErrorsForFiles
+            [ "src/Internal/ContactCache.elm"
+            , "src/Internal/VertexBuffer.elm"
+            , "src/Shapes/Convex.elm"
+            , "src/Collision/ConvexConvex.elm"
+            , "src/Collision/CapsuleConvex.elm"
+            ]
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
     , NoUnused.Modules.rule

@@ -11,6 +11,7 @@ module Shapes.Convex exposing
     , faceGroupNormal
     , faceVertices
     , foldFaceEdges
+    , indexedFaceVertices
     , fromBlock
     , fromCylinder
     , fromTriangularMesh
@@ -47,6 +48,7 @@ face/partner from the centroid along the (primary) normal. They let face-SAT
 project the owning convex onto its own normal as `dist + dot(normal, position)` —
 one dot product, no vertex scan — since a rigid body's extent along a body-fixed
 direction only shifts by `dot(normal, centroid)` each frame.
+
 -}
 type FaceGroup
     = OneSidedFace Vec3 (List Int) Float () () ()
@@ -112,9 +114,27 @@ faceVertices buffer face =
 
 materialize : VertexBuffer -> List Int -> List Vec3
 materialize buffer indices =
+    -- IGNORE TCO — short face lists; order feeds clip winding
     case indices of
         i :: rest ->
             VertexBuffer.get i buffer :: materialize buffer rest
+
+        [] ->
+            []
+
+
+{-| Face vertices keyed by their buffer index, `( index, point )`. -}
+indexedFaceVertices : VertexBuffer -> Face -> List ( Int, Vec3 )
+indexedFaceVertices buffer face =
+    materializeIndexed buffer face.vertices
+
+
+materializeIndexed : VertexBuffer -> List Int -> List ( Int, Vec3 )
+materializeIndexed buffer indices =
+    -- IGNORE TCO — short face lists; order feeds clip winding
+    case indices of
+        i :: rest ->
+            ( i, VertexBuffer.get i buffer ) :: materializeIndexed buffer rest
 
         [] ->
             []
@@ -194,13 +214,13 @@ boxCorners c ax ay az he =
             }
     in
     [ corner 1 1 1
-    , corner 1 1 (-1)
-    , corner 1 (-1) 1
-    , corner 1 (-1) (-1)
-    , corner (-1) 1 1
-    , corner (-1) 1 (-1)
-    , corner (-1) (-1) 1
-    , corner (-1) (-1) (-1)
+    , corner 1 1 -1
+    , corner 1 -1 1
+    , corner 1 -1 -1
+    , corner -1 1 1
+    , corner -1 1 -1
+    , corner -1 -1 1
+    , corner -1 -1 -1
     ]
 
 
@@ -1120,7 +1140,7 @@ raycastFace buffer direction from normal indices maybeHit =
 {-| Map the function to pairs of consecutive vertices,
 starting with the pair (first, second), and so on, until (last, first).
 -}
-foldFaceEdges : (Vec3 -> Vec3 -> b -> b) -> b -> List Vec3 -> b
+foldFaceEdges : (a -> a -> b -> b) -> b -> List a -> b
 foldFaceEdges fn resultSeed vertices =
     case vertices of
         first :: _ :: _ ->
@@ -1131,7 +1151,7 @@ foldFaceEdges fn resultSeed vertices =
             resultSeed
 
 
-foldFaceEdgesHelp : (Vec3 -> Vec3 -> b -> b) -> Vec3 -> b -> List Vec3 -> b
+foldFaceEdgesHelp : (a -> a -> b -> b) -> a -> b -> List a -> b
 foldFaceEdgesHelp fn seed resultSeed vertices =
     case vertices of
         el1 :: rest1 ->

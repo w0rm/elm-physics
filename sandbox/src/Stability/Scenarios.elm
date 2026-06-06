@@ -5,7 +5,9 @@ module Stability.Scenarios exposing
     , slopeRamp
     , stackOf5
     , stackOf5Dropped
+    , stackOfCylinders
     , unitBlock
+    , unitCylinder
     )
 
 {-| Repeatable, deterministic test scenarios for stability benchmarking.
@@ -24,6 +26,8 @@ Boxes: 1 m × 1 m × 1 m wood, centered at origin in body coordinates.
 import Angle
 import Axis3d
 import Block3d exposing (Block3d)
+import Cylinder3d exposing (Cylinder3d)
+import Direction3d
 import Frame3d
 import Length exposing (Meters)
 import Physics exposing (BodyCoordinates)
@@ -43,6 +47,16 @@ unitBlock : Block3d Meters BodyCoordinates
 unitBlock =
     Block3d.centeredOn Frame3d.atOrigin
         ( Length.meters 1, Length.meters 1, Length.meters 1 )
+
+
+{-| A unit-height wood cylinder, vertical axis, caps at z = ±0.5 so it stacks like
+`unitBlock`. Exposed so browser scenes build a matching mesh.
+-}
+unitCylinder : Cylinder3d Meters BodyCoordinates
+unitCylinder =
+    Cylinder3d.centeredOn Point3d.origin
+        Direction3d.z
+        { radius = Length.meters 0.5, length = Length.meters 1 }
 
 
 ground : ( Int, Physics.Body )
@@ -177,6 +191,34 @@ stackOf5Dropped =
                 in
                 ( k
                 , Physics.block unitBlock Material.wood
+                    |> Physics.moveTo
+                        (Point3d.meters 0 0 (toFloat k - 0.5 + toFloat k * dropGap))
+                )
+            )
+            (List.repeat n ())
+            ++ [ ground ]
+    }
+
+
+{-| Five wood cylinders dropped with `dropGap` of air, settling cap-on-cap. Each
+12-gon cap over-counts before the cull — a visible exercise of it.
+-}
+stackOfCylinders : Scenario
+stackOfCylinders =
+    { name = "stack of 5 cylinders (dropped)"
+    , bodies =
+        let
+            n =
+                5
+        in
+        List.indexedMap
+            (\i _ ->
+                let
+                    k =
+                        n - i
+                in
+                ( k
+                , Physics.cylinder unitCylinder Material.wood
                     |> Physics.moveTo
                         (Point3d.meters 0 0 (toFloat k - 0.5 + toFloat k * dropGap))
                 )

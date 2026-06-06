@@ -112,12 +112,8 @@ addContacts =
                     |> List.all (\c -> not (String.startsWith "-e" (ContactId.featureString c.featureKey)))
                     |> Expect.equal True
         , test "settled near-coplanar stack interface stays at four contacts (no degenerate over-count)" <|
-            -- Poses captured from a settling box stack at the frame its committed
-            -- clip emitted 6 points (4 vertices + 2 on the shared edges). The faces
-            -- are near-coplanar with ~1e-4 settling drift, so incident vertices
-            -- straddle the reference edge planes — the Sutherland-Hodgman on-plane
-            -- degenerate. The correct manifold is exactly 4. (Exact coplanarity does
-            -- NOT reproduce it; the tiny drift is what triggers it.)
+            -- Real settling poses where the clip emitted 6 points (4 corners + 2 on
+            -- the shared edges); ~1e-4 drift triggers it, exact coplanarity doesn't.
             \_ ->
                 let
                     box2 =
@@ -150,7 +146,8 @@ addContacts =
                     targetBox
                     []
                     |> List.map (\c -> ContactId.featureString c.featureKey)
-                    |> Expect.equal [ "-f3-f5-v2", "-f3-f5-v1" ]
+                    |> List.sort
+                    |> Expect.equal [ "-f3-f5-v5", "-f3-f5-v6" ]
         , test "same tilt at shifted y-offset emits two face-face contacts" <|
             \_ ->
                 Collision.ConvexConvex.addContacts 0
@@ -158,7 +155,8 @@ addContacts =
                     targetBox
                     []
                     |> List.map (\c -> ContactId.featureString c.featureKey)
-                    |> Expect.equal [ "-f3-f5-v3", "-f3-f5-v2" ]
+                    |> List.sort
+                    |> Expect.equal [ "-f3-f5-v5", "-f3-f5-v6" ]
         ]
 
 

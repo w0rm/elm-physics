@@ -10,6 +10,7 @@ module Collision.ConvexConvex exposing
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
+import Internal.Manifold as Manifold
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..), Obb(..))
@@ -203,13 +204,14 @@ pickSupportEdgeHelp supportDir edges buffer idx bestIdx bestEdge bestDot =
 clipTwoFaces : Int -> Int -> Int -> Face -> VertexBuffer -> Face -> VertexBuffer -> Vec3 -> List Contact -> List Contact
 clipTwoFaces shapeKey faceId1 faceId2 face faceBuffer incidentFace incidentBuffer separatingAxis contacts =
     let
-        -- Only the two faces in contact are materialised, on demand — the other
-        -- faces' vertices are never turned into a `List Vec3`.
+        -- Only the two contacting faces are materialised, on demand.
         referenceVertices =
             Convex.faceVertices faceBuffer face
 
-        incidentVertices =
-            Convex.faceVertices incidentBuffer incidentFace
+        -- Each vertex carries its buffer index as the warm-start key, threaded
+        -- through the clip so it survives the cull.
+        incidentPolygon =
+            Convex.indexedFaceVertices incidentBuffer incidentFace
 
         point =
             case referenceVertices of
@@ -222,57 +224,46 @@ clipTwoFaces shapeKey faceId1 faceId2 face faceBuffer incidentFace incidentBuffe
         facePlaneConstant =
             -(Vec3.dot face.normal point)
     in
-    clipTwoFacesHelp shapeKey
+    emitManifold shapeKey
         faceId1
         faceId2
         separatingAxis
-        face
+        face.normal
         facePlaneConstant
-        0
-        (clipAgainstAdjacentFaces face.normal referenceVertices incidentVertices)
+        (Manifold.reduce face.normal
+            facePlaneConstant
+            (clipAgainstAdjacentFaces face.normal referenceVertices incidentPolygon)
+        )
         contacts
 
 
-clipTwoFacesHelp : Int -> Int -> Int -> Vec3 -> Face -> Float -> Int -> List Vec3 -> List Contact -> List Contact
-clipTwoFacesHelp shapeKey faceId1 faceId2 separatingAxis face facePlaneConstant n vertices result =
-    case vertices of
-        vertex :: remainingVertices ->
+emitManifold : Int -> Int -> Int -> Vec3 -> Vec3 -> Float -> List ( Int, Vec3 ) -> List Contact -> List Contact
+emitManifold shapeKey faceId1 faceId2 separatingAxis normal planeConstant points result =
+    case points of
+        ( vertexId, vertex ) :: rest ->
             let
                 depth =
-                    Vec3.dot face.normal vertex + facePlaneConstant
+                    Vec3.dot normal vertex + planeConstant
             in
-            if depth - Const.contactBreakingThreshold < 0 then
-                clipTwoFacesHelp shapeKey
-                    faceId1
-                    faceId2
-                    separatingAxis
-                    face
-                    facePlaneConstant
-                    (n + 1)
-                    remainingVertices
-                    ({ shapeKey = shapeKey
-                     , featureKey = ContactId.convexConvexFace faceId1 faceId2 (n + 1)
-                     , ni = separatingAxis
-                     , pi =
-                        { x = vertex.x - depth * face.normal.x
-                        , y = vertex.y - depth * face.normal.y
-                        , z = vertex.z - depth * face.normal.z
-                        }
-                     , pj = vertex
-                     }
-                        :: result
-                    )
-
-            else
-                clipTwoFacesHelp shapeKey
-                    faceId1
-                    faceId2
-                    separatingAxis
-                    face
-                    facePlaneConstant
-                    (n + 1)
-                    remainingVertices
-                    result
+            emitManifold shapeKey
+                faceId1
+                faceId2
+                separatingAxis
+                normal
+                planeConstant
+                rest
+                ({ shapeKey = shapeKey
+                 , featureKey = ContactId.convexConvexFace faceId1 faceId2 vertexId
+                 , ni = separatingAxis
+                 , pi =
+                    { x = vertex.x - depth * normal.x
+                    , y = vertex.y - depth * normal.y
+                    , z = vertex.z - depth * normal.z
+                    }
+                 , pj = vertex
+                 }
+                    :: result
+                )
 
         [] ->
             result
@@ -333,8 +324,8 @@ bestFaceWalk separatingAxis groups faceId currentBestFaceId currentBestFace curr
                 bestFaceWalk separatingAxis restGroups (faceId + 1) currentBestFaceId currentBestFace currentBestDistance
 
 
-clipAgainstAdjacentFaces : Vec3 -> List Vec3 -> List Vec3 -> List Vec3
-clipAgainstAdjacentFaces normal referenceVertices incidentVertices =
+clipAgainstAdjacentFaces : Vec3 -> List Vec3 -> List ( Int, Vec3 ) -> List ( Int, Vec3 )
+clipAgainstAdjacentFaces normal referenceVertices incidentPolygon =
     Convex.foldFaceEdges
         (\v1 v2 ->
             let
@@ -351,34 +342,57 @@ clipAgainstAdjacentFaces normal referenceVertices incidentVertices =
                 (clipFaceAgainstPlaneAdd planeNormal planeConstant)
                 []
         )
-        incidentVertices
+        incidentPolygon
         referenceVertices
 
 
-clipFaceAgainstPlaneAdd : Vec3 -> Float -> Vec3 -> Vec3 -> List Vec3 -> List Vec3
+clipFaceAgainstPlaneAdd : Vec3 -> Float -> ( Int, Vec3 ) -> ( Int, Vec3 ) -> List ( Int, Vec3 ) -> List ( Int, Vec3 )
 clipFaceAgainstPlaneAdd planeNormal planeConstant prev next result =
     let
+        ( _, prevP ) =
+            prev
+
+        ( _, nextP ) =
+            next
+
         nDotPrev =
-            Vec3.dot planeNormal prev + planeConstant
+            Vec3.dot planeNormal prevP + planeConstant
 
         nDotNext =
-            Vec3.dot planeNormal next + planeConstant
+            Vec3.dot planeNormal nextP + planeConstant
     in
-    if nDotPrev - Const.contactBreakingThreshold < 0 then
-        if nDotNext - Const.contactBreakingThreshold < 0 then
+    if nDotPrev < 0 then
+        if nDotNext < 0 then
             next :: result
 
         else
-            Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
-                :: result
+            crossing nDotPrev nDotNext prev next :: result
 
-    else if nDotNext - Const.contactBreakingThreshold < 0 then
+    else if nDotNext < 0 then
         next
-            :: Vec3.lerp (nDotPrev / (nDotPrev - nDotNext)) prev next
+            :: crossing nDotPrev nDotNext prev next
             :: result
 
     else
         result
+
+
+{-| Where incident edge `prev→next` crosses the clip plane, keyed to its nearer
+endpoint (by the lerp parameter) for a stable warm-start vertex.
+-}
+crossing : Float -> Float -> ( Int, Vec3 ) -> ( Int, Vec3 ) -> ( Int, Vec3 )
+crossing nDotPrev nDotNext ( prevId, prevP ) ( nextId, nextP ) =
+    let
+        t =
+            nDotPrev / (nDotPrev - nDotNext)
+    in
+    ( if t < 0.5 then
+        prevId
+
+      else
+        nextId
+    , Vec3.lerp t prevP nextP
+    )
 
 
 findSeparatingAxis : Convex -> Convex -> Maybe Vec3
@@ -487,11 +501,8 @@ noEdgeBeats =
     NoEdgeBeats () () () () ()
 
 
-{-| Multiplier on edge SAT depth when ranked against face SAT depth —
-edge must be at least 5% better to take the edge-edge path. Relative so
-it scales with shape size; an absolute window mis-classifies
-shallow-rotation edge-vs-face configurations as edge-edge and emits one
-contact where clipping would emit two.
+{-| Edge SAT must beat face SAT by 5% to take the edge-edge path; relative so it
+scales with size.
 -}
 edgeBiasFactor : Float
 edgeBiasFactor =
@@ -506,8 +517,6 @@ edges (4 for a cube) instead of all face-edges. Direction indices are
 findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
 findEdgeSAT convex1 convex2 faceDmin =
     -- Pre-bias the threshold so the loop runs plain `dist < dmin`.
-    -- Once an edge wins, subsequent edges compete on raw depth — the
-    -- 5% bias is a face/edge boundary effect, not edge/edge.
     findEdgeSATHelp convex1
         convex2
         convex2.uniqueEdges
@@ -631,7 +640,8 @@ testFaceSeparatingAxis convex1 convex2 owningSide group =
                 (faceExtent axis group convex2)
 
 
-{-| Overlap depth of two projection ranges, or `Nothing` if they separate.
+{-| Penetration depth of two projection ranges, or `Nothing` if they separate past
+the margin.
 -}
 overlap : { min : Float, max : Float } -> { min : Float, max : Float } -> Maybe Float
 overlap p1 p2 =

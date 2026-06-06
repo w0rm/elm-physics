@@ -196,8 +196,10 @@ simple =
     tagSimple
 
 
-{-| Convex-convex face clip: faces `f1`/`f2` (1-based, matching `bestFace`)
-and the clip vertex index `v`.
+{-| Convex-convex face clip: faces `f1`/`f2` (1-based) and the incident vertex `v`
+the clipped point keys to (a kept vertex is itself; a crossing takes its nearer
+endpoint). Keyed to the feature, not clip position, so warm-start survives the
+manifold cull.
 -}
 convexConvexFace : Int -> Int -> Int -> Int
 convexConvexFace f1 f2 v =
