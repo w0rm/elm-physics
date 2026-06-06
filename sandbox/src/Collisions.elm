@@ -619,13 +619,13 @@ controlledBody shape pose =
 
 
 type alias ShapeMeshes =
-    { targetBox : Mesh Attributes
-    , capsule : Mesh Attributes
-    , box : Mesh Attributes
-    , sphere : Mesh Attributes
-    , cylinder : Mesh Attributes
-    , unsafeConvexBox : Mesh Attributes
-    , unsafeConvexSphere : Mesh Attributes
+    { targetBox : Meshes.Meshes
+    , capsule : Meshes.Meshes
+    , box : Meshes.Meshes
+    , sphere : Meshes.Meshes
+    , cylinder : Meshes.Meshes
+    , unsafeConvexBox : Meshes.Meshes
+    , unsafeConvexSphere : Meshes.Meshes
     }
 
 
@@ -653,7 +653,7 @@ shapeMeshes =
     }
 
 
-controlledMesh : ControlledShape -> Mesh Attributes
+controlledMesh : ControlledShape -> Meshes.Meshes
 controlledMesh shape =
     case shape of
         ShapeCapsule ->
@@ -711,6 +711,7 @@ view model =
                 ]
             , contacts = contactPoints
             , camera = model.camera
+            , contactRadius = 0.07
             , floorOffset = floorOffset
             }
         , if model.settings.debugContacts && model.settings.debugContactIds then

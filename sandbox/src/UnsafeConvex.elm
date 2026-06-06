@@ -88,7 +88,7 @@ parallelepipedBody =
             Physics.dynamic []
 
 
-icoSphereMesh : Mesh Attributes
+icoSphereMesh : Meshes.Meshes
 icoSphereMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) icoSphereObj of
         Ok triangularMesh ->
@@ -98,7 +98,7 @@ icoSphereMesh =
             Meshes.fromTriangles []
 
 
-cubeMesh : Mesh Attributes
+cubeMesh : Meshes.Meshes
 cubeMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) cubeObj of
         Ok triangularMesh ->
@@ -108,7 +108,7 @@ cubeMesh =
             Meshes.fromTriangles []
 
 
-wedgeMesh : Mesh Attributes
+wedgeMesh : Meshes.Meshes
 wedgeMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) wedgeObj of
         Ok triangularMesh ->
@@ -118,7 +118,7 @@ wedgeMesh =
             Meshes.fromTriangles []
 
 
-tetraMesh : Mesh Attributes
+tetraMesh : Meshes.Meshes
 tetraMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) tetraObj of
         Ok triangularMesh ->
@@ -128,7 +128,7 @@ tetraMesh =
             Meshes.fromTriangles []
 
 
-parallelepipedMesh : Mesh Attributes
+parallelepipedMesh : Meshes.Meshes
 parallelepipedMesh =
     case Obj.Decode.decodeString Length.meters (Obj.Decode.trianglesIn Frame3d.atOrigin) parallelepipedObj of
         Ok triangularMesh ->
@@ -149,7 +149,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     Array.fromList
         [ Meshes.fromTriangles []

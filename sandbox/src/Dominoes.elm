@@ -46,6 +46,10 @@ main =
                 , maxSteps = 2
                 }
             , solverIterations = 20
+
+            -- mm-scale dominoes: shrink the contact dots to match (the
+            -- default 0.07 m is wider than a whole domino)
+            , contactRadius = 0.002
         }
 
 
@@ -113,7 +117,7 @@ initialBodies =
     ( 0, floorBody ) :: ( 1, tiltedDomino ) :: regularDominos
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     let
         floorMesh =

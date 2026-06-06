@@ -1,5 +1,7 @@
 module Common.Meshes exposing
     ( Attributes
+    , Meshes
+    , ShadowVertex
     , block
     , capsule
     , contact
@@ -11,6 +13,7 @@ module Common.Meshes exposing
 
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
+import Dict exposing (Dict)
 import Direction3d
 import Frame3d
 import Length exposing (Meters, inMeters)
@@ -28,18 +31,134 @@ type alias Attributes =
     }
 
 
+{-| A renderable body: its lit mesh plus the matching shadow-volume mesh
+used by the stencil shadow pass.
+-}
+type alias Meshes =
+    { mesh : Mesh Attributes
+    , shadow : Mesh ShadowVertex
+    }
+
+
+{-| A shadow-volume vertex carries the adjacent face normal so the shadow
+vertex shader can decide whether to extrude it away from the light.
+-}
+type alias ShadowVertex =
+    { position : Vec3
+    , normal : Vec3
+    }
+
+
 
 -- Meshes
 
 
+{-| A unit-radius sphere; the scene scales it to the demo's `contactRadius`. -}
 contact : Mesh Attributes
 contact =
-    fromTriangles (sphere 2 (Sphere3d.atOrigin (Length.meters 0.07)))
+    WebGL.triangles (sphere 2 (Sphere3d.atOrigin (Length.meters 1)))
 
 
-fromTriangles : List ( Attributes, Attributes, Attributes ) -> Mesh Attributes
-fromTriangles =
-    WebGL.triangles
+{-| Build the lit mesh and its shadow volume from a single triangle list. -}
+fromTriangles : List ( Attributes, Attributes, Attributes ) -> Meshes
+fromTriangles triangles =
+    { mesh = WebGL.triangles triangles
+    , shadow = WebGL.triangles (shadowVolume triangles)
+    }
+
+
+
+-- Shadow volumes
+
+
+type alias EdgeKey =
+    ( ( Int, Int, Int ), ( Int, Int, Int ) )
+
+
+type alias Collected =
+    { left : Dict EdgeKey { start : Vec3, end : Vec3, normal : Vec3 }
+    , right : Dict EdgeKey Vec3
+    }
+
+
+{-| Turn a closed triangle mesh into shadow-volume side quads. Each shared
+edge yields one quad whose two corners carry the normals of its adjacent
+faces; the shadow vertex shader extrudes whichever side faces away from the
+light, so only silhouette edges (one face lit, one dark) form a wall and
+coplanar interior edges stay degenerate.
+-}
+shadowVolume : List ( Attributes, Attributes, Attributes ) -> List ( ShadowVertex, ShadowVertex, ShadowVertex )
+shadowVolume triangles =
+    let
+        { left, right } =
+            List.foldl collectEdges { left = Dict.empty, right = Dict.empty } triangles
+    in
+    Dict.merge
+        (\_ _ acc -> acc)
+        (\_ edge rightNormal acc ->
+            ( ShadowVertex edge.start rightNormal
+            , ShadowVertex edge.end rightNormal
+            , ShadowVertex edge.end edge.normal
+            )
+                :: ( ShadowVertex edge.end edge.normal
+                   , ShadowVertex edge.start edge.normal
+                   , ShadowVertex edge.start rightNormal
+                   )
+                :: acc
+        )
+        (\_ _ acc -> acc)
+        left
+        right
+        []
+
+
+faceNormal : Vec3 -> Vec3 -> Vec3 -> Vec3
+faceNormal a b c =
+    Vec3.normalize (Vec3.cross (Vec3.sub b a) (Vec3.sub c a))
+
+
+collectEdges : ( Attributes, Attributes, Attributes ) -> Collected -> Collected
+collectEdges ( a, b, c ) collected =
+    let
+        normal =
+            faceNormal a.position b.position c.position
+    in
+    collected
+        |> addEdge normal a.position b.position
+        |> addEdge normal b.position c.position
+        |> addEdge normal c.position a.position
+
+
+addEdge : Vec3 -> Vec3 -> Vec3 -> Collected -> Collected
+addEdge normal start end collected =
+    let
+        startKey =
+            vertexKey start
+
+        endKey =
+            vertexKey end
+    in
+    if startKey < endKey then
+        { collected
+            | left =
+                Dict.insert ( startKey, endKey )
+                    { start = start, end = end, normal = normal }
+                    collected.left
+        }
+
+    else
+        { collected | right = Dict.insert ( endKey, startKey ) normal collected.right }
+
+
+{-| Quantize a position so vertices shared between faces hash to the same
+key despite tiny floating-point differences.
+-}
+vertexKey : Vec3 -> ( Int, Int, Int )
+vertexKey v =
+    ( round (Vec3.getX v * 4096)
+    , round (Vec3.getY v * 4096)
+    , round (Vec3.getZ v * 4096)
+    )
 
 
 block : Block3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )

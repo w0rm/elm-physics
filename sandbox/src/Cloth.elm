@@ -152,7 +152,7 @@ initialBodies =
     ( 0, floorBody ) :: ( 1, sphereBody ) :: particles
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     let
         sphere3d =

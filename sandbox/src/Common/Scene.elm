@@ -1,8 +1,7 @@
 module Common.Scene exposing (interpolatedBodies, view)
 
 import Common.Camera exposing (Camera)
-import Common.Math as Math
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes exposing (Attributes, Meshes)
 import Common.Settings exposing (Settings)
 import Common.Shaders as Shaders
 import Direction3d
@@ -23,6 +22,7 @@ import WebGL exposing (Entity, Mesh)
 import WebGL.Settings exposing (Setting)
 import WebGL.Settings.Blend
 import WebGL.Settings.DepthTest
+import WebGL.Settings.StencilTest
 
 
 {-| Construct the `bodies` parameter for `view` by interpolating each
@@ -34,10 +34,10 @@ interpolatedBodies :
     Float
     -> List ( id, Body )
     -> List ( id, Body )
-    -> (id -> Maybe (Mesh Attributes))
+    -> (id -> Maybe Meshes)
     ->
         List
-            ( Mesh Attributes
+            ( Meshes
             , Body
             , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
             )
@@ -58,12 +58,13 @@ type alias Params =
     { settings : Settings
     , bodies :
         List
-            ( Mesh Attributes
+            ( Meshes
             , Body
             , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
             )
     , contacts : List (Point3d Meters WorldCoordinates)
     , camera : Camera
+    , contactRadius : Float
     , floorOffset :
         { x : Float
         , y : Float
@@ -72,27 +73,126 @@ type alias Params =
     }
 
 
-view : Params -> Html msg
-view { settings, bodies, contacts, floorOffset, camera } =
-    let
-        lightDirection =
-            Vec3.normalize (Vec3.vec3 -1 -1 -1)
+{-| World-space direction towards the single scene light. Surfaces whose
+outward normal points towards it are lit; everything else only gets the
+ambient term and therefore reads as "in shadow".
+-}
+sceneLight : Vec3
+sceneLight =
+    Vec3.normalize (vec3 -0.5 0.4 1.4)
 
+
+bodyColor : Vec3
+bodyColor =
+    vec3 0.9 0.9 0.9
+
+
+floorColor : Vec3
+floorColor =
+    vec3 0.5 0.5 0.5
+
+
+view : Params -> Html msg
+view { settings, bodies, contacts, floorOffset, camera, contactRadius } =
+    let
         sceneParams =
-            { lightDirection = lightDirection
+            { lightDirection = sceneLight
             , camera = camera
+            , contactRadius = contactRadius
             , debugWireframes = settings.debugWireframes
             , debugCenterOfMass = settings.debugCenterOfMass
             , debugInertia = settings.debugInertia
-            , shadow =
-                Math.makeShadow
-                    (Vec3.fromRecord floorOffset)
-                    Vec3.k
-                    lightDirection
             }
+
+        prepared =
+            List.map
+                (\( meshes, body, frame ) ->
+                    { meshes = meshes
+                    , body = body
+                    , transform = Frame3d.toMat4 frame
+                    }
+                )
+                bodies
+
+        uniforms transform color =
+            { camera = camera.cameraTransform
+            , perspective = camera.perspectiveTransform
+            , transform = transform
+            , color = color
+            , lightDirection = sceneLight
+            }
+
+        floorTransform =
+            Mat4.makeTranslate (Vec3.fromRecord floorOffset)
+
+        litEntities =
+            if settings.debugWireframes then
+                List.map
+                    (\{ meshes, transform } ->
+                        WebGL.entityWith defaultSettings
+                            Shaders.wireframeVertex
+                            Shaders.wireframeFragment
+                            meshes.mesh
+                            (uniforms transform bodyColor)
+                    )
+                    prepared
+
+            else
+                -- Pass 1: ambient base color for the floor and every body.
+                (WebGL.entityWith ambientSettings
+                    Shaders.vertex
+                    Shaders.ambientFragment
+                    floorMesh
+                    (uniforms floorTransform floorColor)
+                    :: List.map
+                        (\{ meshes, transform } ->
+                            WebGL.entityWith ambientSettings
+                                Shaders.vertex
+                                Shaders.ambientFragment
+                                meshes.mesh
+                                (uniforms transform bodyColor)
+                        )
+                        prepared
+                )
+                    -- Pass 2: each body's shadow volume into the stencil buffer.
+                    ++ List.map
+                        (\{ meshes, transform } ->
+                            WebGL.entityWith shadowVolumeSettings
+                                Shaders.shadowVolumeVertex
+                                Shaders.shadowVolumeFragment
+                                meshes.shadow
+                                (uniforms transform bodyColor)
+                        )
+                        prepared
+                    -- Pass 3: add the directional term only where unshadowed.
+                    ++ (WebGL.entityWith diffuseSettings
+                            Shaders.vertex
+                            Shaders.diffuseFragment
+                            floorMesh
+                            (uniforms floorTransform floorColor)
+                            :: List.map
+                                (\{ meshes, transform } ->
+                                    WebGL.entityWith diffuseSettings
+                                        Shaders.vertex
+                                        Shaders.diffuseFragment
+                                        meshes.mesh
+                                        (uniforms transform bodyColor)
+                                )
+                                prepared
+                       )
+
+        overlayEntities =
+            List.concatMap (centerOfMassEntities sceneParams) prepared
+                ++ (if settings.debugContacts then
+                        List.foldr (addContactIndicator sceneParams) [] contacts
+
+                    else
+                        []
+                   )
     in
     WebGL.toHtmlWith
         [ WebGL.depth 1
+        , WebGL.stencil 0
         , WebGL.alpha True
         , WebGL.antialias
         , WebGL.clearColor 0.3 0.3 0.3 1
@@ -103,119 +203,48 @@ view { settings, bodies, contacts, floorOffset, camera } =
         , Attributes.style "top" "0"
         , Attributes.style "left" "0"
         ]
-        ([ ( True
-           , \entities -> List.foldl (addBodyEntities sceneParams) entities bodies
-           )
-         , ( settings.debugContacts
-           , \entities -> List.foldl (addContactIndicator sceneParams) entities contacts
-           )
-         ]
-            |> List.filter Tuple.first
-            |> List.map Tuple.second
-            |> List.foldl (<|) []
-        )
+        (litEntities ++ overlayEntities)
 
 
 type alias SceneParams =
     { lightDirection : Vec3
     , camera : Camera
+    , contactRadius : Float
     , debugWireframes : Bool
     , debugCenterOfMass : Bool
     , debugInertia : Bool
-    , shadow : Mat4
     }
 
 
-addBodyEntities :
-    SceneParams
-    ->
-        ( Mesh Attributes
-        , Body
-        , Frame3d.Frame3d Meters WorldCoordinates { defines : BodyCoordinates }
-        )
-    -> List Entity
-    -> List Entity
-addBodyEntities ({ lightDirection, shadow, camera, debugWireframes, debugCenterOfMass, debugInertia } as sceneParams) ( mesh, body, frame ) entities =
-    let
-        transform =
-            Frame3d.toMat4 frame
+{-| Center-of-mass dot (and, with inertia debugging on, the principal axes)
+for a single body, drawn as a non-shadowed overlay.
+-}
+centerOfMassEntities : SceneParams -> { a | body : Body } -> List Entity
+centerOfMassEntities sceneParams { body } =
+    if sceneParams.debugCenterOfMass then
+        case Physics.centerOfMass body of
+            Just com ->
+                let
+                    withDot =
+                        addContactIndicator sceneParams com []
+                in
+                if sceneParams.debugInertia then
+                    addEigenvectorAxes sceneParams body withDot
 
-        color =
-            Vec3.vec3 0.9 0.9 0.9
+                else
+                    withDot
 
-        addCenterOfMass acc =
-            if debugCenterOfMass then
-                case Physics.centerOfMass body of
-                    Just com ->
-                        let
-                            withDot =
-                                addContactIndicator sceneParams com acc
-                        in
-                        if debugInertia then
-                            addEigenvectorAxes sceneParams body withDot
+            Nothing ->
+                []
 
-                        else
-                            withDot
-
-                    Nothing ->
-                        acc
-
-            else
-                acc
-    in
-    entities
-        |> addCenterOfMass
-        |> (if debugWireframes then
-                (::)
-                    (WebGL.entityWith defaultSettings
-                        Shaders.wireframeVertex
-                        Shaders.wireframeFragment
-                        mesh
-                        { camera = camera.cameraTransform
-                        , perspective = camera.perspectiveTransform
-                        , color = color
-                        , lightDirection = lightDirection
-                        , transform = transform
-                        }
-                    )
-
-            else
-                (::)
-                    (WebGL.entityWith defaultSettings
-                        Shaders.vertex
-                        Shaders.fragment
-                        mesh
-                        { camera = camera.cameraTransform
-                        , perspective = camera.perspectiveTransform
-                        , color = color
-                        , lightDirection = lightDirection
-                        , transform = transform
-                        }
-                    )
-           )
-        |> (if debugWireframes then
-                identity
-
-            else
-                (::)
-                    (WebGL.entityWith defaultSettings
-                        Shaders.vertex
-                        Shaders.shadowFragment
-                        mesh
-                        { camera = camera.cameraTransform
-                        , perspective = camera.perspectiveTransform
-                        , color = Vec3.vec3 0.25 0.25 0.25
-                        , lightDirection = lightDirection
-                        , transform = Mat4.mul shadow transform
-                        }
-                    )
-           )
+    else
+        []
 
 
 {-| Render a collision point for the purpose of debugging
 -}
 addContactIndicator : SceneParams -> Point3d Meters WorldCoordinates -> List Entity -> List Entity
-addContactIndicator { lightDirection, camera } point tail =
+addContactIndicator { lightDirection, camera, contactRadius } point tail =
     WebGL.entityWith defaultSettings
         Shaders.vertex
         Shaders.fragment
@@ -224,7 +253,9 @@ addContactIndicator { lightDirection, camera } point tail =
         , perspective = camera.perspectiveTransform
         , color = Vec3.vec3 1 0 0
         , lightDirection = lightDirection
-        , transform = Frame3d.toMat4 (Frame3d.atPoint point)
+        , transform =
+            Mat4.scale3 contactRadius contactRadius contactRadius
+                (Frame3d.toMat4 (Frame3d.atPoint point))
         }
         :: tail
 
@@ -302,6 +333,24 @@ centerOfMassMat4 body =
     Frame3d.toMat4 comFrame3d
 
 
+{-| A large ground quad in the xy-plane that receives the bodies' shadows.
+It is rendered (ambient + diffuse) but never casts a shadow of its own.
+-}
+floorMesh : Mesh Attributes
+floorMesh =
+    let
+        size =
+            50
+
+        corner x y =
+            { position = vec3 x y 0, barycentric = vec3 0 0 0 }
+    in
+    WebGL.triangles
+        [ ( corner -size -size, corner size -size, corner size size )
+        , ( corner size size, corner -size size, corner -size -size )
+        ]
+
+
 xAxisLine : Mesh Attributes
 xAxisLine =
     axisLine 1 0 0
@@ -359,10 +408,61 @@ circleLoop toPos =
         |> WebGL.lineLoop
 
 
+{-| Settings for the overlays (wireframes, contacts, debug axes) that draw
+on top of the shaded scene with ordinary depth testing.
+-}
 defaultSettings : List Setting
 defaultSettings =
     [ WebGL.Settings.Blend.add
         WebGL.Settings.Blend.one
         WebGL.Settings.Blend.oneMinusSrcAlpha
     , WebGL.Settings.DepthTest.default
+    ]
+
+
+{-| Pass 1: write opaque ambient color and depth for front faces. -}
+ambientSettings : List Setting
+ambientSettings =
+    [ WebGL.Settings.DepthTest.default
+    , WebGL.Settings.cullFace WebGL.Settings.back
+    ]
+
+
+{-| Pass 2: count shadow-volume entries/exits into the stencil buffer with
+the z-pass technique, without touching color or depth.
+-}
+shadowVolumeSettings : List Setting
+shadowVolumeSettings =
+    [ WebGL.Settings.DepthTest.less { write = False, near = 0, far = 1 }
+    , WebGL.Settings.colorMask False False False False
+    , WebGL.Settings.StencilTest.testSeparate
+        { ref = 1, mask = 0xFF, writeMask = 0xFF }
+        { test = WebGL.Settings.StencilTest.always
+        , fail = WebGL.Settings.StencilTest.keep
+        , zfail = WebGL.Settings.StencilTest.keep
+        , zpass = WebGL.Settings.StencilTest.incrementWrap
+        }
+        { test = WebGL.Settings.StencilTest.always
+        , fail = WebGL.Settings.StencilTest.keep
+        , zfail = WebGL.Settings.StencilTest.keep
+        , zpass = WebGL.Settings.StencilTest.decrementWrap
+        }
+    ]
+
+
+{-| Pass 3: add the directional term where the stencil is zero (lit). -}
+diffuseSettings : List Setting
+diffuseSettings =
+    [ WebGL.Settings.DepthTest.lessOrEqual { write = True, near = 0, far = 1 }
+    , WebGL.Settings.StencilTest.test
+        { ref = 0
+        , mask = 0xFF
+        , test = WebGL.Settings.StencilTest.equal
+        , fail = WebGL.Settings.StencilTest.keep
+        , zfail = WebGL.Settings.StencilTest.keep
+        , zpass = WebGL.Settings.StencilTest.keep
+        , writeMask = 0x00
+        }
+    , WebGL.Settings.cullFace WebGL.Settings.back
+    , WebGL.Settings.Blend.add WebGL.Settings.Blend.one WebGL.Settings.Blend.one
     ]

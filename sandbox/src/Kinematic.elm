@@ -141,7 +141,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     let
         emptyMesh =

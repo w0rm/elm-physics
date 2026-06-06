@@ -198,7 +198,7 @@ initialBodies =
         ++ List.indexedMap (\i s -> ( i + 1 + n, s.capsule )) scenarios
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     let
         floorMesh =

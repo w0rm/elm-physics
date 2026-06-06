@@ -474,7 +474,7 @@ initialBodies =
         :: boxes
 
 
-initialMeshes : Dict String (Mesh Attributes)
+initialMeshes : Dict String (Meshes.Meshes)
 initialMeshes =
     let
         playerMesh =

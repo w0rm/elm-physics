@@ -27,14 +27,14 @@ import WebGL exposing (Mesh)
 
 
 type alias State =
-    { meshes : Array (Mesh Attributes)
+    { meshes : Array (Meshes.Meshes)
     , nextId : Int
     }
 
 
 type Msg
     = Drop
-    | AddRandom ( Body, Mesh Attributes )
+    | AddRandom ( Body, Meshes.Meshes )
 
 
 initialState : State
@@ -163,7 +163,7 @@ makeCompound =
         |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
-initialBodiesAndMeshes : ( List ( Int, Body ), Array (Mesh Attributes), Int )
+initialBodiesAndMeshes : ( List ( Int, Body ), Array (Meshes.Meshes), Int )
 initialBodiesAndMeshes =
     let
         floorBody =
@@ -220,7 +220,7 @@ initialBodiesAndMeshes =
     ( bodies, meshes, 6 )
 
 
-randomBody : Random.Generator ( Body, Mesh Attributes )
+randomBody : Random.Generator ( Body, Meshes.Meshes )
 randomBody =
     Random.map5
         (\angle x y z bodyKind ->

@@ -40,7 +40,7 @@ import Common.Camera as Camera exposing (Camera)
 import Common.ContactLabels as ContactLabels
 import Common.Contacts as Contacts
 import Common.Fps as Fps
-import Common.Meshes exposing (Attributes)
+import Common.Meshes exposing (Meshes)
 import Common.Orbit as Orbit exposing (Orbit)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
@@ -72,9 +72,10 @@ the fields you need.
 -}
 type alias Config id state msg =
     { initialBodies : List ( id, Body )
-    , lookupMesh : state -> id -> Maybe (Mesh Attributes)
+    , lookupMesh : state -> id -> Maybe Meshes
     , camera : { from : Vec3R, to : Vec3R }
     , floorOffset : Vec3R
+    , contactRadius : Float
     , timestep : { duration : Duration, maxSteps : Int }
     , solverIterations : Int
     , initialState : state
@@ -121,7 +122,7 @@ counter rather than having to open settings to find it.
 -}
 defaults :
     { initialBodies : List ( id, Body )
-    , lookupMesh : state -> id -> Maybe (Mesh Attributes)
+    , lookupMesh : state -> id -> Maybe Meshes
     , camera : { from : Vec3R, to : Vec3R }
     , initialState : state
     }
@@ -131,6 +132,7 @@ defaults base =
     , lookupMesh = base.lookupMesh
     , camera = base.camera
     , floorOffset = floorZ
+    , contactRadius = 0.07
     , timestep = { duration = Duration.seconds (1 / 120), maxSteps = 2 }
     , solverIterations = 10
     , initialState = base.initialState
@@ -382,6 +384,7 @@ view config model =
                 List.concatMap (\( _, _, c ) -> c)
                     (Physics.contactPoints (\_ _ -> True) model.contacts)
             , camera = model.camera
+            , contactRadius = config.contactRadius
             , floorOffset = config.floorOffset
             }
         , Html.map Custom

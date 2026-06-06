@@ -1,18 +1,21 @@
 module Common.Shaders exposing
     ( Uniforms
+    , ambientFragment
     , colorFragment
+    , diffuseFragment
     , fragment
-    , shadowFragment
+    , shadowVolumeFragment
+    , shadowVolumeVertex
     , vertex
     , wireframeFragment
     , wireframeVertex
     )
 
 {-| This file contains shaders that are used in examples.
-Shaders support simple flat lighting.
+Shaders support simple flat lighting and stencil shadow volumes.
 -}
 
-import Common.Meshes exposing (Attributes)
+import Common.Meshes exposing (Attributes, ShadowVertex)
 import Math.Matrix4 exposing (Mat4)
 import Math.Vector3 exposing (Vec3)
 import WebGL exposing (Shader)
@@ -54,7 +57,7 @@ fragment =
         void main () {
           float ambientLight = 0.4;
           float directionalLight = 0.6;
-          vec3 normal = -normalize(cross(dFdx(vposition), dFdy(vposition)));
+          vec3 normal = normalize(cross(dFdx(vposition), dFdy(vposition)));
           float directional = max(dot(normal, lightDirection), 0.0);
           float vlighting = ambientLight + directional * directionalLight;
           gl_FragColor = vec4(vlighting * color, 1.0);
@@ -100,14 +103,75 @@ wireframeFragment =
     |]
 
 
-shadowFragment : Shader {} Uniforms { vposition : Vec3 }
-shadowFragment =
+{-| Ambient term only: the base color every surface gets, lit or shadowed. -}
+ambientFragment : Shader {} Uniforms { vposition : Vec3 }
+ambientFragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
         varying vec3 vposition;
         void main () {
-          gl_FragColor = vec4(color, 1);
+          float ambientLight = 0.4;
+          gl_FragColor = vec4(ambientLight * color, 1.0);
+        }
+    |]
+
+
+{-| Directional term, blended additively onto the ambient pass only where
+the stencil says the fragment is not in shadow.
+-}
+diffuseFragment : Shader {} Uniforms { vposition : Vec3 }
+diffuseFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        uniform vec3 lightDirection;
+        varying vec3 vposition;
+        void main () {
+          float directionalLight = 0.6;
+          vec3 normal = normalize(cross(dFdx(vposition), dFdy(vposition)));
+          float directional = max(dot(normal, lightDirection), 0.0);
+          gl_FragColor = vec4(directionalLight * directional * color, 1.0);
+        }
+    |]
+
+
+{-| Extrudes the silhouette of a shadow caster away from the light to build
+its shadow volume. `lightDirection` points towards the light, so faces with
+`dot(normal, lightDirection) <= 0` face away and get pushed to "infinity".
+-}
+shadowVolumeVertex : Shader ShadowVertex Uniforms {}
+shadowVolumeVertex =
+    [glsl|
+        precision mediump float;
+        attribute vec3 position;
+        attribute vec3 normal;
+        uniform mat4 camera;
+        uniform mat4 perspective;
+        uniform mat4 transform;
+        uniform vec3 lightDirection;
+        void main () {
+          vec3 worldPosition = (transform * vec4(position, 1.0)).xyz;
+          vec3 worldNormal = (transform * vec4(normal, 0.0)).xyz;
+          vec3 offset = vec3(0.0, 0.0, 0.0);
+          if (dot(lightDirection, worldNormal) <= 0.0) {
+            offset = -100.0 * lightDirection;
+          }
+          gl_Position = perspective * camera * vec4(worldPosition + offset, 1.0);
+        }
+    |]
+
+
+{-| The shadow volume writes to the stencil buffer only, so its color is
+never used.
+-}
+shadowVolumeFragment : Shader {} Uniforms {}
+shadowVolumeFragment =
+    [glsl|
+        precision mediump float;
+        uniform vec3 color;
+        void main () {
+          gl_FragColor = vec4(color, 1.0);
         }
     |]
 

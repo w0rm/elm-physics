@@ -25,6 +25,7 @@ import Physics.Shape as Shape
 import Plane3d
 import Point3d
 import Sphere3d
+import Torque
 import Vector3d
 import WebGL exposing (Mesh)
 
@@ -186,21 +187,12 @@ applySpeed speed baseFrame body =
         up =
             Frame3d.zDirection baseFrame
 
-        wheelPoint =
-            Frame3d.originPoint (Physics.frame body)
-
-        pointOnTheWheel =
-            wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) up)
-
-        pointUnderTheWheel =
-            wheelPoint |> Point3d.translateBy (Vector3d.withLength (Length.meters 1.2) (Direction3d.reverse up))
-
-        force =
-            Vector3d.withLength (Force.newtons (speed * 100)) forward
+        torque =
+            Vector3d.withLength (Torque.newtonMeters (speed * 20))
+                (Direction3d.placeIn (Physics.frame body) Direction3d.positiveX)
     in
     body
-        |> Physics.applyForce force pointUnderTheWheel
-        |> Physics.applyForce (Vector3d.reverse force) pointOnTheWheel
+        |> Physics.applyTorque torque
 
 
 constrainCar : Float -> String -> Maybe (String -> List Constraint)
@@ -316,7 +308,7 @@ initialBodies =
         baseBody =
             Physics.dynamic
                 [ ( Shape.sum [ Shape.block top, Shape.block bottom ], Material.wood ) ]
-                |> Physics.scaleMassTo (Mass.kilograms 80)
+                |> Physics.scaleMassTo (Mass.kilograms 10)
                 |> Physics.moveTo (Point3d.meters 0 0 5)
 
         sphere3d =
@@ -355,7 +347,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Dict String (Mesh Attributes)
+initialMeshes : Dict String (Meshes.Meshes)
 initialMeshes =
     let
         slopeBlock3d =

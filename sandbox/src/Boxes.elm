@@ -85,7 +85,7 @@ initialBodies =
     ( 0, floorBody ) :: boxes
 
 
-initialMeshes : Array (Mesh Attributes)
+initialMeshes : Array (Meshes.Meshes)
 initialMeshes =
     let
         block3d =

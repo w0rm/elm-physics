@@ -150,7 +150,7 @@ main =
 
 {-| Stack scenes: id 0 is the floor plane (no mesh), ids 1.. are unit boxes.
 -}
-stackMeshes : Array (Mesh Attributes)
+stackMeshes : Array (Meshes.Meshes)
 stackMeshes =
     Array.fromList
         (Meshes.fromTriangles []
@@ -160,7 +160,7 @@ stackMeshes =
 
 {-| Cylinder stack: id 0 floor, ids 1.. unit cylinders; 12-gon mesh matches the hull.
 -}
-cylinderMeshes : Array (Mesh Attributes)
+cylinderMeshes : Array (Meshes.Meshes)
 cylinderMeshes =
     Array.fromList
         (Meshes.fromTriangles []
@@ -170,7 +170,7 @@ cylinderMeshes =
 
 {-| Slope scene: id 0 is the static ramp slab, id 1 is the box.
 -}
-slopeMeshes : Array (Mesh Attributes)
+slopeMeshes : Array (Meshes.Meshes)
 slopeMeshes =
     Array.fromList
         [ Meshes.fromTriangles (Meshes.block Scenarios.slopeRamp)
