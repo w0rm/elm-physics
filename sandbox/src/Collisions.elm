@@ -71,11 +71,12 @@ type ControlledShape
     | ShapeCylinder
     | ShapeUnsafeConvexBox
     | ShapeUnsafeConvexSphere
+    | ShapeOverCount
 
 
 allShapes : List ControlledShape
 allShapes =
-    [ ShapeCapsule, ShapeBox, ShapeSphere, ShapeCylinder, ShapeUnsafeConvexBox, ShapeUnsafeConvexSphere ]
+    [ ShapeCapsule, ShapeBox, ShapeSphere, ShapeCylinder, ShapeUnsafeConvexBox, ShapeUnsafeConvexSphere, ShapeOverCount ]
 
 
 shapeName : ControlledShape -> String
@@ -98,6 +99,9 @@ shapeName s =
 
         ShapeUnsafeConvexSphere ->
             "Convex Sphere × Box"
+
+        ShapeOverCount ->
+            "Box × Box (over-count)"
 
 
 shapeFromName : String -> Maybe ControlledShape
@@ -163,6 +167,33 @@ initialPose =
     -- fallback in CapsuleConvex (single `c-e-fF` contact).
     Frame3d.atOrigin
         |> Frame3d.translateBy (Vector3d.fromMeters { x = 0, y = 1.05, z = 2.25 })
+
+
+{-| A controlled box stacked on the (same-size) target at the exact relative pose
+where a settling stack first hits the coplanar over-count: faces near-coplanar
+with ~1e-4 settling drift, so incident vertices straddle the reference edge
+planes (the Sutherland-Hodgman on-plane degenerate). Captured from a 2.0-box
+stack at the frame its manifold went from 4 to 6 points. Against the target at
+origin the contact sits at the camera focus.
+-}
+overCountPose : Pose
+overCountPose =
+    Frame3d.unsafe
+        { originPoint = Point3d.fromMeters { x = -0.00009961040112628581, y = -0.000092327265447298, z = 1.9999167249387462 }
+        , xDirection = Direction3d.unsafe { x = 0.9999999948374431, y = -6.088964405683033e-7, z = 0.00010161074327523221 }
+        , yDirection = Direction3d.unsafe { x = 5.995018051587648e-7, y = 0.9999999957256615, z = 0.00009245711229986758 }
+        , zDirection = Direction3d.unsafe { x = -0.00010161079913772008, y = -0.00009245705090672844, z = 0.9999999905634696 }
+        }
+
+
+initialPoseFor : ControlledShape -> Pose
+initialPoseFor shape =
+    case shape of
+        ShapeOverCount ->
+            overCountPose
+
+        _ ->
+            initialPose
 
 
 type alias Model =
@@ -243,13 +274,14 @@ update msg model =
             )
 
         Reset ->
-            ( { model | pose = initialPose }, Cmd.none )
+            ( { model | pose = initialPoseFor model.shape }, Cmd.none )
 
         SelectShape s ->
-            ( { model
-                | shape = Maybe.withDefault model.shape (shapeFromName s)
-                , pose = initialPose
-              }
+            let
+                newShape =
+                    Maybe.withDefault model.shape (shapeFromName s)
+            in
+            ( { model | shape = newShape, pose = initialPoseFor newShape }
             , Cmd.none
             )
 
@@ -488,6 +520,14 @@ computeContacts idPrefix shape pose =
                 Nothing ->
                     []
 
+        ShapeOverCount ->
+            let
+                conv =
+                    ShapesConvex.fromBlock targetBoxSize targetBoxSize targetBoxSize
+                        |> ShapesConvex.placeIn transform
+            in
+            ConvexConvex.addContacts idPrefix conv targetConvex []
+
 
 
 -- Bodies
@@ -567,6 +607,9 @@ controlledBody shape pose =
 
                         Err _ ->
                             Physics.dynamic []
+
+                ShapeOverCount ->
+                    Physics.block targetBox3d Material.wood
     in
     base |> Physics.place pose
 
@@ -630,6 +673,9 @@ controlledMesh shape =
 
         ShapeUnsafeConvexSphere ->
             shapeMeshes.unsafeConvexSphere
+
+        ShapeOverCount ->
+            shapeMeshes.targetBox
 
 
 
@@ -926,6 +972,9 @@ fixtureFilename shape =
         ShapeUnsafeConvexSphere ->
             "UnsafeConvexSphereBoxFixture.elm"
 
+        ShapeOverCount ->
+            "BoxBoxOverCountFixture.elm"
+
 
 fixtureSnippet : ControlledShape -> Pose -> String
 fixtureSnippet shape pose =
@@ -985,6 +1034,9 @@ fixtureImports shape =
                     [ "import Collision.ConvexConvex" ]
 
                 ShapeUnsafeConvexSphere ->
+                    [ "import Collision.ConvexConvex" ]
+
+                ShapeOverCount ->
                     [ "import Collision.ConvexConvex" ]
     in
     String.join "\n" (List.sort (common ++ extras))
@@ -1053,6 +1105,11 @@ controlledBindings shape pose =
                 ++ formatPose pose
                 ++ "\n"
 
+        ShapeOverCount ->
+            "        controlledBox =\n            Convex.fromBlock boxSize boxSize boxSize\n                |> Convex.placeIn\n"
+                ++ formatPose pose
+                ++ "\n"
+
 
 callExpression : ControlledShape -> String
 callExpression shape =
@@ -1074,6 +1131,9 @@ callExpression shape =
 
         ShapeUnsafeConvexSphere ->
             "Collision.ConvexConvex.addContacts \"\" controlledConvex box []"
+
+        ShapeOverCount ->
+            "Collision.ConvexConvex.addContacts \"\" controlledBox box []"
 
 
 formatPose : Pose -> String
