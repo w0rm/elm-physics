@@ -18,6 +18,13 @@ module Internal.Matrix3 exposing
 import Internal.Vector3 exposing (Vec3)
 
 
+{-| The Jacobi eigenvalue sweep stops once every off-diagonal entry is below this.
+-}
+jacobiTolerance : Float
+jacobiTolerance =
+    1.0e-12
+
+
 {-| 3x3 matrix type
 -}
 type alias Mat3 =
@@ -326,7 +333,7 @@ jacobiIterate s =
         abs23 =
             abs s.a23
     in
-    if s.steps <= 0 || (abs12 < 1.0e-12 && abs13 < 1.0e-12 && abs23 < 1.0e-12) then
+    if s.steps <= 0 || (abs12 - jacobiTolerance < 0 && abs13 - jacobiTolerance < 0 && abs23 - jacobiTolerance < 0) then
         s
 
     else if abs12 - abs13 >= 0 && abs12 - abs23 >= 0 then

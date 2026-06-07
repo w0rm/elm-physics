@@ -9,16 +9,15 @@ import Axis3d
 import Block3d
 import Browser.Events as Events
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Dict exposing (Dict)
 import Direction3d
 import Duration exposing (Duration)
-import Force
-import Frame3d exposing (Frame3d)
+import Frame3d
 import Json.Decode
-import Length exposing (Meters)
+import Length
 import Mass
-import Physics exposing (Body, BodyCoordinates, WorldCoordinates)
+import Physics exposing (Body)
 import Physics.Constraint as Constraint exposing (Constraint)
 import Physics.Material as Material
 import Physics.Shape as Shape
@@ -27,7 +26,6 @@ import Point3d
 import Sphere3d
 import Torque
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 type Command
@@ -120,24 +118,11 @@ preSimulate _ state bodies =
 
     else
         let
-            baseFrame =
-                bodies
-                    |> List.filterMap
-                        (\( id, body ) ->
-                            if id == "base" then
-                                Just (Physics.frame body)
-
-                            else
-                                Nothing
-                        )
-                    |> List.head
-                    |> Maybe.withDefault Frame3d.atOrigin
-
             newBodies =
                 List.map
                     (\( id, body ) ->
                         if id == "wheel1" || id == "wheel2" then
-                            ( id, applySpeed state.speeding baseFrame body )
+                            ( id, applySpeed state.speeding body )
 
                         else
                             ( id, body )
@@ -178,15 +163,9 @@ keyDecoder toMsg =
             )
 
 
-applySpeed : Float -> Frame3d Meters WorldCoordinates { defines : BodyCoordinates } -> Body -> Body
-applySpeed speed baseFrame body =
+applySpeed : Float -> Body -> Body
+applySpeed speed body =
     let
-        forward =
-            Frame3d.yDirection baseFrame
-
-        up =
-            Frame3d.zDirection baseFrame
-
         torque =
             Vector3d.withLength (Torque.newtonMeters (speed * 20))
                 (Direction3d.placeIn (Physics.frame body) Direction3d.positiveX)
@@ -347,7 +326,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Dict String (Meshes.Meshes)
+initialMeshes : Dict String Meshes.Meshes
 initialMeshes =
     let
         slopeBlock3d =

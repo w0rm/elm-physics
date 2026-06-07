@@ -1,7 +1,6 @@
 module Stability.Scenarios exposing
     ( Scenario
     , restingOnSlope
-    , slopeAngleDegrees
     , slopeRamp
     , stackOf5
     , stackOf5Dropped

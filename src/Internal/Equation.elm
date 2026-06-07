@@ -71,7 +71,7 @@ type alias ContactEquations =
 
 {-| Build-once data for a contact's normal + two friction equations: three
 jacobians and their precomputed solver scalars. spookEps/frictionCoefficient are
-shared across the three; minForce/maxForce/keys are the normal's (frictions
+shared across the three; minImpulse/maxImpulse/keys are the normal's (frictions
 clamp to the Coulomb cone, see Solver).
 -}
 type alias ContactData =
@@ -80,8 +80,8 @@ type alias ContactData =
     , friction2 : Jacobian
     , normalSolverB : Float
     , normalSolverInvC : Float
-    , normalMinForce : Float
-    , normalMaxForce : Float
+    , normalMinImpulse : Float
+    , normalMaxImpulse : Float
     , friction1SolverB : Float
     , friction1SolverInvC : Float
     , friction2SolverB : Float
@@ -222,8 +222,8 @@ addDistanceConstraintEquations ctx body1 body2 distance =
         , solverB = computeSolverB ctx body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
         , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
         , spookEps = spookEps
-        , minForce = -1000000
-        , maxForce = 1000000
+        , minImpulse = -defaultMaxImpulse
+        , maxImpulse = defaultMaxImpulse
         , solverLambda = 0
         }
 
@@ -298,8 +298,8 @@ addRotationalEquation ctx body1 body2 ni nj equations =
     , solverB = computeSolverB ctx body1 body2 jacobian (computeRotationalB spookA spookB { ni = ni, nj = nj, maxAngleCos = 0 } body1 body2 jacobian)
     , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
     , spookEps = spookEps
-    , minForce = -1000000
-    , maxForce = 1000000
+    , minImpulse = -defaultMaxImpulse
+    , maxImpulse = defaultMaxImpulse
     , solverLambda = 0
     }
         :: equations
@@ -352,8 +352,8 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                 , solverB = computeSolverB ctx body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
                 , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
                 , spookEps = spookEps
-                , minForce = -1000000
-                , maxForce = 1000000
+                , minImpulse = -defaultMaxImpulse
+                , maxImpulse = defaultMaxImpulse
                 , solverLambda = 0
                 }
         )
@@ -364,7 +364,7 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
 contactEquations : Float -> Vec3 -> Ctx -> Body -> Body -> SolverContact -> ContactEquations
 contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, contact } =
     let
-        -- SPOOK parameters for this contact (module defaults for now; the seam
+        -- Spook parameters for this contact (module defaults for now; the seam
         -- where per-contact material stiffness/relaxation would feed in).
         spookA =
             4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
@@ -436,8 +436,8 @@ contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, con
         , friction2 = friction2Jacobian
         , normalSolverB = computeSolverB ctx body1 body2 normalJacobian (computeContactB spookA spookB bounciness contact body1 body2 normalJacobian)
         , normalSolverInvC = computeSolverInvC spookEps body1 body2 normalJacobian
-        , normalMinForce = 0
-        , normalMaxForce = 1000000
+        , normalMinImpulse = 0
+        , normalMaxImpulse = defaultMaxImpulse
         , friction1SolverB = computeSolverB ctx body1 body2 friction1Jacobian (computeFrictionB spookB body1 body2 friction1Jacobian)
         , friction1SolverInvC = computeSolverInvC spookEps body1 body2 friction1Jacobian
         , friction2SolverB = computeSolverB ctx body1 body2 friction2Jacobian (computeFrictionB spookB body1 body2 friction2Jacobian)
@@ -450,6 +450,17 @@ contactEquations seedLambda cachedT1 ctx body1 body2 { friction, bounciness, con
     }
 
 
+{-| Bound on a constraint/normal equation's accumulated solver impulse (`lambda`).
+Large enough to be effectively unbounded for the masses used here, while still
+capping pathological blow-ups. Because it bounds an impulse, not a force, it does
+not scale with `dt`: a finite limit would clip at a different effective force per
+timestep, so a real per-material force cap must be multiplied by `dt` at the clamp.
+-}
+defaultMaxImpulse : Float
+defaultMaxImpulse =
+    1000000
+
+
 {-| Scale cached lambdas at warm-start to absorb the risk of stale impulses
 when contact configuration drifts between steps.
 -}
@@ -458,7 +469,7 @@ warmStartFactor =
     0.85
 
 
-{-| The SPOOK soft-constraint parameters, derived from a stiffness and a
+{-| The Spook soft-constraint parameters, derived from a stiffness and a
 relaxation (the number of timesteps over which a constraint violation is
 relaxed), exactly as cannon.js does:
 
@@ -498,8 +509,8 @@ type alias ConstraintEquation =
     , solverB : Float
     , solverInvC : Float
     , spookEps : Float
-    , minForce : Float
-    , maxForce : Float
+    , minImpulse : Float
+    , maxImpulse : Float
     , solverLambda : Float
     }
 

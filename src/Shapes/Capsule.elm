@@ -11,6 +11,14 @@ import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
+{-| Raycast treats the ray as parallel to the capsule axis when the squared
+perpendicular component of its direction falls below this.
+-}
+rayParallelTolerance : Float
+rayParallelTolerance =
+    1.0e-10
+
+
 type alias Capsule =
     { radius : Float
     , halfLength : Float
@@ -130,7 +138,7 @@ raycast { from, direction } { radius, halfLength, axis, position } =
                     Just t
 
         maybeT =
-            if cylA < 1.0e-10 then
+            if cylA - rayParallelTolerance < 0 then
                 if cylC > 0 then
                     Nothing
 
@@ -161,10 +169,10 @@ raycast { from, direction } { radius, halfLength, axis, position } =
                             axial =
                                 pDotAxis + t * dDotAxis
                         in
-                        if axial > halfLength then
+                        if axial - halfLength > 0 then
                             capEntry halfLength
 
-                        else if axial < -halfLength then
+                        else if axial + halfLength < 0 then
                             capEntry -halfLength
 
                         else

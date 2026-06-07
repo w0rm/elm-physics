@@ -7,7 +7,7 @@ The second way is by using the lock constraint.
 
 import Block3d exposing (Block3d)
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Dict exposing (Dict)
 import Frame3d
 import Length exposing (Meters)
@@ -18,7 +18,6 @@ import Physics.Material as Material
 import Physics.Shape as Shape
 import Plane3d
 import Point3d exposing (Point3d)
-import WebGL exposing (Mesh)
 
 
 main : Program () (Demo.Model String ()) (Demo.Msg msg)
@@ -170,7 +169,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Dict String (Meshes.Meshes)
+initialMeshes : Dict String Meshes.Meshes
 initialMeshes =
     let
         blocks =

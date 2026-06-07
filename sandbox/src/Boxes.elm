@@ -7,7 +7,7 @@ Try changing `boxesPerDimension` to drop even more!
 import Array exposing (Array)
 import Block3d
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Frame3d
 import Length
 import Mass
@@ -15,7 +15,6 @@ import Physics exposing (Body)
 import Physics.Material as Material
 import Plane3d
 import Point3d
-import WebGL exposing (Mesh)
 
 
 boxesPerDimension : number
@@ -85,7 +84,7 @@ initialBodies =
     ( 0, floorBody ) :: boxes
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     let
         block3d =

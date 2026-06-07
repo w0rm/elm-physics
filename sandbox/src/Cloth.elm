@@ -6,7 +6,7 @@ connected with distance constraints.
 
 import Array exposing (Array)
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Length
 import Mass
 import Physics exposing (Body)
@@ -15,7 +15,6 @@ import Physics.Material as Material
 import Plane3d
 import Point3d
 import Sphere3d
-import WebGL exposing (Mesh)
 
 
 particlesPerDimension : Int
@@ -71,13 +70,13 @@ constrainCloth id1 =
         lastParticleId =
             2 + n * n - 1
     in
-    if id1 < firstParticleId || id1 > lastParticleId then
+    if id1 - firstParticleId < 0 || id1 - lastParticleId > 0 then
         Nothing
 
     else
         Just
             (\id2 ->
-                if id2 < firstParticleId || id2 > lastParticleId then
+                if id2 - firstParticleId < 0 || id2 - lastParticleId > 0 then
                     []
 
                 else
@@ -152,7 +151,7 @@ initialBodies =
     ( 0, floorBody ) :: ( 1, sphereBody ) :: particles
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     let
         sphere3d =

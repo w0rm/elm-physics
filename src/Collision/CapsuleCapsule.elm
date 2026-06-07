@@ -65,10 +65,11 @@ closestSegmentPoints capsule1 capsule2 =
         f =
             Vec3.dot d2 r
 
+        -- 1 - cos²θ = sin²θ between the two axes
         denom =
             1 - b * b
     in
-    if denom < Const.precision then
+    if denom - Const.parallelTolerance < 0 then
         let
             t =
                 max -h2 (min h2 f)

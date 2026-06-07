@@ -27,7 +27,7 @@ import Array exposing (Array)
 import Axis3d
 import Block3d
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Cylinder3d
 import Direction3d
 import Frame3d
@@ -38,7 +38,6 @@ import Physics.Material as Material
 import Physics.Shape as Shape
 import Plane3d
 import Point3d
-import WebGL exposing (Mesh)
 
 
 main : Program () (Demo.Model Int ()) (Demo.Msg msg)
@@ -198,7 +197,7 @@ initialBodies =
         ++ List.indexedMap (\i s -> ( i + 1 + n, s.capsule )) scenarios
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     let
         floorMesh =

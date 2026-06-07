@@ -11,7 +11,7 @@ import Array exposing (Array)
 import Axis3d
 import Block3d
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Duration
 import Frame3d
 import Length
@@ -19,7 +19,6 @@ import Physics exposing (Body, BodyCoordinates)
 import Physics.Material as Material
 import Plane3d
 import Point3d
-import WebGL exposing (Mesh)
 
 
 main : Program () (Demo.Model Int ()) (Demo.Msg msg)
@@ -117,7 +116,7 @@ initialBodies =
     ( 0, floorBody ) :: ( 1, tiltedDomino ) :: regularDominos
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     let
         floorMesh =

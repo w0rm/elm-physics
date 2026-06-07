@@ -15,7 +15,7 @@ flipped instantaneously at the endpoints would jolt the boxes.
 import Array exposing (Array)
 import Block3d exposing (Block3d)
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Duration exposing (Duration)
 import Frame3d
 import Length exposing (Meters)
@@ -25,7 +25,6 @@ import Physics.Shape as Shape
 import Plane3d
 import Point3d
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 platformId : Int
@@ -141,7 +140,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     let
         emptyMesh =

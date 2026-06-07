@@ -15,7 +15,7 @@ import Axis3d
 import Block3d exposing (Block3d)
 import Browser.Events as Events
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Cylinder3d exposing (Cylinder3d)
 import Density
 import Dict exposing (Dict)
@@ -35,7 +35,6 @@ import Point3d
 import Quantity exposing (Quantity, Rate)
 import Speed exposing (Speed)
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 walkSpeed : Speed
@@ -474,7 +473,7 @@ initialBodies =
         :: boxes
 
 
-initialMeshes : Dict String (Meshes.Meshes)
+initialMeshes : Dict String Meshes.Meshes
 initialMeshes =
     let
         playerMesh =

@@ -9,7 +9,7 @@ import Array exposing (Array)
 import Axis3d
 import Block3d
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Cylinder3d
 import Direction3d
 import Frame3d
@@ -23,11 +23,10 @@ import Point3d
 import Random
 import Sphere3d
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 type alias State =
-    { meshes : Array (Meshes.Meshes)
+    { meshes : Array Meshes.Meshes
     , nextId : Int
     }
 
@@ -163,7 +162,7 @@ makeCompound =
         |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
-initialBodiesAndMeshes : ( List ( Int, Body ), Array (Meshes.Meshes), Int )
+initialBodiesAndMeshes : ( List ( Int, Body ), Array Meshes.Meshes, Int )
 initialBodiesAndMeshes =
     let
         floorBody =

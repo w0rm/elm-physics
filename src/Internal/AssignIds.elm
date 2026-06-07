@@ -66,7 +66,7 @@ findFree n sorted needed revAcc =
                 fillFrom n needed revAcc
 
             x :: rest ->
-                if x > n then
+                if x - n > 0 then
                     findFree (n + 1) sorted (needed - 1) (n :: revAcc)
 
                 else if x == n then

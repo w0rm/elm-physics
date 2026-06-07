@@ -27,6 +27,14 @@ faceAlignedThreshold =
     0.999
 
 
+{-| Convex vertices within this projection gap of the support maximum count as
+tied, so a supporting edge is collected whole rather than split to one vertex.
+-}
+supportTieTolerance : Float
+supportTieTolerance =
+    1.0e-4
+
+
 {-| Generate contacts between a capsule (body 1) and a convex (body 2).
 
 Contact id suffix — encodes which feature each side touches so warm-start
@@ -86,7 +94,7 @@ addContacts shapeKey orderContact capsule convex contacts =
                             if fid == -1 then
                                 Nothing
 
-                            else if Vec3.dot f.normal separatingAxis > faceAlignedThreshold then
+                            else if Vec3.dot f.normal separatingAxis - faceAlignedThreshold > 0 then
                                 Just ( fid, f )
 
                             else
@@ -118,7 +126,7 @@ addContacts shapeKey orderContact capsule convex contacts =
                                         [] ->
                                             ContactId.onConvexNone
                     in
-                    if t > perpendicularThreshold then
+                    if t - perpendicularThreshold > 0 then
                         -- Cap-on-feature: ep1 is the deepest cap. Also pick
                         -- up any cylinder-body contacts on the SAT-aligned
                         -- face — no multi-frame manifold accumulation.
@@ -126,7 +134,7 @@ addContacts shapeKey orderContact capsule convex contacts =
                             |> addDirectContact shapeKey (ContactId.capsuleCapEnd1 convexFeature) orderContact ep1 separatingAxis penetration capsule
                             |> addBodyContacts shapeKey convexFeature orderContact convex.vertexBuffer faceContext capsule ep1 ep2 separatingAxis ep1
 
-                    else if t < -perpendicularThreshold then
+                    else if t + perpendicularThreshold < 0 then
                         -- Cap-on-feature: ep2 is the deepest cap.
                         contacts
                             |> addDirectContact shapeKey (ContactId.capsuleCapEnd2 convexFeature) orderContact ep2 separatingAxis penetration capsule
@@ -213,7 +221,7 @@ addParallelEdgeContacts shapeKey convexFeature orderContact ep1 ep2 v1 v2 separa
             , z = ep1.z + (s - sEp1) * capsule.axis.z
             }
     in
-    if sHi - sLo > Const.precision then
+    if sHi - sLo - Const.precision > 0 then
         contacts
             |> addDirectContact shapeKey (ContactId.capsuleCylinder1 convexFeature) orderContact (pointAt sLo) separatingAxis penetration capsule
             |> addDirectContact shapeKey (ContactId.capsuleCylinder2 convexFeature) orderContact (pointAt sHi) separatingAxis penetration capsule
@@ -576,7 +584,7 @@ edgeAxis capsule ep1 ep2 v1 v2 =
         distSq =
             Vec3.lengthSquared diff
     in
-    if distSq > Const.precision then
+    if distSq - Const.precision > 0 then
         Just (Vec3.scale (1 / sqrt distSq) diff)
 
     else
@@ -592,7 +600,7 @@ edgeAxis capsule ep1 ep2 v1 v2 =
 
 
 {-| Support feature of `convex` along `axis`: at most two vertices at the
-same max projection within `1.0e-4` tolerance, and (if two) guaranteed to
+same max projection within `supportTieTolerance`, and (if two) guaranteed to
 form a real convex edge — picking a face diagonal would drift the contact
 off the surface.
 -}
@@ -653,7 +661,7 @@ collectFirstTwoTied axis maxProj verts count v1 =
                 [ v1 ]
 
         v :: rest ->
-            if maxProj - Vec3.dot v axis < 1.0e-4 then
+            if maxProj - Vec3.dot v axis - supportTieTolerance < 0 then
                 if count == 0 then
                     collectFirstTwoTied axis maxProj rest 1 v
 
@@ -694,7 +702,7 @@ findTiedEdgeInGroup axis maxProj buffer edges =
                 v2 =
                     VertexBuffer.get i2 buffer
             in
-            if (maxProj - Vec3.dot v1 axis < 1.0e-4) && (maxProj - Vec3.dot v2 axis < 1.0e-4) then
+            if (maxProj - Vec3.dot v1 axis - supportTieTolerance < 0) && (maxProj - Vec3.dot v2 axis - supportTieTolerance < 0) then
                 Just ( v1, v2 )
 
             else
@@ -731,7 +739,7 @@ testCapsuleConvexAxis { radius, halfLength, axis, position } convex n =
         d2 =
             p2.max - capsuleMin
     in
-    if d1 < 0 || d2 < 0 then
+    if d1 + Const.contactBreakingThreshold < 0 || d2 + Const.contactBreakingThreshold < 0 then
         Nothing
 
     else if d1 - d2 > 0 then

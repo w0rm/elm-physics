@@ -254,7 +254,9 @@ addContactIndicator { lightDirection, camera, contactRadius } point tail =
         , color = Vec3.vec3 1 0 0
         , lightDirection = lightDirection
         , transform =
-            Mat4.scale3 contactRadius contactRadius contactRadius
+            Mat4.scale3 contactRadius
+                contactRadius
+                contactRadius
                 (Frame3d.toMat4 (Frame3d.atPoint point))
         }
         :: tail
@@ -420,7 +422,8 @@ defaultSettings =
     ]
 
 
-{-| Pass 1: write opaque ambient color and depth for front faces. -}
+{-| Pass 1: write opaque ambient color and depth for front faces.
+-}
 ambientSettings : List Setting
 ambientSettings =
     [ WebGL.Settings.DepthTest.default
@@ -450,7 +453,8 @@ shadowVolumeSettings =
     ]
 
 
-{-| Pass 3: add the directional term where the stencil is zero (lit). -}
+{-| Pass 3: add the directional term where the stencil is zero (lit).
+-}
 diffuseSettings : List Setting
 diffuseSettings =
     [ WebGL.Settings.DepthTest.lessOrEqual { write = True, near = 0, far = 1 }

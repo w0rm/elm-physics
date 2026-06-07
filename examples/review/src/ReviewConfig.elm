@@ -29,6 +29,16 @@ config =
     List.map (Review.Rule.ignoreErrorsForDirectories [ "../tests" ])
         [ NoUnused.CustomTypeConstructors.rule []
         , NoUnused.CustomTypeConstructorArgs.rule
+            -- These modules pad a constructor with () fields on purpose so it
+            -- shares an object shape with its sibling, letting V8 read the `$`
+            -- discriminator from one monomorphic hidden class. Args are unused.
+            |> Review.Rule.ignoreErrorsForFiles
+                [ "../src/Internal/ContactCache.elm"
+                , "../src/Internal/VertexBuffer.elm"
+                , "../src/Shapes/Convex.elm"
+                , "../src/Collision/ConvexConvex.elm"
+                , "../src/Collision/CapsuleConvex.elm"
+                ]
         , NoUnused.Dependencies.rule
         , NoUnused.Exports.rule |> Review.Rule.ignoreErrorsForDirectories [ "../src" ]
         , NoUnused.Modules.rule

@@ -11,10 +11,10 @@ module Shapes.Convex exposing
     , faceGroupNormal
     , faceVertices
     , foldFaceEdges
-    , indexedFaceVertices
     , fromBlock
     , fromCylinder
     , fromTriangularMesh
+    , indexedFaceVertices
     , init
     , placeIn
     , raycast
@@ -22,11 +22,19 @@ module Shapes.Convex exposing
 
 import Array exposing (Array)
 import Dict exposing (Dict)
+import Internal.Const as Const
 import Internal.Matrix3 as Mat3 exposing (Mat3)
 import Internal.Transform3d as Transform3d exposing (Transform3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Set exposing (Set)
+
+
+{-| Two box axes count as perpendicular when |cos θ| between them is below this.
+-}
+orthogonalTolerance : Float
+orthogonalTolerance =
+    1.0e-6
 
 
 type alias Face =
@@ -123,7 +131,8 @@ materialize buffer indices =
             []
 
 
-{-| Face vertices keyed by their buffer index, `( index, point )`. -}
+{-| Face vertices keyed by their buffer index, `( index, point )`.
+-}
 indexedFaceVertices : VertexBuffer -> Face -> List ( Int, Vec3 )
 indexedFaceVertices buffer face =
     materializeIndexed buffer face.vertices
@@ -244,7 +253,7 @@ detectObb faces vertices =
 
 orthogonal : Vec3 -> Vec3 -> Bool
 orthogonal a b =
-    abs (Vec3.dot a b) < 1.0e-6
+    abs (Vec3.dot a b) - orthogonalTolerance < 0
 
 
 {-| Rebuild the face list, placing each normal; the vertex-index lists are
@@ -469,16 +478,12 @@ addEdgeToGroupsHelp v1 v2 direction groups acc =
                 groupDirection =
                     Vec3.direction gv1 gv2
             in
-            -- Use a length-squared tolerance instead of the component-wise
-            -- `almostZero`: nearly-parallel unit vectors can still produce a
-            -- cross with components above 1e-6 (e.g., the icosphere's
-            -- antipodal edge pairs differ by a few microradians from
-            -- 6-decimal OBJ rounding). Splitting them across direction
-            -- groups would make `pickSupportEdge` miss the parallel edge
-            -- closest to the contact, which produces wildly off contact
-            -- points. sin²(0.057°) ≈ 1e-6 is well above the worst case
-            -- here and well below any genuine non-parallel direction.
-            if Vec3.lengthSquared (Vec3.cross direction groupDirection) - parallelTolerance < 0 then
+            -- Parallel to this group? `cross` of two unit dirs has length
+            -- sin θ, so length² < tol is the parallel test. Looser than
+            -- `almostZero` on the cross, which rounding noise (the icosphere's
+            -- near-antipodal edges) would over-split, making `pickSupportEdge`
+            -- miss the parallel edge nearest the contact.
+            if Vec3.lengthSquared (Vec3.cross direction groupDirection) - Const.parallelTolerance < 0 then
                 if hasEdge v1 v2 group then
                     -- Already added (face-shared): skip.
                     prependReversed acc groups
@@ -496,11 +501,6 @@ addEdgeToGroupsHelp v1 v2 direction groups acc =
         group :: rest ->
             -- malformed group (< 2 points): skip past it
             addEdgeToGroupsHelp v1 v2 direction rest (group :: acc)
-
-
-parallelTolerance : Float
-parallelTolerance =
-    1.0e-6
 
 
 hasEdge : Vec3 -> Vec3 -> List Vec3 -> Bool

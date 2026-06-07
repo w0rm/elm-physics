@@ -11,14 +11,13 @@ grips the incline.
 
 import Array exposing (Array)
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Duration
 import Html exposing (Html)
 import Html.Attributes exposing (style)
 import Html.Events
 import Physics
 import Stability.Scenarios as Scenarios
-import WebGL exposing (Mesh)
 
 
 
@@ -150,7 +149,7 @@ main =
 
 {-| Stack scenes: id 0 is the floor plane (no mesh), ids 1.. are unit boxes.
 -}
-stackMeshes : Array (Meshes.Meshes)
+stackMeshes : Array Meshes.Meshes
 stackMeshes =
     Array.fromList
         (Meshes.fromTriangles []
@@ -160,7 +159,7 @@ stackMeshes =
 
 {-| Cylinder stack: id 0 floor, ids 1.. unit cylinders; 12-gon mesh matches the hull.
 -}
-cylinderMeshes : Array (Meshes.Meshes)
+cylinderMeshes : Array Meshes.Meshes
 cylinderMeshes =
     Array.fromList
         (Meshes.fromTriangles []
@@ -170,7 +169,7 @@ cylinderMeshes =
 
 {-| Slope scene: id 0 is the static ramp slab, id 1 is the box.
 -}
-slopeMeshes : Array (Meshes.Meshes)
+slopeMeshes : Array Meshes.Meshes
 slopeMeshes =
     Array.fromList
         [ Meshes.fromTriangles (Meshes.block Scenarios.slopeRamp)

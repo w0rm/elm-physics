@@ -532,7 +532,7 @@ simulate config bodiesWithIds =
         -- body1/body2 within each pair consistently (lower body = body1). The
         -- solver's within-island gravity sort orders the contacts themselves,
         -- but doesn't pick which body is body1, and PGS cold-start convergence
-        -- is asymmetric w.r.t. body1/body2 (the minForce=0 clamp + iteration
+        -- is asymmetric w.r.t. body1/body2 (the minImpulse=0 clamp + iteration
         -- order means the same physics converges slightly differently when
         -- the sides flip). Drops the cold-start stack-of-5 stability score
         -- from 100k → ~20k frames if removed.
@@ -807,7 +807,7 @@ raycast axis bodiesWithIds =
                 Just result ->
                     case closest of
                         Just { bestDist } ->
-                            if result.distance < bestDist then
+                            if result.distance - bestDist < 0 then
                                 Just { closestId = id, closestBody = originalBody, closestResult = result, bestDist = result.distance }
 
                             else

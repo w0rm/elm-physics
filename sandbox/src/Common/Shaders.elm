@@ -103,7 +103,8 @@ wireframeFragment =
     |]
 
 
-{-| Ambient term only: the base color every surface gets, lit or shadowed. -}
+{-| Ambient term only: the base color every surface gets, lit or shadowed.
+-}
 ambientFragment : Shader {} Uniforms { vposition : Vec3 }
 ambientFragment =
     [glsl|

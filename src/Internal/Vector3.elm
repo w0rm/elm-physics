@@ -31,6 +31,14 @@ module Internal.Vector3 exposing
 import Internal.Const as Const
 
 
+{-| In `tangents`, cross the normal with whichever world axis it is least
+aligned to; |n.x| past this switches from x to y to stay well-conditioned.
+-}
+tangentAxisThreshold : Float
+tangentAxisThreshold =
+    0.9
+
+
 almostZero : Vec3 -> Bool
 almostZero { x, y, z } =
     (abs x - Const.precision <= 0)
@@ -237,7 +245,7 @@ tangents vec =
 
             v =
                 normalize
-                    (if abs normalized.x < 0.9 then
+                    (if abs normalized.x - tangentAxisThreshold < 0 then
                         cross normalized xAxis
 
                      else
@@ -253,7 +261,7 @@ tangents vec =
 {-| Reuse a previous tangent direction by projecting `cachedT1` onto the plane
 perpendicular to `ni` and renormalising; `t2 = ni × t1`. Keeps a friction basis
 continuous as the contact normal rotates between steps, avoiding the basis
-discontinuity in `tangents` at |n.x| = 0.9.
+discontinuity in `tangents`.
 
 Falls back to `tangents` if the cached direction is nearly parallel to the new
 normal (degenerate projection).
@@ -271,7 +279,7 @@ stableTangents cachedT1 ni =
         lenSq =
             lengthSquared projected
     in
-    if lenSq < 1.0e-6 then
+    if lenSq - Const.precision < 0 then
         tangents ni
 
     else

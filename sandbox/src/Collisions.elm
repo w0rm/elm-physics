@@ -27,7 +27,7 @@ import Collision.SphereConvex as SphereConvex
 import Common.Camera as Camera exposing (Camera)
 import Common.ContactLabels as ContactLabels
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Common.Orbit as Orbit exposing (Orbit)
 import Common.Scene as Scene
 import Common.Settings as Settings exposing (Settings, SettingsMsg, settings)
@@ -57,7 +57,6 @@ import Sphere3d
 import Task
 import TriangularMesh
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 

@@ -5,7 +5,7 @@ module UnsafeConvex exposing (main)
 
 import Array exposing (Array)
 import Common.Demo as Demo
-import Common.Meshes as Meshes exposing (Attributes)
+import Common.Meshes as Meshes
 import Frame3d
 import Length
 import Mass
@@ -15,7 +15,6 @@ import Physics.Material as Material
 import Physics.Shape as Shape
 import Plane3d
 import Point3d
-import WebGL exposing (Mesh)
 
 
 main : Program () (Demo.Model Int ()) (Demo.Msg msg)
@@ -149,7 +148,7 @@ initialBodies =
     ]
 
 
-initialMeshes : Array (Meshes.Meshes)
+initialMeshes : Array Meshes.Meshes
 initialMeshes =
     Array.fromList
         [ Meshes.fromTriangles []

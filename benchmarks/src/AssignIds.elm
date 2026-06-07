@@ -307,7 +307,7 @@ tpFreeIds n sorted needed revAcc =
                 tpFillFrom n needed revAcc
 
             x :: rest ->
-                if x > n then
+                if x - n > 0 then
                     -- n is free
                     tpFreeIds (n + 1) sorted (needed - 1) (n :: revAcc)
 

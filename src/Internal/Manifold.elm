@@ -11,6 +11,14 @@ import Internal.Const as Const
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
+{-| Farthest-pair tie tolerance, for cylinder caps only: a regular polygon's equal
+diameters would otherwise flip the pair under jitter. Other faces are unaffected.
+-}
+tieEpsilon : Float
+tieEpsilon =
+    1.0e-8
+
+
 {-| Drop points outside the plane's contact margin, then keep the 4 most-spread
 (farthest pair, then the two farthest from it); 4 or fewer pass through.
 -}
@@ -38,14 +46,6 @@ withinMargin normal marginConstant points acc =
 
         [] ->
             acc
-
-
-{-| Farthest-pair tie tolerance, for cylinder caps only: a regular polygon's equal
-diameters would otherwise flip the pair under jitter. Other faces are unaffected.
--}
-tieEpsilon : Float
-tieEpsilon =
-    1.0e-8
 
 
 {-| Scan for the farthest-apart pair (ties broken by `tieEpsilon`), then add the

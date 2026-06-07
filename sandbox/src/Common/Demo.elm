@@ -56,7 +56,6 @@ import Speed
 import Task
 import Timestep exposing (Timestep)
 import Vector3d
-import WebGL exposing (Mesh)
 
 
 type alias Vec3R =

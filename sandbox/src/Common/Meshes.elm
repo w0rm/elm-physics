@@ -53,13 +53,15 @@ type alias ShadowVertex =
 -- Meshes
 
 
-{-| A unit-radius sphere; the scene scales it to the demo's `contactRadius`. -}
+{-| A unit-radius sphere; the scene scales it to the demo's `contactRadius`.
+-}
 contact : Mesh Attributes
 contact =
     WebGL.triangles (sphere 2 (Sphere3d.atOrigin (Length.meters 1)))
 
 
-{-| Build the lit mesh and its shadow volume from a single triangle list. -}
+{-| Build the lit mesh and its shadow volume from a single triangle list.
+-}
 fromTriangles : List ( Attributes, Attributes, Attributes ) -> Meshes
 fromTriangles triangles =
     { mesh = WebGL.triangles triangles

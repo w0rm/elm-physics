@@ -384,7 +384,7 @@ velocityLoop remainingIterations prevBody1 solverBodies currentEquationsGroups =
     if remainingIterations == 1 then
         ( Array.set pass2.prevBody1.body.id pass2.prevBody1 pass2.solverBodies, forwardResult, 0 )
 
-    else if deltaTot - Const.precision < 0 then
+    else if deltaTot - Const.solverTolerance < 0 then
         ( Array.set pass2.prevBody1.body.id pass2.prevBody1 pass2.solverBodies, forwardResult, remainingIterations - 1 )
 
     else
@@ -628,7 +628,7 @@ solve2BodyVelocity remainingIterations group arr accGroups =
     if remainingIterations == 1 then
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, 0 )
 
-    else if result.deltalambdaTot - Const.precision < 0 then
+    else if result.deltalambdaTot - Const.solverTolerance < 0 then
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, remainingIterations - 1 )
 
     else
@@ -713,7 +713,7 @@ type alias VelocityContactsResult id =
 
 
 {-| Solve a flat list of non-friction equations (constraints/joints) with fixed
-[minForce, maxForce] bounds. Equations come back in input order.
+[minImpulse, maxImpulse] bounds. Equations come back in input order.
 -}
 solveVelocityConstraints : SolverBody id -> SolverBody id -> List ConstraintEquation -> Float -> List ConstraintEquation -> VelocityListResult id
 solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
@@ -739,11 +739,11 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                     constraint.solverInvC * (constraint.solverB - gWlambda - constraint.spookEps * solverLambda)
 
                 deltalambda =
-                    if solverLambda + deltalambdaPrev - constraint.minForce < 0 then
-                        constraint.minForce - solverLambda
+                    if solverLambda + deltalambdaPrev - constraint.minImpulse < 0 then
+                        constraint.minImpulse - solverLambda
 
-                    else if solverLambda + deltalambdaPrev - constraint.maxForce > 0 then
-                        constraint.maxForce - solverLambda
+                    else if solverLambda + deltalambdaPrev - constraint.maxImpulse > 0 then
+                        constraint.maxImpulse - solverLambda
 
                     else
                         deltalambdaPrev
@@ -755,8 +755,8 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                  , solverB = constraint.solverB
                  , solverInvC = constraint.solverInvC
                  , spookEps = constraint.spookEps
-                 , minForce = constraint.minForce
-                 , maxForce = constraint.maxForce
+                 , minImpulse = constraint.minImpulse
+                 , maxImpulse = constraint.maxImpulse
                  , solverLambda = solverLambda + deltalambda
                  }
                     :: acc
@@ -796,11 +796,11 @@ solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
                     data.normalSolverInvC * (data.normalSolverB - gWlambda - data.spookEps * solverLambda)
 
                 deltalambda =
-                    if solverLambda + deltalambdaPrev - data.normalMinForce < 0 then
-                        data.normalMinForce - solverLambda
+                    if solverLambda + deltalambdaPrev - data.normalMinImpulse < 0 then
+                        data.normalMinImpulse - solverLambda
 
-                    else if solverLambda + deltalambdaPrev - data.normalMaxForce > 0 then
-                        data.normalMaxForce - solverLambda
+                    else if solverLambda + deltalambdaPrev - data.normalMaxImpulse > 0 then
+                        data.normalMaxImpulse - solverLambda
 
                     else
                         deltalambdaPrev

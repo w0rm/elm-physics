@@ -27,3 +27,4 @@ When writing or reviewing Elm code in this repo, apply these performance rules t
 12. **Minimize `Just wrappers`** use `(Just value) as passThroug ->` in  and then return `passThrough` from the case of, instead of returning `(Just value)`.
 
 13. **Prefer Int keys over built String keys for hot-path Dicts** — A `Dict String` keyed by a concatenated id (e.g. `prefix ++ "-" ++ String.fromInt n`) pays string-construction allocation *every frame* plus slower string comparison inside `Dict.get`/`insertHelp`. When the key components have bounded ranges, pack them into a single `Int` and use `Dict Int`: it removes the per-frame key allocation and hits the numeric fast path in the comparison kernel.
+
