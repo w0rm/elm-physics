@@ -29,7 +29,7 @@ import Frame3d
 import Length
 import Mass
 import Physics exposing (Body, onEarth)
-import Physics.Material as Material exposing (Material)
+import Physics.Material as Material
 import Physics.Types exposing (Material(..))
 import Plane3d
 import Point3d
@@ -310,9 +310,13 @@ incline =
                         List.filter (\d -> not (holds d))
                             (List.map (\i -> 18 + toFloat i * 0.5) (List.range 0 12))
                             |> List.minimum
-                            |> Maybe.withDefault (0 / 0)
                 in
-                Expect.within (Expect.Absolute 1) critical breakaway
+                case breakaway of
+                    Just degs ->
+                        Expect.within (Expect.Absolute 1) critical degs
+
+                    Nothing ->
+                        Expect.fail "box never broke free within the search range"
         , test "kinetic slide at 30° matches a = g(sinθ − μcosθ)" <|
             \_ ->
                 let
