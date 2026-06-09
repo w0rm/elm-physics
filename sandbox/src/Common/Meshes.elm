@@ -6,6 +6,7 @@ module Common.Meshes exposing
     , capsule
     , contact
     , cylinder
+    , fromTriangleGroups
     , fromTriangles
     , sphere
     , triangularMesh
@@ -64,8 +65,19 @@ contact =
 -}
 fromTriangles : List ( Attributes, Attributes, Attributes ) -> Meshes
 fromTriangles triangles =
-    { mesh = WebGL.triangles triangles
-    , shadow = WebGL.triangles (shadowVolume triangles)
+    fromTriangleGroups [ triangles ]
+
+
+{-| Like `fromTriangles`, but the shadow volume is built per group rather than
+over the merged soup. Use one group per closed convex piece of a compound body:
+the silhouette builder assumes each edge is shared by exactly two faces, which
+breaks where pieces share coincident internal faces. Per-piece closed volumes
+overlap correctly under the z-pass stencil.
+-}
+fromTriangleGroups : List (List ( Attributes, Attributes, Attributes )) -> Meshes
+fromTriangleGroups groups =
+    { mesh = WebGL.triangles (List.concat groups)
+    , shadow = WebGL.triangles (List.concatMap shadowVolume groups)
     }
 
 
@@ -506,10 +518,13 @@ cylinder subdivisions cylinder3d =
                 p3 =
                     transform endX endY topZ
             in
-            [ facet topCenter p2 p3 2
-            , facet p1 p3 p0 1
-            , facet p2 p0 p3 1
-            , facet bottomCenter p1 p0 2
+            -- The ring uses x = sin / y = cos (to match Convex.fromCylinder),
+            -- which reverses angular handedness, so the outward winding is the
+            -- swap of the usual order: front faces and shadow normals face out.
+            [ facet topCenter p3 p2 2
+            , facet p1 p0 p3 1
+            , facet p2 p3 p0 1
+            , facet bottomCenter p0 p1 2
             ]
     in
     List.range 0 (subdivisions - 1)

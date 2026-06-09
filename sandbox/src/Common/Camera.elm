@@ -2,6 +2,7 @@ module Common.Camera exposing
     ( Camera
     , camera
     , mouseDirection
+    , refreshPerspective
     , resize
     )
 
@@ -34,21 +35,47 @@ camera :
     }
     -> Camera
 camera { from, to } =
-    { from = from
-    , to = to
-    , width = 1
-    , height = 1
-    , cameraTransform = Mat4.makeLookAt (Vec3.fromRecord from) (Vec3.fromRecord to) Vec3.k
-    , perspectiveTransform = Mat4.identity
-    }
+    refreshPerspective
+        { from = from
+        , to = to
+        , width = 1
+        , height = 1
+        , cameraTransform = Mat4.makeLookAt (Vec3.fromRecord from) (Vec3.fromRecord to) Vec3.k
+        , perspectiveTransform = Mat4.identity
+        }
 
 
 resize : Float -> Float -> Camera -> Camera
 resize width height camera_ =
+    refreshPerspective { camera_ | width = width, height = height }
+
+
+{-| Rebuild the perspective transform from the current view. Near/far track
+the eye-to-target distance so the depth ratio stays ~100:1 at any zoom — a
+fixed 0.01/500 frustum z-fights at scene scale and far-clips when zoomed out.
+Call after anything that moves the eye, target, or viewport.
+-}
+refreshPerspective : Camera -> Camera
+refreshPerspective ({ from, to, width, height } as camera_) =
+    let
+        dx =
+            from.x - to.x
+
+        dy =
+            from.y - to.y
+
+        dz =
+            from.z - to.z
+
+        distance =
+            sqrt (dx * dx + dy * dy + dz * dz)
+    in
     { camera_
-        | width = width
-        , height = height
-        , perspectiveTransform = Mat4.makePerspective 24 (width / height) 0.01 500
+        | perspectiveTransform =
+            Mat4.makePerspective 24
+                (width / height)
+                (max 0.01 (distance * 0.1))
+                (distance * 10)
     }
 
 

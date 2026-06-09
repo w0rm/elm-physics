@@ -103,16 +103,24 @@ wireframeFragment =
     |]
 
 
-{-| Ambient term only: the base color every surface gets, lit or shadowed.
+{-| Base color every surface gets, lit or shadowed. The ambient wraps around
+the key-light direction, with a gain on the dot so faces spread out even under
+a near-overhead light (where raw orientation differences are tiny). This gives
+shadowed faces good contrast with each other while the modest base/amount keep
+the shadow-to-lit gap in check. Monotonic: a face turned away can never
+out-shine one turned towards the light.
 -}
 ambientFragment : Shader {} Uniforms { vposition : Vec3 }
 ambientFragment =
     [glsl|
         precision mediump float;
         uniform vec3 color;
+        uniform vec3 lightDirection;
         varying vec3 vposition;
         void main () {
-          float ambientLight = 0.4;
+          vec3 normal = normalize(cross(dFdx(vposition), dFdy(vposition)));
+          float wrap = clamp(0.5 + dot(normal, lightDirection), 0.0, 1.0);
+          float ambientLight = 0.28 + 0.22 * wrap;
           gl_FragColor = vec4(ambientLight * color, 1.0);
         }
     |]
@@ -129,7 +137,7 @@ diffuseFragment =
         uniform vec3 lightDirection;
         varying vec3 vposition;
         void main () {
-          float directionalLight = 0.6;
+          float directionalLight = 0.4;
           vec3 normal = normalize(cross(dFdx(vposition), dFdy(vposition)));
           float directional = max(dot(normal, lightDirection), 0.0);
           gl_FragColor = vec4(directionalLight * directional * color, 1.0);

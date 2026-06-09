@@ -184,7 +184,7 @@ initialMeshes =
     in
     Dict.fromList
         [ ( "floor", Meshes.fromTriangles [] )
-        , ( "compound", Meshes.fromTriangles (List.concatMap Meshes.block blocks) )
+        , ( "compound", Meshes.fromTriangleGroups (List.map Meshes.block blocks) )
         , ( "first", boxMesh )
         , ( "second", boxMesh )
         , ( "third", boxMesh )

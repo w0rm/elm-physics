@@ -14,7 +14,7 @@ orbit, wheel to zoom.
 -}
 
 import Browser.Events as Events
-import Common.Camera exposing (Camera)
+import Common.Camera as Camera exposing (Camera)
 import Json.Decode as Decode exposing (Decoder)
 import Math.Matrix4 as Mat4
 import Math.Vector3 as Vec3
@@ -25,6 +25,8 @@ type Orbit
         { azimuth : Float
         , elevation : Float
         , distance : Float
+        , minDistance : Float
+        , maxDistance : Float
         , target : { x : Float, y : Float, z : Float }
         , orbiting : Bool
         }
@@ -54,14 +56,10 @@ fromCartesian { from, to } =
             from.z - to.z
 
         distance =
-            sqrt (dx * dx + dy * dy + dz * dz)
+            max 0.001 (sqrt (dx * dx + dy * dy + dz * dz))
 
         elevation =
-            if distance > 1.0e-9 then
-                asin (clamp -1 1 (dz / distance))
-
-            else
-                0
+            asin (clamp -1 1 (dz / distance))
 
         azimuth =
             atan2 dy dx
@@ -69,7 +67,12 @@ fromCartesian { from, to } =
     Orbit
         { azimuth = azimuth
         , elevation = elevation
-        , distance = max 0.001 distance
+        , distance = distance
+
+        -- Zoom limits scale with the framing distance, so tiny scenes (mm
+        -- dominoes) and wide ones (box piles) both get a usable zoom range.
+        , minDistance = distance * 0.2
+        , maxDistance = distance * 5
         , target = to
         , orbiting = False
         }
@@ -88,8 +91,8 @@ fromPoint (Orbit o) =
     }
 
 
-{-| Apply the orbit state to a camera, refreshing `from`, `to`, and the
-camera transform but leaving the perspective transform and viewport
+{-| Apply the orbit state to a camera, refreshing `from`, `to`, the camera
+transform, and the distance-dependent perspective, but leaving the viewport
 size untouched.
 -}
 toCamera : Orbit -> Camera -> Camera
@@ -98,15 +101,16 @@ toCamera ((Orbit o) as orbit) cam =
         newFrom =
             fromPoint orbit
     in
-    { cam
-        | from = newFrom
-        , to = o.target
-        , cameraTransform =
-            Mat4.makeLookAt
-                (Vec3.fromRecord newFrom)
-                (Vec3.fromRecord o.target)
-                Vec3.k
-    }
+    Camera.refreshPerspective
+        { cam
+            | from = newFrom
+            , to = o.target
+            , cameraTransform =
+                Mat4.makeLookAt
+                    (Vec3.fromRecord newFrom)
+                    (Vec3.fromRecord o.target)
+                    Vec3.k
+        }
 
 
 update : Msg -> Orbit -> Orbit
@@ -136,7 +140,9 @@ update msg ((Orbit o) as orbit) =
             Orbit
                 { o
                     | distance =
-                        clamp 1 500 (o.distance * (1 + deltaY * 0.001))
+                        clamp o.minDistance
+                            o.maxDistance
+                            (o.distance * (1 + deltaY * 0.001))
                 }
 
 

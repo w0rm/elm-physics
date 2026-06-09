@@ -89,7 +89,7 @@ bodyColor =
 
 floorColor : Vec3
 floorColor =
-    vec3 0.5 0.5 0.5
+    vec3 0.35 0.35 0.35
 
 
 view : Params -> Html msg

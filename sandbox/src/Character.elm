@@ -501,7 +501,7 @@ initialMeshes =
             Meshes.fromTriangles []
 
         stairsMesh =
-            Meshes.fromTriangles (List.concatMap Meshes.block stairBlocks)
+            Meshes.fromTriangleGroups (List.map Meshes.block stairBlocks)
 
         boxKeys =
             List.range 0 7

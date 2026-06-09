@@ -212,7 +212,7 @@ initialBodiesAndMeshes =
                 , Meshes.fromTriangles (Meshes.block boxBlock3d)
                 , Meshes.fromTriangles (Meshes.sphere 2 sphere3d)
                 , Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d)
-                , Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks)
+                , Meshes.fromTriangleGroups (List.map Meshes.block compoundBlocks)
                 , Meshes.fromTriangles (Meshes.capsule 12 capsule3d)
                 ]
     in
@@ -236,7 +236,7 @@ randomBody =
                             ( makeCylinder, Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d) )
 
                         3 ->
-                            ( makeCompound, Meshes.fromTriangles (List.concatMap Meshes.block compoundBlocks) )
+                            ( makeCompound, Meshes.fromTriangleGroups (List.map Meshes.block compoundBlocks) )
 
                         _ ->
                             ( makeCapsule, Meshes.fromTriangles (Meshes.capsule 12 capsule3d) )
