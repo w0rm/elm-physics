@@ -3,23 +3,21 @@ module SolverIslandsTest exposing (withinIslandOrder)
 {-| Regression test for the within-island processing order.
 
 PGS needs pairs visited bottom-first within each island (floor-contact
-first, then up the stack). That order is delivered by a chain of
-cons-accumulators (`buildAndWarmStart`, `annotateGroupsByRoot`,
-`collectAndSolveIsland`) and a stable `List.sortBy` — no explicit sort
-key carries it. If a future refactor adds/drops a `List.reverse` or sort
-stability changes, stack convergence will silently regress.
+first, then up the stack). That order is delivered by `Islands.fold`:
+a chain of cons-accumulators and a stable sort, with no explicit sort key
+carrying it. If a future refactor adds/drops a reverse or sort stability
+changes, stack convergence will silently regress.
 
-The test re-implements `collectAndSolveIsland`'s island-grouping (a
-4-line cons walk) so it can observe what `step` would actually receive,
-without running the solver itself.
+The test drives `Islands.fold` directly, collecting the body-id pairs
+each island would hand to `step`, without running the solver itself.
 
 -}
 
-import Array exposing (Array)
+import Array
 import Expect
 import Fuzz exposing (Fuzzer)
 import Internal.Equation exposing (EquationsGroup)
-import Internal.Solver as Solver
+import Internal.Islands as Islands exposing (Islands)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Set
 import Test exposing (Test, describe, fuzz2, test)
@@ -79,40 +77,19 @@ pairsInRange lo hi =
         (List.range lo (hi - 2))
 
 
-{-| Mimic `collectAndSolveIsland`: walk a root-sorted list and cons-extend
-each contiguous-root run into a sublist, returning islands in step-visit
-order.
+{-| Drive `Islands.fold`, collecting the body-id pairs each island
+hands to `step`, in step-visit order.
 -}
-collectIslands : List ( Int, a ) -> List (List a)
-collectIslands sorted =
-    case sorted of
-        [] ->
-            []
-
-        ( firstRoot, firstItem ) :: rest ->
-            collectIslandsHelp firstRoot [ firstItem ] [] rest
-
-
-collectIslandsHelp : Int -> List a -> List (List a) -> List ( Int, a ) -> List (List a)
-collectIslandsHelp currentRoot currentIsland acc remaining =
-    case remaining of
-        [] ->
-            List.reverse (currentIsland :: acc)
-
-        ( root, item ) :: rest ->
-            if root == currentRoot then
-                collectIslandsHelp currentRoot (item :: currentIsland) acc rest
-
-            else
-                collectIslandsHelp root [ item ] (currentIsland :: acc) rest
-
-
-pipelineVisits : Array Int -> List (EquationsGroup ()) -> List (List ( Int, Int ))
-pipelineVisits parents groups =
-    Solver.annotateGroupsByRoot parents groups []
-        |> List.sortBy Tuple.first
-        |> collectIslands
-        |> List.map (List.map (\g -> ( g.body1.body.id, g.body2.body.id )))
+pipelineVisits : Islands -> List (EquationsGroup ()) -> List (List ( Int, Int ))
+pipelineVisits islands groups =
+    Islands.fold
+        (\island acc ->
+            List.map (\g -> ( g.body1.body.id, g.body2.body.id )) island :: acc
+        )
+        []
+        groups
+        islands
+        |> List.reverse
 
 
 fuzzVec3 : Fuzzer Vec3
@@ -170,11 +147,16 @@ withinIslandOrder =
                         , fakeGroup ( 5, dynamicKind ) ( 6, dynamicKind )
                         ]
 
-                    -- Post-union-find: {1,2,3} → root 1; {5,6} → root 5.
-                    parents =
-                        Array.fromList [ 0, 1, 1, 1, 4, 5, 5 ]
+                    -- {0..6} as singletons, then connect the stack and the
+                    -- side pair: {1,2,3} → root 1; {5,6} → root 5.
+                    islands =
+                        Islands.init 6
+                            |> Islands.connect 1 2
+                            |> Islands.connect 1 3
+                            |> Islands.connect 2 3
+                            |> Islands.connect 5 6
                 in
-                pipelineVisits parents groups
+                pipelineVisits islands groups
                     |> Expect.equal
                         [ [ ( 0, 1 ), ( 1, 2 ), ( 1, 3 ), ( 2, 3 ) ]
                         , [ ( 5, 6 ) ]
@@ -208,18 +190,13 @@ withinIslandOrder =
                             )
                             pairs
 
-                    parents =
-                        Array.initialize n
-                            (\i ->
-                                if i < split then
-                                    0
-
-                                else
-                                    split
-                            )
+                    islands =
+                        List.foldl (\( a, b ) -> Islands.connect a b)
+                            (Islands.init (n - 1))
+                            pairs
 
                     visited =
-                        pipelineVisits parents groups
+                        pipelineVisits islands groups
 
                     body1Projection ( id1, _ ) =
                         Array.get id1 positionByNewId

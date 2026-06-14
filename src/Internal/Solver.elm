@@ -1,4 +1,4 @@
-module Internal.Solver exposing (annotateGroupsByRoot, solve)
+module Internal.Solver exposing (solve)
 
 import Array exposing (Array)
 import Internal.Body exposing (Body)
@@ -7,13 +7,13 @@ import Internal.Contact exposing (PairGroup)
 import Internal.ContactCache as Cache exposing (ContactCache)
 import Internal.ContactId as ContactId
 import Internal.Equation as Equation exposing (ConstraintEquation, ContactEquations, EquationsGroup, Jacobian)
+import Internal.Islands as Islands exposing (Islands)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 
 
-{-| Integer min/max via subtraction, so the comparison compiles to a direct JS
-`<` rather than the shared, polymorphic `_Utils_cmp` that `Basics.min`/`max`
-route through.
+{-| Integer min/max via subtraction, compiling to a direct JS `<` instead of
+the polymorphic `_Utils_cmp` behind `Basics.min`/`max`.
 -}
 minInt : Int -> Int -> Int
 minInt a b =
@@ -33,8 +33,8 @@ maxInt a b =
         b
 
 
-{-| Apply the impulse corresponding to a seeded lambda to both solver bodies.
-This pre-loads the body delta-v so the solver starts from a warm state.
+{-| Pre-load both bodies with a seeded lambda's impulse, so the solver starts
+from a warm state.
 -}
 applyEquationWarmStart : Float -> Jacobian -> SolverBody id -> SolverBody id -> ( SolverBody id, SolverBody id )
 applyEquationWarmStart solverLambda jacobian body1 body2 =
@@ -123,11 +123,11 @@ buildAndWarmStart :
     Equation.Ctx
     -> SolverBody id
     -> Array (SolverBody id)
-    -> Array Int
+    -> Islands
     -> List (EquationsGroup id)
     -> List PairGroup
-    -> ( List (EquationsGroup id), Array (SolverBody id), Array Int )
-buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
+    -> ( List (EquationsGroup id), Array (SolverBody id), Islands )
+buildAndWarmStart ctx prevBody1 solverBodies islands groups pairGroups =
     case pairGroups of
         [] ->
             ( groups
@@ -136,7 +136,7 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
 
               else
                 solverBodies
-            , parents
+            , islands
             )
 
         pairGroup :: rest ->
@@ -198,20 +198,19 @@ buildAndWarmStart ctx prevBody1 solverBodies parents groups pairGroups =
                     else
                         solverBodies1
 
-                newParents =
+                newIslands =
                     if pairGroup.body1.kindInt == 2 && pairGroup.body2.kindInt == 2 then
-                        union bodyId1 bodyId2 parents
+                        Islands.connect bodyId1 bodyId2 islands
 
                     else
-                        parents
+                        islands
             in
-            buildAndWarmStart ctx newBody1 solverBodies2 newParents (equationsGroup :: groups) rest
+            buildAndWarmStart ctx newBody1 solverBodies2 newIslands (equationsGroup :: groups) rest
 
 
-{-| The post-solve state, shaped to be wrapped directly as `Types.Contacts`:
-each body integrated to its next-frame transform and paired with its `extId`
-(integration run once here, so the returned body list and `contactPoints` both
-reuse it), the next-frame warm-start cache, and the frame's `pairGroups`.
+{-| Post-solve state, wrapped directly as `Types.Contacts`: each body integrated
+to its next-frame transform (once here, reused by both the body list and
+`contactPoints`), the next-frame warm-start cache, and the frame's `pairGroups`.
 -}
 type alias SolveResult id =
     { bodies : Array ( id, Body )
@@ -246,43 +245,32 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
                 solverBodies =
                     SolverBody.fromBodies maxId bodiesWithIds
 
-                -- Single fused pass over pairGroups: build equationsGroups,
-                -- apply warm-start impulses, and grow union-find parents.
-                -- Partitions equationsGroups into connected components
-                -- ("islands") of dynamic bodies. Each island converges
-                -- independently, so settled regions of the scene exit early
-                -- instead of dragging the whole solver to the max iteration count.
-                ( equationsGroups, warmStartedBodies, islandParents ) =
+                -- One fused pass: build equationsGroups, apply warm-start
+                -- impulses, and grow the islands. Each island converges
+                -- independently, so settled regions exit early.
+                ( equationsGroups, warmStartedBodies, islands ) =
                     buildAndWarmStart
                         ctx
                         fillingBody
                         solverBodies
-                        (Array.initialize (maxId + 1) identity)
+                        (Islands.init maxId)
                         []
                         pairGroups
 
-                -- Annotate each group with its island root, then sort so
-                -- consecutive entries belong to the same island. Within-island
-                -- PGS order doesn't need a secondary key — body1/body2
-                -- assignment (already pinned bottom-first by Physics.elm's
-                -- body pre-sort) is what governs stack stability, not the
-                -- pair-visit order inside the island.
-                sortedGroups =
-                    List.sortWith
-                        (\( a, _ ) ( b, _ ) ->
-                            if a - b < 0 then
-                                LT
-
-                            else if a - b > 0 then
-                                GT
-
-                            else
-                                EQ
-                        )
-                        (annotateGroupsByRoot islandParents equationsGroups [])
-
+                -- Solve each island, threading the bodies array; minRem tracks
+                -- the fewest iterations any island had left (the iteration report).
                 ( finalSolverBodies, finalEquationsGroups, minRemainingIterations ) =
-                    solveIslands iterations fillingBody warmStartedBodies sortedGroups
+                    Islands.fold
+                        (\island ( arr, accGroups, minRem ) ->
+                            let
+                                ( newArr, newGroups, remIters ) =
+                                    solveOneIsland iterations fillingBody island arr accGroups
+                            in
+                            ( newArr, newGroups, minInt minRem remIters )
+                        )
+                        ( warmStartedBodies, [], iterations )
+                        equationsGroups
+                        islands
 
                 iterationsUsed =
                     maxInt 1 (iterations - minRemainingIterations)
@@ -290,8 +278,8 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
                 finalWarmStart =
                     collectGroupCaches finalEquationsGroups Cache.empty
 
-                -- Integrate every body to its next-frame transform once, so the
-                -- output list and contactPoints both reuse it (no second toBody).
+                -- Integrate to next-frame transforms once; reused by the output
+                -- list and contactPoints.
                 integratedBodies =
                     Array.map (SolverBody.solved dt gravity) finalSolverBodies
             in
@@ -302,11 +290,9 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
             }
 
 
-{-| Populate next frame's warm-start cache: for each body pair (group) with
-contacts, build the pair's warm-start entry list (each entry carries both the
-normal's lambda and the friction1 direction) and do a single insert keyed by the
-body-pair key. Constraints are never warm-started (their ids are the 0/0
-sentinel), so only contacts are collected.
+{-| Build next frame's warm-start cache: one insert per contact-bearing pair,
+keyed by body-pair key, each entry carrying the normal lambda and friction1
+direction. Constraints are never warm-started, so only contacts are collected.
 -}
 collectGroupCaches : List (EquationsGroup id) -> ContactCache Equation.WarmStart -> ContactCache Equation.WarmStart
 collectGroupCaches groups acc =
@@ -349,25 +335,15 @@ warmStartEntries contacts acc =
                 )
 
 
-{-| Solve a multi-body island: the velocity loop runs two sweeps per iteration
-— non-friction (contact normals + joints) across the whole island first, then
-friction sized off the just-finalized normal lambdas. Penetration recovery is
-folded into the non-friction velocity bias (Baumgarte ERP), so there is no
-separate position pass.
+{-| Solve a multi-body island: two sweeps per iteration — non-friction (normals
+
+  - joints) across the island first, then friction sized off the finalized normal
+    lambdas. Penetration recovery folds into the non-friction bias (Baumgarte ERP),
+    so there's no separate position pass.
+
 -}
 step : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-step iterations prevBody1 solverBodies currentEquationsGroups =
-    velocityLoop iterations prevBody1 solverBodies currentEquationsGroups
-
-
-{-| Velocity iteration loop: two sweeps per iteration — non-friction first,
-then friction. Friction in sweep 2 sees the just-finalized normal lambdas
-across the island, so the Coulomb cone is sized after island-wide GS
-propagation. Matches Bullet's default (`SOLVER_INTERLEAVE_CONTACT_AND_FRICTION_CONSTRAINTS`
-off).
--}
-velocityLoop : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-velocityLoop remainingIterations prevBody1 solverBodies currentEquationsGroups =
+step remainingIterations prevBody1 solverBodies currentEquationsGroups =
     let
         pass1 =
             sweep NonFrictionPhase prevBody1 solverBodies [] currentEquationsGroups 0
@@ -388,7 +364,7 @@ velocityLoop remainingIterations prevBody1 solverBodies currentEquationsGroups =
         ( Array.set pass2.prevBody1.body.id pass2.prevBody1 pass2.solverBodies, forwardResult, remainingIterations - 1 )
 
     else
-        velocityLoop (remainingIterations - 1) pass2.prevBody1 pass2.solverBodies forwardResult
+        step (remainingIterations - 1) pass2.prevBody1 pass2.solverBodies forwardResult
 
 
 type alias SweepResult id =
@@ -399,10 +375,9 @@ type alias SweepResult id =
     }
 
 
-{-| Walk every pair group in the island once, running `solvePass` per pair
-group in the given phase. The body-threading optimisation from the original
-solver is preserved: when consecutive pair groups share body1, we avoid the
-Array.get/set round-trip. Groups are accumulated in reverse order.
+{-| Walk every pair group in the island once in the given phase. Body-threading:
+when consecutive groups share body1, skip the Array.get/set round-trip. Groups
+accumulate in reverse.
 -}
 sweep : Phase -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> List (EquationsGroup id) -> Float -> SweepResult id
 sweep phase prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
@@ -471,135 +446,16 @@ sweep phase prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
                 groupResult.deltalambdaTot
 
 
-
--- Islands: connected components of dynamic bodies in the contact/constraint
--- graph. Built with union-find inline during `buildAndWarmStart`. Each island
--- runs its own PGS iteration with independent convergence — settled regions
--- stop iterating early.
-
-
-{-| Find the root of `id` while path-halving: every other node on the path is
-relinked to its grandparent. Keeps trees shallow under repeated lookups, which
-matters when bodies are unioned in adversarial id order.
+{-| Solve one island: a 2-body island skips the array round-trip, anything
+larger runs the full island PGS loop. `accGroups` collects the spent groups,
+`minRem` tracks the fewest iterations any island had left.
 -}
-findRoot : Int -> Array Int -> ( Array Int, Int )
-findRoot id parents =
-    case Array.get id parents of
-        Just parent ->
-            if parent - id == 0 then
-                ( parents, id )
-
-            else
-                case Array.get parent parents of
-                    Just grandparent ->
-                        if grandparent - parent == 0 then
-                            ( parents, parent )
-
-                        else
-                            findRoot grandparent (Array.set id grandparent parents)
-
-                    Nothing ->
-                        ( parents, parent )
-
-        Nothing ->
-            ( parents, id )
-
-
-union : Int -> Int -> Array Int -> Array Int
-union a b parents =
-    let
-        ( parents1, rootA ) =
-            findRoot a parents
-
-        ( parents2, rootB ) =
-            findRoot b parents1
-    in
-    if rootA - rootB == 0 then
-        parents2
-
-    else if rootA - rootB < 0 then
-        Array.set rootB rootA parents2
-
-    else
-        Array.set rootA rootB parents2
-
-
-{-| Pair each equationsGroup with its island root. Threads `parents` through
-so path-compression updates carry across calls.
-
-No secondary sort key for within-island order: PGS needs pairs visited
-bottom-first, and broadphase already emits them that way. Nothing
-between here and `step` disturbs the sequence — `List.sortBy` is stable
-and intermediate reverses don't matter. `SolverIslandsTest` guards it.
-
--}
-annotateGroupsByRoot : Array Int -> List (EquationsGroup id) -> List ( Int, EquationsGroup id ) -> List ( Int, EquationsGroup id )
-annotateGroupsByRoot parents equationsGroups acc =
-    case equationsGroups of
-        [] ->
-            acc
-
-        group :: rest ->
-            let
-                -- Pick the dynamic body's id as the union-find key. If body1
-                -- is static and body2 is dynamic, body1's root is itself
-                -- (never unioned) so we'd misclassify this group as its own
-                -- island.
-                pickedId =
-                    if group.body1.body.kindInt == 2 then
-                        group.body1.body.id
-
-                    else
-                        group.body2.body.id
-
-                ( newParents, root ) =
-                    findRoot pickedId parents
-            in
-            annotateGroupsByRoot newParents rest (( root, group ) :: acc)
-
-
-{-| Walk a list of (root, group) entries sorted by root. Consecutive entries
-with the same root form an island; each island is solved as a unit.
--}
-solveIslands : Int -> SolverBody id -> Array (SolverBody id) -> List ( Int, EquationsGroup id ) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solveIslands iterations fillingBody arr sorted =
-    case sorted of
-        [] ->
-            ( arr, [], iterations )
-
-        ( firstRoot, firstGroup ) :: rest ->
-            collectAndSolveIsland iterations fillingBody firstRoot [ firstGroup ] arr [] iterations rest
-
-
-collectAndSolveIsland : Int -> SolverBody id -> Int -> List (EquationsGroup id) -> Array (SolverBody id) -> List (EquationsGroup id) -> Int -> List ( Int, EquationsGroup id ) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-collectAndSolveIsland iterations fillingBody currentRoot currentIsland arr accGroups minRem remaining =
-    case remaining of
-        [] ->
-            let
-                ( newArr, newAccGroups, remIters ) =
-                    solveOneIsland iterations fillingBody currentIsland arr accGroups
-            in
-            ( newArr, newAccGroups, minInt minRem remIters )
-
-        ( root, group ) :: rest ->
-            if root - currentRoot == 0 then
-                collectAndSolveIsland iterations fillingBody currentRoot (group :: currentIsland) arr accGroups minRem rest
-
-            else
-                let
-                    ( newArr, newAccGroups, remIters ) =
-                        solveOneIsland iterations fillingBody currentIsland arr accGroups
-                in
-                collectAndSolveIsland iterations fillingBody root [ group ] newArr newAccGroups (minInt minRem remIters) rest
-
-
 solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
 solveOneIsland iterations fillingBody island arr accGroups =
     case island of
         [ singleGroup ] ->
-            -- 2-body island: bodies are owned by this group (no sharing with
-            -- any other group), so we use the SolverBody refs stashed on the
-            -- group directly — no Array.get needed.
+            -- 2-body island: bodies are owned solely by this group, so use the
+            -- SolverBody refs stashed on it directly — no Array.get.
             solve2Body iterations singleGroup arr accGroups
 
         _ ->
@@ -615,15 +471,13 @@ bodies stay in locals across iterations; only at the end do we write back to
 the array.
 -}
 solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solve2Body iterations group arr accGroups =
-    solve2BodyVelocity iterations group arr accGroups
-
-
-solve2BodyVelocity : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solve2BodyVelocity remainingIterations group arr accGroups =
+solve2Body remainingIterations group arr accGroups =
     let
+        nonFriction =
+            velocityNonFrictionGroup group.body1 group.body2 0 group.contacts group.constraints
+
         result =
-            velocityGroup group.body1 group.body2 0 group.contacts group.constraints
+            velocityFrictionGroup nonFriction.body1 nonFriction.body2 nonFriction.deltalambdaTot nonFriction.contacts nonFriction.constraints
     in
     if remainingIterations == 1 then
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, 0 )
@@ -632,7 +486,7 @@ solve2BodyVelocity remainingIterations group arr accGroups =
         ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, remainingIterations - 1 )
 
     else
-        solve2BodyVelocity (remainingIterations - 1) result arr accGroups
+        solve2Body (remainingIterations - 1) result arr accGroups
 
 
 flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
@@ -765,9 +619,8 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                 rest
 
 
-{-| Pass 1 contact solve: solve each block's normal with its fixed bounds,
-leaving the frictions untouched. Same Gauss-Seidel order as the old interleaved
-list (frictions were skipped here), so convergence is identical.
+{-| Pass 1 contact solve: each block's normal with its fixed bounds, frictions
+left untouched.
 -}
 solveVelocityNormals : SolverBody id -> SolverBody id -> List ContactEquations -> Float -> List ContactEquations -> VelocityContactsResult id
 solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
@@ -819,9 +672,8 @@ solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
                 rest
 
 
-{-| Pass 2 contact solve: solve each block's two friction equations, the
-Coulomb cone ±μ·λ\_n sized from the block's now-finalized normal lambda.
-friction1 then friction2, matching the old interleaved solve order.
+{-| Pass 2 contact solve: each block's two friction equations, the Coulomb cone
+±μ·λ\_n sized from the block's finalized normal lambda. friction1 then friction2.
 -}
 solveVelocityFrictions : SolverBody id -> SolverBody id -> List ContactEquations -> Float -> List ContactEquations -> VelocityContactsResult id
 solveVelocityFrictions body1 body2 acc deltalambdaTot contacts =
@@ -868,10 +720,9 @@ solveVelocityFrictions body1 body2 acc deltalambdaTot contacts =
                 invI2 =
                     body2.body.invInertiaWorld
 
-                -- friction1's updated velocities, kept as locals instead of a
-                -- throwaway SolverBody so friction2's gWlambda can read them.
-                -- invMass / invInertiaWorld are 0 for static bodies, so these
-                -- collapse to the body's own velocity without a kindInt guard.
+                -- friction1's updated velocities as locals (not a throwaway
+                -- SolverBody) so friction2's gWlambda can read them. invMass /
+                -- invInertiaWorld are 0 for static bodies, so no kindInt guard.
                 k1a =
                     d1 * body1.body.invMass
 
@@ -939,8 +790,8 @@ solveVelocityFrictions body1 body2 acc deltalambdaTot contacts =
                     else
                         dPrev2
 
-                -- Build each body once, combining the friction1 (already in b1*/b2*)
-                -- and friction2 impulses.
+                -- Build each body once, combining friction1 (in b1*/b2*) and
+                -- friction2 impulses.
                 newBody1 =
                     if body1.body.kindInt == 2 then
                         let
@@ -993,8 +844,8 @@ solveVelocityFrictions body1 body2 acc deltalambdaTot contacts =
                 rest
 
 
-{-| Pass 1 over a pair group: constraints first (matching the old list head),
-then contact normals. Frictions left for pass 2.
+{-| Pass 1 over a pair group: constraints first, then contact normals. Frictions
+left for pass 2.
 -}
 velocityNonFrictionGroup : SolverBody id -> SolverBody id -> Float -> List ContactEquations -> List ConstraintEquation -> EquationsGroup id
 velocityNonFrictionGroup body1 body2 deltalambdaTot contacts constraints =
@@ -1027,17 +878,6 @@ velocityFrictionGroup body1 body2 deltalambdaTot contacts constraints =
     , constraints = constraints
     , deltalambdaTot = afterFrictions.deltalambdaTot
     }
-
-
-{-| Both velocity passes over a single pair group (used by 2-body islands).
--}
-velocityGroup : SolverBody id -> SolverBody id -> Float -> List ContactEquations -> List ConstraintEquation -> EquationsGroup id
-velocityGroup body1 body2 deltalambdaTot contacts constraints =
-    let
-        nonFriction =
-            velocityNonFrictionGroup body1 body2 deltalambdaTot contacts constraints
-    in
-    velocityFrictionGroup nonFriction.body1 nonFriction.body2 nonFriction.deltalambdaTot nonFriction.contacts nonFriction.constraints
 
 
 type Phase
