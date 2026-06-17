@@ -29,11 +29,12 @@ type Scene
     | StackOf5Dropped
     | Slope
     | CylinderStack
+    | CylinderStackDropped
 
 
 allScenes : List Scene
 allScenes =
-    [ StackOf5, StackOf5Dropped, Slope, CylinderStack ]
+    [ StackOf5, StackOf5Dropped, Slope, CylinderStack, CylinderStackDropped ]
 
 
 sceneName : Scene -> String
@@ -51,6 +52,9 @@ sceneName scene =
         CylinderStack ->
             "Stack of 5 cylinders"
 
+        CylinderStackDropped ->
+            "Stack of 5 cylinders (dropped)"
+
 
 sceneFromName : String -> Scene
 sceneFromName name =
@@ -63,6 +67,9 @@ sceneFromName name =
 
         "Stack of 5 cylinders" ->
             CylinderStack
+
+        "Stack of 5 cylinders (dropped)" ->
+            CylinderStackDropped
 
         _ ->
             StackOf5
@@ -82,6 +89,9 @@ sceneBodies scene =
 
         CylinderStack ->
             Scenarios.stackOfCylinders.bodies
+
+        CylinderStackDropped ->
+            Scenarios.stackOfCylindersDropped.bodies
 
 
 
@@ -114,6 +124,9 @@ main =
                                 Array.get id slopeMeshes
 
                             CylinderStack ->
+                                Array.get id cylinderMeshes
+
+                            CylinderStackDropped ->
                                 Array.get id cylinderMeshes
 
                             _ ->

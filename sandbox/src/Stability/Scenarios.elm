@@ -5,6 +5,7 @@ module Stability.Scenarios exposing
     , stackOf5
     , stackOf5Dropped
     , stackOfCylinders
+    , stackOfCylindersDropped
     , unitBlock
     , unitCylinder
     )
@@ -199,11 +200,36 @@ stackOf5Dropped =
     }
 
 
-{-| Five wood cylinders dropped with `dropGap` of air, settling cap-on-cap. Each
-12-gon cap over-counts before the cull — a visible exercise of it.
+{-| Five wood cylinders placed at their exact resting positions, already touching
+cap-on-cap, no drop. The cylinder counterpart to `stackOf5` — score starts near
+zero and rises as solver drift accumulates. Each 12-gon cap over-counts before
+the cull, so this also exercises that path at rest.
 -}
 stackOfCylinders : Scenario
 stackOfCylinders =
+    { name = "stack of 5 cylinders"
+    , bodies =
+        let
+            n =
+                5
+        in
+        List.indexedMap
+            (\i _ ->
+                ( n - i
+                , Physics.cylinder unitCylinder Material.wood
+                    |> Physics.moveTo (Point3d.meters 0 0 (toFloat (n - i) - 0.5))
+                )
+            )
+            (List.repeat n ())
+            ++ [ ground ]
+    }
+
+
+{-| Five wood cylinders dropped with `dropGap` of air, settling cap-on-cap. Each
+12-gon cap over-counts before the cull — a visible exercise of it.
+-}
+stackOfCylindersDropped : Scenario
+stackOfCylindersDropped =
     { name = "stack of 5 cylinders (dropped)"
     , bodies =
         let
