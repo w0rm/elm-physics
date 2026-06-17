@@ -14,6 +14,7 @@
     "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
         "elm/core": "1.0.0 <= v < 2.0.0",
+        "ianmackenzie/elm-1d-parameter": "1.0.1 <= v < 2.0.0",
         "ianmackenzie/elm-geometry": "4.0.0 <= v < 5.0.0",
         "ianmackenzie/elm-triangular-mesh": "1.1.0 <= v < 2.0.0",
         "ianmackenzie/elm-units": "2.10.0 <= v < 3.0.0"

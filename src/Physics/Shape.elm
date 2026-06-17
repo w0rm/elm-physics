@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, block, sphere, cylinder, capsule
+    ( Shape, block, sphere, cylinder, capsule, cone
     , minus, plus, sum, unsafeConvex
     )
 
 {-|
 
-@docs Shape, block, sphere, cylinder, capsule
+@docs Shape, block, sphere, cylinder, capsule, cone
 
 
 # Complex shapes
@@ -15,6 +15,7 @@ module Physics.Shape exposing
 -}
 
 import Block3d exposing (Block3d)
+import Cone3d exposing (Cone3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
@@ -22,6 +23,7 @@ import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape as Internal
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
+import Parameter1d
 import Physics.Types as Types
 import Point3d exposing (Point3d)
 import Shapes.Capsule as Capsule
@@ -29,14 +31,15 @@ import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
+import Vector3d exposing (Vector3d)
 
 
 {-| Shapes are needed for creating compound [dynamic](Physics#dynamic)
 and [static](Physics#static) bodies.
 
 The supported primitive shapes are [block](#block), [sphere](#sphere),
-[cylinder](#cylinder), and [capsule](#capsule). For complex geometry
-use [unsafeConvex](#unsafeConvex).
+[cylinder](#cylinder), and [capsule](#capsule), [cone](#cone). For
+complex geometry use [unsafeConvex](#unsafeConvex).
 
 Shapes within a body **should not overlap** — composing shapes only affects physical
 properties like mass, inertia, and center of mass. Use [plus](#plus) and
@@ -167,6 +170,65 @@ capsule cylinder3d =
           , 1
           )
         ]
+
+
+{-| Create a cone shape with the given number of side faces, clamped to at least 3.
+Even numbers are more efficient, because collision performance depends
+on the number of unique non-parallel faces and edges.
+-}
+cone : Cone3d Meters BodyCoordinates -> Body
+cone sourceCone =
+    let
+        bottomCenter =
+            Cone3d.basePoint sourceCone
+
+        tip =
+            Cone3d.tipPoint sourceCone
+
+        radius =
+            Cone3d.radius sourceCone
+                |> Length.inMeters
+
+        bottom =
+            TriangularMesh.radial bottomCenter <|
+                Parameter1d.leading 12 <|
+                    \u ->
+                        let
+                            theta =
+                                2 * pi * u
+
+                            sinTheta =
+                                sin theta
+
+                            cosTheta =
+                                cos theta
+                        in
+                        bottomCenter
+                            |> Point3d.translateBy
+                                (Vector3d.unsafe { x = cosTheta * radius, y = -sinTheta * radius, z = 0 })
+
+        sides =
+            TriangularMesh.radial tip <|
+                Parameter1d.leading 12 <|
+                    \u ->
+                        let
+                            theta =
+                                2 * pi * u
+
+                            sinTheta =
+                                sin theta
+
+                            cosTheta =
+                                cos theta
+                        in
+                        bottomCenter
+                            |> Point3d.translateBy
+                                (Vector3d.unsafe { x = cosTheta * radius, y = sinTheta * radius, z = 0 })
+    in
+    unsafeConvex
+        (TriangularMesh.combine
+            [ bottom, sides ]
+        )
 
 
 {-| Create a shape from a triangular mesh. This is useful if you want
