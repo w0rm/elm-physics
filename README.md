@@ -1,6 +1,6 @@
 # 3D Physics Engine
 
-![elm-physics](https://unsoundscapes.com/elm-physics/examples/elm-physics.gif)
+![elm-physics](https://unsoundscapes.com/elm-physics/6.2.0/examples/elm-physics.gif)
 
 ```elm
 type Id = Ball | Floor
@@ -41,10 +41,10 @@ step model =
 
 # Examples
 
-- Lack ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/examples/lack/))
-- Duckling ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/examples/duckling/))
-- Raycast ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/Raycast.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast/))
-- RaycastCar ([source](https://github.com/w0rm/elm-physics/tree/main/examples/src/RaycastCar.elm), [demo](https://unsoundscapes.com/elm-physics/examples/raycast-car/))
+- Lack ([source](https://github.com/w0rm/elm-physics/tree/9456d256c1f9c2bb4631531f837f4838c5ed88e1/examples/src/Lack.elm), [demo](https://unsoundscapes.com/elm-physics/6.2.0/examples/lack/))
+- Duckling ([source](https://github.com/w0rm/elm-physics/tree/9456d256c1f9c2bb4631531f837f4838c5ed88e1/examples/src/Duckling.elm), [demo](https://unsoundscapes.com/elm-physics/6.2.0/examples/duckling/))
+- Raycast ([source](https://github.com/w0rm/elm-physics/tree/9456d256c1f9c2bb4631531f837f4838c5ed88e1/examples/src/Raycast.elm), [demo](https://unsoundscapes.com/elm-physics/6.2.0/examples/raycast/))
+- RaycastCar ([source](https://github.com/w0rm/elm-physics/tree/9456d256c1f9c2bb4631531f837f4838c5ed88e1/examples/src/RaycastCar.elm), [demo](https://unsoundscapes.com/elm-physics/6.2.0/examples/raycast-car/))
 
 # Prior Work
 
