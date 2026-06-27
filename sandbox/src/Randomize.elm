@@ -11,6 +11,7 @@ import Block3d
 import Common.Demo as Demo
 import Common.Meshes as Meshes
 import Cylinder3d
+import Cone3d
 import Direction3d
 import Frame3d
 import Length
@@ -107,6 +108,13 @@ cylinder3d =
         { radius = Length.meters 0.5, length = Length.meters 2 }
 
 
+cone3d : Cone3d.Cone3d Length.Meters BodyCoordinates
+cone3d =
+    Cone3d.startingAt Point3d.origin
+        Direction3d.x
+        { radius = Length.meters 0.5, length = Length.meters 2 }
+
+
 capsule3d : Cylinder3d.Cylinder3d Length.Meters BodyCoordinates
 capsule3d =
     Cylinder3d.centeredOn Point3d.origin
@@ -149,6 +157,12 @@ makeCylinder =
         |> Physics.scaleMassTo (Mass.kilograms 5)
 
 
+makeCone : Body
+makeCone =
+    Physics.cone cone3d Material.wood
+        |> Physics.scaleMassTo (Mass.kilograms 5)
+
+
 makeCapsule : Body
 makeCapsule =
     Physics.capsule capsule3d Material.wood
@@ -184,6 +198,12 @@ initialBodiesAndMeshes =
                     (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
                     (Angle.radians (pi / 2))
                 |> Physics.moveTo (Point3d.meters 0.5 0 11)
+        coneBody =
+            makeCone
+                |> Physics.rotateAround
+                    (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
+                    (Angle.radians (pi / 2))
+                |> Physics.moveTo (Point3d.meters 0.5 0 11)
 
         compoundBody =
             makeCompound
@@ -204,6 +224,7 @@ initialBodiesAndMeshes =
             , ( 3, cylinderBody )
             , ( 4, compoundBody )
             , ( 5, capsuleBody )
+            , ( 6, coneBody )
             ]
 
         meshes =
@@ -214,6 +235,7 @@ initialBodiesAndMeshes =
                 , Meshes.fromTriangles (Meshes.cylinder 12 cylinder3d)
                 , Meshes.fromTriangleGroups (List.map Meshes.block compoundBlocks)
                 , Meshes.fromTriangles (Meshes.capsule 12 capsule3d)
+                , Meshes.fromTriangles (Meshes.cone 12 cone3d)
                 ]
     in
     ( bodies, meshes, 6 )
@@ -237,6 +259,9 @@ randomBody =
 
                         3 ->
                             ( makeCompound, Meshes.fromTriangleGroups (List.map Meshes.block compoundBlocks) )
+
+                        6 ->
+                            ( makeCone, Meshes.fromTriangles (Meshes.cone 12 cone3d) )
 
                         _ ->
                             ( makeCapsule, Meshes.fromTriangles (Meshes.capsule 12 capsule3d) )
