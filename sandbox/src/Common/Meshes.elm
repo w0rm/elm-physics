@@ -4,9 +4,9 @@ module Common.Meshes exposing
     , ShadowVertex
     , block
     , capsule
+    , cone
     , contact
     , cylinder
-    , cone
     , fromTriangleGroups
     , fromTriangles
     , sphere
@@ -14,8 +14,8 @@ module Common.Meshes exposing
     )
 
 import Block3d exposing (Block3d)
-import Cylinder3d exposing (Cylinder3d)
 import Cone3d exposing (Cone3d)
+import Cylinder3d exposing (Cylinder3d)
 import Dict exposing (Dict)
 import Direction3d
 import Frame3d

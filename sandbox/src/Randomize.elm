@@ -10,8 +10,8 @@ import Axis3d
 import Block3d
 import Common.Demo as Demo
 import Common.Meshes as Meshes
-import Cylinder3d
 import Cone3d
+import Cylinder3d
 import Direction3d
 import Frame3d
 import Length
@@ -198,6 +198,7 @@ initialBodiesAndMeshes =
                     (Axis3d.through Point3d.origin (Direction3d.unsafe { x = 0.7071, y = 0.7071, z = 0 }))
                     (Angle.radians (pi / 2))
                 |> Physics.moveTo (Point3d.meters 0.5 0 11)
+
         coneBody =
             makeCone
                 |> Physics.rotateAround
@@ -238,7 +239,7 @@ initialBodiesAndMeshes =
                 , Meshes.fromTriangles (Meshes.cone 12 cone3d)
                 ]
     in
-    ( bodies, meshes, 6 )
+    ( bodies, meshes, 7 )
 
 
 randomBody : Random.Generator ( Body, Meshes.Meshes )
@@ -278,4 +279,4 @@ randomBody =
         (Random.float -1 1)
         (Random.float -1 1)
         (Random.float -1 1)
-        (Random.int 0 4)
+        (Random.int 0 6)
