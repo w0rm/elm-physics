@@ -172,8 +172,6 @@ capsule cylinder3d =
 
 
 {-| Create a cone shape with the given number of side faces, clamped to at least 3.
-Even numbers are more efficient, because collision performance depends
-on the number of unique non-parallel faces and edges.
 -}
 cone : Int -> Cone3d Meters BodyCoordinates -> Shape
 cone subdivisions cone3d =
