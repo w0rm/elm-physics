@@ -1061,7 +1061,7 @@ fromCone subdivisions radius length =
                 (List.range 0 (subdivisions - 1))
 
         volume =
-            2 * pi * length * radius ^ 2
+            (1 / 3) * pi * length * radius ^ 2
 
         cap z =
             List.map
@@ -1099,7 +1099,7 @@ fromCone subdivisions radius length =
         , vertices = vertices
         , uniqueEdges = groupEdgesByDirection allFaces
         , position = Vec3.zero
-        , inertia = Mat3.cylinderInertia volume radius length
+        , inertia = Mat3.coneInertia volume radius length
         , volume = volume
         }
 
