@@ -175,7 +175,7 @@ capsule cylinder3d =
 Even numbers are more efficient, because collision performance depends
 on the number of unique non-parallel faces and edges.
 -}
-cone : Int -> Cone3d Meters BodyCoordinates -> Body
+cone : Int -> Cone3d Meters BodyCoordinates -> Shape
 cone subdivisions cone3d =
     let
         ( a, b ) =
@@ -184,7 +184,7 @@ cone subdivisions cone3d =
 
         transform3d =
             Transform3d.fromOriginAndBasis
-                (Point3d.toMeters (Cone3d.centerPoint cone3d))
+                (Point3d.toMeters (Point3d.midpoint (Cone3d.basePoint cone3d) (Cone3d.tipPoint cone3d)))
                 (Direction3d.unwrap a)
                 (Direction3d.unwrap b)
                 (Direction3d.unwrap (Cone3d.axialDirection cone3d))
