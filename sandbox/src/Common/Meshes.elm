@@ -6,6 +6,7 @@ module Common.Meshes exposing
     , capsule
     , contact
     , cylinder
+    , cone
     , fromTriangleGroups
     , fromTriangles
     , sphere
@@ -14,6 +15,7 @@ module Common.Meshes exposing
 
 import Block3d exposing (Block3d)
 import Cylinder3d exposing (Cylinder3d)
+import Cone3d exposing (Cone3d)
 import Dict exposing (Dict)
 import Direction3d
 import Frame3d
@@ -524,6 +526,90 @@ cylinder subdivisions cylinder3d =
             [ facet topCenter p3 p2 2
             , facet p1 p0 p3 1
             , facet p2 p3 p0 1
+            , facet bottomCenter p0 p1 2
+            ]
+    in
+    List.range 0 (subdivisions - 1)
+        |> List.concatMap wedge
+
+
+cone : Int -> Cone3d Meters BodyCoordinates -> List ( Attributes, Attributes, Attributes )
+cone subdivisions cone3d =
+    let
+        wedgeAngle =
+            2 * pi / toFloat subdivisions
+
+        length =
+            Length.inMeters (Cone3d.length cone3d)
+
+        radius =
+            Length.inMeters (Cone3d.radius cone3d)
+
+        bottomZ =
+            -0.5 * length
+
+        topZ =
+            0.5 * length
+
+        ( a, b ) =
+            Cone3d.axialDirection cone3d
+                |> Direction3d.perpendicularBasis
+
+        cylinderFrame3d =
+            Frame3d.unsafe
+                { originPoint = Point3d.midpoint (Cone3d.basePoint cone3d) (Cone3d.tipPoint cone3d)
+                , xDirection = a
+                , yDirection = b
+                , zDirection = Cone3d.axialDirection cone3d
+                }
+
+        transform px py pz =
+            Point3d.placeIn cylinderFrame3d (Point3d.meters px py pz)
+                |> Point3d.toMeters
+                |> Vec3.fromRecord
+
+        bottomCenter =
+            transform 0 0 bottomZ
+
+        topCenter =
+            transform 0 0 topZ
+
+        wedge startIndex =
+            let
+                -- Match Convex.fromCylinder's ring exactly (vertices at the
+                -- (k - 0.5) wedge angles, x = sin / y = cos) so the rendered
+                -- mesh sits on the collision hull rather than rotated off it.
+                startAngle =
+                    wedgeAngle * (toFloat startIndex - 0.5)
+
+                endIndex =
+                    startIndex + 1 |> modBy subdivisions
+
+                endAngle =
+                    wedgeAngle * (toFloat endIndex - 0.5)
+
+                startX =
+                    radius * sin startAngle
+
+                endX =
+                    radius * sin endAngle
+
+                startY =
+                    radius * cos startAngle
+
+                endY =
+                    radius * cos endAngle
+
+                p0 =
+                    transform startX startY bottomZ
+
+                p1 =
+                    transform endX endY bottomZ
+            in
+            -- The ring uses x = sin / y = cos (to match Convex.fromCylinder),
+            -- which reverses angular handedness, so the outward winding is the
+            -- swap of the usual order: front faces and shadow normals face out.
+            [ facet topCenter p1 p0 1
             , facet bottomCenter p0 p1 2
             ]
     in

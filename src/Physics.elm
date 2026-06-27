@@ -1,6 +1,6 @@
 module Physics exposing
     ( Body, BodyCoordinates, WorldCoordinates
-    , block, plane, sphere, cylinder, capsule, pointMass
+    , block, plane, sphere, cylinder, capsule, cone, pointMass
     , moveTo, translateBy, rotateAround, place
     , simulate, onEarth, Config
     , Contacts, emptyContacts, contactPoints
@@ -19,7 +19,7 @@ module Physics exposing
 
 @docs Body, BodyCoordinates, WorldCoordinates
 
-@docs block, plane, sphere, cylinder, capsule, pointMass
+@docs block, plane, sphere, cylinder, capsule, cone, pointMass
 
 
 # Positioning
@@ -72,6 +72,7 @@ import Area exposing (SquareMeters)
 import Array exposing (Array)
 import Axis3d exposing (Axis3d)
 import Block3d exposing (Block3d)
+import Cone3d exposing (Cone3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d exposing (Direction3d)
 import Duration exposing (Duration, Seconds)
@@ -122,8 +123,8 @@ There are three kinds of bodies:
 
   - **dynamic** — moved by the engine in response to forces, gravity, and contacts.
     The default for [block](#block), [sphere](#sphere), [cylinder](#cylinder),
-    [capsule](#capsule), and [pointMass](#pointMass); use [dynamic](#dynamic) to combine several
-    [shapes](Physics-Shape#Shape) into one body.
+    [capsule](#capsule), [cone](#cone), and [pointMass](#pointMass);
+    use [dynamic](#dynamic) to combine several [shapes](Physics-Shape#Shape) into one body.
 
   - **static** — never moves. Used for floors, walls, and other immovable scenery.
     The default for [plane](#plane); use [static](#static) to combine several
@@ -190,6 +191,14 @@ cylinder cylinder3d mat =
 capsule : Cylinder3d Meters BodyCoordinates -> Material Dense -> Body
 capsule cylinder3d mat =
     dynamic [ ( Shape.capsule cylinder3d, mat ) ]
+
+
+{-| Create a cone, approximated with 12 side faces.
+For more subdivisions, use [dynamic](#dynamic) with [Shape.cone](Physics-Shape#cone).
+-}
+cone : Cone3d Meters BodyCoordinates -> Material Dense -> Body
+cone cone3d mat =
+    dynamic [ ( Shape.cone 12 cone3d, mat ) ]
 
 
 {-| Create a point mass — a body with mass but no extent. Two point masses

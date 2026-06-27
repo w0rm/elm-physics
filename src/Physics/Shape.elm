@@ -1,11 +1,11 @@
 module Physics.Shape exposing
-    ( Shape, block, sphere, cylinder, capsule
+    ( Shape, block, sphere, cylinder, capsule, cone
     , minus, plus, sum, unsafeConvex
     )
 
 {-|
 
-@docs Shape, block, sphere, cylinder, capsule
+@docs Shape, block, sphere, cylinder, capsule, cone
 
 
 # Complex shapes
@@ -15,6 +15,7 @@ module Physics.Shape exposing
 -}
 
 import Block3d exposing (Block3d)
+import Cone3d exposing (Cone3d)
 import Cylinder3d exposing (Cylinder3d)
 import Direction3d
 import Frame3d
@@ -35,8 +36,8 @@ import TriangularMesh exposing (TriangularMesh)
 and [static](Physics#static) bodies.
 
 The supported primitive shapes are [block](#block), [sphere](#sphere),
-[cylinder](#cylinder), and [capsule](#capsule). For complex geometry
-use [unsafeConvex](#unsafeConvex).
+[cylinder](#cylinder), [cone](#cone), and [capsule](#capsule). For
+complex geometry use [unsafeConvex](#unsafeConvex).
 
 Shapes within a body **should not overlap** — composing shapes only affects physical
 properties like mass, inertia, and center of mass. Use [plus](#plus) and
@@ -164,6 +165,33 @@ capsule cylinder3d =
                 (Length.inMeters (Cylinder3d.length cylinder3d) / 2)
                 |> Capsule.placeIn transform3d
                 |> Internal.Capsule
+          , 1
+          )
+        ]
+
+
+{-| Create a cone shape with the given number of side faces, clamped to at least 3.
+-}
+cone : Int -> Cone3d Meters BodyCoordinates -> Shape
+cone subdivisions cone3d =
+    let
+        ( a, b ) =
+            Cone3d.axialDirection cone3d
+                |> Direction3d.perpendicularBasis
+
+        transform3d =
+            Transform3d.fromOriginAndBasis
+                (Point3d.toMeters (Point3d.midpoint (Cone3d.basePoint cone3d) (Cone3d.tipPoint cone3d)))
+                (Direction3d.unwrap a)
+                (Direction3d.unwrap b)
+                (Direction3d.unwrap (Cone3d.axialDirection cone3d))
+    in
+    Types.Shape
+        [ ( Convex.fromCone (max 3 subdivisions)
+                (Length.inMeters (Cone3d.radius cone3d))
+                (Length.inMeters (Cone3d.length cone3d))
+                |> Convex.placeIn transform3d
+                |> Internal.Convex
           , 1
           )
         ]

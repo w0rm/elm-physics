@@ -2,6 +2,7 @@ module Internal.Matrix3 exposing
     ( Mat3
     , add
     , capsuleInertia
+    , coneInertia
     , cylinderInertia
     , eigenDecomposition
     , inverse
@@ -215,6 +216,24 @@ cylinderInertia m radius height =
     , m13 = 0
     , m23 = 0
     , m33 = (m * radius ^ 2) / 2
+    }
+
+
+coneInertia : Float -> Float -> Float -> Mat3
+coneInertia m radius height =
+    let
+        a =
+            (3 * m * (4 * radius ^ 2 + height ^ 2)) / 80
+    in
+    { m11 = a
+    , m21 = 0
+    , m31 = 0
+    , m12 = 0
+    , m22 = a
+    , m32 = 0
+    , m13 = 0
+    , m23 = 0
+    , m33 = (3 * m * radius ^ 2) / 10
     }
 
 
