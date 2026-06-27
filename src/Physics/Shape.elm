@@ -30,7 +30,6 @@ import Shapes.Convex as Convex
 import Shapes.Sphere as Sphere
 import Sphere3d exposing (Sphere3d)
 import TriangularMesh exposing (TriangularMesh)
-import Vector3d exposing (Vector3d)
 
 
 {-| Shapes are needed for creating compound [dynamic](Physics#dynamic)
