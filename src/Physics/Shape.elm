@@ -37,7 +37,7 @@ import Vector3d exposing (Vector3d)
 and [static](Physics#static) bodies.
 
 The supported primitive shapes are [block](#block), [sphere](#sphere),
-[cylinder](#cylinder), and [capsule](#capsule), [cone](#cone). For
+[cylinder](#cylinder), [cone](#cone), and [capsule](#capsule). For
 complex geometry use [unsafeConvex](#unsafeConvex).
 
 Shapes within a body **should not overlap** — composing shapes only affects physical
