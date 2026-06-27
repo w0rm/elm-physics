@@ -23,7 +23,6 @@ import Internal.Coordinates exposing (BodyCoordinates)
 import Internal.Shape as Internal
 import Internal.Transform3d as Transform3d
 import Length exposing (Meters)
-import Parameter1d
 import Physics.Types as Types
 import Point3d exposing (Point3d)
 import Shapes.Capsule as Capsule
@@ -176,59 +175,29 @@ capsule cylinder3d =
 Even numbers are more efficient, because collision performance depends
 on the number of unique non-parallel faces and edges.
 -}
-cone : Cone3d Meters BodyCoordinates -> Body
-cone sourceCone =
+cone : Int -> Cone3d Meters BodyCoordinates -> Body
+cone subdivisions cone3d =
     let
-        bottomCenter =
-            Cone3d.basePoint sourceCone
+        ( a, b ) =
+            Cone3d.axialDirection cone3d
+                |> Direction3d.perpendicularBasis
 
-        tip =
-            Cone3d.tipPoint sourceCone
-
-        radius =
-            Cone3d.radius sourceCone
-                |> Length.inMeters
-
-        bottom =
-            TriangularMesh.radial bottomCenter <|
-                Parameter1d.leading 12 <|
-                    \u ->
-                        let
-                            theta =
-                                2 * pi * u
-
-                            sinTheta =
-                                sin theta
-
-                            cosTheta =
-                                cos theta
-                        in
-                        bottomCenter
-                            |> Point3d.translateBy
-                                (Vector3d.unsafe { x = cosTheta * radius, y = -sinTheta * radius, z = 0 })
-
-        sides =
-            TriangularMesh.radial tip <|
-                Parameter1d.leading 12 <|
-                    \u ->
-                        let
-                            theta =
-                                2 * pi * u
-
-                            sinTheta =
-                                sin theta
-
-                            cosTheta =
-                                cos theta
-                        in
-                        bottomCenter
-                            |> Point3d.translateBy
-                                (Vector3d.unsafe { x = cosTheta * radius, y = sinTheta * radius, z = 0 })
+        transform3d =
+            Transform3d.fromOriginAndBasis
+                (Point3d.toMeters (Cone3d.centerPoint cone3d))
+                (Direction3d.unwrap a)
+                (Direction3d.unwrap b)
+                (Direction3d.unwrap (Cone3d.axialDirection cone3d))
     in
-    unsafeConvex
-        (TriangularMesh.combine
-            [ bottom, sides ]
-        )
+    Types.Shape
+        [ ( Convex.fromCone (max 3 subdivisions)
+                (Length.inMeters (Cone3d.radius cone3d))
+                (Length.inMeters (Cone3d.length cone3d))
+                |> Convex.placeIn transform3d
+                |> Internal.Convex
+          , 1
+          )
+        ]
 
 
 {-| Create a shape from a triangular mesh. This is useful if you want

@@ -12,6 +12,7 @@ module Shapes.Convex exposing
     , faceVertices
     , foldFaceEdges
     , fromBlock
+    , fromCone
     , fromCylinder
     , fromTriangularMesh
     , indexedFaceVertices
@@ -1011,6 +1012,80 @@ fromCylinder subdivisions radius length =
 
         allFaces =
             topCap :: bottomCap :: sideFaces
+
+        -- All distinct vertices any face references — side faces recompute
+        -- their ring points, which can differ from the caps' in the last bits
+        -- at the wrap-around, so collecting from the faces (rather than reusing
+        -- the caps) guarantees every face/edge endpoint is found by `==`.
+        vertices =
+            dedupVertices (List.concatMap .vertices allFaces) []
+    in
+    init
+        { faces = groupFacesByNormal allFaces
+        , vertices = vertices
+        , uniqueEdges = groupEdgesByDirection allFaces
+        , position = Vec3.zero
+        , inertia = Mat3.cylinderInertia volume radius length
+        , volume = volume
+        }
+
+
+fromCone : Int -> Float -> Float -> Convex
+fromCone subdivisions radius length =
+    let
+        top =
+            length * 0.5
+
+        bottom =
+            length * -0.5
+
+        sides =
+            List.map
+                (\value ->
+                    let
+                        r0 =
+                            2 * pi * (toFloat value - 0.5) / toFloat subdivisions
+
+                        r1 =
+                            2 * pi * toFloat value / toFloat subdivisions
+
+                        r2 =
+                            2 * pi * (toFloat value + 0.5) / toFloat subdivisions
+                    in
+                    { normal = { x = sin r1, y = cos r1, z = 0 }
+                    , v0 = { x = 0, y = 0, z = top }
+                    , v1 = { x = sin r2 * radius, y = cos r2 * radius, z = bottom }
+                    , v2 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
+                    }
+                )
+                (List.range 0 (subdivisions - 1))
+
+        volume =
+            2 * pi * length * radius ^ 2
+
+        cap z =
+            List.map
+                (\value ->
+                    let
+                        r0 =
+                            2 * pi * (toFloat value - 0.5) / toFloat subdivisions
+                    in
+                    { x = sin r0 * radius, y = cos r0 * radius, z = z }
+                )
+                (List.range 0 (subdivisions - 1))
+
+        bottomCap =
+            { vertices = cap bottom, normal = Vec3.zNegative }
+
+        sideFaces =
+            List.map
+                (\{ v0, v1, v2, normal } ->
+                    { vertices = [ v0, v1, v2 ], normal = normal }
+                )
+                sides
+
+        allFaces =
+            bottomCap :: sideFaces
 
         -- All distinct vertices any face references — side faces recompute
         -- their ring points, which can differ from the caps' in the last bits

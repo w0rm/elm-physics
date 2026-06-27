@@ -198,7 +198,7 @@ For more subdivisions, use [dynamic](#dynamic) with [Shape.cone](Physics-Shape#c
 -}
 cone : Cone3d Meters BodyCoordinates -> Material Dense -> Body
 cone cone3d mat =
-    dynamic [ ( Shape.cone cone3d, mat ) ]
+    dynamic [ ( Shape.cone 12 cone3d, mat ) ]
 
 
 {-| Create a point mass — a body with mass but no extent. Two point masses
