@@ -33,7 +33,7 @@ step model =
 - **Pure** — `simulate` is a function, not a stateful world; deterministic, replayable, time-travel friendly.
 - **Your list is the world** — bodies live in `List ( id, Body )`; add with `(::)`, remove with `List.filter`.
 - **Type-safe coordinates and units** — built on [elm-geometry](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/) and [elm-units](https://package.elm-lang.org/packages/ianmackenzie/elm-units/latest/); phantom types keep `WorldCoordinates` and `BodyCoordinates` apart, and forces, masses, velocities, and durations all carry units.
-- **Shapes** — block, sphere, cylinder, capsule, and arbitrary convex polyhedra.
+- **Shapes** — block, sphere, cylinder, cone, capsule, and arbitrary convex polyhedra.
 - **Compound bodies** — combine shapes with `Shape.plus` / `minus` / `sum` and per-shape materials; mass, center of mass, and the full inertia tensor are derived for you.
 - **Declarative constraints and collisions** — pass `constrain` and `collide` as functions to `simulate`; the engine asks per body-pair what applies, so there's no constraint registry and no filter-group API.
 - **Sequential-impulse solver** — a Projected Gauss-Seidel velocity solver with Spook soft-constraint stabilization for resting contacts; warm-start it by feeding last frame’s contacts back into `simulate`.
