@@ -9,6 +9,7 @@ module Internal.SolverBody exposing
 
 import Array exposing (Array)
 import Internal.Body exposing (Body)
+import Internal.Const as Const
 import Internal.Matrix3 as Mat3
 import Internal.Shape as Shape
 import Internal.Transform3d as Transform3d
@@ -27,23 +28,6 @@ type alias SolverBody id =
     }
 
 
-{-| Square of the linear+angular speed below which a frame counts toward sleep.
-~0.1 m/s — above a resting PGS stack's jitter, below genuine motion.
--}
-sleepThresholdSq : Float
-sleepThresholdSq =
-    0.01
-
-
-{-| Consecutive near-rest frames before a body wants to sleep (≈1 s at 60 fps).
-A `sleepFrames` of exactly this means "wants to sleep"; the solver stamps
-`sleepFrameLimit + 1` to mean "island-confirmed asleep, hold the pose".
--}
-sleepFrameLimit : Int
-sleepFrameLimit =
-    60
-
-
 {-| True if this body forces its island to keep simulating. A dynamic body does
 so until its rest timer reaches the limit. A _moving_ kinematic body does too:
 it drags the dynamics it touches or is constrained to via the solve, so they
@@ -53,7 +37,7 @@ keepsIslandAwake : SolverBody id -> Bool
 keepsIslandAwake { body } =
     case body.kindInt of
         2 ->
-            body.sleepFrames - sleepFrameLimit < 0
+            body.sleepTime - Const.sleepTimeLimit < 0
 
         3 ->
             Vec3.lengthSquared body.velocity > 0 || Vec3.lengthSquared body.angularVelocity > 0
@@ -62,9 +46,10 @@ keepsIslandAwake { body } =
             False
 
 
-{-| Stamp the island-asleep marker (`sleepFrameLimit + 1`) so `solved` holds the
-body's pose instead of integrating it. The body is rebuilt as a literal to keep
-its hidden class identical to every other `Body` flowing into `solved`.
+{-| Stamp the island-asleep marker (`Const.maxNumber`) and zero the motion, so
+`solved` holds the body's pose instead of integrating it. The body is rebuilt
+as a literal to keep its hidden class identical to every other `Body` flowing
+into `solved`.
 -}
 markAsleep : SolverBody id -> SolverBody id
 markAsleep solverBody =
@@ -77,13 +62,13 @@ markAsleep solverBody =
         , kindInt = body.kindInt
         , transform3d = body.transform3d
         , centerOfMassTransform3d = body.centerOfMassTransform3d
-        , velocity = body.velocity
-        , angularVelocity = body.angularVelocity
+        , velocity = Vec3.zero
+        , angularVelocity = Vec3.zero
         , mass = body.mass
         , geometry = body.geometry
         , worldShapesWithMaterials = body.worldShapesWithMaterials
-        , force = body.force
-        , torque = body.torque
+        , force = Vec3.zero
+        , torque = Vec3.zero
         , linearDamping = body.linearDamping
         , angularDamping = body.angularDamping
         , invMass = body.invMass
@@ -91,7 +76,7 @@ markAsleep solverBody =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = sleepFrameLimit + 1
+        , sleepTime = Const.maxNumber
         }
     , extId = solverBody.extId
     , vX = solverBody.vX
@@ -107,6 +92,11 @@ markAsleep solverBody =
 would have after this step with no constraints: damped stored velocity plus
 one tick of gravity and applied forces. Rows measure and correct these totals
 directly.
+
+The asleep marker only survives a frame if the solver re-confirms the
+island, so normalize it to the limit on entry: a body whose island got merged
+or dismantled then integrates again, one whose island still rests is re-marked.
+
 -}
 fromBody : Float -> Vec3 -> id -> Body -> SolverBody id
 fromBody dt gravity extId body =
@@ -121,7 +111,31 @@ fromBody dt gravity extId body =
             invI =
                 body.invInertiaWorld
         in
-        { body = body
+        { body =
+            if body.sleepTime - Const.sleepTimeLimit > 0 then
+                { id = body.id
+                , kindInt = body.kindInt
+                , transform3d = body.transform3d
+                , centerOfMassTransform3d = body.centerOfMassTransform3d
+                , velocity = body.velocity
+                , angularVelocity = body.angularVelocity
+                , mass = body.mass
+                , geometry = body.geometry
+                , worldShapesWithMaterials = body.worldShapesWithMaterials
+                , force = body.force
+                , torque = body.torque
+                , linearDamping = body.linearDamping
+                , angularDamping = body.angularDamping
+                , invMass = body.invMass
+                , invInertia = body.invInertia
+                , invInertiaWorld = body.invInertiaWorld
+                , linearLock = body.linearLock
+                , angularLock = body.angularLock
+                , sleepTime = Const.sleepTimeLimit
+                }
+
+            else
+                body
         , extId = extId
         , vX = (gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld
         , vY = (gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld
@@ -185,7 +199,7 @@ sentinel extId =
         , invInertiaWorld = Mat3.zero
         , linearLock = Vec3.one
         , angularLock = Vec3.one
-        , sleepFrames = 0
+        , sleepTime = 0
         }
     , extId = extId
     , vX = 0
@@ -248,7 +262,7 @@ solved dt ({ body } as solverBody) =
               , invInertiaWorld = body.invInertiaWorld
               , linearLock = body.linearLock
               , angularLock = body.angularLock
-              , sleepFrames = 0
+              , sleepTime = 0
 
               -- clear forces
               , force = Vec3.zero
@@ -258,44 +272,20 @@ solved dt ({ body } as solverBody) =
 
         _ ->
             -- Dynamic (or any other; only Dynamic is the live case).
-            -- A `sleepFrames` above the limit is the solver's island-asleep
-            -- marker: the body's whole island is at rest, so skip the integrate
-            -- and re-place entirely and hold the pose. Reset the marker to the
-            -- limit so that if the island wakes (the solver won't re-mark it)
-            -- this body integrates again next frame.
-            if body.sleepFrames > sleepFrameLimit then
-                ( solverBody.extId
-                , { id = body.id
-                  , kindInt = body.kindInt
-                  , velocity = Vec3.zero
-                  , angularVelocity = Vec3.zero
-                  , transform3d = body.transform3d
-                  , centerOfMassTransform3d = body.centerOfMassTransform3d
-                  , mass = body.mass
-                  , geometry = body.geometry
-                  , worldShapesWithMaterials = body.worldShapesWithMaterials
-                  , linearDamping = body.linearDamping
-                  , angularDamping = body.angularDamping
-                  , invMass = body.invMass
-                  , invInertia = body.invInertia
-                  , invInertiaWorld = body.invInertiaWorld
-                  , linearLock = body.linearLock
-                  , angularLock = body.angularLock
-                  , sleepFrames = sleepFrameLimit
-
-                  -- clear forces
-                  , force = Vec3.zero
-                  , torque = Vec3.zero
-                  }
-                )
+            -- The asleep marker means the solver re-confirmed this body's
+            -- island at rest this frame: skip the integrate and re-place
+            -- entirely — motion and forces were zeroed when it fell asleep,
+            -- so the body is reused as-is.
+            if body.sleepTime - Const.sleepTimeLimit > 0 then
+                ( solverBody.extId, body )
 
             else
                 integrateDynamic dt solverBody body
 
 
 {-| Integrate an awake dynamic body to its next-frame state and advance its
-sleep timer (the consecutive-near-rest-frame count the solver later reads to
-decide whether the body's whole island can sleep).
+rest timer (the continuous near-rest time the solver later reads to decide
+whether the body's whole island can sleep).
 -}
 integrateDynamic : Float -> SolverBody id -> Body -> ( id, Body )
 integrateDynamic dt solverBody body =
@@ -332,16 +322,24 @@ integrateDynamic dt solverBody body =
             , z = solverBody.wZ * body.angularLock.z
             }
 
-        -- Sleep hysteresis: count consecutive near-rest frames; a single
-        -- frame above the threshold resets it. This per-body timer only
-        -- expresses that the body *wants* to sleep; the solver decides
-        -- per island whether it actually does.
-        restingSq =
-            velocityLength * velocityLength + Vec3.lengthSquared newAngularVelocity
+        -- Sleep hysteresis: a step counts toward sleep when the speed of the
+        -- body's farthest point, |v| + |w|·r, is below the rest speed (tested
+        -- in squares to avoid a sqrt); a single step above resets the timer.
+        -- This per-body timer only expresses that the body *wants* to sleep;
+        -- the solver decides per island whether it actually does.
+        sleepMargin =
+            Const.sleepSpeedLimit - velocityLength
 
-        nextSleepFrames =
-            if restingSq - sleepThresholdSq < 0 then
-                min sleepFrameLimit (body.sleepFrames + 1)
+        nextSleepTime =
+            if
+                (sleepMargin > 0)
+                    && (Vec3.lengthSquared newAngularVelocity * boundingSphereRadius * boundingSphereRadius - sleepMargin * sleepMargin < 0)
+            then
+                if body.sleepTime + dt - Const.sleepTimeLimit > 0 then
+                    Const.sleepTimeLimit
+
+                else
+                    body.sleepTime + dt
 
             else
                 0
@@ -379,7 +377,7 @@ integrateDynamic dt solverBody body =
       , invInertiaWorld = Transform3d.invertedInertiaRotateIn newTransform3d body.invInertia
       , linearLock = body.linearLock
       , angularLock = body.angularLock
-      , sleepFrames = nextSleepFrames
+      , sleepTime = nextSleepTime
 
       -- clear forces
       , force = Vec3.zero

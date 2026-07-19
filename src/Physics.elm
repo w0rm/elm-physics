@@ -7,6 +7,7 @@ module Physics exposing
     , frame, interpolatedFrame, originPoint, velocity, angularVelocity, velocityAt
     , centerOfMass, mass
     , raycast, applyForce, applyImpulse, applyTorque, applyAngularImpulse
+    , isSleeping, sleep, wake
     , dynamic, static, kinematic
     , setVelocityTo, setAngularVelocityTo, scaleMassTo
     , damp, lock, applyInverseInertia, angularAccelerationFromTorque, angularVelocityDeltaFromAngularImpulse
@@ -44,6 +45,14 @@ module Physics exposing
 # Interaction
 
 @docs raycast, applyForce, applyImpulse, applyTorque, applyAngularImpulse
+
+
+# Sleeping
+
+A body at rest for one second falls asleep and is skipped by the simulation
+until disturbed. This is automatic; these functions let you override it.
+
+@docs isSleeping, sleep, wake
 
 
 # Composite bodies
@@ -320,7 +329,7 @@ moveTo point3d (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = 0
+        , sleepTime = 0
         }
 
 
@@ -367,7 +376,7 @@ translateBy vector3d (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = 0
+        , sleepTime = 0
         }
 
 
@@ -432,7 +441,7 @@ rotateAround axis angle (Types.Body body) =
                 body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = 0
+        , sleepTime = 0
         }
 
 
@@ -497,7 +506,7 @@ place frame3d (Types.Body body) =
                 body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = 0
+        , sleepTime = 0
         }
 
 
@@ -945,6 +954,87 @@ applyAngularImpulse angularImpulse ((Types.Body body) as original) =
         original
 
 
+{-| Check if a body is asleep. A sleeping body holds its pose exactly and
+costs almost nothing to simulate. It wakes when disturbed: through any
+of the mutators on this page, or by contact with a moving body.
+
+Only dynamic bodies sleep — always `False` for static and kinematic bodies,
+which are not simulated to begin with.
+
+-}
+isSleeping : Body -> Bool
+isSleeping (Types.Body body) =
+    body.sleepTime - Const.sleepTimeLimit > 0
+
+
+{-| Put a dynamic body to sleep immediately, dropping its velocities and
+pending forces. Useful to spawn a scene already at rest, skipping the
+second of simulation it would take to settle. Sleep is only held while
+the body is supported — a body slept in mid-air wakes and falls on the
+next simulation step. Has no effect on static and kinematic bodies.
+-}
+sleep : Body -> Body
+sleep ((Types.Body body) as original) =
+    if body.kindInt == 2 then
+        Types.Body
+            { id = body.id
+            , kindInt = body.kindInt
+            , transform3d = body.transform3d
+            , centerOfMassTransform3d = body.centerOfMassTransform3d
+            , velocity = Vec3.zero
+            , angularVelocity = Vec3.zero
+            , mass = body.mass
+            , geometry = body.geometry
+            , worldShapesWithMaterials = body.worldShapesWithMaterials
+            , force = Vec3.zero
+            , torque = Vec3.zero
+            , linearDamping = body.linearDamping
+            , angularDamping = body.angularDamping
+            , invMass = body.invMass
+            , invInertia = body.invInertia
+            , invInertiaWorld = body.invInertiaWorld
+            , linearLock = body.linearLock
+            , angularLock = body.angularLock
+            , sleepTime = Const.maxNumber
+            }
+
+    else
+        original
+
+
+{-| Wake a sleeping body, restarting its rest timer. Applying forces or
+setting velocities wakes a body too — use `wake` to disturb a body without
+otherwise changing it, e.g. every frame to keep it from ever sleeping.
+-}
+wake : Body -> Body
+wake ((Types.Body body) as original) =
+    if body.sleepTime > 0 then
+        Types.Body
+            { id = body.id
+            , kindInt = body.kindInt
+            , transform3d = body.transform3d
+            , centerOfMassTransform3d = body.centerOfMassTransform3d
+            , velocity = body.velocity
+            , angularVelocity = body.angularVelocity
+            , mass = body.mass
+            , geometry = body.geometry
+            , worldShapesWithMaterials = body.worldShapesWithMaterials
+            , force = body.force
+            , torque = body.torque
+            , linearDamping = body.linearDamping
+            , angularDamping = body.angularDamping
+            , invMass = body.invMass
+            , invInertia = body.invInertia
+            , invInertiaWorld = body.invInertiaWorld
+            , linearLock = body.linearLock
+            , angularLock = body.angularLock
+            , sleepTime = 0
+            }
+
+    else
+        original
+
+
 {-| Replace the linear velocity of a body. Works on both [dynamic](#dynamic)
 and [kinematic](#kinematic) bodies.
 
@@ -987,7 +1077,7 @@ setVelocityTo newVelocity ((Types.Body body) as original) =
             , invInertiaWorld = body.invInertiaWorld
             , linearLock = body.linearLock
             , angularLock = body.angularLock
-            , sleepFrames = 0
+            , sleepTime = 0
             }
 
 
@@ -1019,7 +1109,7 @@ setAngularVelocityTo newAngularVelocity ((Types.Body body) as original) =
             , invInertiaWorld = body.invInertiaWorld
             , linearLock = body.linearLock
             , angularLock = body.angularLock
-            , sleepFrames = 0
+            , sleepTime = 0
             }
 
 
@@ -1062,7 +1152,7 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
             , invInertiaWorld = Transform3d.invertedInertiaRotateIn body.transform3d newInvInertia
             , linearLock = body.linearLock
             , angularLock = body.angularLock
-            , sleepFrames = 0
+            , sleepTime = 0
             }
 
     else
@@ -1094,7 +1184,7 @@ damp { linear, angular } (Types.Body body) =
         , invInertiaWorld = body.invInertiaWorld
         , linearLock = body.linearLock
         , angularLock = body.angularLock
-        , sleepFrames = 0
+        , sleepTime = 0
         }
 
 

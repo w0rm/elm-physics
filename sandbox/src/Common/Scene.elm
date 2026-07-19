@@ -87,6 +87,13 @@ bodyColor =
     vec3 0.9 0.9 0.9
 
 
+{-| Sleeping bodies render dimmer, so settled regions are visible at a glance.
+-}
+sleepingBodyColor : Vec3
+sleepingBodyColor =
+    vec3 0.5 0.53 0.6
+
+
 floorColor : Vec3
 floorColor =
     vec3 0.35 0.35 0.35
@@ -110,6 +117,12 @@ view { settings, bodies, contacts, floorOffset, camera, contactRadius } =
                     { meshes = meshes
                     , body = body
                     , transform = Frame3d.toMat4 frame
+                    , color =
+                        if Physics.isSleeping body then
+                            sleepingBodyColor
+
+                        else
+                            bodyColor
                     }
                 )
                 bodies
@@ -128,12 +141,12 @@ view { settings, bodies, contacts, floorOffset, camera, contactRadius } =
         litEntities =
             if settings.debugWireframes then
                 List.map
-                    (\{ meshes, transform } ->
+                    (\{ meshes, transform, color } ->
                         WebGL.entityWith defaultSettings
                             Shaders.wireframeVertex
                             Shaders.wireframeFragment
                             meshes.mesh
-                            (uniforms transform bodyColor)
+                            (uniforms transform color)
                     )
                     prepared
 
@@ -145,23 +158,23 @@ view { settings, bodies, contacts, floorOffset, camera, contactRadius } =
                     floorMesh
                     (uniforms floorTransform floorColor)
                     :: List.map
-                        (\{ meshes, transform } ->
+                        (\{ meshes, transform, color } ->
                             WebGL.entityWith ambientSettings
                                 Shaders.vertex
                                 Shaders.ambientFragment
                                 meshes.mesh
-                                (uniforms transform bodyColor)
+                                (uniforms transform color)
                         )
                         prepared
                 )
                     -- Pass 2: each body's shadow volume into the stencil buffer.
                     ++ List.map
-                        (\{ meshes, transform } ->
+                        (\{ meshes, transform, color } ->
                             WebGL.entityWith shadowVolumeSettings
                                 Shaders.shadowVolumeVertex
                                 Shaders.shadowVolumeFragment
                                 meshes.shadow
-                                (uniforms transform bodyColor)
+                                (uniforms transform color)
                         )
                         prepared
                     -- Pass 3: add the directional term only where unshadowed.
@@ -171,12 +184,12 @@ view { settings, bodies, contacts, floorOffset, camera, contactRadius } =
                             floorMesh
                             (uniforms floorTransform floorColor)
                             :: List.map
-                                (\{ meshes, transform } ->
+                                (\{ meshes, transform, color } ->
                                     WebGL.entityWith diffuseSettings
                                         Shaders.vertex
                                         Shaders.diffuseFragment
                                         meshes.mesh
-                                        (uniforms transform bodyColor)
+                                        (uniforms transform color)
                                 )
                                 prepared
                        )

@@ -59,9 +59,10 @@ type alias Body =
     , linearLock : Vec3
     , angularLock : Vec3
 
-    -- consecutive frames below the rest speed; at sleepFrameLimit the body is
-    -- "asleep" and `solved` stops re-integrating/re-placing it. 0 = fully awake.
-    , sleepFrames : Int
+    -- seconds of continuous near-rest, clamped at Const.sleepTimeLimit ("wants
+    -- to sleep"); the Const.maxNumber stamp means island-confirmed asleep and
+    -- `solved` stops re-integrating/re-placing the body. 0 = fully awake.
+    , sleepTime : Float
     }
 
 
@@ -269,7 +270,7 @@ compound kindInt rawShapesWithMaterials =
     , torque = Vec3.zero
     , linearLock = { x = 1, y = 1, z = 1 }
     , angularLock = { x = 1, y = 1, z = 1 }
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -304,7 +305,7 @@ pointMass position mass { friction, bounciness } =
     , torque = Vec3.zero
     , linearLock = Vec3.one
     , angularLock = Vec3.one
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -346,7 +347,7 @@ applyImpulse impulse point body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -377,7 +378,7 @@ applyForce force point body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -401,7 +402,7 @@ applyTorque torque body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -436,7 +437,7 @@ applyAngularImpulse angularImpulse body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
@@ -469,7 +470,7 @@ lock locks body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = linearLock
     , angularLock = angularLock
-    , sleepFrames = 0
+    , sleepTime = 0
     }
 
 
