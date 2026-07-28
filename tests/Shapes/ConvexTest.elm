@@ -1,6 +1,7 @@
 module Shapes.ConvexTest exposing
     ( centerOfMass
     , extendContour
+    , faceNormals
     , faces
     , inertia
     , uniqeNormals
@@ -199,6 +200,80 @@ uniqeNormals =
             \_ ->
                 List.length Fixtures.Convex.squarePyramid.faces
                     |> Expect.equal 5
+        ]
+
+
+faceNormals : Test
+faceNormals =
+    describe "face normals"
+        [ test "every stored normal matches its winding" <|
+            \_ ->
+                -- The arc SAT trusts stored normals as support-structure
+                -- ground truth, so they must agree with the actual face
+                -- plane. `fromCone` used to store horizontal side normals
+                -- (copy-pasted from the cylinder) and failed this.
+                [ Convex.fromBlock 2 3 5
+                , Convex.fromCylinder 12 1.5 2
+                , Convex.fromCone 7 1.5 2
+                ]
+                    |> List.concatMap
+                        (\convex ->
+                            List.concatMap
+                                (\group ->
+                                    case group of
+                                        Convex.TwoSidedFace n1 i1 _ n2 i2 _ ->
+                                            [ ( n1, Convex.faceVertices convex.vertexBuffer { normal = n1, vertices = i1 } )
+                                            , ( n2, Convex.faceVertices convex.vertexBuffer { normal = n2, vertices = i2 } )
+                                            ]
+
+                                        Convex.OneSidedFace n1 i1 _ _ _ _ ->
+                                            [ ( n1, Convex.faceVertices convex.vertexBuffer { normal = n1, vertices = i1 } ) ]
+                                )
+                                convex.faces
+                        )
+                    |> List.filterMap
+                        (\( stored, vertices ) ->
+                            case vertices of
+                                v1 :: v2 :: v3 :: _ ->
+                                    let
+                                        computed =
+                                            Convex.computeNormal v1 v2 v3
+                                    in
+                                    if Vec3.lengthSquared (Vec3.sub stored computed) < 1.0e-20 then
+                                        Nothing
+
+                                    else
+                                        Just ( stored, computed )
+
+                                _ ->
+                                    Just ( stored, stored )
+                        )
+                    |> Expect.equal []
+        , test "cone side normals tilt up by the base apothem" <|
+            \_ ->
+                -- The side plane holds the apex and a base edge at apothem
+                -- distance, so the outward normal trades radial length for
+                -- height: z = apothem / sqrt (length² + apothem²), not 0.
+                let
+                    apothem =
+                        2 * cos (pi / 4)
+
+                    expected =
+                        apothem / sqrt (3 * 3 + apothem * apothem)
+                in
+                (Convex.fromCone 4 2 3).faces
+                    |> List.concatMap
+                        (\group ->
+                            case group of
+                                Convex.TwoSidedFace n1 _ _ n2 _ _ ->
+                                    [ n1, n2 ]
+
+                                Convex.OneSidedFace n1 _ _ _ _ _ ->
+                                    [ n1 ]
+                        )
+                    |> List.filter (\n -> abs (abs n.z - 1) > 1.0e-12)
+                    |> List.map (\n -> n.z)
+                    |> Expect.equal (List.repeat 4 expected)
         ]
 
 

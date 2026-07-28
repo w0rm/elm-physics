@@ -1039,6 +1039,13 @@ fromCone subdivisions radius length =
         bottom =
             length * -0.5
 
+        -- side normal = radial·length + ẑ·apothem: ⊥ to the face's apex edges
+        apothem =
+            radius * cos (pi / toFloat subdivisions)
+
+        sideNormalScale =
+            1 / sqrt (length * length + apothem * apothem)
+
         sides =
             List.map
                 (\value ->
@@ -1052,7 +1059,11 @@ fromCone subdivisions radius length =
                         r2 =
                             2 * pi * (toFloat value + 0.5) / toFloat subdivisions
                     in
-                    { normal = { x = sin r1, y = cos r1, z = 0 }
+                    { normal =
+                        { x = sin r1 * length * sideNormalScale
+                        , y = cos r1 * length * sideNormalScale
+                        , z = apothem * sideNormalScale
+                        }
                     , v0 = { x = 0, y = 0, z = top }
                     , v1 = { x = sin r2 * radius, y = cos r2 * radius, z = bottom }
                     , v2 = { x = sin r0 * radius, y = cos r0 * radius, z = bottom }
