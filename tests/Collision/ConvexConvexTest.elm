@@ -1,5 +1,6 @@
 module Collision.ConvexConvexTest exposing
     ( addContacts
+    , edgeOracle
     , findSeparatingAxis
     , project
     , testSeparatingAxis
@@ -7,12 +8,14 @@ module Collision.ConvexConvexTest exposing
 
 import Collision.ConvexConvex
 import Expect
+import Fuzz exposing (Fuzzer)
 import Internal.Const as Const
 import Internal.ContactId as ContactId
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Internal.VertexBuffer as VertexBuffer
 import Shapes.Convex as Convex
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe, fuzz, test)
 
 
 addContacts : Test
@@ -162,7 +165,7 @@ addContacts =
 
 testSeparatingAxis : Test
 testSeparatingAxis =
-    describe "Collision.ConvexConvex.testSeparatingAxis"
+    describe "separationAlong"
         [ test "returns Just depth" <|
             \_ ->
                 let
@@ -175,7 +178,7 @@ testSeparatingAxis =
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
-                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis)
+                    (separationAlong convex1 convex2 Vec3.xAxis)
                     (Just 0.6)
         , test "returns Nothing" <|
             \_ ->
@@ -189,7 +192,7 @@ testSeparatingAxis =
                             |> Convex.placeIn (Transform3d.atPoint { x = 0.2, y = 0, z = 0 })
                 in
                 Expect.equal
-                    (Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis)
+                    (separationAlong convex1 convex2 Vec3.xAxis)
                     Nothing
         , test "works with rotation" <|
             \_ ->
@@ -206,7 +209,7 @@ testSeparatingAxis =
                                         |> Transform3d.rotateAroundOwn Vec3.zAxis (pi / 4)
                                     )
                     in
-                    Collision.ConvexConvex.testSeparatingAxis convex1 convex2 Vec3.xAxis
+                    separationAlong convex1 convex2 Vec3.xAxis
                 of
                     Nothing ->
                         Expect.fail "expected depth"
@@ -317,3 +320,256 @@ project =
                         , .max >> Expect.within (Expect.Absolute 0.00001) 1.5
                         ]
         ]
+
+
+{-| Projection-based separation depth along `axis`: `Just depth` when the two
+hulls' [min,max] intervals overlap, `Nothing` when they clear the contact
+margin. An independent reference for the arc SAT — projects both hulls (via the
+production `projectConvex`) and checks interval overlap, sharing no logic with
+the Gauss-arc path it is used to cross-check.
+-}
+separationAlong : Convex.Convex -> Convex.Convex -> Vec3.Vec3 -> Maybe Float
+separationAlong convex1 convex2 axis =
+    let
+        o =
+            overlapAlong convex1 convex2 axis
+    in
+    if o + Const.contactBreakingThreshold < 0 then
+        Nothing
+
+    else
+        Just o
+
+
+{-| Interval overlap of the two hulls' projections along `axis` (negative =
+gap), via the production `projectConvex` — no logic shared with the arc path.
+-}
+overlapAlong : Convex.Convex -> Convex.Convex -> Vec3.Vec3 -> Float
+overlapAlong convex1 convex2 axis =
+    let
+        p1 =
+            Collision.ConvexConvex.projectConvex axis convex1
+
+        p2 =
+            Collision.ConvexConvex.projectConvex axis convex2
+    in
+    min (p1.max - p2.min) (p2.max - p1.min)
+
+
+{-| Independent reimplementation of the certified axis set: face normals
+plus old-style fan containment on the normalized cross, in world frame.
+`strictMin` covers the axes the arc SAT tests, `looseMin` also the
+near-parallel pairs it prunes; a pose whose verdict hangs on a pruned pair
+or sits within `oracleBand` of the contact threshold is legitimately
+either way — skipped.
+-}
+edgeOracle : Test
+edgeOracle =
+    describe "Collision.ConvexConvex.findSeparatingAxis oracle"
+        [ fuzz poseFuzzer "agrees with the containment oracle" <|
+            \pose ->
+                let
+                    convex1 =
+                        Convex.placeIn
+                            (Transform3d.atOrigin
+                                |> Transform3d.rotateAroundOwn pose.axis1 pose.angle1
+                            )
+                            pose.shape1
+
+                    convex2 =
+                        Convex.placeIn
+                            (Transform3d.atPoint (Vec3.scale pose.offset pose.offsetDir)
+                                |> Transform3d.rotateAroundOwn pose.axis2 pose.angle2
+                            )
+                            pose.shape2
+
+                    satSeparated =
+                        Collision.ConvexConvex.findSeparatingAxis convex1 convex2 == Nothing
+
+                    faceMin =
+                        List.foldl (\n o -> min o (overlapAlong convex1 convex2 n))
+                            Const.maxNumber
+                            (List.map Convex.faceGroupNormal convex1.faces
+                                ++ List.map Convex.faceGroupNormal convex2.faces
+                            )
+
+                    ( strictMin, looseMin ) =
+                        edgeMinOverlaps convex1 convex2 faceMin
+                in
+                if strictMin + Const.contactBreakingThreshold + oracleBand < 0 then
+                    satSeparated
+                        |> Expect.equal True
+                        |> Expect.onFail "oracle separated, arc SAT colliding"
+
+                else if looseMin + Const.contactBreakingThreshold - oracleBand > 0 then
+                    satSeparated
+                        |> Expect.equal False
+                        |> Expect.onFail "oracle colliding, arc SAT separated"
+
+                else
+                    Expect.pass
+        ]
+
+
+{-| FP slack between the oracle's arithmetic and the arc SAT's, including
+its scan noise floors.
+-}
+oracleBand : Float
+oracleBand =
+    1.0e-5
+
+
+type alias Pose =
+    { shape1 : Convex.Convex
+    , shape2 : Convex.Convex
+    , axis1 : Vec3.Vec3
+    , angle1 : Float
+    , axis2 : Vec3.Vec3
+    , angle2 : Float
+    , offsetDir : Vec3.Vec3
+    , offset : Float
+    }
+
+
+poseFuzzer : Fuzzer Pose
+poseFuzzer =
+    Fuzz.constant Pose
+        |> Fuzz.andMap shapeFuzzer
+        |> Fuzz.andMap shapeFuzzer
+        |> Fuzz.andMap directionFuzzer
+        |> Fuzz.andMap (Fuzz.floatRange 0 (2 * pi))
+        |> Fuzz.andMap directionFuzzer
+        |> Fuzz.andMap (Fuzz.floatRange 0 (2 * pi))
+        |> Fuzz.andMap directionFuzzer
+        |> Fuzz.andMap (Fuzz.floatRange 0.8 3)
+
+
+shapeFuzzer : Fuzzer Convex.Convex
+shapeFuzzer =
+    Fuzz.oneOfValues
+        [ Convex.fromBlock 1.5 1 2
+        , Convex.fromCylinder 5 0.8 1.6
+        , Convex.fromCone 6 0.9 1.4
+        ]
+
+
+directionFuzzer : Fuzzer Vec3.Vec3
+directionFuzzer =
+    Fuzz.map3
+        (\x y z ->
+            let
+                v =
+                    { x = x, y = y, z = z }
+            in
+            if Vec3.lengthSquared v < 1.0e-4 then
+                Vec3.zAxis
+
+            else
+                Vec3.normalize v
+        )
+        (Fuzz.floatRange -1 1)
+        (Fuzz.floatRange -1 1)
+        (Fuzz.floatRange -1 1)
+
+
+{-| Minimum overlap over the certified edge axes: fan containment of the
+normalized cross in both groups, measured from one endpoint of each support
+edge. First component covers the pairs the arc SAT tests, second also the
+near-parallel pairs it prunes.
+-}
+edgeMinOverlaps : Convex.Convex -> Convex.Convex -> Float -> ( Float, Float )
+edgeMinOverlaps convex1 convex2 start =
+    List.foldl
+        (\group1 acc1 ->
+            List.foldl
+                (\group2 ( s, l ) ->
+                    let
+                        d1 =
+                            Transform3d.rotate convex1.orientation group1.dir
+
+                        d2 =
+                            Transform3d.rotate convex2.orientation group2.dir
+
+                        c =
+                            Vec3.cross d1 d2
+                    in
+                    if Vec3.lengthSquared c < 1.0e-12 then
+                        ( s, l )
+
+                    else
+                        case pairMinOverlap convex1 convex2 d1 d2 (Vec3.normalize c) group1 group2 of
+                            Nothing ->
+                                ( s, l )
+
+                            Just o ->
+                                if Vec3.lengthSquared c < Const.parallelTolerance then
+                                    ( s, min l o )
+
+                                else
+                                    ( min s o, min l o )
+                )
+                acc1
+                convex2.uniqueEdges
+        )
+        ( start, start )
+        convex1.uniqueEdges
+
+
+{-| Support-consistent candidates for one direction pair; `Just` the
+smallest overlap, `Nothing` when no orientation is support-consistent.
+-}
+pairMinOverlap : Convex.Convex -> Convex.Convex -> Vec3.Vec3 -> Vec3.Vec3 -> Vec3.Vec3 -> Convex.EdgeGroup -> Convex.EdgeGroup -> Maybe Float
+pairMinOverlap convex1 convex2 d1 d2 u group1 group2 =
+    let
+        hit1 =
+            List.filterMap (fanHit convex1 d1 u) group1.edges
+
+        hit2 =
+            List.filterMap (fanHit convex2 d2 u) group2.edges
+    in
+    List.minimum
+        (List.concatMap
+            (\( s1, w1 ) ->
+                List.filterMap
+                    (\( s2, w2 ) ->
+                        if s1 > 0 && s2 < 0 then
+                            Just (Vec3.dot u (Vec3.sub w1 w2))
+
+                        else if s1 < 0 && s2 > 0 then
+                            Just (Vec3.dot u (Vec3.sub w2 w1))
+
+                        else
+                            Nothing
+                    )
+                    hit2
+            )
+            hit1
+        )
+
+
+{-| Fan containment of `±u` for one edge, in world frame: returns the sign
+of the contained orientation and one edge endpoint.
+-}
+fanHit : Convex.Convex -> Vec3.Vec3 -> Vec3.Vec3 -> Convex.Edge -> Maybe ( Float, Vec3.Vec3 )
+fanHit convex d u edge =
+    let
+        nA =
+            Transform3d.rotate convex.orientation edge.nA
+
+        nB =
+            Transform3d.rotate convex.orientation edge.nB
+
+        pA =
+            Vec3.dot u (Vec3.cross d nA)
+
+        pB =
+            Vec3.dot u (Vec3.cross nB d)
+    in
+    if pA > 0 && pB > 0 then
+        Just ( 1, VertexBuffer.get edge.i1 convex.vertexBuffer )
+
+    else if pA < 0 && pB < 0 then
+        Just ( -1, VertexBuffer.get edge.i1 convex.vertexBuffer )
+
+    else
+        Nothing

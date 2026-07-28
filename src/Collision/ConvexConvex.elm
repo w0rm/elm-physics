@@ -1,19 +1,20 @@
 module Collision.ConvexConvex exposing
     ( addContacts
     , bestFace
+    , faceExtent
     , findSeparatingAxis
     , project
     , projectConvex
-    , testSeparatingAxis
     )
 
 import Internal.Const as Const
 import Internal.Contact exposing (Contact)
 import Internal.ContactId as ContactId
 import Internal.Manifold as Manifold
+import Internal.Transform3d as Transform3d exposing (Orientation3d)
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
-import Shapes.Convex as Convex exposing (Convex, Face, FaceGroup(..), Obb(..))
+import Shapes.Convex as Convex exposing (Convex, Edge, EdgeGroup, Face, FaceGroup(..), Obb(..))
 
 
 {-| Which body contributed the winning face axis to SAT.
@@ -23,10 +24,9 @@ type Side
     | Convex2
 
 
-{-| Result of `findFaceSAT`. Carries the winning face's group so the
-dispatcher can skip one of the two `bestFace` walks. `groupIdx` is 1-based
-in flat traversal order, matching `bestFace` — keeps contact IDs stable
-for warm-start cache keys.
+{-| `findFaceSAT` winner. Carries the group so the dispatcher skips one
+`bestFace` walk; `groupIdx` is 1-based flat order, matching `bestFace`,
+so contact ids stay stable.
 -}
 type alias FaceWinner =
     { axis : Vec3
@@ -45,21 +45,20 @@ addContacts shapeKey convex1 convex2 contacts =
 
         Just winner ->
             case findEdgeSAT convex1 convex2 winner.dmin of
-                EdgeSeparates _ _ _ _ _ ->
+                EdgeSeparates _ _ _ _ _ _ _ ->
                     contacts
 
-                EdgeBeats edgeAxis dir1Idx edges1 dir2Idx edges2 ->
+                EdgeBeats _ axis featureKey edge1 edge2 _ _ ->
                     addEdgeContact shapeKey
-                        (orientAxis convex1 convex2 edgeAxis)
-                        dir1Idx
-                        edges1
+                        axis
+                        featureKey
+                        edge1
                         convex1.vertexBuffer
-                        dir2Idx
-                        edges2
+                        edge2
                         convex2.vertexBuffer
                         contacts
 
-                NoEdgeBeats _ _ _ _ _ ->
+                NoEdgeBeats _ _ _ _ _ _ _ ->
                     dispatchBestFaces shapeKey convex1 convex2 winner contacts
 
 
@@ -101,8 +100,7 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
         contacts
 
     else
-        -- face1 is always convex1's, face2 always convex2's (see the case
-        -- above), so each materialises against its own convex's buffer.
+        -- face1/face2 stay with convex1/convex2, whichever side won
         clipTwoFaces shapeKey
             picked.id1
             picked.id2
@@ -114,9 +112,8 @@ dispatchBestFaces shapeKey convex1 convex2 winner contacts =
             contacts
 
 
-{-| Pick the face in the group whose normal is most anti-aligned with
-`axisToward`. The partner's dot is the negation of the primary's, so a
-single dot product decides by sign.
+{-| The face in the group most anti-aligned with `axisToward`; one dot
+decides, the partner's is its negation.
 -}
 pickWinningFace : Int -> FaceGroup -> Vec3 -> ( Int, Face )
 pickWinningFace groupIdx group axisToward =
@@ -141,75 +138,37 @@ orientAxis convex1 convex2 axis =
         axis
 
 
-{-| Emit a single edge-edge contact. The id encodes
-`(dir1Idx, edge1Idx, dir2Idx, edge2Idx)` — stable across `placeIn`, so
-warm-start cache keys survive multi-edge contacts in the same body pair.
+{-| Emit a single edge-edge contact; `axis` is already the contact normal.
+The id packs `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)`, stable across
+`placeIn`, so warm-start keys survive multi-edge contacts in a body pair.
 -}
-addEdgeContact : Int -> Vec3 -> Int -> List Int -> VertexBuffer -> Int -> List Int -> VertexBuffer -> List Contact -> List Contact
-addEdgeContact shapeKey separatingAxis dir1Idx edges1 buffer1 dir2Idx edges2 buffer2 contacts =
+addEdgeContact : Int -> Vec3 -> Int -> Edge -> VertexBuffer -> Edge -> VertexBuffer -> List Contact -> List Contact
+addEdgeContact shapeKey axis featureKey edge1 buffer1 edge2 buffer2 contacts =
     let
-        reversedSeparatingAxis =
-            Vec3.negate separatingAxis
-
-        ( edge1Idx, ( e1p, e1q ) ) =
-            pickSupportEdge reversedSeparatingAxis edges1 buffer1
-
-        ( edge2Idx, ( e2p, e2q ) ) =
-            pickSupportEdge separatingAxis edges2 buffer2
-
         ( pi, pj ) =
-            Vec3.closestPointsBetweenSegments e1p e1q e2p e2q
+            Vec3.closestPointsBetweenSegments
+                (VertexBuffer.get edge1.i1 buffer1)
+                (VertexBuffer.get edge1.i2 buffer1)
+                (VertexBuffer.get edge2.i1 buffer2)
+                (VertexBuffer.get edge2.i2 buffer2)
     in
     { shapeKey = shapeKey
-    , featureKey = ContactId.convexConvexEdge dir1Idx edge1Idx dir2Idx edge2Idx
-    , ni = reversedSeparatingAxis
+    , featureKey = featureKey
+    , ni = axis
     , pi = pi
     , pj = pj
     }
         :: contacts
 
 
-{-| Pick the edge in a direction group whose midpoint is furthest along
-`supportDir`. The 1-based index is part of the warm-start cache key.
--}
-pickSupportEdge : Vec3 -> List Int -> VertexBuffer -> ( Int, ( Vec3, Vec3 ) )
-pickSupportEdge supportDir edges buffer =
-    pickSupportEdgeHelp supportDir edges buffer 1 0 ( Vec3.zero, Vec3.zero ) -Const.maxNumber
-
-
-pickSupportEdgeHelp : Vec3 -> List Int -> VertexBuffer -> Int -> Int -> ( Vec3, Vec3 ) -> Float -> ( Int, ( Vec3, Vec3 ) )
-pickSupportEdgeHelp supportDir edges buffer idx bestIdx bestEdge bestDot =
-    case edges of
-        i1 :: i2 :: rest ->
-            let
-                v1 =
-                    VertexBuffer.get i1 buffer
-
-                v2 =
-                    VertexBuffer.get i2 buffer
-
-                midDot =
-                    supportDir.x * (v1.x + v2.x) + supportDir.y * (v1.y + v2.y) + supportDir.z * (v1.z + v2.z)
-            in
-            if midDot - bestDot > 0 then
-                pickSupportEdgeHelp supportDir rest buffer (idx + 1) idx ( v1, v2 ) midDot
-
-            else
-                pickSupportEdgeHelp supportDir rest buffer (idx + 1) bestIdx bestEdge bestDot
-
-        _ ->
-            ( bestIdx, bestEdge )
-
-
 clipTwoFaces : Int -> Int -> Int -> Face -> VertexBuffer -> Face -> VertexBuffer -> Vec3 -> List Contact -> List Contact
 clipTwoFaces shapeKey faceId1 faceId2 face faceBuffer incidentFace incidentBuffer separatingAxis contacts =
     let
-        -- Only the two contacting faces are materialised, on demand.
+        -- only the two contacting faces are materialised
         referenceVertices =
             Convex.faceVertices faceBuffer face
 
-        -- Each vertex carries its buffer index as the warm-start key, threaded
-        -- through the clip so it survives the cull.
+        -- vertices carry buffer indices as warm-start keys through the clip
         incidentPolygon =
             Convex.indexedFaceVertices incidentBuffer incidentFace
 
@@ -269,9 +228,8 @@ emitManifold shapeKey faceId1 faceId2 separatingAxis normal planeConstant points
             result
 
 
-{-| Finds the face whose normal is most aligned with `-separatingAxis`.
-The partner is the antiparallel of the primary, so one dot per group
-covers both. Returns `( -1, emptyFace )` for empty groups.
+{-| The face most aligned with `-separatingAxis`; one dot per group covers
+the antiparallel partner. `( -1, emptyFace )` when there are no groups.
 -}
 bestFace : List FaceGroup -> Vec3 -> ( Int, Face )
 bestFace groups separatingAxis =
@@ -403,19 +361,19 @@ findSeparatingAxis convex1 convex2 =
 
         Just winner ->
             case findEdgeSAT convex1 convex2 winner.dmin of
-                EdgeSeparates _ _ _ _ _ ->
+                EdgeSeparates _ _ _ _ _ _ _ ->
                     Nothing
 
-                EdgeBeats edgeAxis _ _ _ _ ->
-                    Just (orientAxis convex1 convex2 edgeAxis)
+                EdgeBeats _ axis _ _ _ _ _ ->
+                    -- axis points 1 → 2; match the face path's convention
+                    Just (Vec3.negate axis)
 
-                NoEdgeBeats _ _ _ _ _ ->
+                NoEdgeBeats _ _ _ _ _ _ _ ->
                     Just (orientAxis convex1 convex2 winner.axis)
 
 
-{-| Test every face group's direction as a SAT axis. Returns the winning
-body + group so `dispatchBestFaces` can skip one of the two `bestFace`
-walks while keeping contact IDs stable.
+{-| Test every face group's direction as a SAT axis; return the winning
+side + group so the dispatcher skips one `bestFace` walk.
 -}
 findFaceSAT : Convex -> Convex -> Maybe FaceWinner
 findFaceSAT convex1 convex2 =
@@ -479,26 +437,33 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
                         findFaceSATHelp convex1 convex2 currentSide restNormals nextNormals (nextGroupIdx + groupSize) winnerIdx winnerSide winnerGroup dmin
 
 
-{-| The two nullary cases carry five `()` fields so all three variants share
-`EdgeBeats`'s object shape — a monomorphic `.$` for the consuming `case` and for
-the `best` accumulator threaded through `findEdgeSATHelp`. They're built once as
-`edgeSeparates`/`noEdgeBeats` constants and reused, so the padding costs no
-per-call allocation (unlike re-applying the constructor each time).
+{-| Seven fields on every variant for one monomorphic object shape; the
+padding slots hold the running `dmin` so the loop threads no tuple.
+`EdgeBeats dist axis featureKey edge1 edge2`: convex1's outward support
+axis, the two support edges, and the packed warm-start contact id.
 -}
 type EdgeResult
-    = EdgeSeparates () () () () ()
-    | EdgeBeats Vec3 Int (List Int) Int (List Int)
-    | NoEdgeBeats () () () () ()
+    = EdgeSeparates Float () () () () () ()
+    | EdgeBeats Float Vec3 Int Edge Edge () ()
+    | NoEdgeBeats Float () () () () () ()
 
 
 edgeSeparates : EdgeResult
 edgeSeparates =
-    EdgeSeparates () () () () ()
+    EdgeSeparates 0 () () () () () ()
 
 
-noEdgeBeats : EdgeResult
-noEdgeBeats =
-    NoEdgeBeats () () () () ()
+edgeDmin : EdgeResult -> Float
+edgeDmin best =
+    case best of
+        EdgeBeats d _ _ _ _ _ _ ->
+            d
+
+        NoEdgeBeats d _ _ _ _ _ _ ->
+            d
+
+        EdgeSeparates d _ _ _ _ _ _ ->
+            d
 
 
 {-| Edge SAT must beat face SAT by 5% to take the edge-edge path; relative so it
@@ -509,84 +474,193 @@ edgeBiasFactor =
     1.05
 
 
-{-| Iterate `(dir1, dir2)` pairs of unique edge directions. The winner
-stores its full edge list so the support-edge picker walks only parallel
-edges (4 for a cube) instead of all face-edges. Direction indices are
-1-based, stable under `placeIn` — safe to encode in contact ids.
+{-| Iterate `(dir1, dir2)` pairs of unique edge directions. A pair matters
+only when arcs of each group cross the other's great circle in consistent
+hemispheres — the crossing point is the axis. A miss (incl. parallel
+directions: coincident circles) prunes with no cross product, normalize or
+projection. Direction indices are 1-based, stable under `placeIn`.
 -}
 findEdgeSAT : Convex -> Convex -> Float -> EdgeResult
 findEdgeSAT convex1 convex2 faceDmin =
-    -- Pre-bias the threshold so the loop runs plain `dist < dmin`.
-    findEdgeSATHelp convex1
+    -- threshold pre-biased so the loop compares plain `dist < dmin`
+    findEdgeSATOuter convex1
         convex2
-        convex2.uniqueEdges
+        (Transform3d.relativeOrientation convex1.orientation convex2.orientation)
         convex1.uniqueEdges
-        convex2.uniqueEdges
         1
-        1
-        noEdgeBeats
-        (faceDmin / edgeBiasFactor)
+        (NoEdgeBeats (faceDmin / edgeBiasFactor) () () () () () ())
 
 
-findEdgeSATHelp : Convex -> Convex -> List (List Int) -> List (List Int) -> List (List Int) -> Int -> Int -> EdgeResult -> Float -> EdgeResult
-findEdgeSATHelp convex1 convex2 initGroups2 groups1 groups2 dir1Idx dir2Idx best dmin =
+findEdgeSATOuter : Convex -> Convex -> Orientation3d -> List EdgeGroup -> Int -> EdgeResult -> EdgeResult
+findEdgeSATOuter convex1 convex2 relative groups1 dir1Idx best =
     case groups1 of
+        group1 :: rest1 ->
+            -- group1's direction in convex2's frame, fixed across the inner loop
+            case findEdgeSATInner convex1 convex2 relative group1 (Transform3d.derotate relative group1.dir) dir1Idx convex2.uniqueEdges 1 best of
+                (EdgeSeparates _ _ _ _ _ _ _) as separated ->
+                    separated
+
+                newBest ->
+                    findEdgeSATOuter convex1 convex2 relative rest1 (dir1Idx + 1) newBest
+
         [] ->
             best
 
-        ((v1a :: v1b :: _) as group1) :: remainingGroups1 ->
-            case groups2 of
-                [] ->
-                    -- requeue groups2 and advance outer
-                    findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 initGroups2 (dir1Idx + 1) 1 best dmin
 
-                ((v2a :: v2b :: _) as group2) :: remainingGroups2 ->
+findEdgeSATInner : Convex -> Convex -> Orientation3d -> EdgeGroup -> Vec3 -> Int -> List EdgeGroup -> Int -> EdgeResult -> EdgeResult
+findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx groups2 dir2Idx best =
+    case groups2 of
+        group2 :: rest2 ->
+            let
+                -- group2's direction in convex1's frame
+                x1 =
+                    Transform3d.rotate relative group2.dir
+
+                cosd =
+                    Vec3.dot x1 group1.dir
+            in
+            -- near-parallel: the crossing is ill-conditioned and the face
+            -- phase covers these
+            if 1 - cosd * cosd - Const.parallelTolerance < 0 then
+                findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx rest2 (dir2Idx + 1) best
+
+            else
+                let
+                    hits1 =
+                        scanCrossings x1 group1.edges
+                in
+                if hits1.posIdx == 0 && hits1.negIdx == 0 then
+                    findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx rest2 (dir2Idx + 1) best
+
+                else
                     let
-                        dir1 =
-                            Vec3.direction (VertexBuffer.get v1a convex1.vertexBuffer) (VertexBuffer.get v1b convex1.vertexBuffer)
-
-                        dir2 =
-                            Vec3.direction (VertexBuffer.get v2a convex2.vertexBuffer) (VertexBuffer.get v2b convex2.vertexBuffer)
-
-                        cross =
-                            Vec3.cross dir1 dir2
+                        hits2 =
+                            scanCrossings x2 group2.edges
                     in
-                    if Vec3.almostZero cross then
-                        -- skip parallel directions
-                        findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
+                    -- candidates pair by hemisphere class (sign of the nA dot)
+                    if (hits1.posIdx == 0 || hits2.posIdx == 0) && (hits1.negIdx == 0 || hits2.negIdx == 0) then
+                        findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx rest2 (dir2Idx + 1) best
 
                     else
                         let
-                            normalizedCross =
-                                Vec3.normalize cross
-                        in
-                        case testSeparatingAxis convex1 convex2 normalizedCross of
-                            Nothing ->
-                                edgeSeparates
-
-                            Just dist ->
-                                if dist - dmin < 0 then
-                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) (EdgeBeats normalizedCross dir1Idx group1 dir2Idx group2) dist
+                            afterPos =
+                                if hits1.posIdx > 0 && hits2.posIdx > 0 then
+                                    addCandidate convex1 convex2 x2 (ContactId.convexConvexEdge dir1Idx hits1.posIdx dir2Idx hits2.posIdx) hits1.pos hits2.pos best
 
                                 else
-                                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
+                                    best
+                        in
+                        case afterPos of
+                            (EdgeSeparates _ _ _ _ _ _ _) as separated ->
+                                separated
 
-                _ :: remainingGroups2 ->
-                    -- malformed group2 (< 2 points): skip
-                    findEdgeSATHelp convex1 convex2 initGroups2 groups1 remainingGroups2 dir1Idx (dir2Idx + 1) best dmin
+                            best1 ->
+                                if hits1.negIdx > 0 && hits2.negIdx > 0 then
+                                    case addCandidate convex1 convex2 x2 (ContactId.convexConvexEdge dir1Idx hits1.negIdx dir2Idx hits2.negIdx) hits1.neg hits2.neg best1 of
+                                        (EdgeSeparates _ _ _ _ _ _ _) as separated ->
+                                            separated
 
-        _ :: remainingGroups1 ->
-            -- malformed group (< 2 points): skip
-            findEdgeSATHelp convex1 convex2 initGroups2 remainingGroups1 groups2 (dir1Idx + 1) dir2Idx best dmin
+                                        best2 ->
+                                            findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx rest2 (dir2Idx + 1) best2
+
+                                else
+                                    findEdgeSATInner convex1 convex2 relative group1 x2 dir1Idx rest2 (dir2Idx + 1) best1
+
+        [] ->
+            best
 
 
-{-| If projections of two convexes don’t overlap, then they don’t collide.
+{-| Fold one edge-pair candidate into the running best. The axis is the arc
+crossing point — a blend of convex2's outward normals, so no centre check;
+a support edge's endpoints project equally, so one endpoint each gives the
+exact depth. `EdgeSeparates` is a separating-axis certificate.
 -}
-testSeparatingAxis : Convex -> Convex -> Vec3 -> Maybe Float
-testSeparatingAxis convex1 convex2 separatingAxis =
-    overlap
-        (projectConvex separatingAxis convex1)
-        (projectConvex separatingAxis convex2)
+addCandidate : Convex -> Convex -> Vec3 -> Int -> Edge -> Edge -> EdgeResult -> EdgeResult
+addCandidate convex1 convex2 x2 featureKey edge1 edge2 best =
+    let
+        a =
+            x2.x * edge2.nA.x + x2.y * edge2.nA.y + x2.z * edge2.nA.z
+
+        b =
+            x2.x * edge2.nB.x + x2.y * edge2.nB.y + x2.z * edge2.nB.z
+
+        axisOut =
+            -- stored pointing convex1 → convex2, the face path's convention
+            Vec3.negate
+                (Vec3.normalize
+                    (Transform3d.rotate convex2.orientation
+                        (Vec3.lerp (a / (a - b)) edge2.nA edge2.nB)
+                    )
+                )
+
+        w1 =
+            VertexBuffer.get edge1.i1 convex1.vertexBuffer
+
+        w2 =
+            VertexBuffer.get edge2.i1 convex2.vertexBuffer
+
+        dist =
+            axisOut.x * (w1.x - w2.x) + axisOut.y * (w1.y - w2.y) + axisOut.z * (w1.z - w2.z)
+    in
+    if dist + Const.contactBreakingThreshold < 0 then
+        edgeSeparates
+
+    else if dist - edgeDmin best < 0 then
+        EdgeBeats dist axisOut featureKey edge1 edge2 () ()
+
+    else
+        best
+
+
+{-| Which edges of the group have arcs straddling the great circle ⊥ `x`
+(the other group's direction in this body's frame). At most one hit per
+hemisphere class (sign of the `nA` dot); the dots ride along for the axis
+lerp. Indices are 1-based; 0 means no hit.
+-}
+scanCrossings : Vec3 -> List Edge -> Crossings
+scanCrossings x edges =
+    scanCrossingsHelp x edges 1 0 emptyEdge 0 emptyEdge
+
+
+type alias Crossings =
+    { posIdx : Int, pos : Edge, negIdx : Int, neg : Edge }
+
+
+emptyEdge : Edge
+emptyEdge =
+    { i1 = -1, i2 = -1, nA = Vec3.zero, nB = Vec3.zero }
+
+
+scanCrossingsHelp : Vec3 -> List Edge -> Int -> Int -> Edge -> Int -> Edge -> Crossings
+scanCrossingsHelp x edges idx posIdx pos negIdx neg =
+    case edges of
+        edge :: rest ->
+            let
+                a =
+                    x.x * edge.nA.x + x.y * edge.nA.y + x.z * edge.nA.z
+
+                b =
+                    x.x * edge.nB.x + x.y * edge.nB.y + x.z * edge.nB.z
+            in
+            -- straddle, with a noise floor: both dots ≈ 0 makes the sign
+            -- test garbage — treat as no crossing
+            if a * b < 0 && (a * a - parallelSquaredTolerance > 0 || b * b - parallelSquaredTolerance > 0) then
+                if a > 0 then
+                    scanCrossingsHelp x rest (idx + 1) idx edge negIdx neg
+
+                else
+                    scanCrossingsHelp x rest (idx + 1) posIdx pos idx edge
+
+            else
+                scanCrossingsHelp x rest (idx + 1) posIdx pos negIdx neg
+
+        [] ->
+            { posIdx = posIdx, pos = pos, negIdx = negIdx, neg = neg }
+
+
+parallelSquaredTolerance : Float
+parallelSquaredTolerance =
+    Const.precision * Const.precision
 
 
 {-| A convex's [min,max] projection onto `axis`. A box projects in O(1) from its
@@ -610,17 +684,10 @@ projectConvex axis convex =
             project axis Const.maxNumber -Const.maxNumber vs
 
 
-{-| SAT for a face-normal axis. The axis is `owningSide`'s face normal, so that
-convex's extent along it is the constant body-space `faceDist`/`partnerDist`
-(face / antipodal partner distance from the centroid) plus one shared
-`dot(axis, position)`. The other convex projects via `projectConvex` — also O(1)
-when it's a box.
-
-Not byte-identical: `faceDist + dot(n, pos)` (and the box extent) ≠ `max` over
-the vertices in the last bit (FP), enough to flip a borderline face/edge tie.
-Behaviour stays valid (tests pass); the chaotic drop checksum shifts, a resting
-scene barely.
-
+{-| SAT for a face-normal axis: the owning convex's extent is the cached
+`faceDist`/`partnerDist` plus one `dot(axis, position)`; the other side
+projects via `projectConvex`. Differs from a vertex scan in the last FP
+bit — enough to flip a borderline face/edge tie.
 -}
 testFaceSeparatingAxis : Convex -> Convex -> Side -> FaceGroup -> Maybe Float
 testFaceSeparatingAxis convex1 convex2 owningSide group =

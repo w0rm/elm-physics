@@ -1,10 +1,13 @@
 module Internal.Transform3d exposing
-    ( Transform3d
+    ( Orientation3d
+    , Transform3d
     , atOrigin
     , atPoint
+    , derotate
     , directionPlaceIn
     , directionRelativeTo
     , fromOriginAndBasis
+    , identity
     , inertiaPlaceIn
     , inertiaRotateIn
     , inverse
@@ -13,11 +16,14 @@ module Internal.Transform3d exposing
     , moveTo
     , normalize
     , orientation
+    , orientationPlaceIn
     , originPoint
     , placeIn
     , pointPlaceIn
     , pointRelativeTo
+    , relativeOrientation
     , relativeTo
+    , rotate
     , rotateAroundOwn
     , rotateBy
     , translateBy
@@ -329,6 +335,41 @@ lerp t (Transform3d o1 (Orientation3d x1 y1 z1 w1)) (Transform3d o2 (Orientation
 originPoint : Transform3d coordinates defines -> Vec3
 originPoint (Transform3d localOrigin _) =
     localOrigin
+
+
+{-| Accumulate a placement onto a stored orientation; shares the transform's
+quaternion by reference when the stored one is identity.
+-}
+orientationPlaceIn : Transform3d coordinates defines -> Orientation3d -> Orientation3d
+orientationPlaceIn (Transform3d _ globalOrientation) localOrientation =
+    if localOrientation == identity then
+        globalOrientation
+
+    else
+        mul globalOrientation localOrientation
+
+
+{-| The rotation taking a direction from `b`'s frame to `a`'s: `a* ⊗ b`.
+`rotate` crosses `b`-body → `a`-body; `derotate` reverses.
+-}
+relativeOrientation : Orientation3d -> Orientation3d -> Orientation3d
+relativeOrientation (Orientation3d ax ay az aw) (Orientation3d bx by bz bw) =
+    -- `mul` with the first quaternion conjugated inline (`q1x/y/z`)
+    let
+        q1x =
+            -ax
+
+        q1y =
+            -ay
+
+        q1z =
+            -az
+    in
+    Orientation3d
+        (q1x * bw + q1y * bz - q1z * by + aw * bx)
+        (-q1x * bz + q1y * bw + q1z * bx + aw * by)
+        (q1x * by - q1y * bx + q1z * bw + aw * bz)
+        (-q1x * bx - q1y * by - q1z * bz + aw * bw)
 
 
 orientation : Transform3d coordinates defines -> Mat3

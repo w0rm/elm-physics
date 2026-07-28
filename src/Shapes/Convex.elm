@@ -1,5 +1,7 @@
 module Shapes.Convex exposing
     ( Convex
+    , Edge
+    , EdgeGroup
     , Face
     , FaceGroup(..)
     , FaceVertices
@@ -73,26 +75,44 @@ type alias FaceVertices =
     }
 
 
+{-| An edge (`i1`/`i2` index the `vertexBuffer`) with its Gauss arc: the
+body-frame outward normals of the two adjacent faces, `nA` left / `nB`
+right along the group direction (every edge is canonicalized to it). The
+arc crosses the great circle ⊥ `x` iff `(nA·x)(nB·x) < 0`; degenerate arcs
+get `nB ≈ nA` or zeros, so the straddle never fires.
+-}
+type alias Edge =
+    { i1 : Int
+    , i2 : Int
+    , nA : Vec3
+    , nB : Vec3
+    }
+
+
+{-| A parallel-edge direction group: the shared body-frame unit direction
+(fixed at `init`) and the edges canonicalized to it.
+-}
+type alias EdgeGroup =
+    { dir : Vec3
+    , edges : List Edge
+    }
+
+
 type alias Convex =
-    -- Faces grouped by parallel/antiparallel normal direction: each group is a
-    -- primary face and `Just` its antipodal partner, or `Nothing` for a 1-face
-    -- group. uniqueEdges groups edges similarly; each physical edge appears
-    -- exactly once. Each group is a flat list of endpoint indices read
-    -- two-at-a-time (the first pair is the direction representative). (dirIdx,
-    -- edgeIdx) is stable under `placeIn` so collision code can encode indices
-    -- into contact ids for warm-start cache stability.
+    -- Faces and edges grouped by direction; each physical edge appears once.
+    -- Group/edge indices are stable under `placeIn`, so collision code packs
+    -- them into contact ids for warm-start keys.
     --
-    -- `faces` and `uniqueEdges` hold `Int` indices into `vertexBuffer`, fixed at
-    -- `init`. `placeIn` places the buffer once and rebuilds only `faces` (to
-    -- place the normals); each face's vertex-index list is shared unchanged and
-    -- `uniqueEdges` is shared whole, so no per-vertex `Vec3` list is rebuilt —
-    -- collision dereferences indices via `VertexBuffer.get`. `obb` carries the
-    -- placed `List Vec3` for a general hull (`NotBox`), or the box's axes +
-    -- half-extents for a box (`Box`); see `Obb` and `convexVertices`.
+    -- `faces`/`uniqueEdges` hold indices into `vertexBuffer`, fixed at `init`.
+    -- `placeIn` places the buffer and face normals; `uniqueEdges` is shared
+    -- whole — arcs stay in the construction frame and cross frames via the
+    -- accumulated `orientation`. `obb` is the box fast path or the placed
+    -- vertex list (see `Obb`).
     { faces : List FaceGroup
-    , uniqueEdges : List (List Int)
+    , uniqueEdges : List EdgeGroup
     , vertexBuffer : VertexBuffer
     , obb : Obb
+    , orientation : Transform3d.Orientation3d
     , position : Vec3
     , inertia : Mat3
     , volume : Float
@@ -173,6 +193,7 @@ placeIn transform3d convex =
     , uniqueEdges = convex.uniqueEdges
     , vertexBuffer = placedBuffer
     , obb = placeObb transform3d placedBuffer convex.obb
+    , orientation = Transform3d.orientationPlaceIn transform3d convex.orientation
     , position = Transform3d.pointPlaceIn transform3d convex.position
     , inertia = Transform3d.inertiaRotateIn transform3d convex.inertia
     , volume = convex.volume
@@ -310,11 +331,24 @@ init geometry =
 
         faces =
             indexFaces geometry.position geometry.vertices geometry.faces
+
+        allFaces =
+            List.concatMap
+                (\( primary, partner ) ->
+                    case partner of
+                        Just p ->
+                            [ primary, p ]
+
+                        Nothing ->
+                            [ primary ]
+                )
+                geometry.faces
     in
     { faces = faces
-    , uniqueEdges = indexEdges geometry.vertices (List.reverse geometry.uniqueEdges)
+    , uniqueEdges = indexEdges allFaces geometry.vertices (List.reverse geometry.uniqueEdges)
     , vertexBuffer = buffer
     , obb = detectObb faces geometry.vertices
+    , orientation = Transform3d.identity
     , position = geometry.position
     , inertia = geometry.inertia
     , volume = geometry.volume
@@ -365,12 +399,101 @@ faceDistance normal centroid vertices =
             0
 
 
-{-| Each group's endpoints, reversed so collision walks them in the order the
-old per-frame `pointsPlaceIn` produced.
+{-| Each group's endpoint pairs become `Edge`s with arcs. Prepend + endpoint
+swap keep the historical edge order, so (dirIdx, edgeIdx) contact ids are
+unchanged; a second pass canonicalizes normals to the representative.
 -}
-indexEdges : List Vec3 -> List (List Vec3) -> List (List Int)
-indexEdges vertices groups =
-    List.map (\group -> List.reverse (List.map (\v -> indexOf v vertices) group)) groups
+indexEdges : List FaceVertices -> List Vec3 -> List (List Vec3) -> List EdgeGroup
+indexEdges faces vertices groups =
+    List.map (canonicalizeGroup << indexEdgeGroup faces vertices []) groups
+
+
+indexEdgeGroup : List FaceVertices -> List Vec3 -> List ( Vec3, Edge ) -> List Vec3 -> List ( Vec3, Edge )
+indexEdgeGroup faces vertices acc endpoints =
+    case endpoints of
+        v1 :: v2 :: rest ->
+            indexEdgeGroup faces vertices (( Vec3.sub v1 v2, makeEdge faces vertices v2 v1 ) :: acc) rest
+
+        _ ->
+            acc
+
+
+{-| Antiparallel edges swap `nA`/`nB`, so the pair reads consistently along
+the group direction.
+-}
+canonicalizeGroup : List ( Vec3, Edge ) -> EdgeGroup
+canonicalizeGroup entries =
+    case entries of
+        ( dRep, _ ) :: _ ->
+            { dir = Vec3.normalize dRep
+            , edges =
+                List.map
+                    (\( d, edge ) ->
+                        if Vec3.dot d dRep < 0 then
+                            { i1 = edge.i1, i2 = edge.i2, nA = edge.nB, nB = edge.nA }
+
+                        else
+                            edge
+                    )
+                    entries
+            }
+
+        [] ->
+            { dir = Vec3.zero, edges = [] }
+
+
+makeEdge : List FaceVertices -> List Vec3 -> Vec3 -> Vec3 -> Edge
+makeEdge faces vertices v1 v2 =
+    { i1 = indexOf v1 vertices
+    , i2 = indexOf v2 vertices
+    , nA = adjacentNormal v1 v2 faces
+    , nB = adjacentNormal v2 v1 faces
+    }
+
+
+{-| Normal of the face whose boundary walks `v1 → v2`, matched within
+`precision` (construction can duplicate vertices bitwise-off). Zero when
+unmatched — a dead arc that never straddles.
+-}
+adjacentNormal : Vec3 -> Vec3 -> List FaceVertices -> Vec3
+adjacentNormal v1 v2 faces =
+    case faces of
+        face :: rest ->
+            case face.vertices of
+                first :: _ ->
+                    if hasDirectedEdge v1 v2 first face.vertices then
+                        face.normal
+
+                    else
+                        adjacentNormal v1 v2 rest
+
+                [] ->
+                    adjacentNormal v1 v2 rest
+
+        [] ->
+            Vec3.zero
+
+
+hasDirectedEdge : Vec3 -> Vec3 -> Vec3 -> List Vec3 -> Bool
+hasDirectedEdge v1 v2 first vertices =
+    case vertices of
+        a :: ((b :: _) as rest) ->
+            if nearVertex a v1 && nearVertex b v2 then
+                True
+
+            else
+                hasDirectedEdge v1 v2 first rest
+
+        [ last ] ->
+            nearVertex last v1 && nearVertex first v2
+
+        [] ->
+            False
+
+
+nearVertex : Vec3 -> Vec3 -> Bool
+nearVertex a b =
+    Vec3.lengthSquared (Vec3.sub a b) - Const.precision * Const.precision < 0
 
 
 {-| Distinct vertices by structural equality, preserving none-in-particular

@@ -7,7 +7,7 @@ import Internal.ContactId as ContactId
 import Internal.Vector3 as Vec3 exposing (Vec3)
 import Internal.VertexBuffer as VertexBuffer exposing (VertexBuffer)
 import Shapes.Capsule exposing (Capsule)
-import Shapes.Convex as Convex exposing (Convex, Face)
+import Shapes.Convex as Convex exposing (Convex, Edge, Face)
 
 
 {-| `|dot(capsule.axis, separatingAxis)|` below this snaps to the cylinder
@@ -75,7 +75,7 @@ addContacts shapeKey orderContact capsule convex contacts =
             contacts
 
         Just separatingAxis ->
-            case testCapsuleConvexAxis capsule convex separatingAxis of
+            case capsuleOverlap capsule separatingAxis (ConvexConvex.projectConvex separatingAxis convex) of
                 Nothing ->
                     contacts
 
@@ -500,16 +500,16 @@ testConvexNormals : Capsule -> Convex -> Vec3 -> Vec3 -> List Convex.FaceGroup -
 testConvexNormals capsule convex ep1 ep2 groups target dmin =
     case groups of
         [] ->
-            testUniqueEdges capsule convex ep1 ep2 convex.uniqueEdges target dmin
+            testUniqueEdges capsule convex ep1 ep2 [] convex.uniqueEdges target dmin
 
         group :: restGroups ->
             let
                 -- Only the primary normal is needed; the partner's is its
-                -- negation and `testCapsuleConvexAxis` is sign-independent.
+                -- negation and `capsuleOverlap` is sign-independent.
                 normal =
                     Convex.faceGroupNormal group
             in
-            case testCapsuleConvexAxis capsule convex normal of
+            case capsuleOverlap capsule normal (ConvexConvex.faceExtent normal group convex) of
                 Nothing ->
                     Nothing
 
@@ -526,15 +526,10 @@ the vertex-vs-cap and edge-vs-cap axes that standard convex SAT misses,
 preventing false-overlap reports near convex corners. Falls back to the
 cross product when closest points coincide.
 -}
-testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List (List Int) -> Vec3 -> Float -> Maybe Vec3
-testUniqueEdges capsule convex ep1 ep2 groups target dmin =
-    walkUniqueEdges capsule convex ep1 ep2 [] groups target dmin
-
-
-walkUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List Int -> List (List Int) -> Vec3 -> Float -> Maybe Vec3
-walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
+testUniqueEdges : Capsule -> Convex -> Vec3 -> Vec3 -> List Edge -> List Convex.EdgeGroup -> Vec3 -> Float -> Maybe Vec3
+testUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
     case edges of
-        i1 :: i2 :: rest ->
+        { i1, i2 } :: rest ->
             let
                 v1 =
                     VertexBuffer.get i1 convex.vertexBuffer
@@ -544,24 +539,24 @@ walkUniqueEdges capsule convex ep1 ep2 edges queuedGroups target dmin =
             in
             case edgeAxis capsule ep1 ep2 v1 v2 of
                 Nothing ->
-                    walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
+                    testUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
 
                 Just axis ->
-                    case testCapsuleConvexAxis capsule convex axis of
+                    case capsuleOverlap capsule axis (ConvexConvex.projectConvex axis convex) of
                         Nothing ->
                             Nothing
 
                         Just dist ->
                             if dist - dmin < 0 then
-                                walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups axis dist
+                                testUniqueEdges capsule convex ep1 ep2 rest queuedGroups axis dist
 
                             else
-                                walkUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
+                                testUniqueEdges capsule convex ep1 ep2 rest queuedGroups target dmin
 
         _ ->
             case queuedGroups of
                 group :: restGroups ->
-                    walkUniqueEdges capsule convex ep1 ep2 group restGroups target dmin
+                    testUniqueEdges capsule convex ep1 ep2 group.edges restGroups target dmin
 
                 [] ->
                     -- Orient the axis from convex toward capsule.
@@ -676,11 +671,11 @@ collectFirstTwoTied axis maxProj verts count v1 =
 first whose both endpoints are within tolerance of `maxProj`. Short-
 circuits on first match.
 -}
-findTiedUniqueEdge : Vec3 -> Float -> VertexBuffer -> List (List Int) -> Maybe ( Vec3, Vec3 )
+findTiedUniqueEdge : Vec3 -> Float -> VertexBuffer -> List Convex.EdgeGroup -> Maybe ( Vec3, Vec3 )
 findTiedUniqueEdge axis maxProj buffer groups =
     case groups of
         group :: restGroups ->
-            case findTiedEdgeInGroup axis maxProj buffer group of
+            case findTiedEdgeInGroup axis maxProj buffer group.edges of
                 (Just _) as found ->
                     found
 
@@ -691,10 +686,10 @@ findTiedUniqueEdge axis maxProj buffer groups =
             Nothing
 
 
-findTiedEdgeInGroup : Vec3 -> Float -> VertexBuffer -> List Int -> Maybe ( Vec3, Vec3 )
+findTiedEdgeInGroup : Vec3 -> Float -> VertexBuffer -> List Edge -> Maybe ( Vec3, Vec3 )
 findTiedEdgeInGroup axis maxProj buffer edges =
     case edges of
-        i1 :: i2 :: rest ->
+        { i1, i2 } :: rest ->
             let
                 v1 =
                     VertexBuffer.get i1 buffer
@@ -712,11 +707,11 @@ findTiedEdgeInGroup axis maxProj buffer edges =
             Nothing
 
 
-{-| Returns the overlap depth along the given axis, or Nothing if the axis
-separates the capsule from the convex.
+{-| Overlap depth of the capsule against a convex's [min,max] along `n`,
+or Nothing if they separate past the contact threshold.
 -}
-testCapsuleConvexAxis : Capsule -> Convex -> Vec3 -> Maybe Float
-testCapsuleConvexAxis { radius, halfLength, axis, position } convex n =
+capsuleOverlap : Capsule -> Vec3 -> { min : Float, max : Float } -> Maybe Float
+capsuleOverlap { radius, halfLength, axis, position } n p2 =
     let
         centerProj =
             Vec3.dot position n
@@ -729,9 +724,6 @@ testCapsuleConvexAxis { radius, halfLength, axis, position } convex n =
 
         capsuleMax =
             centerProj + axisContrib + radius
-
-        p2 =
-            ConvexConvex.projectConvex n convex
 
         d1 =
             capsuleMax - p2.min
