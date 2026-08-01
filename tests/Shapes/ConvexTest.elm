@@ -14,6 +14,7 @@ import Extra.Expect as Expect
 import Fixtures.Convex
 import Internal.Transform3d as Transform3d
 import Internal.Vector3 as Vec3
+import Internal.VertexBuffer as VertexBuffer
 import Shapes.Convex as Convex
 import Test exposing (Test, describe, test)
 
@@ -282,10 +283,11 @@ uniqueEdges =
     describe ".uniqueEdges"
         [ test "works for a block" <|
             \_ ->
-                -- uniqueEdges now holds vertex-buffer indices in the canonical
+                -- uniqueEdges holds vertex-buffer indices in the canonical
                 -- placed traversal order (outer groups reversed, each group's
-                -- endpoints reversed) — read two-at-a-time per edge.
+                -- edges and endpoints reversed).
                 (Convex.fromBlock 2 2 2).uniqueEdges
+                    |> List.map (.edges >> List.concatMap (\{ i1, i2 } -> [ i1, i2 ]))
                     |> Expect.equal
                         [ [ 0, 4, 3, 7, 2, 6, 1, 5 ]
                         , [ 0, 3, 5, 6, 4, 7, 1, 2 ]
@@ -294,14 +296,49 @@ uniqueEdges =
         , test "block uniqueEdges has 12 edges across 3 directions" <|
             \_ ->
                 (Convex.fromBlock 2 3 5).uniqueEdges
-                    |> List.map (\group -> List.length group // 2)
+                    |> List.map (.edges >> List.length)
                     |> Expect.equal [ 4, 4, 4 ]
         , test "block from triangular mesh has 12 edges across 3 directions" <|
             \_ ->
                 (Fixtures.Convex.block Transform3d.atOrigin 2 3 5).uniqueEdges
-                    |> List.map (\group -> List.length group // 2)
+                    |> List.map (.edges >> List.length)
                     |> List.sort
                     |> Expect.equal [ 4, 4, 4 ]
+        , test "every edge arc is canonical and contains its outward bisector" <|
+            \_ ->
+                -- For an origin-centred convex: each group's normals must wind
+                -- positively around the representative's direction, and the
+                -- edge midpoint (pointing into the dihedral fan) must pass the
+                -- fan containment built from them.
+                [ Convex.fromBlock 2 3 5
+                , Convex.fromCylinder 12 1.5 2
+                , Convex.fromCone 7 1.5 2
+                ]
+                    |> List.concatMap
+                        (\convex ->
+                            List.concatMap
+                                (\{ dir, edges } ->
+                                    List.map
+                                        (\{ i1, i2, nA, nB } ->
+                                            let
+                                                mid =
+                                                    Vec3.sub
+                                                        (Vec3.add
+                                                            (VertexBuffer.get i1 convex.vertexBuffer)
+                                                            (VertexBuffer.get i2 convex.vertexBuffer)
+                                                        )
+                                                        (Vec3.scale 2 convex.position)
+                                            in
+                                            ( Vec3.dot (Vec3.cross nA nB) dir > 0
+                                            , Vec3.dot mid (Vec3.cross dir nA) > 0 && Vec3.dot mid (Vec3.cross nB dir) > 0
+                                            )
+                                        )
+                                        edges
+                                )
+                                convex.uniqueEdges
+                        )
+                    |> List.filter (\pair -> pair /= ( True, True ))
+                    |> Expect.equal []
         , test "works for a square pyramid" <|
             \_ ->
                 List.length Fixtures.Convex.squarePyramid.uniqueEdges
