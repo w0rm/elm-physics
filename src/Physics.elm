@@ -591,7 +591,7 @@ onEarth : Config id
 onEarth =
     { gravity = Vector3d.gees 0 0 -1
     , duration = Duration.seconds (1 / 60)
-    , solverIterations = 20
+    , solverIterations = 10
     , contacts = emptyContacts
     , constrain = \_ -> Nothing
     , collide = \_ _ -> True
@@ -603,7 +603,7 @@ onEarth =
     onEarth =
         { gravity = Vector3d.gees 0 0 -1
         , duration = Duration.seconds (1 / 60)
-        , solverIterations = 20
+        , solverIterations = 10
         , contacts = emptyContacts
         , constrain = \_ -> Nothing
         , collide = \_ _ -> True
@@ -613,7 +613,7 @@ onEarth =
 
   - `duration` — set to `Duration.seconds (1 / 60)` for 60 fps
 
-  - `solverIterations` — balance between precision and performance, 20 is a sweet spot
+  - `solverIterations` — balance between precision and performance, 10 is a sweet spot
 
   - `contacts` — pass [Contacts](#Contacts) from the previous frame for warm starting, or leave as default for cold start
 

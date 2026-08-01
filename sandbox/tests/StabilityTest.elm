@@ -41,24 +41,19 @@ warmupFrames =
 
 
 {-| Max distance any box's center is allowed to drift from its starting
-position at any frame during warmup. Measured empirically over the 63-frame
-warmup at 10 iterations:
-
-  - warm-start case peaks under 8 mm
-  - cold-start case peaks under 33 mm — drift grows roughly linearly with
-    time over the warmup window. The
-    cold-start solver isn't given the contact-warm-start lambdas across
-    frames, so it has to converge normal forces from cold each step and
-    its position-recovery is correspondingly weaker.
-
-Set comfortably above the cold-case peak so legitimate transient settling
-passes, but any catastrophic stack collapse (where a box would slide
-half a metre away) fails the assertion.
-
+position at any frame during warmup. The soft contact rows settle the stack
+into their equilibrium penetration (~2 mm per loaded interface) plus the
+initial-transient dip — measured peaks are 20–26 mm across the warm
+box and cylinder stacks; the cold-start stack dips to ~30 mm before its
+lambda distribution stabilizes (nothing holds it while impulses rebuild
+through the soft rows' bleed each frame — warm starting is the recommended
+mode). Set comfortably above that so legitimate settling passes, but any
+catastrophic stack collapse (where a box would slide tens of centimetres)
+fails the assertion.
 -}
 warmupDriftThreshold : Float
 warmupDriftThreshold =
-    0.05
+    0.04
 
 
 initialOrigins : List ( id, Physics.Body ) -> List ( id, Point3d.Point3d Length.Meters Physics.WorldCoordinates )
@@ -130,48 +125,94 @@ warmupCold remaining drift initial config bodies =
             warmupCold (remaining - 1) drift initial config next
 
 
-stableFrames : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> Int
+{-| Consecutive under-threshold frames, and the farthest any body wandered
+from the z axis during them. `stable` stops counting at the first frame over
+the speed threshold; `peakHorizontal` bounds the slow lateral walk that stays
+under the speed threshold for the whole run (0.2-0.5 m per 100k frames if
+unchecked — invisible to a speed check alone).
+-}
+type alias StableRun =
+    { stable : Int
+    , peakHorizontal : Float
+    }
+
+
+stableFrames : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> StableRun
 stableFrames threshold remaining config bodies =
-    stableFramesHelp threshold remaining config bodies 0
+    stableFramesHelp threshold remaining config bodies { stable = 0, peakHorizontal = 0 }
 
 
-stableFramesHelp : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> Int -> Int
-stableFramesHelp threshold remaining config bodies count =
+stableFramesHelp : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> StableRun -> StableRun
+stableFramesHelp threshold remaining config bodies run =
     if remaining <= 0 then
-        count
+        run
 
     else
         let
             ( next, newContacts ) =
                 Physics.simulate config bodies
+
+            newRun =
+                { stable = run.stable + 1
+                , peakHorizontal = max run.peakHorizontal (maxHorizontal next)
+                }
         in
         if (Metrics.compute next).maxSpeed >= threshold then
-            count
+            run
 
         else
-            stableFramesHelp threshold (remaining - 1) { config | contacts = newContacts } next (count + 1)
+            stableFramesHelp threshold (remaining - 1) { config | contacts = newContacts } next newRun
 
 
-coldStableFrames : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> Int
+coldStableFrames : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> StableRun
 coldStableFrames threshold remaining config bodies =
-    coldStableFramesHelp threshold remaining config bodies 0
+    coldStableFramesHelp threshold remaining config bodies { stable = 0, peakHorizontal = 0 }
 
 
-coldStableFramesHelp : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> Int -> Int
-coldStableFramesHelp threshold remaining config bodies count =
+coldStableFramesHelp : Float -> Int -> Physics.Config id -> List ( id, Physics.Body ) -> StableRun -> StableRun
+coldStableFramesHelp threshold remaining config bodies run =
     if remaining <= 0 then
-        count
+        run
 
     else
         let
             ( next, _ ) =
                 Physics.simulate config bodies
+
+            newRun =
+                { stable = run.stable + 1
+                , peakHorizontal = max run.peakHorizontal (maxHorizontal next)
+                }
         in
         if (Metrics.compute next).maxSpeed >= threshold then
-            count
+            run
 
         else
-            coldStableFramesHelp threshold (remaining - 1) config next (count + 1)
+            coldStableFramesHelp threshold (remaining - 1) config next newRun
+
+
+{-| Assert a full stable run that also stayed within the lateral walk bound.
+-}
+expectStableRun : Int -> Float -> StableRun -> Expect.Expectation
+expectStableRun frames walkLimit run =
+    Expect.all
+        [ \r ->
+            (r.stable == frames)
+                |> Expect.equal True
+                |> Expect.onFail
+                    ("only " ++ String.fromInt r.stable ++ " of " ++ String.fromInt frames ++ " frames were stable")
+        , \r ->
+            (r.peakHorizontal < walkLimit)
+                |> Expect.equal True
+                |> Expect.onFail
+                    ("stack walked "
+                        ++ String.fromFloat r.peakHorizontal
+                        ++ " m sideways (limit "
+                        ++ String.fromFloat walkLimit
+                        ++ " m)"
+                    )
+        ]
+        run
 
 
 {-| Max horizontal distance (from the z axis the boxes start on) any box is
@@ -277,6 +318,22 @@ dynamicOrigin bodies =
             Point3d.origin
 
 
+{-| Advance the slope scenario a few frames without asserting, carrying
+contacts, to get past the initial-contact transient.
+-}
+warmupSlope : Int -> Physics.Config Int -> List ( Int, Physics.Body ) -> ( List ( Int, Physics.Body ), Physics.Contacts Int )
+warmupSlope remaining config bodies =
+    let
+        ( next, newContacts ) =
+            Physics.simulate config bodies
+    in
+    if remaining <= 1 then
+        ( next, newContacts )
+
+    else
+        warmupSlope (remaining - 1) { config | contacts = newContacts } next
+
+
 {-| Run the slope scenario for `remaining` frames, carrying contacts (warm
 start) frame to frame. Returns the worst maxSpeed seen and the dynamic
 body's final drift from `origin0`. Tail-recursive; per-frame cost is
@@ -309,28 +366,29 @@ runSlope remaining config bodies origin0 maxSpeedSoFar =
 {-| The box must never accelerate freely down the incline. If friction
 failed entirely it would accelerate at g·sin 15° ≈ 2.54 m/s² and cross this
 within a few frames, so staying under it across 100 k frames is a genuine
-grip check. Observed peak with friction working is ~4e-4 m/s.
+grip check. Observed peak with friction working is ~0.02 m/s (the tail of the
+initial-contact transient on frame 2); steady state is ~2e-4 m/s.
 -}
 slopeMaxSpeedLimit : Float
 slopeMaxSpeedLimit =
-    0.05
+    0.035
 
 
-{-| Friction holds the box, but with no friction-λ warm-starting it leaves a
-tiny unrecovered tangential slip each step. Under the SPOOK soft-constraint
-parameters (spookEps > 0) the friction solve is slightly compliant, so it
-leaves a small residual each step: the box creeps downhill at a steady
-~0.27 mm/s, integrating to ~0.59 m over 100 k frames.
+{-| Friction holds the box, but the friction rows keep a little Spook
+compliance (see `Equation.frictionStiffeningFactor`), so a tiny unrecovered
+tangential slip remains each step: the box creeps downhill at ~0.22 mm/s,
+integrating to ~0.37 m over 100 k frames.
 
 That is still a creep, not a slide — `slopeMaxSpeedLimit` is the real grip
 check (a box that lost friction would accelerate at g·sin 15° ≈ 2.54 m/s² and
 trip it within a few frames). This bound only has to tolerate the creep while
-still failing loudly on an actual slide (metres, or NaN).
+still failing loudly on an actual slide (metres, or NaN). The per-point
+friction solver crept ~0.59 m and would fail this bound.
 
 -}
 slopeDriftLimit : Float
 slopeDriftLimit =
-    0.7
+    0.5
 
 
 stability : Test
@@ -357,12 +415,40 @@ stability =
 
                     Ok ( warmedConfig, warmedBodies ) ->
                         stableFrames 0.05 100000 warmedConfig warmedBodies
-                            |> Expect.equal 100000
-        , test "stack of 5 boxes without contacts at 30 iterations: warmup stays stacked + 100000 stable frames" <|
+                            -- observed walk ~0.25 m
+                            |> expectStableRun 100000 0.35
+        , test "stack of 5 cylinders with contacts at 7 iterations: warmup stays stacked + 100000 stable frames" <|
             \_ ->
                 let
                     config =
-                        { onEarth | solverIterations = 30 }
+                        { onEarth | solverIterations = 7 }
+
+                    initial =
+                        initialOrigins Scenarios.stackOfCylinders.bodies
+                in
+                case warmup warmupFrames warmupDriftThreshold initial config Scenarios.stackOfCylinders.bodies of
+                    Err d ->
+                        Expect.fail
+                            ("Cylinder stack drifted "
+                                ++ String.fromFloat d
+                                ++ " m during warmup (limit "
+                                ++ String.fromFloat warmupDriftThreshold
+                                ++ " m)"
+                            )
+
+                    Ok ( warmedConfig, warmedBodies ) ->
+                        -- sensitive to manifold cull stability: the 12-gon
+                        -- caps have three equal-spread 4-subsets, and a cull
+                        -- that flips between them churns warm start (fails
+                        -- this threshold at 7 iterations)
+                        stableFrames 0.05 100000 warmedConfig warmedBodies
+                            -- observed walk ~0.19 m
+                            |> expectStableRun 100000 0.3
+        , test "stack of 5 boxes without contacts at 20 iterations: warmup stays stacked + 100000 stable frames" <|
+            \_ ->
+                let
+                    config =
+                        { onEarth | solverIterations = 20 }
 
                     initial =
                         initialOrigins Scenarios.stackOf5.bodies
@@ -379,20 +465,28 @@ stability =
 
                     Ok warmedBodies ->
                         coldStableFrames 0.05 100000 config warmedBodies
-                            |> Expect.equal 100000
-        , test "box resting on a slope at 10 iterations: friction holds it for 100000 frames" <|
+                            -- observed walk ~0.65 m: without warm-start seeds
+                            -- the per-frame solve leaves a small directional
+                            -- residual velocity that integrates into a steady
+                            -- walk (the warm-started stack reaches an exact
+                            -- fixed point and does not walk at all)
+                            |> expectStableRun 100000 0.8
+        , test "box resting on a slope at 7 iterations: friction holds it for 100000 frames" <|
             \_ ->
                 let
                     config =
-                        { onEarth | solverIterations = 10 }
+                        { onEarth | solverIterations = 7 }
 
                     origin0 =
                         dynamicOrigin Scenarios.restingOnSlope.bodies
 
-                    -- Skip frame 0: the box starts flush, so the first frame has an
-                    -- initial-contact velocity spike before friction grips.
+                    -- Skip frames 0-1: the box starts flush, so initial
+                    -- contact produces a decaying velocity spike (~0.12 then
+                    -- ~0.05 m/s, under 0.02 from frame 2) before friction
+                    -- grips. A real slide can't hide in the skip: free
+                    -- acceleration at g·sin 15° stays above the limit forever.
                     ( warmedBodies, warmedContacts ) =
-                        Physics.simulate config Scenarios.restingOnSlope.bodies
+                        warmupSlope 2 config Scenarios.restingOnSlope.bodies
 
                     ( maxSpeed, drift ) =
                         runSlope 100000 { config | contacts = warmedContacts } warmedBodies origin0 0

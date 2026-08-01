@@ -25,31 +25,60 @@ type alias SolverBody id =
     }
 
 
-fromBody : id -> Body -> SolverBody id
-fromBody extId body =
-    { body = body
-    , extId = extId
-    , vX = 0
-    , vY = 0
-    , vZ = 0
-    , wX = 0
-    , wY = 0
-    , wZ = 0
-    }
+{-| Initialize a solver body with its free velocity — the total velocity it
+would have after this step with no constraints: damped stored velocity plus
+one tick of gravity and applied forces. Rows measure and correct these totals
+directly.
+-}
+fromBody : Float -> Vec3 -> id -> Body -> SolverBody id
+fromBody dt gravity extId body =
+    if body.kindInt == 2 then
+        let
+            ld =
+                (1.0 - body.linearDamping) ^ dt
+
+            ad =
+                (1.0 - body.angularDamping) ^ dt
+
+            invI =
+                body.invInertiaWorld
+        in
+        { body = body
+        , extId = extId
+        , vX = (gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld
+        , vY = (gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld
+        , vZ = (gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld
+        , wX = (invI.m11 * body.torque.x + invI.m12 * body.torque.y + invI.m13 * body.torque.z) * dt + body.angularVelocity.x * ad
+        , wY = (invI.m21 * body.torque.x + invI.m22 * body.torque.y + invI.m23 * body.torque.z) * dt + body.angularVelocity.y * ad
+        , wZ = (invI.m31 * body.torque.x + invI.m32 * body.torque.y + invI.m33 * body.torque.z) * dt + body.angularVelocity.z * ad
+        }
+
+    else
+        -- static: zeros; kinematic: the user-set velocity, unaffected by
+        -- forces and impulses but felt by contacting dynamic bodies
+        { body = body
+        , extId = extId
+        , vX = body.velocity.x
+        , vY = body.velocity.y
+        , vZ = body.velocity.z
+        , wX = body.angularVelocity.x
+        , wY = body.angularVelocity.y
+        , wZ = body.angularVelocity.z
+        }
 
 
 {-| Sparse array indexed by body.id (IDs may be non-consecutive when
 bodies are added mid-simulation). Unused slots are filled with the sentinel.
 -}
-fromBodies : Int -> List ( id, Body ) -> Array (SolverBody id)
-fromBodies maxId bodiesWithIds =
+fromBodies : Float -> Vec3 -> Int -> List ( id, Body ) -> Array (SolverBody id)
+fromBodies dt gravity maxId bodiesWithIds =
     case bodiesWithIds of
         [] ->
             Array.empty
 
         ( firstExtId, _ ) :: _ ->
             List.foldl
-                (\( extId, body ) arr -> Array.set body.id (fromBody extId body) arr)
+                (\( extId, body ) arr -> Array.set body.id (fromBody dt gravity extId body) arr)
                 (Array.repeat (maxId + 1) (sentinel firstExtId))
                 bodiesWithIds
 
@@ -93,9 +122,14 @@ sentinel extId =
 paired with the new `Body` — the shape both the output list and `contactPoints`
 consume, so no `SolverBody` wrapper is rebuilt. Run once after solving. Static
 bodies don't move, so their existing body is reused (only the pair is allocated).
+
+The solver body carries total velocities (gravity, forces, and damping folded
+in at init), so integration just applies the motion locks and moves the
+transform.
+
 -}
-solved : Float -> Vec3 -> SolverBody id -> ( id, Body )
-solved dt gravity ({ body } as solverBody) =
+solved : Float -> SolverBody id -> ( id, Body )
+solved dt ({ body } as solverBody) =
     case body.kindInt of
         1 ->
             -- Static: nothing to integrate, reuse the body as-is.
@@ -145,17 +179,10 @@ solved dt gravity ({ body } as solverBody) =
         _ ->
             -- Dynamic (or any other; only Dynamic is the live case)
             let
-                -- Apply damping https://code.google.com/archive/p/bullet/issues/74
-                ld =
-                    (1.0 - body.linearDamping) ^ dt
-
-                ad =
-                    (1.0 - body.angularDamping) ^ dt
-
                 newVelocity =
-                    { x = ((gravity.x + body.force.x * body.invMass) * dt + body.velocity.x * ld + solverBody.vX) * body.linearLock.x
-                    , y = ((gravity.y + body.force.y * body.invMass) * dt + body.velocity.y * ld + solverBody.vY) * body.linearLock.y
-                    , z = ((gravity.z + body.force.z * body.invMass) * dt + body.velocity.z * ld + solverBody.vZ) * body.linearLock.z
+                    { x = solverBody.vX * body.linearLock.x
+                    , y = solverBody.vY * body.linearLock.y
+                    , z = solverBody.vZ * body.linearLock.z
                     }
 
                 velocityLength =
@@ -179,9 +206,9 @@ solved dt gravity ({ body } as solverBody) =
                         Vec3.scale (boundingSphereRadius / (velocityLength * dt)) newVelocity
 
                 newAngularVelocity =
-                    { x = ((body.invInertiaWorld.m11 * body.torque.x + body.invInertiaWorld.m12 * body.torque.y + body.invInertiaWorld.m13 * body.torque.z) * dt + body.angularVelocity.x * ad + solverBody.wX) * body.angularLock.x
-                    , y = ((body.invInertiaWorld.m21 * body.torque.x + body.invInertiaWorld.m22 * body.torque.y + body.invInertiaWorld.m23 * body.torque.z) * dt + body.angularVelocity.y * ad + solverBody.wY) * body.angularLock.y
-                    , z = ((body.invInertiaWorld.m31 * body.torque.x + body.invInertiaWorld.m32 * body.torque.y + body.invInertiaWorld.m33 * body.torque.z) * dt + body.angularVelocity.z * ad + solverBody.wZ) * body.angularLock.z
+                    { x = solverBody.wX * body.angularLock.x
+                    , y = solverBody.wY * body.angularLock.y
+                    , z = solverBody.wZ * body.angularLock.z
                     }
 
                 newTransform3d =

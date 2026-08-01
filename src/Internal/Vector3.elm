@@ -16,7 +16,6 @@ module Internal.Vector3 exposing
     , normalize
     , one
     , scale
-    , stableTangents
     , sub
     , tangents
     , xAxis
@@ -256,38 +255,6 @@ tangents vec =
 
     else
         ( xAxis, yAxis )
-
-
-{-| Reuse a previous tangent direction by projecting `cachedT1` onto the plane
-perpendicular to `ni` and renormalising; `t2 = ni × t1`. Keeps a friction basis
-continuous as the contact normal rotates between steps, avoiding the basis
-discontinuity in `tangents`.
-
-Falls back to `tangents` if the cached direction is nearly parallel to the new
-normal (degenerate projection).
-
--}
-stableTangents : Vec3 -> Vec3 -> ( Vec3, Vec3 )
-stableTangents cachedT1 ni =
-    let
-        d =
-            dot cachedT1 ni
-
-        projected =
-            sub cachedT1 (scale d ni)
-
-        lenSq =
-            lengthSquared projected
-    in
-    if lenSq - Const.precision < 0 then
-        tangents ni
-
-    else
-        let
-            t1 =
-                scale (1 / sqrt lenSq) projected
-        in
-        ( t1, cross ni t1 )
 
 
 lerp : Float -> Vec3 -> Vec3 -> Vec3

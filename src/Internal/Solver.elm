@@ -6,10 +6,10 @@ import Internal.Const as Const
 import Internal.Contact exposing (PairGroup)
 import Internal.ContactCache as Cache exposing (ContactCache)
 import Internal.ContactId as ContactId
-import Internal.Equation as Equation exposing (ConstraintEquation, ContactEquations, EquationsGroup, Jacobian)
+import Internal.Equation as Equation exposing (ConstraintEquation, ContactEquations, EquationsGroup, Jacobian, PointEquation)
 import Internal.Islands as Islands exposing (Islands)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
-import Internal.Vector3 as Vec3 exposing (Vec3)
+import Internal.Vector3 exposing (Vec3)
 
 
 {-| Integer min/max via subtraction, compiling to a direct JS `<` instead of
@@ -99,24 +99,45 @@ applyConstraintsWarmStart body1 body2 equations =
             applyConstraintsWarmStart newBody1 newBody2 rest
 
 
+{-| Apply the seeded impulses: each point's normal lambda, and the manifold's
+tangent pair and twist. The soft normal rows' impulse bleed keeps the seeds
+from pumping, so friction seeds are safe to apply with everything else.
+-}
 applyContactsWarmStart : SolverBody id -> SolverBody id -> List ContactEquations -> ( SolverBody id, SolverBody id )
-applyContactsWarmStart body1 body2 contacts =
-    case contacts of
+applyContactsWarmStart body1 body2 manifolds =
+    case manifolds of
         [] ->
             ( body1, body2 )
 
-        contact :: rest ->
+        manifold :: rest ->
             let
                 ( b1n, b2n ) =
-                    applyEquationWarmStart contact.normalLambda contact.data.normal body1 body2
+                    applyPointsWarmStart body1 body2 manifold.points
 
-                ( b1f1, b2f1 ) =
-                    applyEquationWarmStart contact.friction1Lambda contact.data.friction1 b1n b2n
+                ( b1f, b2f ) =
+                    applyEquationWarmStart manifold.friction1Lambda manifold.data.friction1 b1n b2n
 
-                ( b1f2, b2f2 ) =
-                    applyEquationWarmStart contact.friction2Lambda contact.data.friction2 b1f1 b2f1
+                ( b1g, b2g ) =
+                    applyEquationWarmStart manifold.friction2Lambda manifold.data.friction2 b1f b2f
+
+                ( b1t, b2t ) =
+                    applyEquationWarmStart manifold.twistLambda manifold.data.twist b1g b2g
             in
-            applyContactsWarmStart b1f2 b2f2 rest
+            applyContactsWarmStart b1t b2t rest
+
+
+applyPointsWarmStart : SolverBody id -> SolverBody id -> List PointEquation -> ( SolverBody id, SolverBody id )
+applyPointsWarmStart body1 body2 points =
+    case points of
+        [] ->
+            ( body1, body2 )
+
+        point :: rest ->
+            let
+                ( b1n, b2n ) =
+                    applyEquationWarmStart point.normalLambda point.data.normal body1 body2
+            in
+            applyPointsWarmStart b1n b2n rest
 
 
 buildAndWarmStart :
@@ -233,17 +254,13 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
         ( firstExtId, _ ) :: _ ->
             let
                 ctx =
-                    { dt = dt
-                    , gravity = gravity
-                    , gravityLength = Vec3.length gravity
-                    , warmStart = warmStart
-                    }
+                    Equation.initCtx dt warmStart
 
                 fillingBody =
                     SolverBody.sentinel firstExtId
 
                 solverBodies =
-                    SolverBody.fromBodies maxId bodiesWithIds
+                    SolverBody.fromBodies dt gravity maxId bodiesWithIds
 
                 -- One fused pass: build equationsGroups, apply warm-start
                 -- impulses, and grow the islands. Each island converges
@@ -257,31 +274,29 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
                         []
                         pairGroups
 
-                -- Solve each island, threading the bodies array; minRem tracks
-                -- the fewest iterations any island had left (the iteration report).
-                ( finalSolverBodies, finalEquationsGroups, minRemainingIterations ) =
+                -- Solve each island, threading the body array;
+                -- minRemainingIterations tracks the fewest iterations any
+                -- island had left (the iteration report).
+                finalState =
                     Islands.fold
-                        (\island ( arr, accGroups, minRem ) ->
-                            let
-                                ( newArr, newGroups, remIters ) =
-                                    solveOneIsland iterations fillingBody island arr accGroups
-                            in
-                            ( newArr, newGroups, minInt minRem remIters )
-                        )
-                        ( warmStartedBodies, [], iterations )
+                        (solveOneIsland iterations fillingBody)
+                        { bodies = warmStartedBodies
+                        , groups = []
+                        , minRemainingIterations = iterations
+                        }
                         equationsGroups
                         islands
 
                 iterationsUsed =
-                    maxInt 1 (iterations - minRemainingIterations)
+                    maxInt 1 (iterations - finalState.minRemainingIterations)
 
                 finalWarmStart =
-                    collectGroupCaches finalEquationsGroups Cache.empty
+                    collectGroupCaches finalState.groups Cache.empty
 
                 -- Integrate to next-frame transforms once; reused by the output
                 -- list and contactPoints.
                 integratedBodies =
-                    Array.map (SolverBody.solved dt gravity) finalSolverBodies
+                    Array.map (SolverBody.solved dt) finalState.bodies
             in
             { bodies = integratedBodies
             , warmStart = finalWarmStart
@@ -291,8 +306,8 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
 
 
 {-| Build next frame's warm-start cache: one insert per contact-bearing pair,
-keyed by body-pair key, each entry carrying the normal lambda and friction1
-direction. Constraints are never warm-started, so only contacts are collected.
+keyed by body-pair key. Constraints are never warm-started, so only contacts
+are collected.
 -}
 collectGroupCaches : List (EquationsGroup id) -> ContactCache Equation.WarmStart -> ContactCache Equation.WarmStart
 collectGroupCaches groups acc =
@@ -309,37 +324,80 @@ collectGroupCaches groups acc =
                     let
                         bodyKey =
                             ContactId.bodyKey group.body1.body.id group.body2.body.id
+
+                        tangentSign =
+                            if group.body1.body.id - group.body2.body.id < 0 then
+                                1
+
+                            else
+                                -1
                     in
                     collectGroupCaches rest
-                        (Cache.insertGroup bodyKey (warmStartEntries group.contacts []) acc)
+                        (Cache.insertGroup bodyKey (warmStartEntries tangentSign group.contacts []) acc)
 
 
-{-| A pair's warm-start entries: each contact's solved normal lambda and
-friction1 (t1) direction, keyed by the contact id `(shapeKey, featureKey)`.
+{-| A pair's warm-start entries: each point's solved normal lambda keyed by
+`(shapeKey, featureKey)`, plus per manifold the world-space tangent impulse
+under `(shapeKey, -1..-3)` (sign-canonicalized to body-id order) and the
+twist lambda under `(shapeKey, -4)`.
 -}
-warmStartEntries : List ContactEquations -> List ( Int, Int, Equation.WarmStart ) -> List ( Int, Int, Equation.WarmStart )
-warmStartEntries contacts acc =
-    case contacts of
+warmStartEntries : Float -> List ContactEquations -> List ( Int, Int, Equation.WarmStart ) -> List ( Int, Int, Equation.WarmStart )
+warmStartEntries tangentSign manifolds acc =
+    case manifolds of
+        [] ->
+            acc
+
+        manifold :: rest ->
+            case manifold.points of
+                [] ->
+                    warmStartEntries tangentSign rest acc
+
+                firstPoint :: _ ->
+                    let
+                        sk =
+                            firstPoint.data.shapeKey
+
+                        t1 =
+                            manifold.data.friction1
+
+                        t2 =
+                            manifold.data.friction2
+
+                        f1 =
+                            manifold.friction1Lambda
+
+                        f2 =
+                            manifold.friction2Lambda
+                    in
+                    warmStartEntries tangentSign
+                        rest
+                        (pointWarmStartEntries manifold.points
+                            (( sk, -1, tangentSign * (f1 * t1.vBx + f2 * t2.vBx) )
+                                :: ( sk, -2, tangentSign * (f1 * t1.vBy + f2 * t2.vBy) )
+                                :: ( sk, -3, tangentSign * (f1 * t1.vBz + f2 * t2.vBz) )
+                                :: ( sk, -4, manifold.twistLambda )
+                                :: acc
+                            )
+                        )
+
+
+pointWarmStartEntries : List PointEquation -> List ( Int, Int, Equation.WarmStart ) -> List ( Int, Int, Equation.WarmStart )
+pointWarmStartEntries points acc =
+    case points of
         [] ->
             acc
 
         { data, normalLambda } :: rest ->
-            warmStartEntries rest
-                (( data.shapeKey
-                 , data.featureKey
-                 , { lambda = normalLambda
-                   , t1 = { x = data.friction1.vBx, y = data.friction1.vBy, z = data.friction1.vBz }
-                   }
-                 )
-                    :: acc
-                )
+            pointWarmStartEntries rest
+                (( data.shapeKey, data.featureKey, normalLambda ) :: acc)
 
 
 {-| Solve a multi-body island: two sweeps per iteration — non-friction (normals
 
-  - joints) across the island first, then friction sized off the finalized normal
-    lambdas. Penetration recovery folds into the non-friction bias (Baumgarte ERP),
-    so there's no separate position pass.
+  - joints) across the island first, then friction sized off the finalized
+    normal lambdas. Penetration recovery runs through the soft normal rows'
+    bias (no separate position pass); restitution runs once after the
+    iterations, from the stored pre-solve approach velocities.
 
 -}
 step : Int -> SolverBody id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
@@ -431,6 +489,9 @@ sweep phase prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
 
                         FrictionPhase ->
                             velocityFrictionGroup body1 body2 deltalambdaTot currentGroup.contacts currentGroup.constraints
+
+                        RestitutionPhase ->
+                            restitutionGroup body1 body2 currentGroup.contacts currentGroup.constraints
             in
             sweep
                 phase
@@ -446,32 +507,47 @@ sweep phase prevBody1 solverBodies acc currentEquationsGroups deltalambdaTot =
                 groupResult.deltalambdaTot
 
 
-{-| Solve one island: a 2-body island skips the array round-trip, anything
-larger runs the full island PGS loop. `accGroups` collects the spent groups,
-`minRem` tracks the fewest iterations any island had left.
+{-| The island fold's accumulator: the body array, the spent groups, and the
+fewest iterations any island had left.
 -}
-solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solveOneIsland iterations fillingBody island arr accGroups =
+type alias SolveAcc id =
+    { bodies : Array (SolverBody id)
+    , groups : List (EquationsGroup id)
+    , minRemainingIterations : Int
+    }
+
+
+{-| Solve one island: a 2-body island skips the array round-trip, anything
+larger runs the full island PGS loop; both finish with the restitution pass.
+-}
+solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> SolveAcc id -> SolveAcc id
+solveOneIsland iterations fillingBody island acc =
     case island of
         [ singleGroup ] ->
             -- 2-body island: bodies are owned solely by this group, so use the
             -- SolverBody refs stashed on it directly — no Array.get.
-            solve2Body iterations singleGroup arr accGroups
+            solve2Body iterations singleGroup acc
 
         _ ->
             let
-                ( newArr, newGroups, remIters ) =
-                    step iterations fillingBody arr island
+                ( solvedArr, velocityGroups, remIters ) =
+                    step iterations fillingBody acc.bodies island
+
+                pass =
+                    sweep RestitutionPhase fillingBody solvedArr [] velocityGroups 0
             in
-            ( newArr, newGroups ++ accGroups, remIters )
+            { bodies = Array.set pass.prevBody1.body.id pass.prevBody1 pass.solverBodies
+            , groups = List.reverse pass.groups ++ acc.groups
+            , minRemainingIterations = minInt acc.minRemainingIterations remIters
+            }
 
 
 {-| Specialized PGS for a 2-body island (single equation group). The two
 bodies stay in locals across iterations; only at the end do we write back to
-the array.
+the arrays.
 -}
-solve2Body : Int -> EquationsGroup id -> Array (SolverBody id) -> List (EquationsGroup id) -> ( Array (SolverBody id), List (EquationsGroup id), Int )
-solve2Body remainingIterations group arr accGroups =
+solve2Body : Int -> EquationsGroup id -> SolveAcc id -> SolveAcc id
+solve2Body remainingIterations group acc =
     let
         nonFriction =
             velocityNonFrictionGroup group.body1 group.body2 0 group.contacts group.constraints
@@ -480,13 +556,25 @@ solve2Body remainingIterations group arr accGroups =
             velocityFrictionGroup nonFriction.body1 nonFriction.body2 nonFriction.deltalambdaTot nonFriction.contacts nonFriction.constraints
     in
     if remainingIterations == 1 then
-        ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, 0 )
+        finish2Body 0 result acc
 
     else if result.deltalambdaTot - Const.solverTolerance < 0 then
-        ( flushBody result.body2 (flushBody result.body1 arr), result :: accGroups, remainingIterations - 1 )
+        finish2Body (remainingIterations - 1) result acc
 
     else
-        solve2Body (remainingIterations - 1) result arr accGroups
+        solve2Body (remainingIterations - 1) result acc
+
+
+finish2Body : Int -> EquationsGroup id -> SolveAcc id -> SolveAcc id
+finish2Body remIters result acc =
+    let
+        final =
+            restitutionGroup result.body1 result.body2 result.contacts result.constraints
+    in
+    { bodies = flushBody final.body2 (flushBody final.body1 acc.bodies)
+    , groups = final :: acc.groups
+    , minRemainingIterations = minInt acc.minRemainingIterations remIters
+    }
 
 
 flushBody : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
@@ -619,25 +707,62 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                 rest
 
 
-{-| Pass 1 contact solve: each block's normal with its fixed bounds, frictions
+{-| Pass 1 contact solve: each manifold's per-point soft normal rows, frictions
 left untouched.
 -}
 solveVelocityNormals : SolverBody id -> SolverBody id -> List ContactEquations -> Float -> List ContactEquations -> VelocityContactsResult id
-solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
-    case contacts of
+solveVelocityNormals body1 body2 acc deltalambdaTot manifolds =
+    case manifolds of
         [] ->
             { body1 = body1, body2 = body2, contacts = List.reverse acc, deltalambdaTot = deltalambdaTot }
 
-        contact :: rest ->
+        manifold :: rest ->
+            let
+                inner =
+                    solvePointNormals body1 body2 [] deltalambdaTot manifold.points
+            in
+            solveVelocityNormals
+                inner.body1
+                inner.body2
+                ({ points = inner.points
+                 , friction1Lambda = manifold.friction1Lambda
+                 , friction2Lambda = manifold.friction2Lambda
+                 , twistLambda = manifold.twistLambda
+                 , data = manifold.data
+                 }
+                    :: acc
+                )
+                inner.deltalambdaTot
+                rest
+
+
+type alias PointsResult id =
+    { body1 : SolverBody id
+    , body2 : SolverBody id
+    , points : List PointEquation
+    , deltalambdaTot : Float
+    }
+
+
+{-| Soft normal row update:
+`Δλ = -normalMass·(massScale·vn + bias) - impulseScale·λ`, accumulated λ ≥ 0.
+-}
+solvePointNormals : SolverBody id -> SolverBody id -> List PointEquation -> Float -> List PointEquation -> PointsResult id
+solvePointNormals body1 body2 acc deltalambdaTot points =
+    case points of
+        [] ->
+            { body1 = body1, body2 = body2, points = List.reverse acc, deltalambdaTot = deltalambdaTot }
+
+        point :: rest ->
             let
                 data =
-                    contact.data
+                    point.data
 
                 jacobian =
                     data.normal
 
                 solverLambda =
-                    contact.normalLambda
+                    point.normalLambda
 
                 gWlambda =
                     -(jacobian.vBx * body1.vX + jacobian.vBy * body1.vY + jacobian.vBz * body1.vZ)
@@ -646,24 +771,28 @@ solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
                         + (jacobian.wBx * body2.wX + jacobian.wBy * body2.wY + jacobian.wBz * body2.wZ)
 
                 deltalambdaPrev =
-                    data.normalSolverInvC * (data.normalSolverB - gWlambda - data.spookEps * solverLambda)
+                    -data.normalMass * (data.normalMassScale * gWlambda + data.normalBias) - data.normalImpulseScale * solverLambda
 
                 deltalambda =
-                    if solverLambda + deltalambdaPrev - data.normalMinImpulse < 0 then
-                        data.normalMinImpulse - solverLambda
-
-                    else if solverLambda + deltalambdaPrev - data.normalMaxImpulse > 0 then
-                        data.normalMaxImpulse - solverLambda
+                    if solverLambda + deltalambdaPrev < 0 then
+                        -solverLambda
 
                     else
                         deltalambdaPrev
+
+                newLambda =
+                    solverLambda + deltalambda
             in
-            solveVelocityNormals
+            solvePointNormals
                 (applyVelocityBody1 deltalambda jacobian body1)
                 (applyVelocityBody2 deltalambda jacobian body2)
-                ({ normalLambda = solverLambda + deltalambda
-                 , friction1Lambda = contact.friction1Lambda
-                 , friction2Lambda = contact.friction2Lambda
+                ({ normalLambda = newLambda
+                 , maxNormalLambda =
+                    if newLambda - point.maxNormalLambda > 0 then
+                        newLambda
+
+                    else
+                        point.maxNormalLambda
                  , data = data
                  }
                     :: acc
@@ -672,176 +801,303 @@ solveVelocityNormals body1 body2 acc deltalambdaTot contacts =
                 rest
 
 
-{-| Pass 2 contact solve: each block's two friction equations, the Coulomb cone
-±μ·λ\_n sized from the block's finalized normal lambda. friction1 then friction2.
+{-| Pass 2 contact solve: per manifold, the twist row about the normal, then
+the coupled central friction pair. Cones are sized from the manifold's
+finalized normal lambdas: the tangent pair clamps to the circle μ·Σλ, the
+twist to ±μ·Σ(leverArm·λ) — the torque per-point tangent forces could produce.
 -}
 solveVelocityFrictions : SolverBody id -> SolverBody id -> List ContactEquations -> Float -> List ContactEquations -> VelocityContactsResult id
-solveVelocityFrictions body1 body2 acc deltalambdaTot contacts =
-    case contacts of
+solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
+    case manifolds of
         [] ->
-            { body1 = body1, body2 = body2, contacts = List.reverse acc, deltalambdaTot = deltalambdaTot }
+            { body1 = bodyA, body2 = bodyB, contacts = List.reverse acc, deltalambdaTot = deltalambdaTot }
 
-        contact :: rest ->
+        manifold :: rest ->
             let
                 data =
-                    contact.data
+                    manifold.data
 
-                normalLambda =
-                    contact.normalLambda
+                caps =
+                    coulombCaps manifold.points 0 0
+
+                twist =
+                    data.twist
+
+                twistCap =
+                    data.frictionCoefficient * caps.lever
+
+                -- the twist row has no linear part
+                gWt =
+                    (twist.wAx * bodyA.wX + twist.wAy * bodyA.wY + twist.wAz * bodyA.wZ)
+                        + (twist.wBx * bodyB.wX + twist.wBy * bodyB.wY + twist.wBz * bodyB.wZ)
+
+                dPrevT =
+                    -data.twistMass * gWt
+
+                dT =
+                    if manifold.twistLambda + dPrevT + twistCap < 0 then
+                        -twistCap - manifold.twistLambda
+
+                    else if manifold.twistLambda + dPrevT - twistCap > 0 then
+                        twistCap - manifold.twistLambda
+
+                    else
+                        dPrevT
+
+                invI1 =
+                    bodyA.body.invInertiaWorld
+
+                invI2 =
+                    bodyB.body.invInertiaWorld
+
+                -- twist's updated angular velocities as locals so the tangent
+                -- rows read them; invInertiaWorld is 0 for static bodies, so
+                -- no kindInt guard.
+                b1wX =
+                    bodyA.wX + (invI1.m11 * twist.wAx + invI1.m12 * twist.wAy + invI1.m13 * twist.wAz) * dT
+
+                b1wY =
+                    bodyA.wY + (invI1.m21 * twist.wAx + invI1.m22 * twist.wAy + invI1.m23 * twist.wAz) * dT
+
+                b1wZ =
+                    bodyA.wZ + (invI1.m31 * twist.wAx + invI1.m32 * twist.wAy + invI1.m33 * twist.wAz) * dT
+
+                b2wX =
+                    bodyB.wX + (invI2.m11 * twist.wBx + invI2.m12 * twist.wBy + invI2.m13 * twist.wBz) * dT
+
+                b2wY =
+                    bodyB.wY + (invI2.m21 * twist.wBx + invI2.m22 * twist.wBy + invI2.m23 * twist.wBz) * dT
+
+                b2wZ =
+                    bodyB.wZ + (invI2.m31 * twist.wBx + invI2.m32 * twist.wBy + invI2.m33 * twist.wBz) * dT
 
                 eq1 =
                     data.friction1
 
-                cap1 =
-                    data.frictionCoefficient * normalLambda
-
-                gW1 =
-                    -(eq1.vBx * body1.vX + eq1.vBy * body1.vY + eq1.vBz * body1.vZ)
-                        + (eq1.wAx * body1.wX + eq1.wAy * body1.wY + eq1.wAz * body1.wZ)
-                        + (eq1.vBx * body2.vX + eq1.vBy * body2.vY + eq1.vBz * body2.vZ)
-                        + (eq1.wBx * body2.wX + eq1.wBy * body2.wY + eq1.wBz * body2.wZ)
-
-                dPrev1 =
-                    data.friction1SolverInvC * (data.friction1SolverB - gW1 - data.spookEps * contact.friction1Lambda)
-
-                d1 =
-                    if contact.friction1Lambda + dPrev1 + cap1 < 0 then
-                        -cap1 - contact.friction1Lambda
-
-                    else if contact.friction1Lambda + dPrev1 - cap1 > 0 then
-                        cap1 - contact.friction1Lambda
-
-                    else
-                        dPrev1
-
-                invI1 =
-                    body1.body.invInertiaWorld
-
-                invI2 =
-                    body2.body.invInertiaWorld
-
-                -- friction1's updated velocities as locals (not a throwaway
-                -- SolverBody) so friction2's gWlambda can read them. invMass /
-                -- invInertiaWorld are 0 for static bodies, so no kindInt guard.
-                k1a =
-                    d1 * body1.body.invMass
-
-                b1vX =
-                    body1.vX - k1a * eq1.vBx
-
-                b1vY =
-                    body1.vY - k1a * eq1.vBy
-
-                b1vZ =
-                    body1.vZ - k1a * eq1.vBz
-
-                b1wX =
-                    body1.wX + (invI1.m11 * eq1.wAx + invI1.m12 * eq1.wAy + invI1.m13 * eq1.wAz) * d1
-
-                b1wY =
-                    body1.wY + (invI1.m21 * eq1.wAx + invI1.m22 * eq1.wAy + invI1.m23 * eq1.wAz) * d1
-
-                b1wZ =
-                    body1.wZ + (invI1.m31 * eq1.wAx + invI1.m32 * eq1.wAy + invI1.m33 * eq1.wAz) * d1
-
-                k1b =
-                    d1 * body2.body.invMass
-
-                b2vX =
-                    body2.vX + k1b * eq1.vBx
-
-                b2vY =
-                    body2.vY + k1b * eq1.vBy
-
-                b2vZ =
-                    body2.vZ + k1b * eq1.vBz
-
-                b2wX =
-                    body2.wX + (invI2.m11 * eq1.wBx + invI2.m12 * eq1.wBy + invI2.m13 * eq1.wBz) * d1
-
-                b2wY =
-                    body2.wY + (invI2.m21 * eq1.wBx + invI2.m22 * eq1.wBy + invI2.m23 * eq1.wBz) * d1
-
-                b2wZ =
-                    body2.wZ + (invI2.m31 * eq1.wBx + invI2.m32 * eq1.wBy + invI2.m33 * eq1.wBz) * d1
-
                 eq2 =
                     data.friction2
 
-                cap2 =
-                    data.frictionCoefficient * normalLambda
+                gW1 =
+                    -(eq1.vBx * bodyA.vX + eq1.vBy * bodyA.vY + eq1.vBz * bodyA.vZ)
+                        + (eq1.wAx * b1wX + eq1.wAy * b1wY + eq1.wAz * b1wZ)
+                        + (eq1.vBx * bodyB.vX + eq1.vBy * bodyB.vY + eq1.vBz * bodyB.vZ)
+                        + (eq1.wBx * b2wX + eq1.wBy * b2wY + eq1.wBz * b2wZ)
 
                 gW2 =
-                    -(eq2.vBx * b1vX + eq2.vBy * b1vY + eq2.vBz * b1vZ)
+                    -(eq2.vBx * bodyA.vX + eq2.vBy * bodyA.vY + eq2.vBz * bodyA.vZ)
                         + (eq2.wAx * b1wX + eq2.wAy * b1wY + eq2.wAz * b1wZ)
-                        + (eq2.vBx * b2vX + eq2.vBy * b2vY + eq2.vBz * b2vZ)
+                        + (eq2.vBx * bodyB.vX + eq2.vBy * bodyB.vY + eq2.vBz * bodyB.vZ)
                         + (eq2.wBx * b2wX + eq2.wBy * b2wY + eq2.wBz * b2wZ)
 
-                dPrev2 =
-                    data.friction2SolverInvC * (data.friction2SolverB - gW2 - data.spookEps * contact.friction2Lambda)
+                -- coupled 2x2 solve, then a circular Coulomb clamp on the
+                -- accumulated tangent impulse
+                new1 =
+                    manifold.friction1Lambda - (data.tangentInv11 * gW1 + data.tangentInv12 * gW2)
+
+                new2 =
+                    manifold.friction2Lambda - (data.tangentInv12 * gW1 + data.tangentInv22 * gW2)
+
+                cap =
+                    data.frictionCoefficient * caps.total
+
+                lenSq =
+                    new1 * new1 + new2 * new2
+
+                scale =
+                    if lenSq - cap * cap > 0 then
+                        cap / sqrt lenSq
+
+                    else
+                        1
+
+                d1 =
+                    new1 * scale - manifold.friction1Lambda
 
                 d2 =
-                    if contact.friction2Lambda + dPrev2 + cap2 < 0 then
-                        -cap2 - contact.friction2Lambda
+                    new2 * scale - manifold.friction2Lambda
 
-                    else if contact.friction2Lambda + dPrev2 - cap2 > 0 then
-                        cap2 - contact.friction2Lambda
+                -- both tangent impulses combined into one application per body
+                cVx =
+                    d1 * eq1.vBx + d2 * eq2.vBx
 
-                    else
-                        dPrev2
+                cVy =
+                    d1 * eq1.vBy + d2 * eq2.vBy
 
-                -- Build each body once, combining friction1 (in b1*/b2*) and
-                -- friction2 impulses.
+                cVz =
+                    d1 * eq1.vBz + d2 * eq2.vBz
+
+                cAx =
+                    d1 * eq1.wAx + d2 * eq2.wAx
+
+                cAy =
+                    d1 * eq1.wAy + d2 * eq2.wAy
+
+                cAz =
+                    d1 * eq1.wAz + d2 * eq2.wAz
+
+                cBx =
+                    d1 * eq1.wBx + d2 * eq2.wBx
+
+                cBy =
+                    d1 * eq1.wBy + d2 * eq2.wBy
+
+                cBz =
+                    d1 * eq1.wBz + d2 * eq2.wBz
+
                 newBody1 =
-                    if body1.body.kindInt == 2 then
-                        let
-                            k2a =
-                                d2 * body1.body.invMass
-                        in
-                        { body = body1.body
-                        , extId = body1.extId
-                        , vX = b1vX - k2a * eq2.vBx
-                        , vY = b1vY - k2a * eq2.vBy
-                        , vZ = b1vZ - k2a * eq2.vBz
-                        , wX = b1wX + (invI1.m11 * eq2.wAx + invI1.m12 * eq2.wAy + invI1.m13 * eq2.wAz) * d2
-                        , wY = b1wY + (invI1.m21 * eq2.wAx + invI1.m22 * eq2.wAy + invI1.m23 * eq2.wAz) * d2
-                        , wZ = b1wZ + (invI1.m31 * eq2.wAx + invI1.m32 * eq2.wAy + invI1.m33 * eq2.wAz) * d2
+                    if bodyA.body.kindInt == 2 then
+                        { body = bodyA.body
+                        , extId = bodyA.extId
+                        , vX = bodyA.vX - bodyA.body.invMass * cVx
+                        , vY = bodyA.vY - bodyA.body.invMass * cVy
+                        , vZ = bodyA.vZ - bodyA.body.invMass * cVz
+                        , wX = b1wX + (invI1.m11 * cAx + invI1.m12 * cAy + invI1.m13 * cAz)
+                        , wY = b1wY + (invI1.m21 * cAx + invI1.m22 * cAy + invI1.m23 * cAz)
+                        , wZ = b1wZ + (invI1.m31 * cAx + invI1.m32 * cAy + invI1.m33 * cAz)
                         }
 
                     else
-                        body1
+                        bodyA
 
                 newBody2 =
-                    if body2.body.kindInt == 2 then
-                        let
-                            k2b =
-                                d2 * body2.body.invMass
-                        in
-                        { body = body2.body
-                        , extId = body2.extId
-                        , vX = b2vX + k2b * eq2.vBx
-                        , vY = b2vY + k2b * eq2.vBy
-                        , vZ = b2vZ + k2b * eq2.vBz
-                        , wX = b2wX + (invI2.m11 * eq2.wBx + invI2.m12 * eq2.wBy + invI2.m13 * eq2.wBz) * d2
-                        , wY = b2wY + (invI2.m21 * eq2.wBx + invI2.m22 * eq2.wBy + invI2.m23 * eq2.wBz) * d2
-                        , wZ = b2wZ + (invI2.m31 * eq2.wBx + invI2.m32 * eq2.wBy + invI2.m33 * eq2.wBz) * d2
+                    if bodyB.body.kindInt == 2 then
+                        { body = bodyB.body
+                        , extId = bodyB.extId
+                        , vX = bodyB.vX + bodyB.body.invMass * cVx
+                        , vY = bodyB.vY + bodyB.body.invMass * cVy
+                        , vZ = bodyB.vZ + bodyB.body.invMass * cVz
+                        , wX = b2wX + (invI2.m11 * cBx + invI2.m12 * cBy + invI2.m13 * cBz)
+                        , wY = b2wY + (invI2.m21 * cBx + invI2.m22 * cBy + invI2.m23 * cBz)
+                        , wZ = b2wZ + (invI2.m31 * cBx + invI2.m32 * cBy + invI2.m33 * cBz)
                         }
 
                     else
-                        body2
+                        bodyB
             in
             solveVelocityFrictions
                 newBody1
                 newBody2
-                ({ normalLambda = contact.normalLambda
-                 , friction1Lambda = contact.friction1Lambda + d1
-                 , friction2Lambda = contact.friction2Lambda + d2
+                ({ points = manifold.points
+                 , friction1Lambda = manifold.friction1Lambda + d1
+                 , friction2Lambda = manifold.friction2Lambda + d2
+                 , twistLambda = manifold.twistLambda + dT
                  , data = data
                  }
                     :: acc
                 )
-                (deltalambdaTot + abs d1 + abs d2)
+                (deltalambdaTot + abs dT + abs d1 + abs d2)
                 rest
+
+
+{-| A manifold's Coulomb cone inputs: the summed normal lambdas and the
+leverArm-weighted sum.
+-}
+coulombCaps : List PointEquation -> Float -> Float -> { total : Float, lever : Float }
+coulombCaps points total lever =
+    case points of
+        [] ->
+            { total = total, lever = lever }
+
+        point :: rest ->
+            coulombCaps rest (total + point.normalLambda) (lever + point.normalLambda * point.data.leverArm)
+
+
+{-| Restitution pass, once per frame after the iterations: for points whose
+pre-solve approach speed exceeded the threshold (and that actually collided),
+push the normal velocity toward `-e·approach`. Keeping bounce out of the
+biased rows makes it exact instead of fighting the penetration bias.
+-}
+restitutionGroup : SolverBody id -> SolverBody id -> List ContactEquations -> List ConstraintEquation -> EquationsGroup id
+restitutionGroup body1 body2 contacts constraints =
+    let
+        result =
+            restitutionManifolds body1 body2 [] contacts
+    in
+    { body1 = result.body1
+    , body2 = result.body2
+    , contacts = result.contacts
+    , constraints = constraints
+    , deltalambdaTot = 0
+    }
+
+
+restitutionManifolds : SolverBody id -> SolverBody id -> List ContactEquations -> List ContactEquations -> VelocityContactsResult id
+restitutionManifolds body1 body2 acc manifolds =
+    case manifolds of
+        [] ->
+            { body1 = body1, body2 = body2, contacts = List.reverse acc, deltalambdaTot = 0 }
+
+        manifold :: rest ->
+            if manifold.data.bounciness > 0 then
+                let
+                    inner =
+                        restitutionPoints manifold.data.bounciness body1 body2 [] manifold.points
+                in
+                restitutionManifolds
+                    inner.body1
+                    inner.body2
+                    ({ points = inner.points
+                     , friction1Lambda = manifold.friction1Lambda
+                     , friction2Lambda = manifold.friction2Lambda
+                     , twistLambda = manifold.twistLambda
+                     , data = manifold.data
+                     }
+                        :: acc
+                    )
+                    rest
+
+            else
+                restitutionManifolds body1 body2 (manifold :: acc) rest
+
+
+restitutionPoints : Float -> SolverBody id -> SolverBody id -> List PointEquation -> List PointEquation -> PointsResult id
+restitutionPoints bounciness body1 body2 acc points =
+    case points of
+        [] ->
+            { body1 = body1, body2 = body2, points = List.reverse acc, deltalambdaTot = 0 }
+
+        point :: rest ->
+            let
+                data =
+                    point.data
+            in
+            if data.relativeVelocity + Equation.restitutionThreshold > 0 || point.maxNormalLambda == 0 then
+                restitutionPoints bounciness body1 body2 (point :: acc) rest
+
+            else
+                let
+                    jacobian =
+                        data.normal
+
+                    solverLambda =
+                        point.normalLambda
+
+                    gWlambda =
+                        -(jacobian.vBx * body1.vX + jacobian.vBy * body1.vY + jacobian.vBz * body1.vZ)
+                            + (jacobian.wAx * body1.wX + jacobian.wAy * body1.wY + jacobian.wAz * body1.wZ)
+                            + (jacobian.vBx * body2.vX + jacobian.vBy * body2.vY + jacobian.vBz * body2.vZ)
+                            + (jacobian.wBx * body2.wX + jacobian.wBy * body2.wY + jacobian.wBz * body2.wZ)
+
+                    deltalambdaPrev =
+                        -data.normalMass * (gWlambda + bounciness * data.relativeVelocity)
+
+                    deltalambda =
+                        if solverLambda + deltalambdaPrev < 0 then
+                            -solverLambda
+
+                        else
+                            deltalambdaPrev
+                in
+                restitutionPoints bounciness
+                    (applyVelocityBody1 deltalambda jacobian body1)
+                    (applyVelocityBody2 deltalambda jacobian body2)
+                    ({ normalLambda = solverLambda + deltalambda
+                     , maxNormalLambda = point.maxNormalLambda
+                     , data = data
+                     }
+                        :: acc
+                    )
+                    rest
 
 
 {-| Pass 1 over a pair group: constraints first, then contact normals. Frictions
@@ -883,3 +1139,4 @@ velocityFrictionGroup body1 body2 deltalambdaTot contacts constraints =
 type Phase
     = NonFrictionPhase
     | FrictionPhase
+    | RestitutionPhase
