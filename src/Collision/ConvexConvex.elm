@@ -138,9 +138,10 @@ orientAxis convex1 convex2 axis =
         axis
 
 
-{-| Emit a single edge-edge contact; `axis` is already the contact normal.
-The id packs `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)`, stable across
-`placeIn`, so warm-start keys survive multi-edge contacts in a body pair.
+{-| Emit a single edge-edge contact; `axis` points 2 → 1, the contact
+normal is its negation. The id packs `(dir1Idx, edge1Idx, dir2Idx, edge2Idx)`,
+stable across `placeIn`, so warm-start keys survive multi-edge contacts in a
+body pair.
 -}
 addEdgeContact : Int -> Vec3 -> Int -> Edge -> VertexBuffer -> Edge -> VertexBuffer -> List Contact -> List Contact
 addEdgeContact shapeKey axis featureKey edge1 buffer1 edge2 buffer2 contacts =
@@ -154,7 +155,7 @@ addEdgeContact shapeKey axis featureKey edge1 buffer1 edge2 buffer2 contacts =
     in
     { shapeKey = shapeKey
     , featureKey = featureKey
-    , ni = axis
+    , ni = Vec3.negate axis
     , pi = pi
     , pj = pj
     }
@@ -365,8 +366,8 @@ findSeparatingAxis convex1 convex2 =
                     Nothing
 
                 EdgeBeats _ axis _ _ _ _ _ ->
-                    -- axis points 1 → 2; match the face path's convention
-                    Just (Vec3.negate axis)
+                    -- points 2 → 1 like the face path
+                    Just axis
 
                 NoEdgeBeats _ _ _ _ _ _ _ ->
                     Just (orientAxis convex1 convex2 winner.axis)
@@ -439,7 +440,7 @@ findFaceSATHelp convex1 convex2 currentSide normals nextNormals nextGroupIdx win
 
 {-| Seven fields on every variant for one monomorphic object shape; the
 padding slots hold the running `dmin` so the loop threads no tuple.
-`EdgeBeats dist axis featureKey edge1 edge2`: convex1's outward support
+`EdgeBeats dist axis featureKey edge1 edge2`: convex2's outward support
 axis, the two support edges, and the packed warm-start contact id.
 -}
 type EdgeResult
@@ -585,12 +586,10 @@ addCandidate convex1 convex2 x2 featureKey edge1 edge2 best =
             x2.x * edge2.nB.x + x2.y * edge2.nB.y + x2.z * edge2.nB.z
 
         axisOut =
-            -- stored pointing convex1 → convex2, the face path's convention
-            Vec3.negate
-                (Vec3.normalize
-                    (Transform3d.rotate convex2.orientation
-                        (Vec3.lerp (a / (a - b)) edge2.nA edge2.nB)
-                    )
+            -- outward from convex2, pointing convex2 → convex1
+            Vec3.normalize
+                (Transform3d.rotate convex2.orientation
+                    (Vec3.lerp (a / (a - b)) edge2.nA edge2.nB)
                 )
 
         w1 =
@@ -600,7 +599,7 @@ addCandidate convex1 convex2 x2 featureKey edge1 edge2 best =
             VertexBuffer.get edge2.i1 convex2.vertexBuffer
 
         dist =
-            axisOut.x * (w1.x - w2.x) + axisOut.y * (w1.y - w2.y) + axisOut.z * (w1.z - w2.z)
+            axisOut.x * (w2.x - w1.x) + axisOut.y * (w2.y - w1.y) + axisOut.z * (w2.z - w1.z)
     in
     if dist + Const.contactBreakingThreshold < 0 then
         edgeSeparates
