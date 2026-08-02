@@ -13,7 +13,7 @@ module Internal.Equation exposing
 
 import Internal.Body exposing (Body)
 import Internal.Constraint exposing (Constraint(..))
-import Internal.Contact exposing (Contact, PairGroup, SolverContact)
+import Internal.Contact exposing (PairGroup, SolverContact)
 import Internal.ContactCache as Cache exposing (ContactCache)
 import Internal.ContactId as ContactId
 import Internal.Shape exposing (CenterOfMassCoordinates)
@@ -39,7 +39,8 @@ type alias Jacobian =
 
 
 {-| Per-step solver context: dt and the soft-constraint coefficients for
-contact rows — a dynamic-dynamic set and a stiffer static-pair set.
+contact rows — a dynamic-dynamic set and a stiffer static-pair set — plus a
+stiffer-still set for joint rows.
 -}
 type alias Ctx =
     { dt : Float
@@ -50,6 +51,9 @@ type alias Ctx =
     , staticBiasRate : Float
     , staticMassScale : Float
     , staticImpulseScale : Float
+    , jointBiasRate : Float
+    , jointMassScale : Float
+    , jointImpulseScale : Float
     , warmStart : ContactCache WarmStart
     }
 
@@ -71,6 +75,9 @@ initCtx dt warmStart =
 
         static =
             makeSoft (2 * hertz) (0.5 * contactDampingRatio) dt
+
+        joint =
+            makeSoft (min jointHertz (1 / dt)) jointDampingRatio dt
     in
     { dt = dt
     , invDt = 1 / dt
@@ -80,6 +87,9 @@ initCtx dt warmStart =
     , staticBiasRate = static.biasRate
     , staticMassScale = static.massScale
     , staticImpulseScale = static.impulseScale
+    , jointBiasRate = joint.biasRate
+    , jointMassScale = joint.massScale
+    , jointImpulseScale = joint.impulseScale
     , warmStart = warmStart
     }
 
@@ -212,19 +222,27 @@ type alias EquationsGroup id =
 equationsForPair : Ctx -> PairGroup -> { contacts : List ContactEquations, constraints : List ConstraintEquation }
 equationsForPair ctx { body1, body2, contacts, constraints } =
     -- Multistep warm-start: fetch this body pair's cached warm-start list once
-    -- (the cache is keyed by body pair), then scan it per contact — instead of
+    -- (the cache is keyed by body pair), then scan it per equation — instead of
     -- walking the cache tree for every contact point.
     let
         warmStartList =
-            case contacts of
-                [] ->
-                    []
+            Cache.getGroup (ContactId.bodyKey body1.id body2.id) ctx.warmStart
 
-                _ ->
-                    Cache.getGroup (ContactId.bodyKey body1.id body2.id) ctx.warmStart
+        -- canonicalize cached joint lambdas to body-id order: a gravity-sort
+        -- swap flips the pivot rows' jacobians, so the seed flips with them
+        sign =
+            if body1.id - body2.id < 0 then
+                1
+
+            else
+                -1
     in
     { contacts = buildContactEquations ctx body1 body2 warmStartList contacts []
-    , constraints = List.foldl (addConstraintEquations ctx body1 body2) [] constraints
+    , constraints =
+        (List.foldl (addConstraintEquations ctx body1 body2 warmStartList sign)
+            { equations = [], pointToPoint = 0, hinge = 0, lock = 0, distance = 0 }
+            constraints
+        ).equations
     }
 
 
@@ -265,41 +283,68 @@ takeManifold shapeKey contacts acc =
                 { points = acc, rest = contacts }
 
 
-addConstraintEquations : Ctx -> Body -> Body -> Constraint CenterOfMassCoordinates -> List ConstraintEquation -> List ConstraintEquation
-addConstraintEquations ctx body1 body2 constraint =
+{-| Equations plus per-type constraint counters: a warm-start key is
+`typeTag·1024 + ordinal·8 + row`, so a seed follows its constraint by body
+pair, type and per-type ordinal — reconfiguring constraints of another type
+between the same bodies can't shift or cross-seed it.
+-}
+type alias ConstraintsAcc =
+    { equations : List ConstraintEquation
+    , pointToPoint : Int
+    , hinge : Int
+    , lock : Int
+    , distance : Int
+    }
+
+
+addConstraintEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> Float -> Constraint CenterOfMassCoordinates -> ConstraintsAcc -> ConstraintsAcc
+addConstraintEquations ctx body1 body2 warmStartList sign constraint acc =
     case constraint of
         PointToPoint pivot1 pivot2 ->
-            addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2
+            { acc
+                | equations = addPointToPointConstraintEquations ctx body1 body2 warmStartList sign (acc.pointToPoint * 8) pivot1 pivot2 acc.equations
+                , pointToPoint = acc.pointToPoint + 1
+            }
 
         Hinge pivot1 axis1 pivot2 axis2 ->
-            addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2
-                >> addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2
+            { acc
+                | equations =
+                    acc.equations
+                        |> addPointToPointConstraintEquations ctx body1 body2 warmStartList sign (1024 + acc.hinge * 8) pivot1 pivot2
+                        |> addHingeRotationalConstraintEquations ctx body1 body2 (1024 + acc.hinge * 8 + 3) axis1 axis2
+                , hinge = acc.hinge + 1
+            }
 
         Lock pivot1 x1 y1 z1 pivot2 x2 y2 z2 ->
-            addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2
-                >> addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2
+            { acc
+                | equations =
+                    acc.equations
+                        |> addPointToPointConstraintEquations ctx body1 body2 warmStartList sign (2048 + acc.lock * 8) pivot1 pivot2
+                        |> addLockRotationalConstraintEquations ctx body1 body2 (2048 + acc.lock * 8 + 3) x1 x2 y1 y2 z1 z2
+                , lock = acc.lock + 1
+            }
 
         Distance distance ->
-            addDistanceConstraintEquations ctx body1 body2 distance
+            { acc
+                | equations = addDistanceConstraintEquations ctx body1 body2 warmStartList sign (3072 + acc.distance * 8) distance acc.equations
+                , distance = acc.distance + 1
+            }
 
 
-addDistanceConstraintEquations : Ctx -> Body -> Body -> Float -> List ConstraintEquation -> List ConstraintEquation
-addDistanceConstraintEquations ctx body1 body2 distance =
+addDistanceConstraintEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> Float -> Int -> Float -> List ConstraintEquation -> List ConstraintEquation
+addDistanceConstraintEquations ctx body1 body2 warmStartList sign key distance equations =
     let
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
-
         halfDistance =
             distance / 2
 
+        origin1 =
+            Transform3d.originPoint body1.transform3d
+
+        origin2 =
+            Transform3d.originPoint body2.transform3d
+
         ni =
-            Vec3.direction (Transform3d.originPoint body2.transform3d) (Transform3d.originPoint body1.transform3d)
+            Vec3.direction origin2 origin1
 
         ri =
             Vec3.scale halfDistance ni
@@ -307,13 +352,11 @@ addDistanceConstraintEquations ctx body1 body2 distance =
         rj =
             Vec3.scale -halfDistance ni
 
-        contact =
-            { shapeKey = 0
-            , featureKey = 0
-            , pi = Vec3.add ri (Transform3d.originPoint body1.transform3d)
-            , pj = Vec3.add rj (Transform3d.originPoint body2.transform3d)
-            , ni = ni
-            }
+        -- signed violation along ni
+        c =
+            ((origin2.x + rj.x - origin1.x - ri.x) * ni.x)
+                + ((origin2.y + rj.y - origin1.y - ri.y) * ni.y)
+                + ((origin2.z + rj.z - origin1.z - ri.z) * ni.z)
 
         -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
         jacobian =
@@ -327,20 +370,15 @@ addDistanceConstraintEquations ctx body1 body2 distance =
             , wBy = rj.z * ni.x - rj.x * ni.z
             , wBz = rj.x * ni.y - rj.y * ni.x
             }
+
+        seed =
+            sign * Cache.lookup -1 key 0 warmStartList
     in
-    (::)
-        { jacobian = jacobian
-        , solverB = computeSolverB body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
-        , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
-        , spookEps = spookEps
-        , minImpulse = -defaultMaxImpulse
-        , maxImpulse = defaultMaxImpulse
-        , solverLambda = 0
-        }
+    softConstraintEquation ctx body1 body2 jacobian c key seed :: equations
 
 
-addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
-addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
+addHingeRotationalConstraintEquations : Ctx -> Body -> Body -> Int -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
+addHingeRotationalConstraintEquations ctx body1 body2 key axis1 axis2 equations =
     let
         worldAxis2 =
             Transform3d.directionPlaceIn body2.transform3d axis2
@@ -349,12 +387,12 @@ addHingeRotationalConstraintEquations ctx body1 body2 axis1 axis2 equations =
             Vec3.tangents (Transform3d.directionPlaceIn body1.transform3d axis1)
     in
     equations
-        |> addRotationalEquation ctx body1 body2 ni1 worldAxis2
-        |> addRotationalEquation ctx body1 body2 ni2 worldAxis2
+        |> addRotationalEquation ctx body1 body2 key ni1 worldAxis2
+        |> addRotationalEquation ctx body1 body2 (key + 1) ni2 worldAxis2
 
 
-addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
-addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations =
+addLockRotationalConstraintEquations : Ctx -> Body -> Body -> Int -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
+addLockRotationalConstraintEquations ctx body1 body2 key x1 x2 y1 y2 z1 z2 equations =
     let
         worldX1 =
             Transform3d.directionPlaceIn body1.transform3d x1
@@ -375,22 +413,17 @@ addLockRotationalConstraintEquations ctx body1 body2 x1 x2 y1 y2 z1 z2 equations
             Transform3d.directionPlaceIn body2.transform3d z2
     in
     equations
-        |> addRotationalEquation ctx body1 body2 worldX1 worldY2
-        |> addRotationalEquation ctx body1 body2 worldY1 worldZ2
-        |> addRotationalEquation ctx body1 body2 worldZ1 worldX2
+        |> addRotationalEquation ctx body1 body2 key worldX1 worldY2
+        |> addRotationalEquation ctx body1 body2 (key + 1) worldY1 worldZ2
+        |> addRotationalEquation ctx body1 body2 (key + 2) worldZ1 worldX2
 
 
-addRotationalEquation : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
-addRotationalEquation ctx body1 body2 ni nj equations =
+addRotationalEquation : Ctx -> Body -> Body -> Int -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
+addRotationalEquation ctx body1 body2 key ni nj equations =
     let
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
-
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+        -- violation: the axes should stay perpendicular
+        c =
+            -(Vec3.dot ni nj)
 
         -- wA = Vec3.cross nj ni, vB = Vec3.zero, wB = Vec3.cross ni nj
         jacobian =
@@ -405,28 +438,17 @@ addRotationalEquation ctx body1 body2 ni nj equations =
             , wBz = ni.x * nj.y - ni.y * nj.x
             }
     in
-    { jacobian = jacobian
-    , solverB = computeSolverB body1 body2 jacobian (computeRotationalB spookA spookB { ni = ni, nj = nj, maxAngleCos = 0 } body1 body2 jacobian)
-    , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
-    , spookEps = spookEps
-    , minImpulse = -defaultMaxImpulse
-    , maxImpulse = defaultMaxImpulse
-    , solverLambda = 0
-    }
-        :: equations
+    softConstraintEquation ctx body1 body2 jacobian c key 0 :: equations
 
 
-addPointToPointConstraintEquations : Ctx -> Body -> Body -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
-addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
+addPointToPointConstraintEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> Float -> Int -> Vec3 -> Vec3 -> List ConstraintEquation -> List ConstraintEquation
+addPointToPointConstraintEquations ctx body1 body2 warmStartList sign key pivot1 pivot2 equations =
     let
-        spookA =
-            4.0 / (ctx.dt * (1 + 4 * defaultRelaxation))
+        origin1 =
+            Transform3d.originPoint body1.transform3d
 
-        spookB =
-            (4.0 * defaultRelaxation) / (1 + 4 * defaultRelaxation)
-
-        spookEps =
-            4.0 / (ctx.dt * ctx.dt * defaultStiffness * (1 + 4 * defaultRelaxation))
+        origin2 =
+            Transform3d.originPoint body2.transform3d
 
         ri =
             Transform3d.directionPlaceIn body1.transform3d pivot1
@@ -435,15 +457,13 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
             Transform3d.directionPlaceIn body2.transform3d pivot2
     in
     List.foldl
-        (\ni ->
+        (\( row, ni ) acc ->
             let
-                contact =
-                    { shapeKey = 0
-                    , featureKey = 0
-                    , pi = Vec3.add (Transform3d.originPoint body1.transform3d) ri
-                    , pj = Vec3.add (Transform3d.originPoint body2.transform3d) rj
-                    , ni = ni
-                    }
+                -- signed pivot separation along ni
+                c =
+                    ((origin2.x + rj.x - origin1.x - ri.x) * ni.x)
+                        + ((origin2.y + rj.y - origin1.y - ri.y) * ni.y)
+                        + ((origin2.z + rj.z - origin1.z - ri.z) * ni.z)
 
                 -- wA = Vec3.cross ni ri, vB = ni, wB = Vec3.cross rj ni
                 jacobian =
@@ -457,19 +477,14 @@ addPointToPointConstraintEquations ctx body1 body2 pivot1 pivot2 equations =
                     , wBy = rj.z * ni.x - rj.x * ni.z
                     , wBz = rj.x * ni.y - rj.y * ni.x
                     }
+
+                seed =
+                    sign * Cache.lookup -1 (key + row) 0 warmStartList
             in
-            (::)
-                { jacobian = jacobian
-                , solverB = computeSolverB body1 body2 jacobian (computeContactB spookA spookB 0 contact body1 body2 jacobian)
-                , solverInvC = computeSolverInvC spookEps body1 body2 jacobian
-                , spookEps = spookEps
-                , minImpulse = -defaultMaxImpulse
-                , maxImpulse = defaultMaxImpulse
-                , solverLambda = 0
-                }
+            softConstraintEquation ctx body1 body2 jacobian c (key + row) seed :: acc
         )
         equations
-        Vec3.basis
+        (List.indexedMap Tuple.pair Vec3.basis)
 
 
 manifoldEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> SolverContact -> List SolverContact -> ContactEquations
@@ -782,109 +797,62 @@ restitutionThreshold =
     1
 
 
-{-| The Spook soft-constraint parameters, derived from a stiffness and a
-relaxation (the number of timesteps over which a constraint violation is
-relaxed), exactly as cannon.js does:
-
-    spookA   = 4 / (dt · (1 + 4·relaxation))                 -- position feedback
-    spookB   = 4·relaxation / (1 + 4·relaxation)             -- velocity coefficient
-    spookEps = 4 / (dt² · stiffness · (1 + 4·relaxation))    -- regularization
-
-`spookB` < 1 leaves a little of the relative velocity uncanceled each step
-(velocity-level damping), and `spookEps` gives the constraint a small
-compliance that dissipates the position-feedback energy — together they keep
-resting stacks calm instead of buzzing.
-
-Each builder computes the three values as plain locals (no wrapper record) from
-`dt` and the relaxation/stiffness it has on hand, passes `spookA`/`spookB` into
-`computeB`, and stores `spookEps` on the equation for the solver's
-per-iteration regularizer. Contacts source relaxation/stiffness here from the
-module defaults, but this is the seam to combine them per contact from the two
-shapes' materials (the way `friction`/`bounciness` already are) — which is why
-the values are not cached globally on `Ctx`.
-
+{-| Joint stiffness in hertz for the soft constraint rows. A statically loaded
+row's resting violation scales as `impulseScale/(massScale·biasRate)` — the
+bias must re-earn what the bleed drains — so joints run much stiffer than
+contacts: 60 Hz leaves a loaded hinge sagging under 1 mm/1 m at 60 fps, and
+the whipped 5-box chain is calm at the `1/dt` clamp down to 30 fps.
 -}
-defaultRelaxation : Float
-defaultRelaxation =
-    3
+jointHertz : Float
+jointHertz =
+    60
 
 
-defaultStiffness : Float
-defaultStiffness =
-    10000000
+{-| Joint damping ratio (zeta): stiff correction with little overshoot.
+-}
+jointDampingRatio : Float
+jointDampingRatio =
+    2
 
 
-{-| A joint equation: a static jacobian + solver scalars plus its accumulated
-`solverLambda` (re-allocated each iteration to update the lambda).
+{-| A joint equation: a soft row like the contact normals but without the
+λ ≥ 0 clamp: `Δλ = -mass·(gW + bias) - impulseScale·λ`, with
+`mass = massScale/K` and `bias = biasRate·C` folded in at build time.
+`featureKey` identifies the row in the warm-start cache (see `ConstraintsAcc`).
 -}
 type alias ConstraintEquation =
     { jacobian : Jacobian
-    , solverB : Float
-    , solverInvC : Float
-    , spookEps : Float
+    , mass : Float
+    , bias : Float
+    , impulseScale : Float
     , minImpulse : Float
     , maxImpulse : Float
+    , featureKey : Int
     , solverLambda : Float
     }
 
 
-{-| Translate a joint's Spook `velocityB` to the total-velocity scheme:
-solver bodies now carry full velocities (gravity and forces applied at init),
-so the target folds the build-time row velocity back in — the old
-`-dt·GiMf` gravity anticipation cancels against the gravity tick in the
-initialized totals.
--}
-computeSolverB : Body -> Body -> Jacobian -> Float -> Float
-computeSolverB bi bj jacobian velocityB =
-    velocityB + computeGW bi bj jacobian
-
-
-{-| Constant 1 / (G·M⁻¹·Gᵀ + ε) scaling each iteration's correction.
--}
-computeSolverInvC : Float -> Body -> Body -> Jacobian -> Float
-computeSolverInvC spookEps bi bj jacobian =
-    1 / (computeGimgt bi bj jacobian + spookEps)
-
-
-{-| B with the position term in the velocity stream (Baumgarte), for the
-joints' contact-like rows.
--}
-computeContactB : Float -> Float -> Float -> Contact -> Body -> Body -> Jacobian -> Float
-computeContactB spookA spookB bounciness { pi, pj, ni } bi bj jacobian =
+softConstraintEquation : Ctx -> Body -> Body -> Jacobian -> Float -> Int -> Float -> ConstraintEquation
+softConstraintEquation ctx body1 body2 jacobian c featureKey seed =
     let
-        g =
-            ((pj.x - pi.x) * ni.x)
-                + ((pj.y - pi.y) * ni.y)
-                + ((pj.z - pi.z) * ni.z)
+        k =
+            computeGimgt body1 body2 jacobian
     in
-    -g * spookA - computeContactGW bounciness ni bi bj jacobian * spookB
+    { jacobian = jacobian
+    , mass =
+        -- particles have no inertia for purely angular rows
+        if k > 0 then
+            ctx.jointMassScale / k
 
-
-computeContactGW : Float -> Vec3 -> Body -> Body -> Jacobian -> Float
-computeContactGW bounciness ni bi bj jacobian =
-    (bounciness + 1)
-        * (Vec3.dot bj.velocity ni - Vec3.dot bi.velocity ni)
-        + (bj.angularVelocity.x * jacobian.wBx + bj.angularVelocity.y * jacobian.wBy + bj.angularVelocity.z * jacobian.wBz)
-        + (bi.angularVelocity.x * jacobian.wAx + bi.angularVelocity.y * jacobian.wAy + bi.angularVelocity.z * jacobian.wAz)
-
-
-type alias RotationalEquation =
-    { ni : Vec3
-    , nj : Vec3
-    , maxAngleCos : Float
+        else
+            0
+    , bias = ctx.jointBiasRate * c
+    , impulseScale = ctx.jointImpulseScale
+    , minImpulse = -defaultMaxImpulse
+    , maxImpulse = defaultMaxImpulse
+    , featureKey = featureKey
+    , solverLambda = seed
     }
-
-
-computeRotationalB : Float -> Float -> RotationalEquation -> Body -> Body -> Jacobian -> Float
-computeRotationalB spookA spookB { ni, nj, maxAngleCos } bi bj jacobian =
-    let
-        g =
-            maxAngleCos - Vec3.dot ni nj
-
-        gW =
-            computeGW bi bj jacobian
-    in
-    -g * spookA - gW * spookB
 
 
 {-| Compute G x inv(M) x G', the effective inverse mass for this constraint.
