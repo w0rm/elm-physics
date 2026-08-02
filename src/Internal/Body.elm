@@ -10,6 +10,7 @@ module Internal.Body exposing
     , raycast
     )
 
+import Internal.Const as Const
 import Internal.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Internal.Lock as Lock exposing (Lock)
 import Internal.Material exposing (Material)
@@ -74,6 +75,7 @@ type alias Geometry =
     { volume : Float -- net volume: solid shapes minus void shapes (m³)
     , shapesWithMaterials : List ( Shape CenterOfMassCoordinates, Material )
     , boundingSphereRadius : Float
+    , minWidth : Float -- thinnest extent over shapes, caps per-step travel
     }
 
 
@@ -254,6 +256,7 @@ compound kindInt rawShapesWithMaterials =
         { volume = totalVolume
         , shapesWithMaterials = placed.solidShapes
         , boundingSphereRadius = placed.boundingSphereRadius
+        , minWidth = List.foldl (\( s, _ ) result -> min result (Shape.minWidth s)) Const.maxNumber placed.solidShapes
         }
     , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn transform3d s, m )) placed.solidShapes
     , linearDamping = 0.01
@@ -294,6 +297,7 @@ pointMass position mass { friction, bounciness } =
         { volume = 0
         , shapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
         , boundingSphereRadius = 0
+        , minWidth = Const.maxNumber
         }
     , worldShapesWithMaterials = [ ( Particle position, contactMaterial ) ]
     , linearDamping = 0.01

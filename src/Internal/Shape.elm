@@ -4,6 +4,7 @@ module Internal.Shape exposing
     , centerOfMass
     , expandBoundingSphereRadius
     , inertia
+    , minWidth
     , placeIn
     , raycast
     , volume
@@ -108,6 +109,28 @@ placeIn transform3d shape =
 
         Particle position ->
             Particle (Transform3d.pointPlaceIn transform3d position)
+
+
+{-| Thinnest extent of the shape, for the per-step tunnelling cap. Planes and
+particles don't constrain it.
+-}
+minWidth : Shape coordinates -> Float
+minWidth shape =
+    case shape of
+        Convex convex ->
+            Convex.minWidth convex
+
+        Sphere sphere ->
+            2 * sphere.radius
+
+        Capsule capsule ->
+            2 * capsule.radius
+
+        Plane _ ->
+            Const.maxNumber
+
+        Particle _ ->
+            Const.maxNumber
 
 
 expandBoundingSphereRadius : Shape CenterOfMassCoordinates -> Float -> Float

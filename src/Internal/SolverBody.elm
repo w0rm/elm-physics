@@ -28,6 +28,13 @@ type alias SolverBody id =
     }
 
 
+{-| Max rotation integrated in one frame (rad).
+-}
+maxRotationPerStep : Float
+maxRotationPerStep =
+    0.25 * pi
+
+
 {-| True if this body forces its island to keep simulating. A dynamic body does
 so until its rest timer reaches the limit. A _moving_ kinematic body does too:
 it drags the dynamics it touches or is constrained to via the solve, so they
@@ -188,7 +195,7 @@ sentinel extId =
         , velocity = Vec3.zero
         , angularVelocity = Vec3.zero
         , mass = 0
-        , geometry = { volume = 0, shapesWithMaterials = [], boundingSphereRadius = 0 }
+        , geometry = { volume = 0, shapesWithMaterials = [], boundingSphereRadius = 0, minWidth = 0 }
         , worldShapesWithMaterials = []
         , force = Vec3.zero
         , torque = Vec3.zero
@@ -299,28 +306,40 @@ integrateDynamic dt solverBody body =
         velocityLength =
             Vec3.length newVelocity
 
-        -- This hack is needed to minimize tunnelling
-        -- we don't let the body to move more
-        -- than half of its bounding radius in a frame
-        boundingSphereRadius =
-            body.geometry.boundingSphereRadius
+        -- Tunnelling guard: cap travel at half the thinnest extent per frame,
+        -- so first contact lands short of the midpoint and resolution can't
+        -- eject the body out the far side
+        halfMinWidth =
+            0.5 * body.geometry.minWidth
 
-        cappedVelocity =
+        linearStep =
             if
                 (velocityLength == 0)
-                    || (boundingSphereRadius == 0)
-                    || (velocityLength * dt - boundingSphereRadius < 0)
+                    || (halfMinWidth == 0)
+                    || (velocityLength * dt - halfMinWidth < 0)
             then
-                newVelocity
+                dt
 
             else
-                Vec3.scale (boundingSphereRadius / (velocityLength * dt)) newVelocity
+                halfMinWidth / velocityLength
 
         newAngularVelocity =
             { x = solverBody.wX * body.angularLock.x
             , y = solverBody.wY * body.angularLock.y
             , z = solverBody.wZ * body.angularLock.z
             }
+
+        -- cap rotation at a quarter turn per frame, so thin features can't
+        -- sweep through contacts between samples
+        angularSpeedSquared =
+            Vec3.lengthSquared newAngularVelocity
+
+        angularStep =
+            if angularSpeedSquared * dt * dt - maxRotationPerStep * maxRotationPerStep < 0 then
+                dt
+
+            else
+                maxRotationPerStep / sqrt angularSpeedSquared
 
         -- Sleep hysteresis: a step counts toward sleep when the speed of the
         -- body's farthest point, |v| + |w|·r, is below the rest speed (tested
@@ -329,6 +348,9 @@ integrateDynamic dt solverBody body =
         -- the solver decides per island whether it actually does.
         sleepMargin =
             Const.sleepSpeedLimit - velocityLength
+
+        boundingSphereRadius =
+            body.geometry.boundingSphereRadius
 
         nextSleepTime =
             if
@@ -347,14 +369,14 @@ integrateDynamic dt solverBody body =
         newTransform3d =
             Transform3d.normalize
                 (Transform3d.translateBy
-                    { x = cappedVelocity.x * dt
-                    , y = cappedVelocity.y * dt
-                    , z = cappedVelocity.z * dt
+                    { x = newVelocity.x * linearStep
+                    , y = newVelocity.y * linearStep
+                    , z = newVelocity.z * linearStep
                     }
                     (Transform3d.rotateBy
-                        { x = newAngularVelocity.x * dt
-                        , y = newAngularVelocity.y * dt
-                        , z = newAngularVelocity.z * dt
+                        { x = newAngularVelocity.x * angularStep
+                        , y = newAngularVelocity.y * angularStep
+                        , z = newAngularVelocity.z * angularStep
                         }
                         body.transform3d
                     )

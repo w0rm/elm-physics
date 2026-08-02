@@ -19,6 +19,7 @@ module Shapes.Convex exposing
     , fromTriangularMesh
     , indexedFaceVertices
     , init
+    , minWidth
     , placeIn
     , raycast
     )
@@ -181,6 +182,48 @@ faceGroupNormal group =
 
         TwoSidedFace normal _ _ _ _ _ ->
             normal
+
+
+{-| Smallest extent across the hull, over face-normal directions (exact for
+boxes; an upper bound for hulls whose minimal width is edge-to-edge).
+-}
+minWidth : Convex -> Float
+minWidth { faces, obb } =
+    case obb of
+        Box _ _ _ he ->
+            2 * min he.x (min he.y he.z)
+
+        NotBox vertices _ _ _ ->
+            List.foldl
+                (\group result ->
+                    min result (widthAlong (faceGroupNormal group) vertices)
+                )
+                Const.maxNumber
+                faces
+
+
+widthAlong : Vec3 -> List Vec3 -> Float
+widthAlong normal vertices =
+    case vertices of
+        v :: rest ->
+            widthAlongHelp normal rest (Vec3.dot normal v) (Vec3.dot normal v)
+
+        [] ->
+            0
+
+
+widthAlongHelp : Vec3 -> List Vec3 -> Float -> Float -> Float
+widthAlongHelp normal vertices lo hi =
+    case vertices of
+        v :: rest ->
+            let
+                p =
+                    Vec3.dot normal v
+            in
+            widthAlongHelp normal rest (min lo p) (max hi p)
+
+        [] ->
+            hi - lo
 
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
