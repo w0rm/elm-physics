@@ -4,6 +4,7 @@ module Internal.Equation exposing
     , Ctx
     , EquationsGroup
     , Jacobian
+    , ManifoldData
     , PointEquation
     , WarmStart
     , equationsForPair
@@ -145,6 +146,8 @@ type alias ContactEquations =
     , friction1Lambda : Float
     , friction2Lambda : Float
     , twistLambda : Float
+    , rolling1Lambda : Float
+    , rolling2Lambda : Float
     , data : ManifoldData
     }
 
@@ -196,6 +199,10 @@ type alias ManifoldData =
     , tangentInv22 : Float
     , frictionCoefficient : Float
     , bounciness : Float
+    , rollingResistance : Float
+    , rollingInv11 : Float
+    , rollingInv12 : Float
+    , rollingInv22 : Float
     }
 
 
@@ -488,7 +495,7 @@ addPointToPointConstraintEquations ctx body1 body2 warmStartList sign key pivot1
 
 
 manifoldEquations : Ctx -> Body -> Body -> List ( Int, Int, WarmStart ) -> SolverContact -> List SolverContact -> ContactEquations
-manifoldEquations ctx body1 body2 warmStartList { friction, bounciness, contact } points =
+manifoldEquations ctx body1 body2 warmStartList { friction, bounciness, rollingResistance, contact } points =
     let
         center =
             averageContactPoints points 0 0 0 0 0 0 0
@@ -551,21 +558,8 @@ manifoldEquations ctx body1 body2 warmStartList { friction, bounciness, contact 
             , wBz = ni.z
             }
 
-        invI1 =
-            body1.invInertiaWorld
-
-        invI2 =
-            body2.invInertiaWorld
-
-        -- n·(I1⁻¹+I2⁻¹)·n; computeGimgt would add invMass terms that only
-        -- apply to rows with a unit linear part.
         twistK =
-            (ni.x * (invI1.m11 * ni.x + invI1.m12 * ni.y + invI1.m13 * ni.z))
-                + (ni.y * (invI1.m21 * ni.x + invI1.m22 * ni.y + invI1.m23 * ni.z))
-                + (ni.z * (invI1.m31 * ni.x + invI1.m32 * ni.y + invI1.m33 * ni.z))
-                + (ni.x * (invI2.m11 * ni.x + invI2.m12 * ni.y + invI2.m13 * ni.z))
-                + (ni.y * (invI2.m21 * ni.x + invI2.m22 * ni.y + invI2.m23 * ni.z))
-                + (ni.z * (invI2.m31 * ni.x + invI2.m32 * ni.y + invI2.m33 * ni.z))
+            computeAngularGimgt body1 body2 ni ni
 
         k11 =
             computeGimgt body1 body2 friction1Jacobian
@@ -610,11 +604,56 @@ manifoldEquations ctx body1 body2 warmStartList { friction, bounciness, contact 
 
         wTz =
             Cache.lookup manifoldShapeKey -3 0 warmStartList
+
+        -- Rolling resistance: an angular-only tangent pair braking relative
+        -- rotation, torque cone μr·R·Σλn. Only round shapes set a nonzero
+        -- resistance; everything else shares the zero block and skips the
+        -- inertia products and cache scans. The warm-start impulse is a world
+        -- vector under (shapeKey, -5..-7), reprojected like the tangent one.
+        rolling =
+            if rollingResistance > 0 then
+                let
+                    kr11 =
+                        computeAngularGimgt body1 body2 t1 t1
+
+                    kr22 =
+                        computeAngularGimgt body1 body2 t2 t2
+
+                    kr12 =
+                        computeAngularGimgt body1 body2 t1 t2
+
+                    detR =
+                        kr11 * kr22 - kr12 * kr12
+
+                    rWx =
+                        Cache.lookup manifoldShapeKey -5 0 warmStartList
+
+                    rWy =
+                        Cache.lookup manifoldShapeKey -6 0 warmStartList
+
+                    rWz =
+                        Cache.lookup manifoldShapeKey -7 0 warmStartList
+                in
+                if detR > 0 then
+                    { i11 = kr22 / detR
+                    , i12 = -kr12 / detR
+                    , i22 = kr11 / detR
+                    , lambda1 = tangentSign * (rWx * t1.x + rWy * t1.y + rWz * t1.z)
+                    , lambda2 = tangentSign * (rWx * t2.x + rWy * t2.y + rWz * t2.z)
+                    }
+
+                else
+                    noRolling
+
+            else
+                noRolling
     in
     { points = pointEquations
     , friction1Lambda = tangentSign * (wTx * t1.x + wTy * t1.y + wTz * t1.z)
     , friction2Lambda = tangentSign * (wTx * t2.x + wTy * t2.y + wTz * t2.z)
     , twistLambda = Cache.lookup manifoldShapeKey -4 0 warmStartList
+    , rolling1Lambda = rolling.lambda1
+    , rolling2Lambda = rolling.lambda2
     , data =
         { friction1 = friction1Jacobian
         , friction2 = friction2Jacobian
@@ -631,8 +670,17 @@ manifoldEquations ctx body1 body2 warmStartList { friction, bounciness, contact 
         , tangentInv22 = k11 / detK
         , frictionCoefficient = friction
         , bounciness = bounciness
+        , rollingResistance = rollingResistance
+        , rollingInv11 = rolling.i11
+        , rollingInv12 = rolling.i12
+        , rollingInv22 = rolling.i22
         }
     }
+
+
+noRolling : { i11 : Float, i12 : Float, i22 : Float, lambda1 : Float, lambda2 : Float }
+noRolling =
+    { i11 = 0, i12 = 0, i22 = 0, lambda1 = 0, lambda2 = 0 }
 
 
 {-| Averaged pi/pj over a manifold's points: the friction center on each body.
@@ -853,6 +901,27 @@ softConstraintEquation ctx body1 body2 jacobian c featureKey seed =
     , featureKey = featureKey
     , solverLambda = seed
     }
+
+
+{-| a·(I1⁻¹+I2⁻¹)·b — the effective inverse mass coupling two angular-only
+rows (twist, rolling); computeGimgt would add invMass terms that only apply
+to rows with a unit linear part.
+-}
+computeAngularGimgt : Body -> Body -> Vec3 -> Vec3 -> Float
+computeAngularGimgt bi bj a b =
+    let
+        invI1 =
+            bi.invInertiaWorld
+
+        invI2 =
+            bj.invInertiaWorld
+    in
+    (a.x * (invI1.m11 * b.x + invI1.m12 * b.y + invI1.m13 * b.z))
+        + (a.y * (invI1.m21 * b.x + invI1.m22 * b.y + invI1.m23 * b.z))
+        + (a.z * (invI1.m31 * b.x + invI1.m32 * b.y + invI1.m33 * b.z))
+        + (a.x * (invI2.m11 * b.x + invI2.m12 * b.y + invI2.m13 * b.z))
+        + (a.y * (invI2.m21 * b.x + invI2.m22 * b.y + invI2.m23 * b.z))
+        + (a.z * (invI2.m31 * b.x + invI2.m32 * b.y + invI2.m33 * b.z))
 
 
 {-| Compute G x inv(M) x G', the effective inverse mass for this constraint.

@@ -6,7 +6,7 @@ import Internal.Const as Const
 import Internal.Contact exposing (PairGroup)
 import Internal.ContactCache as Cache exposing (ContactCache)
 import Internal.ContactId as ContactId
-import Internal.Equation as Equation exposing (ConstraintEquation, ContactEquations, EquationsGroup, Jacobian, PointEquation)
+import Internal.Equation as Equation exposing (ConstraintEquation, ContactEquations, EquationsGroup, Jacobian, ManifoldData, PointEquation)
 import Internal.Islands as Islands exposing (Islands)
 import Internal.SolverBody as SolverBody exposing (SolverBody)
 import Internal.Vector3 exposing (Vec3)
@@ -122,8 +122,68 @@ applyContactsWarmStart body1 body2 manifolds =
 
                 ( b1t, b2t ) =
                     applyEquationWarmStart manifold.twistLambda manifold.data.twist b1g b2g
+
+                ( b1r, b2r ) =
+                    applyRollingWarmStart manifold.rolling1Lambda manifold.rolling2Lambda manifold.data b1t b2t
             in
-            applyContactsWarmStart b1t b2t rest
+            applyContactsWarmStart b1r b2r rest
+
+
+{-| Apply the seeded rolling impulse: a pure angular impulse
+`-L` / `+L` with `L = λ1·t1 + λ2·t2`, the tangents read off the friction
+jacobians' linear parts.
+-}
+applyRollingWarmStart : Float -> Float -> ManifoldData -> SolverBody id -> SolverBody id -> ( SolverBody id, SolverBody id )
+applyRollingWarmStart lambda1 lambda2 data body1 body2 =
+    if lambda1 == 0 && lambda2 == 0 then
+        ( body1, body2 )
+
+    else
+        let
+            lX =
+                lambda1 * data.friction1.vBx + lambda2 * data.friction2.vBx
+
+            lY =
+                lambda1 * data.friction1.vBy + lambda2 * data.friction2.vBy
+
+            lZ =
+                lambda1 * data.friction1.vBz + lambda2 * data.friction2.vBz
+        in
+        ( if body1.body.kindInt == 2 then
+            let
+                invI1 =
+                    body1.body.invInertiaWorld
+            in
+            { body = body1.body
+            , extId = body1.extId
+            , vX = body1.vX
+            , vY = body1.vY
+            , vZ = body1.vZ
+            , wX = body1.wX - (invI1.m11 * lX + invI1.m12 * lY + invI1.m13 * lZ)
+            , wY = body1.wY - (invI1.m21 * lX + invI1.m22 * lY + invI1.m23 * lZ)
+            , wZ = body1.wZ - (invI1.m31 * lX + invI1.m32 * lY + invI1.m33 * lZ)
+            }
+
+          else
+            body1
+        , if body2.body.kindInt == 2 then
+            let
+                invI2 =
+                    body2.body.invInertiaWorld
+            in
+            { body = body2.body
+            , extId = body2.extId
+            , vX = body2.vX
+            , vY = body2.vY
+            , vZ = body2.vZ
+            , wX = body2.wX + (invI2.m11 * lX + invI2.m12 * lY + invI2.m13 * lZ)
+            , wY = body2.wY + (invI2.m21 * lX + invI2.m22 * lY + invI2.m23 * lZ)
+            , wZ = body2.wZ + (invI2.m31 * lX + invI2.m32 * lY + invI2.m33 * lZ)
+            }
+
+          else
+            body2
+        )
 
 
 applyPointsWarmStart : SolverBody id -> SolverBody id -> List PointEquation -> ( SolverBody id, SolverBody id )
@@ -368,6 +428,27 @@ warmStartEntries tangentSign manifolds acc =
 
                         f2 =
                             manifold.friction2Lambda
+
+                        -- the rolling impulse under (shapeKey, -5..-7), a
+                        -- world vector like the tangent one; skipped for
+                        -- manifolds without rolling so their cache lists
+                        -- don't grow
+                        rollingAcc =
+                            if manifold.data.rollingResistance > 0 then
+                                let
+                                    r1 =
+                                        manifold.rolling1Lambda
+
+                                    r2 =
+                                        manifold.rolling2Lambda
+                                in
+                                ( sk, -5, tangentSign * (r1 * t1.vBx + r2 * t2.vBx) )
+                                    :: ( sk, -6, tangentSign * (r1 * t1.vBy + r2 * t2.vBy) )
+                                    :: ( sk, -7, tangentSign * (r1 * t1.vBz + r2 * t2.vBz) )
+                                    :: acc
+
+                            else
+                                acc
                     in
                     warmStartEntries tangentSign
                         rest
@@ -376,7 +457,7 @@ warmStartEntries tangentSign manifolds acc =
                                 :: ( sk, -2, tangentSign * (f1 * t1.vBy + f2 * t2.vBy) )
                                 :: ( sk, -3, tangentSign * (f1 * t1.vBz + f2 * t2.vBz) )
                                 :: ( sk, -4, manifold.twistLambda )
-                                :: acc
+                                :: rollingAcc
                             )
                         )
 
@@ -816,6 +897,8 @@ solveVelocityNormals body1 body2 acc deltalambdaTot manifolds =
                  , friction1Lambda = manifold.friction1Lambda
                  , friction2Lambda = manifold.friction2Lambda
                  , twistLambda = manifold.twistLambda
+                 , rolling1Lambda = manifold.rolling1Lambda
+                 , rolling2Lambda = manifold.rolling2Lambda
                  , data = manifold.data
                  }
                     :: acc
@@ -892,7 +975,10 @@ solvePointNormals body1 body2 acc deltalambdaTot points =
 {-| Pass 2 contact solve: per manifold, the twist row about the normal, then
 the coupled central friction pair. Cones are sized from the manifold's
 finalized normal lambdas: the tangent pair clamps to the circle μ·Σλ, the
-twist to ±μ·Σ(leverArm·λ) — the torque per-point tangent forces could produce.
+twist to ±(μ·Σ(leverArm·λ) + μr·Σλ) — the torque per-point tangent forces
+could produce, plus the rolling budget: a round shape's manifold is a single
+point with zero lever arm, so without the contact-patch term it would spin
+about the normal forever.
 -}
 solveVelocityFrictions : SolverBody id -> SolverBody id -> List ContactEquations -> Float -> List ContactEquations -> VelocityContactsResult id
 solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
@@ -912,7 +998,7 @@ solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
                     data.twist
 
                 twistCap =
-                    data.frictionCoefficient * caps.lever
+                    data.frictionCoefficient * caps.lever + data.rollingResistance * caps.total
 
                 -- the twist row has no linear part
                 gWt =
@@ -965,6 +1051,31 @@ solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
                 eq2 =
                     data.friction2
 
+                -- rolling resistance: an angular-only pair on the same
+                -- tangent basis, solved from the twist-updated velocities
+                ( dr1, dr2 ) =
+                    if data.rollingResistance > 0 then
+                        solveRolling data
+                            manifold.rolling1Lambda
+                            manifold.rolling2Lambda
+                            (data.rollingResistance * caps.total)
+                            (b2wX - b1wX)
+                            (b2wY - b1wY)
+                            (b2wZ - b1wZ)
+
+                    else
+                        zeroPair
+
+                -- the rolling impulse -L/+L, L = dr1·t1 + dr2·t2
+                rX =
+                    dr1 * eq1.vBx + dr2 * eq2.vBx
+
+                rY =
+                    dr1 * eq1.vBy + dr2 * eq2.vBy
+
+                rZ =
+                    dr1 * eq1.vBz + dr2 * eq2.vBz
+
                 gW1 =
                     -(eq1.vBx * bodyA.vX + eq1.vBy * bodyA.vY + eq1.vBz * bodyA.vZ)
                         + (eq1.wAx * b1wX + eq1.wAy * b1wY + eq1.wAz * b1wZ)
@@ -1015,22 +1126,22 @@ solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
                     d1 * eq1.vBz + d2 * eq2.vBz
 
                 cAx =
-                    d1 * eq1.wAx + d2 * eq2.wAx
+                    d1 * eq1.wAx + d2 * eq2.wAx - rX
 
                 cAy =
-                    d1 * eq1.wAy + d2 * eq2.wAy
+                    d1 * eq1.wAy + d2 * eq2.wAy - rY
 
                 cAz =
-                    d1 * eq1.wAz + d2 * eq2.wAz
+                    d1 * eq1.wAz + d2 * eq2.wAz - rZ
 
                 cBx =
-                    d1 * eq1.wBx + d2 * eq2.wBx
+                    d1 * eq1.wBx + d2 * eq2.wBx + rX
 
                 cBy =
-                    d1 * eq1.wBy + d2 * eq2.wBy
+                    d1 * eq1.wBy + d2 * eq2.wBy + rY
 
                 cBz =
-                    d1 * eq1.wBz + d2 * eq2.wBz
+                    d1 * eq1.wBz + d2 * eq2.wBz + rZ
 
                 newBody1 =
                     if bodyA.body.kindInt == 2 then
@@ -1069,12 +1180,57 @@ solveVelocityFrictions bodyA bodyB acc deltalambdaTot manifolds =
                  , friction1Lambda = manifold.friction1Lambda + d1
                  , friction2Lambda = manifold.friction2Lambda + d2
                  , twistLambda = manifold.twistLambda + dT
+                 , rolling1Lambda = manifold.rolling1Lambda + dr1
+                 , rolling2Lambda = manifold.rolling2Lambda + dr2
                  , data = data
                  }
                     :: acc
                 )
-                (deltalambdaTot + abs dT + abs d1 + abs d2)
+                (deltalambdaTot + abs dT + abs d1 + abs d2 + abs dr1 + abs dr2)
                 rest
+
+
+{-| The rolling pair's deltas: a coupled 2x2 solve of the relative angular
+velocity projected on the tangents, then a circular clamp of the accumulated
+impulse to the torque cone.
+-}
+solveRolling : ManifoldData -> Float -> Float -> Float -> Float -> Float -> Float -> ( Float, Float )
+solveRolling data lambda1 lambda2 cap relWx relWy relWz =
+    let
+        t1 =
+            data.friction1
+
+        t2 =
+            data.friction2
+
+        gW1 =
+            t1.vBx * relWx + t1.vBy * relWy + t1.vBz * relWz
+
+        gW2 =
+            t2.vBx * relWx + t2.vBy * relWy + t2.vBz * relWz
+
+        new1 =
+            lambda1 - (data.rollingInv11 * gW1 + data.rollingInv12 * gW2)
+
+        new2 =
+            lambda2 - (data.rollingInv12 * gW1 + data.rollingInv22 * gW2)
+
+        lenSq =
+            new1 * new1 + new2 * new2
+
+        scale =
+            if lenSq - cap * cap > 0 then
+                cap / sqrt lenSq
+
+            else
+                1
+    in
+    ( new1 * scale - lambda1, new2 * scale - lambda2 )
+
+
+zeroPair : ( Float, Float )
+zeroPair =
+    ( 0, 0 )
 
 
 {-| A manifold's Coulomb cone inputs: the summed normal lambdas and the
@@ -1128,6 +1284,8 @@ restitutionManifolds body1 body2 acc manifolds =
                      , friction1Lambda = manifold.friction1Lambda
                      , friction2Lambda = manifold.friction2Lambda
                      , twistLambda = manifold.twistLambda
+                     , rolling1Lambda = manifold.rolling1Lambda
+                     , rolling2Lambda = manifold.rolling2Lambda
                      , data = manifold.data
                      }
                         :: acc

@@ -1159,9 +1159,10 @@ scaleMassTo desiredMass ((Types.Body body) as original) =
         original
 
 
-{-| Set linear and angular damping, in order to decrease velocity over time.
-These parameters specify the proportion of velocity lost per second.
-Values are clamped to [0, 1]. Default: 0.01 for both.
+{-| Set linear and angular damping, in order to decrease velocity over time —
+e.g. to fake drag in air or water. These parameters specify the proportion of
+velocity lost per second. Values are clamped to [0, 1]. Default: 0 for both —
+bodies keep their momentum until contact friction takes it.
 -}
 damp : { linear : Float, angular : Float } -> Body -> Body
 damp { linear, angular } (Types.Body body) =

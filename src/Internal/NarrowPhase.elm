@@ -75,12 +75,49 @@ addShapeContacts shapeKey ( shape1, mat1 ) ( shape2, mat2 ) contacts =
         (\contact acc ->
             { bounciness = bounciness
             , friction = friction
+            , rollingResistance = rollingScale * friction * maxFloat (roundRadius shape1) (roundRadius shape2)
             , contact = contact
             }
                 :: acc
         )
         contacts
         rawContacts
+
+
+{-| The exactly-round shapes roll frictionlessly forever: their contact
+never develops the manifold spread that stops facetted shapes. Facetted
+shapes return 0, which disables the rolling rows for the pair.
+-}
+roundRadius : Shape WorldCoordinates -> Float
+roundRadius shape =
+    case shape of
+        Sphere sphere ->
+            sphere.radius
+
+        Capsule capsule ->
+            capsule.radius
+
+        _ ->
+            0
+
+
+{-| Rolling resistance derived from friction: `μr = rollingScale·μ`, so grippy
+surfaces stop balls sooner and slippery ones let them run — no extra material
+coefficient. The torque cone is `μr·R·Σλn`, scaled by the round shape's radius
+so the coefficient is size-independent.
+-}
+rollingScale : Float
+rollingScale =
+    0.05
+
+
+maxFloat : Float -> Float -> Float
+maxFloat a b =
+    if a - b > 0 then
+        a
+
+    else
+        b
 
 
 addRawShapeContacts : Int -> Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
