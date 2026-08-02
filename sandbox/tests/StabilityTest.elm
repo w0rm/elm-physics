@@ -56,6 +56,14 @@ warmupDriftThreshold =
     0.04
 
 
+{-| Wake everything before each step: these tests measure live solver
+behavior, so bodies must never sleep through a run.
+-}
+wakeAll : List ( id, Physics.Body ) -> List ( id, Physics.Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
+
+
 initialOrigins : List ( id, Physics.Body ) -> List ( id, Point3d.Point3d Length.Meters Physics.WorldCoordinates )
 initialOrigins bodies =
     List.map (\( id_, body ) -> ( id_, Physics.originPoint body )) bodies
@@ -87,7 +95,7 @@ warmup remaining drift initial config bodies =
     else
         let
             ( next, newContacts ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             d =
                 maxDrift initial next
@@ -113,7 +121,7 @@ warmupCold remaining drift initial config bodies =
     else
         let
             ( next, _ ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             d =
                 maxDrift initial next
@@ -150,7 +158,7 @@ stableFramesHelp threshold remaining config bodies run =
     else
         let
             ( next, newContacts ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             newRun =
                 { stable = run.stable + 1
@@ -177,7 +185,7 @@ coldStableFramesHelp threshold remaining config bodies run =
     else
         let
             ( next, _ ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             newRun =
                 { stable = run.stable + 1
@@ -288,7 +296,7 @@ runDrop remaining limit config bodies lastSpeed =
     else
         let
             ( next, newContacts ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             h =
                 maxHorizontal next
@@ -355,7 +363,7 @@ runSlope remaining config bodies origin0 maxSpeedSoFar =
     else
         let
             ( next, newContacts ) =
-                Physics.simulate config bodies
+                Physics.simulate config (wakeAll bodies)
 
             worst =
                 max maxSpeedSoFar (Metrics.compute next).maxSpeed

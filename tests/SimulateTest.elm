@@ -26,7 +26,15 @@ step : List ( id, Physics.Body ) -> ( List ( id, Physics.Body ), Physics.Contact
 step bodies =
     Physics.simulate
         { onEarth | gravity = Vector3d.zero }
-        bodies
+        (wakeAll bodies)
+
+
+{-| Wake everything before each step so sleeping can't freeze the scene
+mid-measurement.
+-}
+wakeAll : List ( id, Physics.Body ) -> List ( id, Physics.Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
 
 
 {-| Extract both the external (user) id and the internal body id from a body entry.

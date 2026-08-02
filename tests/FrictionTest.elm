@@ -120,9 +120,17 @@ run gravity (( fx, fz ) as force) n bodies contacts =
             ( newBodies, newContacts ) =
                 Physics.simulate
                     { onEarth | gravity = gravity, contacts = contacts }
-                    pushed
+                    (wakeAll pushed)
         in
         run gravity force (n - 1) newBodies newContacts
+
+
+{-| Wake everything before each step so sleeping can't freeze the scene
+mid-measurement.
+-}
+wakeAll : List ( id, Body ) -> List ( id, Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
 
 
 earth : Vector3d.Vector3d Acceleration.MetersPerSecondSquared Physics.WorldCoordinates

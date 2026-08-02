@@ -522,24 +522,95 @@ larger runs the full island PGS loop; both finish with the restitution pass.
 -}
 solveOneIsland : Int -> SolverBody id -> List (EquationsGroup id) -> SolveAcc id -> SolveAcc id
 solveOneIsland iterations fillingBody island acc =
+    if islandWantsSleep island then
+        -- Every dynamic body in this connected component wants to sleep, so
+        -- skip the velocity solve entirely and stamp the members asleep —
+        -- `solved` then holds their poses. A new contact with an awake body
+        -- would merge it into this island (union-find), making some member
+        -- keep the island awake again, which solves and so wakes it.
+        { bodies = markIslandAsleep island acc.bodies
+        , groups = island ++ acc.groups
+        , minRemainingIterations = acc.minRemainingIterations
+        }
+
+    else
+        case island of
+            [ singleGroup ] ->
+                -- 2-body island: bodies are owned solely by this group, so use the
+                -- SolverBody refs stashed on it directly — no Array.get.
+                solve2Body iterations singleGroup acc
+
+            _ ->
+                let
+                    ( solvedArr, velocityGroups, remIters ) =
+                        step iterations fillingBody acc.bodies island
+
+                    pass =
+                        sweep RestitutionPhase fillingBody solvedArr [] velocityGroups 0
+                in
+                { bodies = Array.set pass.prevBody1.body.id pass.prevBody1 pass.solverBodies
+                , groups = List.reverse pass.groups ++ acc.groups
+                , minRemainingIterations = minInt acc.minRemainingIterations remIters
+                }
+
+
+{-| An island sleeps only when no group in it forces it awake.
+-}
+islandWantsSleep : List (EquationsGroup id) -> Bool
+islandWantsSleep island =
     case island of
-        [ singleGroup ] ->
-            -- 2-body island: bodies are owned solely by this group, so use the
-            -- SolverBody refs stashed on it directly — no Array.get.
-            solve2Body iterations singleGroup acc
+        [] ->
+            True
 
-        _ ->
-            let
-                ( solvedArr, velocityGroups, remIters ) =
-                    step iterations fillingBody acc.bodies island
+        group :: rest ->
+            if groupKeepsIslandAwake group then
+                False
 
-                pass =
-                    sweep RestitutionPhase fillingBody solvedArr [] velocityGroups 0
-            in
-            { bodies = Array.set pass.prevBody1.body.id pass.prevBody1 pass.solverBodies
-            , groups = List.reverse pass.groups ++ acc.groups
-            , minRemainingIterations = minInt acc.minRemainingIterations remIters
-            }
+            else
+                islandWantsSleep rest
+
+
+{-| A group keeps its island awake if either body does (a settling dynamic or a
+moving kinematic), or it carries a user constraint to a non-dynamic body. That
+last case covers a static/kinematic anchor repositioned each frame to drive the
+dynamic (the mouse-drag demos pin a `static` body to the dragged body with a
+`pointToPoint` constraint): the anchor's motion reaches the dynamic only through
+the solve, which a sleeping island skips, so it would otherwise sit frozen.
+Constraints between two dynamics need no special case — they are unioned into
+one island and sleep together once both bodies settle.
+-}
+groupKeepsIslandAwake : EquationsGroup id -> Bool
+groupKeepsIslandAwake group =
+    SolverBody.keepsIslandAwake group.body1
+        || SolverBody.keepsIslandAwake group.body2
+        || (case group.constraints of
+                [] ->
+                    False
+
+                _ :: _ ->
+                    group.body1.body.kindInt /= 2 || group.body2.body.kindInt /= 2
+           )
+
+
+{-| Stamp every dynamic body in a sleeping island with the asleep marker.
+-}
+markIslandAsleep : List (EquationsGroup id) -> Array (SolverBody id) -> Array (SolverBody id)
+markIslandAsleep island arr =
+    case island of
+        [] ->
+            arr
+
+        group :: rest ->
+            markIslandAsleep rest (markBodyAsleep group.body2 (markBodyAsleep group.body1 arr))
+
+
+markBodyAsleep : SolverBody id -> Array (SolverBody id) -> Array (SolverBody id)
+markBodyAsleep solverBody arr =
+    if solverBody.body.kindInt == 2 then
+        Array.set solverBody.body.id (SolverBody.markAsleep solverBody) arr
+
+    else
+        arr
 
 
 {-| Specialized PGS for a 2-body island (single equation group). The two

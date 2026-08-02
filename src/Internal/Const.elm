@@ -1,4 +1,4 @@
-module Internal.Const exposing (contactBreakingThreshold, maxNumber, parallelTolerance, precision, solverTolerance)
+module Internal.Const exposing (contactBreakingThreshold, maxNumber, parallelTolerance, precision, sleepSpeedLimit, sleepTimeLimit, solverTolerance)
 
 
 maxNumber : Float
@@ -28,6 +28,23 @@ resting bodies don't blink contacts (and flush warm-start) under position drift.
 contactBreakingThreshold : Float
 contactBreakingThreshold =
     1.0e-3
+
+
+{-| Speed (m/s) of a body's farthest material point, `|v| + |w|·r`, below which
+a simulation step counts toward sleep — above a resting stack's jitter, below
+genuine motion.
+-}
+sleepSpeedLimit : Float
+sleepSpeedLimit =
+    0.1
+
+
+{-| Continuous rest time (s) before a body wants to sleep. A `sleepTime` above
+this (the `maxNumber` stamp) means island-confirmed asleep.
+-}
+sleepTimeLimit : Float
+sleepTimeLimit =
+    1.0
 
 
 {-| Two unit directions count as parallel when `sin²θ` between them is below this,

@@ -108,7 +108,15 @@ run (( fx, fy ) as force) n ( bodies, contacts ) =
                     )
                     bodies
         in
-        run force (n - 1) (Physics.simulate { onEarth | contacts = contacts } pushed)
+        run force (n - 1) (Physics.simulate { onEarth | contacts = contacts } (wakeAll pushed))
+
+
+{-| Wake everything before each step so sleeping can't freeze the scene
+mid-measurement.
+-}
+wakeAll : List ( id, Body ) -> List ( id, Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
 
 
 settle : ( Int, Body ) -> ( List ( Int, Body ), Physics.Contacts Int )

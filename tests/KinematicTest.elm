@@ -18,6 +18,14 @@ import Test exposing (Test, describe, test)
 import Vector3d
 
 
+{-| Wake everything before each step so sleeping can't freeze the scene
+mid-measurement.
+-}
+wakeAll : List ( id, Physics.Body ) -> List ( id, Physics.Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
+
+
 {-| Kinematic bodies translate by velocity × dt and rotate by
 angularVelocity × dt each simulation step, regardless of gravity or
 contacts. The user-set velocity is preserved across the step.
@@ -43,7 +51,7 @@ integration =
 
                     ( simulated, _ ) =
                         Physics.simulate onEarth
-                            [ ( "floor", floor ), ( "platform", platform ) ]
+                            (wakeAll [ ( "floor", floor ), ( "platform", platform ) ])
 
                     platformAfter =
                         simulated
@@ -79,7 +87,7 @@ integration =
 
                     ( simulated, _ ) =
                         Physics.simulate onEarth
-                            [ ( "platform", platform ) ]
+                            (wakeAll [ ( "platform", platform ) ])
 
                     platformAfter =
                         simulated

@@ -10,6 +10,7 @@ module Internal.Body exposing
     , raycast
     )
 
+import Internal.Const as Const
 import Internal.Coordinates exposing (BodyCoordinates, WorldCoordinates)
 import Internal.Lock as Lock exposing (Lock)
 import Internal.Material exposing (Material)
@@ -58,6 +59,11 @@ type alias Body =
     -- world-axis DOF masks: 0 = locked, 1 = free
     , linearLock : Vec3
     , angularLock : Vec3
+
+    -- seconds of continuous near-rest, clamped at Const.sleepTimeLimit ("wants
+    -- to sleep"); the Const.maxNumber stamp means island-confirmed asleep and
+    -- `solved` stops re-integrating/re-placing the body. 0 = fully awake.
+    , sleepTime : Float
     }
 
 
@@ -69,6 +75,7 @@ type alias Geometry =
     { volume : Float -- net volume: solid shapes minus void shapes (m³)
     , shapesWithMaterials : List ( Shape CenterOfMassCoordinates, Material )
     , boundingSphereRadius : Float
+    , minWidth : Float -- thinnest extent over shapes, caps per-step travel
     }
 
 
@@ -249,6 +256,7 @@ compound kindInt rawShapesWithMaterials =
         { volume = totalVolume
         , shapesWithMaterials = placed.solidShapes
         , boundingSphereRadius = placed.boundingSphereRadius
+        , minWidth = List.foldl (\( s, _ ) result -> min result (Shape.minWidth s)) Const.maxNumber placed.solidShapes
         }
     , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn transform3d s, m )) placed.solidShapes
     , linearDamping = 0.01
@@ -265,6 +273,7 @@ compound kindInt rawShapesWithMaterials =
     , torque = Vec3.zero
     , linearLock = { x = 1, y = 1, z = 1 }
     , angularLock = { x = 1, y = 1, z = 1 }
+    , sleepTime = 0
     }
 
 
@@ -288,6 +297,7 @@ pointMass position mass { friction, bounciness } =
         { volume = 0
         , shapesWithMaterials = [ ( Particle Vec3.zero, contactMaterial ) ]
         , boundingSphereRadius = 0
+        , minWidth = Const.maxNumber
         }
     , worldShapesWithMaterials = [ ( Particle position, contactMaterial ) ]
     , linearDamping = 0.01
@@ -299,6 +309,7 @@ pointMass position mass { friction, bounciness } =
     , torque = Vec3.zero
     , linearLock = Vec3.one
     , angularLock = Vec3.one
+    , sleepTime = 0
     }
 
 
@@ -340,6 +351,7 @@ applyImpulse impulse point body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
+    , sleepTime = 0
     }
 
 
@@ -370,6 +382,7 @@ applyForce force point body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
+    , sleepTime = 0
     }
 
 
@@ -393,6 +406,7 @@ applyTorque torque body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
+    , sleepTime = 0
     }
 
 
@@ -427,6 +441,7 @@ applyAngularImpulse angularImpulse body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = body.linearLock
     , angularLock = body.angularLock
+    , sleepTime = 0
     }
 
 
@@ -459,6 +474,7 @@ lock locks body =
     , invInertiaWorld = body.invInertiaWorld
     , linearLock = linearLock
     , angularLock = angularLock
+    , sleepTime = 0
     }
 
 

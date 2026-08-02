@@ -50,6 +50,14 @@ icosphereDoesNotPenetrateCube =
                 |> Expect.onFail ("min cube–ico center distance was " ++ String.fromFloat minDist ++ " m (deep penetration / tunneling)")
 
 
+{-| Wake everything before each step so sleeping can't freeze the scene
+mid-measurement.
+-}
+wakeAll : List ( id, Body ) -> List ( id, Body )
+wakeAll =
+    List.map (Tuple.mapSecond Physics.wake)
+
+
 dist : { x : Float, y : Float, z : Float } -> { x : Float, y : Float, z : Float } -> Float
 dist a b =
     sqrt ((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2 + (a.z - b.z) ^ 2)
@@ -63,7 +71,7 @@ runStepsTrace n bodies contacts trace =
     else
         let
             ( newBodies, newContacts ) =
-                Physics.simulate { onEarth | contacts = contacts } bodies
+                Physics.simulate { onEarth | contacts = contacts } (wakeAll bodies)
 
             cubeP =
                 newBodies

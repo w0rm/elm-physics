@@ -19,6 +19,7 @@ module Shapes.Convex exposing
     , fromTriangularMesh
     , indexedFaceVertices
     , init
+    , minWidth
     , placeIn
     , raycast
     )
@@ -181,6 +182,98 @@ faceGroupNormal group =
 
         TwoSidedFace normal _ _ _ _ _ ->
             normal
+
+
+{-| Smallest extent across the hull. Minimal width is attained along a face
+normal or along the mutual perpendicular of two edges, so scanning face-group
+normals plus edge-direction-pair crosses is exact.
+-}
+minWidth : Convex -> Float
+minWidth { faces, uniqueEdges, orientation, obb } =
+    case obb of
+        Box _ _ _ he ->
+            2 * min he.x (min he.y he.z)
+
+        NotBox vertices _ _ _ ->
+            minWidthOverEdgePairs orientation
+                uniqueEdges
+                vertices
+                (List.foldl
+                    (\group result ->
+                        min result (widthAlong (faceGroupNormal group) vertices)
+                    )
+                    Const.maxNumber
+                    faces
+                )
+
+
+minWidthOverEdgePairs : Transform3d.Orientation3d -> List EdgeGroup -> List Vec3 -> Float -> Float
+minWidthOverEdgePairs orientation groups vertices result =
+    case groups of
+        group :: rest ->
+            minWidthOverEdgePairs orientation
+                rest
+                vertices
+                (minWidthAgainst orientation group.dir rest vertices result)
+
+        [] ->
+            result
+
+
+minWidthAgainst : Transform3d.Orientation3d -> Vec3 -> List EdgeGroup -> List Vec3 -> Float -> Float
+minWidthAgainst orientation dir groups vertices result =
+    case groups of
+        group :: rest ->
+            let
+                cross =
+                    Vec3.cross dir group.dir
+
+                lengthSquared =
+                    Vec3.lengthSquared cross
+            in
+            minWidthAgainst orientation
+                dir
+                rest
+                vertices
+                -- edge dirs live in the construction frame; rotating the cross
+                -- into the placed frame matches the placed vertices
+                (if lengthSquared - Const.parallelTolerance > 0 then
+                    min result
+                        (widthAlong
+                            (Transform3d.rotate orientation (Vec3.scale (1 / sqrt lengthSquared) cross))
+                            vertices
+                        )
+
+                 else
+                    result
+                )
+
+        [] ->
+            result
+
+
+widthAlong : Vec3 -> List Vec3 -> Float
+widthAlong normal vertices =
+    case vertices of
+        v :: rest ->
+            widthAlongHelp normal rest (Vec3.dot normal v) (Vec3.dot normal v)
+
+        [] ->
+            0
+
+
+widthAlongHelp : Vec3 -> List Vec3 -> Float -> Float -> Float
+widthAlongHelp normal vertices lo hi =
+    case vertices of
+        v :: rest ->
+            let
+                p =
+                    Vec3.dot normal v
+            in
+            widthAlongHelp normal rest (min lo p) (max hi p)
+
+        [] ->
+            hi - lo
 
 
 placeIn : Transform3d coordinates defines -> Convex -> Convex
