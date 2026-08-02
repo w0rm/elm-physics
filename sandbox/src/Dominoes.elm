@@ -44,7 +44,6 @@ main =
                 { duration = Duration.seconds (1 / 120)
                 , maxSteps = 2
                 }
-            , solverIterations = 20
 
             -- mm-scale dominoes: shrink the contact dots to match (the
             -- default 0.07 m is wider than a whole domino)
