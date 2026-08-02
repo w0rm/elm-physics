@@ -142,6 +142,10 @@ main =
         { base
             | floorOffset = Demo.floorAtZero
             , timestep = { duration = Duration.seconds (1 / 60), maxSteps = 1 }
+
+            -- Wake everything before each step: this demo watches live solver
+            -- behavior, so bodies must never sleep through it.
+            , preSimulate = \_ state bodies -> ( state, List.map (Tuple.mapSecond Physics.wake) bodies )
             , update =
                 \(SelectScene name) _ _ ->
                     let
