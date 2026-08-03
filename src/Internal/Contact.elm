@@ -17,6 +17,7 @@ type alias PairGroup =
 type alias SolverContact =
     { friction : Float
     , bounciness : Float
+    , rollingResistance : Float
     , contact : Contact
     }
 

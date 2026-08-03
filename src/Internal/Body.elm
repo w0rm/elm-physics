@@ -259,8 +259,8 @@ compound kindInt rawShapesWithMaterials =
         , minWidth = List.foldl (\( s, _ ) result -> min result (Shape.minWidth s)) Const.maxNumber placed.solidShapes
         }
     , worldShapesWithMaterials = List.map (\( s, m ) -> ( Shape.placeIn transform3d s, m )) placed.solidShapes
-    , linearDamping = 0.01
-    , angularDamping = 0.01
+    , linearDamping = 0
+    , angularDamping = 0
     , invMass =
         if totalMass == 0 then
             0
@@ -300,8 +300,8 @@ pointMass position mass { friction, bounciness } =
         , minWidth = Const.maxNumber
         }
     , worldShapesWithMaterials = [ ( Particle position, contactMaterial ) ]
-    , linearDamping = 0.01
-    , angularDamping = 0.01
+    , linearDamping = 0
+    , angularDamping = 0
     , invMass = 1 / mass
     , invInertia = Vec3.zero
     , invInertiaWorld = Mat3.zero
