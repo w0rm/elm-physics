@@ -305,9 +305,8 @@ solve dt gravity iterations pairGroups maxId bodiesWithIds warmStart =
             }
 
 
-{-| Build next frame's warm-start cache: one insert per contact-bearing pair,
-keyed by body-pair key. Constraints are never warm-started, so only contacts
-are collected.
+{-| Build next frame's warm-start cache: one insert per pair with contacts or
+constraints, keyed by body-pair key.
 -}
 collectGroupCaches : List (EquationsGroup id) -> ContactCache Equation.WarmStart -> ContactCache Equation.WarmStart
 collectGroupCaches groups acc =
@@ -316,24 +315,25 @@ collectGroupCaches groups acc =
             acc
 
         group :: rest ->
-            case group.contacts of
-                [] ->
-                    collectGroupCaches rest acc
+            let
+                bodyKey =
+                    ContactId.bodyKey group.body1.body.id group.body2.body.id
 
-                _ :: _ ->
-                    let
-                        bodyKey =
-                            ContactId.bodyKey group.body1.body.id group.body2.body.id
+                tangentSign =
+                    if group.body1.body.id - group.body2.body.id < 0 then
+                        1
 
-                        tangentSign =
-                            if group.body1.body.id - group.body2.body.id < 0 then
-                                1
-
-                            else
-                                -1
-                    in
-                    collectGroupCaches rest
-                        (Cache.insertGroup bodyKey (warmStartEntries tangentSign group.contacts []) acc)
+                    else
+                        -1
+            in
+            collectGroupCaches rest
+                (Cache.insertGroup bodyKey
+                    (warmStartEntries tangentSign
+                        group.contacts
+                        (constraintWarmStartEntries tangentSign group.constraints [])
+                    )
+                    acc
+                )
 
 
 {-| A pair's warm-start entries: each point's solved normal lambda keyed by
@@ -390,6 +390,22 @@ pointWarmStartEntries points acc =
         { data, normalLambda } :: rest ->
             pointWarmStartEntries rest
                 (( data.shapeKey, data.featureKey, normalLambda ) :: acc)
+
+
+{-| Joint lambdas keyed by `(-1, featureKey)` — the reserved shape key never
+collides with real shape pairs. Sign-canonicalized to body-id order, like the
+tangent impulse.
+-}
+constraintWarmStartEntries : Float -> List ConstraintEquation -> List ( Int, Int, Equation.WarmStart ) -> List ( Int, Int, Equation.WarmStart )
+constraintWarmStartEntries tangentSign constraints acc =
+    case constraints of
+        [] ->
+            acc
+
+        { featureKey, solverLambda } :: rest ->
+            constraintWarmStartEntries tangentSign
+                rest
+                (( -1, featureKey, tangentSign * solverLambda ) :: acc)
 
 
 {-| Solve a multi-body island: two sweeps per iteration — non-friction (normals
@@ -749,7 +765,7 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                         + (jacobian.wBx * body2.wX + jacobian.wBy * body2.wY + jacobian.wBz * body2.wZ)
 
                 deltalambdaPrev =
-                    constraint.solverInvC * (constraint.solverB - gWlambda - constraint.spookEps * solverLambda)
+                    -constraint.mass * (gWlambda + constraint.bias) - constraint.impulseScale * solverLambda
 
                 deltalambda =
                     if solverLambda + deltalambdaPrev - constraint.minImpulse < 0 then
@@ -765,11 +781,12 @@ solveVelocityConstraints body1 body2 acc deltalambdaTot equations =
                 (applyVelocityBody1 deltalambda jacobian body1)
                 (applyVelocityBody2 deltalambda jacobian body2)
                 ({ jacobian = jacobian
-                 , solverB = constraint.solverB
-                 , solverInvC = constraint.solverInvC
-                 , spookEps = constraint.spookEps
+                 , mass = constraint.mass
+                 , bias = constraint.bias
+                 , impulseScale = constraint.impulseScale
                  , minImpulse = constraint.minImpulse
                  , maxImpulse = constraint.maxImpulse
+                 , featureKey = constraint.featureKey
                  , solverLambda = solverLambda + deltalambda
                  }
                     :: acc

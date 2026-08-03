@@ -29,7 +29,9 @@ on `Contact`/`Equation`.
   - `featureKey` — which geometric feature touched, built by the constructors
     below. `featureString` / `toString` decode it for the sandbox and tests.
 
-User constraints, which are not warm-started, use the `0, 0` sentinel.
+User constraints warm-start under the reserved shape key `-1`; real shape
+keys are non-negative. Their `featureKey` packs constraint type, per-type
+ordinal and row (see `ConstraintsAcc` in `Equation`).
 
 Field budgets (under the 2^53 limit): body id < 2^18 → `bodyKey` < 2^36; shape
 index < 2^8 → `shapeKey` < 2^16; feature tag < 16 with four sub-ids each < 2^11.
