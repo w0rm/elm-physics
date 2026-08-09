@@ -315,134 +315,100 @@ pointMass position mass { friction, bounciness } =
 
 applyImpulse : Vec3 -> Vec3 -> Body -> Body
 applyImpulse impulse point body =
-    let
-        relativePoint =
-            Vec3.sub point (Transform3d.originPoint body.transform3d)
+    if impulse.x == 0 && impulse.y == 0 && impulse.z == 0 then
+        body
 
-        { x, y, z } =
-            Vec3.cross relativePoint impulse
+    else
+        let
+            relativePoint =
+                Vec3.sub point (Transform3d.originPoint body.transform3d)
 
-        { angularVelocity, invInertiaWorld, velocity, invMass } =
-            body
-    in
-    { id = body.id
-    , kindInt = body.kindInt
-    , transform3d = body.transform3d
-    , centerOfMassTransform3d = body.centerOfMassTransform3d
-    , velocity =
-        { x = velocity.x + invMass * impulse.x
-        , y = velocity.y + invMass * impulse.y
-        , z = velocity.z + invMass * impulse.z
+            { x, y, z } =
+                Vec3.cross relativePoint impulse
+
+            { angularVelocity, invInertiaWorld, velocity, invMass } =
+                body
+        in
+        { id = body.id
+        , kindInt = body.kindInt
+        , transform3d = body.transform3d
+        , centerOfMassTransform3d = body.centerOfMassTransform3d
+        , velocity =
+            { x = velocity.x + invMass * impulse.x
+            , y = velocity.y + invMass * impulse.y
+            , z = velocity.z + invMass * impulse.z
+            }
+        , angularVelocity =
+            { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+            , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+            , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+            }
+        , mass = body.mass
+        , geometry = body.geometry
+        , worldShapesWithMaterials = body.worldShapesWithMaterials
+        , force = body.force
+        , torque = body.torque
+        , linearDamping = body.linearDamping
+        , angularDamping = body.angularDamping
+        , invMass = body.invMass
+        , invInertia = body.invInertia
+        , invInertiaWorld = body.invInertiaWorld
+        , linearLock = body.linearLock
+        , angularLock = body.angularLock
+        , sleepTime = 0
         }
-    , angularVelocity =
-        { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
-        , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
-        , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
-        }
-    , mass = body.mass
-    , geometry = body.geometry
-    , worldShapesWithMaterials = body.worldShapesWithMaterials
-    , force = body.force
-    , torque = body.torque
-    , linearDamping = body.linearDamping
-    , angularDamping = body.angularDamping
-    , invMass = body.invMass
-    , invInertia = body.invInertia
-    , invInertiaWorld = body.invInertiaWorld
-    , linearLock = body.linearLock
-    , angularLock = body.angularLock
-    , sleepTime = 0
-    }
 
 
 applyForce : Vec3 -> Vec3 -> Body -> Body
 applyForce force point body =
-    let
-        relativePoint =
-            Vec3.sub point (Transform3d.originPoint body.transform3d)
+    if force.x == 0 && force.y == 0 && force.z == 0 then
+        body
 
-        torque =
-            Vec3.cross relativePoint force
-    in
-    { id = body.id
-    , kindInt = body.kindInt
-    , transform3d = body.transform3d
-    , centerOfMassTransform3d = body.centerOfMassTransform3d
-    , velocity = body.velocity
-    , angularVelocity = body.angularVelocity
-    , mass = body.mass
-    , geometry = body.geometry
-    , worldShapesWithMaterials = body.worldShapesWithMaterials
-    , force = Vec3.add body.force force
-    , torque = Vec3.add body.torque torque
-    , linearDamping = body.linearDamping
-    , angularDamping = body.angularDamping
-    , invMass = body.invMass
-    , invInertia = body.invInertia
-    , invInertiaWorld = body.invInertiaWorld
-    , linearLock = body.linearLock
-    , angularLock = body.angularLock
-    , sleepTime = 0
-    }
+    else
+        let
+            relativePoint =
+                Vec3.sub point (Transform3d.originPoint body.transform3d)
+
+            torque =
+                Vec3.cross relativePoint force
+        in
+        { body
+            | force = Vec3.add body.force force
+            , torque = Vec3.add body.torque torque
+            , sleepTime = 0
+        }
 
 
 applyTorque : Vec3 -> Body -> Body
 applyTorque torque body =
-    { id = body.id
-    , kindInt = body.kindInt
-    , transform3d = body.transform3d
-    , centerOfMassTransform3d = body.centerOfMassTransform3d
-    , velocity = body.velocity
-    , angularVelocity = body.angularVelocity
-    , mass = body.mass
-    , geometry = body.geometry
-    , worldShapesWithMaterials = body.worldShapesWithMaterials
-    , force = body.force
-    , torque = Vec3.add body.torque torque
-    , linearDamping = body.linearDamping
-    , angularDamping = body.angularDamping
-    , invMass = body.invMass
-    , invInertia = body.invInertia
-    , invInertiaWorld = body.invInertiaWorld
-    , linearLock = body.linearLock
-    , angularLock = body.angularLock
-    , sleepTime = 0
-    }
+    if torque.x == 0 && torque.y == 0 && torque.z == 0 then
+        body
+
+    else
+        { body | torque = Vec3.add body.torque torque, sleepTime = 0 }
 
 
 applyAngularImpulse : Vec3 -> Body -> Body
 applyAngularImpulse angularImpulse body =
-    let
-        { x, y, z } =
-            angularImpulse
+    if angularImpulse.x == 0 && angularImpulse.y == 0 && angularImpulse.z == 0 then
+        body
 
-        { angularVelocity, invInertiaWorld } =
-            body
-    in
-    { id = body.id
-    , kindInt = body.kindInt
-    , transform3d = body.transform3d
-    , centerOfMassTransform3d = body.centerOfMassTransform3d
-    , velocity = body.velocity
-    , angularVelocity =
-        { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
-        , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
-        , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+    else
+        let
+            { x, y, z } =
+                angularImpulse
+
+            { angularVelocity, invInertiaWorld } =
+                body
+        in
+        { body
+            | angularVelocity =
+                { x = angularVelocity.x + invInertiaWorld.m11 * x + invInertiaWorld.m12 * y + invInertiaWorld.m13 * z
+                , y = angularVelocity.y + invInertiaWorld.m21 * x + invInertiaWorld.m22 * y + invInertiaWorld.m23 * z
+                , z = angularVelocity.z + invInertiaWorld.m31 * x + invInertiaWorld.m32 * y + invInertiaWorld.m33 * z
+                }
+            , sleepTime = 0
         }
-    , mass = body.mass
-    , geometry = body.geometry
-    , worldShapesWithMaterials = body.worldShapesWithMaterials
-    , force = body.force
-    , torque = body.torque
-    , linearDamping = body.linearDamping
-    , angularDamping = body.angularDamping
-    , invMass = body.invMass
-    , invInertia = body.invInertia
-    , invInertiaWorld = body.invInertiaWorld
-    , linearLock = body.linearLock
-    , angularLock = body.angularLock
-    , sleepTime = 0
-    }
 
 
 {-| Replace the body’s locked degrees of freedom. The list fully describes

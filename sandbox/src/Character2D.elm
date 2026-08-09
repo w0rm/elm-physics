@@ -42,6 +42,11 @@ walkSpeed =
     Speed.metersPerSecond 4
 
 
+idleSpeed : Speed
+idleSpeed =
+    Speed.metersPerSecond 0.05
+
+
 maxDriveForce : Force
 maxDriveForce =
     Force.newtons 250
@@ -273,7 +278,11 @@ drivePlayer dtMs right body =
                 Quantity.zero
                 Quantity.zero
     in
-    Physics.applyImpulse impulse (Physics.originPoint body) body
+    if right == 0 && Quantity.lessThan idleSpeed (Quantity.abs currentVx) then
+        body
+
+    else
+        Physics.applyImpulse impulse (Physics.originPoint body) body
 
 
 jumpPlayer : Body -> Body

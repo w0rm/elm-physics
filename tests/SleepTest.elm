@@ -129,6 +129,22 @@ wakesWith name mutate =
                     Expect.fail "box missing from simulation output"
 
 
+staysSleepingWith : String -> (Body -> Body) -> Test
+staysSleepingWith name mutate =
+    test name <|
+        \_ ->
+            let
+                sleeping =
+                    run 150
+                        [ ( 0, floorBody )
+                        , ( 1, unitBox |> Physics.moveTo (Point3d.meters 0 0 0.5) )
+                        ]
+            in
+            lookup 1 sleeping
+                |> Maybe.map (mutate >> Physics.isSleeping)
+                |> Expect.equal (Just True)
+
+
 suite : Test
 suite =
     describe "Body sleeping"
@@ -321,6 +337,22 @@ suite =
                     )
                     (Physics.originPoint body)
                     body
+        , staysSleepingWith "a zero impulse does not wake a sleeping body" <|
+            \body ->
+                Physics.applyImpulse
+                    (Vector3d.xyz Quantity.zero Quantity.zero Quantity.zero)
+                    (Physics.originPoint body)
+                    body
+        , staysSleepingWith "a zero force does not wake a sleeping body" <|
+            \body ->
+                Physics.applyForce
+                    (Vector3d.xyz Quantity.zero Quantity.zero Quantity.zero)
+                    (Physics.originPoint body)
+                    body
+        , staysSleepingWith "a zero torque does not wake a sleeping body" <|
+            Physics.applyTorque (Vector3d.xyz Quantity.zero Quantity.zero Quantity.zero)
+        , staysSleepingWith "a zero angular impulse does not wake a sleeping body" <|
+            Physics.applyAngularImpulse (Vector3d.xyz Quantity.zero Quantity.zero Quantity.zero)
         , wakesWith "an applied torque wakes a sleeping body" <|
             \body ->
                 Physics.applyTorque
