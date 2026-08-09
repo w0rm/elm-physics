@@ -9,6 +9,7 @@ import AngularSpeed
 import Cylinder3d
 import Direction3d
 import Expect
+import Internal.NarrowPhase
 import Length
 import Physics exposing (Body, onEarth)
 import Physics.Material as Material exposing (Material)
@@ -74,7 +75,27 @@ spinOf wanted bodies =
 suite : Test
 suite =
     describe "rolling friction"
-        [ test "a rolling wooden ball slows down" <|
+        [ describe "rolling radius"
+            [ test "uses the round shape's radius against a facetted shape" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> Internal.NarrowPhase.rollingRadius 0.5 0 |> Expect.within (Expect.Absolute 0.000001) 0.5
+                        , \_ -> Internal.NarrowPhase.rollingRadius 0 0.5 |> Expect.within (Expect.Absolute 0.000001) 0.5
+                        ]
+                        ()
+            , test "uses the smaller radius when both shapes are round" <|
+                \_ ->
+                    Expect.all
+                        [ \_ -> Internal.NarrowPhase.rollingRadius 0.5 2 |> Expect.within (Expect.Absolute 0.000001) 0.5
+                        , \_ -> Internal.NarrowPhase.rollingRadius 2 0.5 |> Expect.within (Expect.Absolute 0.000001) 0.5
+                        ]
+                        ()
+            , test "disables rolling when neither shape has a rolling radius" <|
+                \_ ->
+                    Internal.NarrowPhase.rollingRadius 0 0
+                        |> Expect.within (Expect.Absolute 0.000001) 0
+            ]
+        , test "a rolling wooden ball slows down" <|
             \_ ->
                 run 120 [ ( 0, floor Material.wood ), ( 1, rollingBall Material.wood ) ]
                     |> speedOf 1

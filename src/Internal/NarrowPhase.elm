@@ -1,4 +1,4 @@
-module Internal.NarrowPhase exposing (getContacts)
+module Internal.NarrowPhase exposing (getContacts, rollingRadius)
 
 import Collision.CapsuleCapsule
 import Collision.CapsuleConvex
@@ -75,7 +75,7 @@ addShapeContacts shapeKey ( shape1, mat1 ) ( shape2, mat2 ) contacts =
         (\contact acc ->
             { bounciness = bounciness
             , friction = friction
-            , rollingResistance = rollingScale * friction * maxFloat (roundRadius shape1) (roundRadius shape2)
+            , rollingResistance = rollingScale * friction * rollingRadius (roundRadius shape1) (roundRadius shape2)
             , contact = contact
             }
                 :: acc
@@ -111,13 +111,23 @@ rollingScale =
     0.05
 
 
-maxFloat : Float -> Float -> Float
-maxFloat a b =
-    if a - b > 0 then
-        a
+{-| Use the only round radius when one shape is facetted, and the smaller
+contact scale when both shapes are round. A zero radius means that the shape
+does not supply a rolling radius.
+-}
+rollingRadius : Float -> Float -> Float
+rollingRadius radius1 radius2 =
+    if radius1 <= 0 then
+        radius2
+
+    else if radius2 <= 0 then
+        radius1
+
+    else if radius1 - radius2 < 0 then
+        radius1
 
     else
-        b
+        radius2
 
 
 addRawShapeContacts : Int -> Shape WorldCoordinates -> Shape WorldCoordinates -> List Contact -> List Contact
