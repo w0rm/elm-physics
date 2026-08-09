@@ -19462,9 +19462,9 @@ var $author$project$Internal$Material$combineFriction = F2(
 	function (f1, f2) {
 		return $elm$core$Basics$sqrt(f1 * f2);
 	});
-var $author$project$Internal$NarrowPhase$maxFloat = F2(
-	function (a, b) {
-		return ((a - b) > 0) ? a : b;
+var $author$project$Internal$NarrowPhase$rollingRadius = F2(
+	function (radius1, radius2) {
+		return (radius1 <= 0) ? radius2 : ((radius2 <= 0) ? radius1 : (((radius1 - radius2) < 0) ? radius1 : radius2));
 	});
 var $author$project$Internal$NarrowPhase$rollingScale = 0.05;
 var $author$project$Internal$NarrowPhase$roundRadius = function (shape) {
@@ -19499,7 +19499,7 @@ var $author$project$Internal$NarrowPhase$addShapeContacts = F4(
 							h2: contact,
 							fx: friction,
 							iY: ($author$project$Internal$NarrowPhase$rollingScale * friction) * A2(
-								$author$project$Internal$NarrowPhase$maxFloat,
+								$author$project$Internal$NarrowPhase$rollingRadius,
 								$author$project$Internal$NarrowPhase$roundRadius(shape1),
 								$author$project$Internal$NarrowPhase$roundRadius(shape2))
 						},
@@ -21834,40 +21834,44 @@ var $author$project$Physics$frame = function (_v0) {
 };
 var $author$project$Internal$Body$applyImpulse = F3(
 	function (impulse, point, body) {
-		var relativePoint = A2(
-			$author$project$Internal$Vector3$sub,
-			point,
-			$author$project$Internal$Transform3d$originPoint(body.hx));
-		var _v0 = A2($author$project$Internal$Vector3$cross, relativePoint, impulse);
-		var z = _v0.u;
-		var y = _v0.t;
-		var x = _v0.s;
-		var _v1 = body;
-		var invMass = _v1.fQ;
-		var velocity = _v1.hE;
-		var invInertiaWorld = _v1.fP;
-		var angularVelocity = _v1.e2;
-		return {
-			e0: body.e0,
-			e1: body.e1,
-			e2: {s: ((angularVelocity.s + (invInertiaWorld.f3 * x)) + (invInertiaWorld.f4 * y)) + (invInertiaWorld.f5 * z), t: ((angularVelocity.t + (invInertiaWorld.f7 * x)) + (invInertiaWorld.f8 * y)) + (invInertiaWorld.f9 * z), u: ((angularVelocity.u + (invInertiaWorld.gb * x)) + (invInertiaWorld.gc * y)) + (invInertiaWorld.gd * z)},
-			fa: body.fa,
-			fs: body.fs,
-			fF: body.fF,
-			bs: body.bs,
-			fO: body.fO,
-			fP: body.fP,
-			fQ: body.fQ,
-			fU: body.fU,
-			f1: body.f1,
-			f2: body.f2,
-			gj: body.gj,
-			hi: 0,
-			ht: body.ht,
-			hx: body.hx,
-			hE: {s: velocity.s + (invMass * impulse.s), t: velocity.t + (invMass * impulse.t), u: velocity.u + (invMass * impulse.u)},
-			hH: body.hH
-		};
+		if ((!impulse.s) && ((!impulse.t) && (!impulse.u))) {
+			return body;
+		} else {
+			var relativePoint = A2(
+				$author$project$Internal$Vector3$sub,
+				point,
+				$author$project$Internal$Transform3d$originPoint(body.hx));
+			var _v0 = A2($author$project$Internal$Vector3$cross, relativePoint, impulse);
+			var z = _v0.u;
+			var y = _v0.t;
+			var x = _v0.s;
+			var _v1 = body;
+			var invMass = _v1.fQ;
+			var velocity = _v1.hE;
+			var invInertiaWorld = _v1.fP;
+			var angularVelocity = _v1.e2;
+			return {
+				e0: body.e0,
+				e1: body.e1,
+				e2: {s: ((angularVelocity.s + (invInertiaWorld.f3 * x)) + (invInertiaWorld.f4 * y)) + (invInertiaWorld.f5 * z), t: ((angularVelocity.t + (invInertiaWorld.f7 * x)) + (invInertiaWorld.f8 * y)) + (invInertiaWorld.f9 * z), u: ((angularVelocity.u + (invInertiaWorld.gb * x)) + (invInertiaWorld.gc * y)) + (invInertiaWorld.gd * z)},
+				fa: body.fa,
+				fs: body.fs,
+				fF: body.fF,
+				bs: body.bs,
+				fO: body.fO,
+				fP: body.fP,
+				fQ: body.fQ,
+				fU: body.fU,
+				f1: body.f1,
+				f2: body.f2,
+				gj: body.gj,
+				hi: 0,
+				ht: body.ht,
+				hx: body.hx,
+				hE: {s: velocity.s + (invMass * impulse.s), t: velocity.t + (invMass * impulse.t), u: velocity.u + (invMass * impulse.u)},
+				hH: body.hH
+			};
+		}
 	});
 var $author$project$Physics$applyImpulse = F3(
 	function (impulse, position, original) {

@@ -18702,9 +18702,9 @@ var $author$project$Internal$Material$combineFriction = F2(
 	function (f1, f2) {
 		return $elm$core$Basics$sqrt(f1 * f2);
 	});
-var $author$project$Internal$NarrowPhase$maxFloat = F2(
-	function (a, b) {
-		return ((a - b) > 0) ? a : b;
+var $author$project$Internal$NarrowPhase$rollingRadius = F2(
+	function (radius1, radius2) {
+		return (radius1 <= 0) ? radius2 : ((radius2 <= 0) ? radius1 : (((radius1 - radius2) < 0) ? radius1 : radius2));
 	});
 var $author$project$Internal$NarrowPhase$rollingScale = 0.05;
 var $author$project$Internal$NarrowPhase$roundRadius = function (shape) {
@@ -18739,7 +18739,7 @@ var $author$project$Internal$NarrowPhase$addShapeContacts = F4(
 							hw: contact,
 							fd: friction,
 							im: ($author$project$Internal$NarrowPhase$rollingScale * friction) * A2(
-								$author$project$Internal$NarrowPhase$maxFloat,
+								$author$project$Internal$NarrowPhase$rollingRadius,
 								$author$project$Internal$NarrowPhase$roundRadius(shape1),
 								$author$project$Internal$NarrowPhase$roundRadius(shape2))
 						},
